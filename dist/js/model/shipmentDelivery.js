@@ -60,6 +60,22 @@ function createShipmentObject(orderId, parsed) {
     };
 };
 
+function shipmentRequestIdentity(orderId, payload) {
+    const storageKey = 'shipment-confirm-request:' + orderId + ':' +
+        JSON.stringify({ oapp: payload.oapp, orej: payload.orej, ptype: payload.utype });
+    let requestKey = '';
+    try {
+        requestKey = sessionStorage.getItem(storageKey) || '';
+        if (!requestKey) {
+            requestKey = 'SHIP_CONFIRM:' + Date.now() + ':' + Math.random().toString(36).slice(2, 14);
+            sessionStorage.setItem(storageKey, requestKey);
+        }
+    } catch (error) {
+        requestKey = 'SHIP_CONFIRM:' + Date.now() + ':' + Math.random().toString(36).slice(2, 14);
+    }
+    return { requestKey, storageKey };
+}
+
 export function ShipmentDelivery(orderId) {
     Swal.fire({
         title: " ",
@@ -106,8 +122,10 @@ export function ShipmentDelivery(orderId) {
                 confirmButtonText: 'حفظ',
                 cancelButtonText: 'إلغاء',
                 preConfirm: () => {
+                    const requestIdentity = shipmentRequestIdentity(result.value.odata, result.value);
                     return {
                         CONTROL: "shipDelivered",
+                        request_key: requestIdentity.requestKey,
                         odata: result.value.odata,
                         oshipp: {
                             oapp: result.value.oapp,
@@ -134,11 +152,17 @@ export function ShipmentDelivery(orderId) {
                         }).then(() => {
                             let res = sendRequest(urlship, finalData);
                             responseMsg(res);
+                            if (res && res[0] === 'success') {
+                                try { sessionStorage.removeItem(shipmentRequestIdentity(result.value.odata, result.value).storageKey); } catch (error) {}
+                            }
                             table.ajax.reload(null, false).on('draw', custodyTotal);
                         });
                     } else {
                         let res = sendRequest(urlship, finalData);
                         responseMsg(res);
+                        if (res && res[0] === 'success') {
+                            try { sessionStorage.removeItem(shipmentRequestIdentity(result.value.odata, result.value).storageKey); } catch (error) {}
+                        }
                         table.ajax.reload(null, false).on('draw', custodyTotal);
                     }
                 }
