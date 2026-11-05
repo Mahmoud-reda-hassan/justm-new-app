@@ -548,7 +548,7 @@ CREATE TABLE IF NOT EXISTS `order_exists` (
   `TRANSFER` tinyint(1) NOT NULL DEFAULT 0,
   `USER_STORE` int(1) NOT NULL DEFAULT 0 COMMENT 'اذا كانت القيمه true يخصم جميع المنتجات من اصل اجمالى المخزون',
   `ADMIN_STORE` int(1) NOT NULL DEFAULT 0 COMMENT 'اذا كانت القيمه true يخصم جميع المنتجات من اصل اجمالى المخزون',
-  `FINANCE` tinyint(1) NOT NULL DEFAULT 0,
+  `FINANCE` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'اضافة اوامر البيع الى كشف حساب العميل',
   `COLOR_CLASS` varchar(30) NOT NULL,
   PRIMARY KEY (`EXISTS_ID`),
   UNIQUE KEY `EXISTS_NAME` (`EXISTS_NAME`),
@@ -712,7 +712,7 @@ CREATE TABLE IF NOT EXISTS `orders_log` (
 CREATE TABLE IF NOT EXISTS `inventory_movement` (
   `IM_ID` bigint(20) NOT NULL AUTO_INCREMENT,
   `CREATED_DATE` timestamp NOT NULL DEFAULT current_timestamp(),
-  `IM_MOVE_TYPE` enum('RECEIVING','SHIPPING','SALES','TRANSFER','SETTLEMENT','REFUND','RETURN_SHIPP','RETURN_SALES','REFUNDPURCHISES') NOT NULL,
+  `IM_MOVE_TYPE` enum('RECEIVING','SHIPPING','SALES','TRANSFER','SETTLEMENT','REFUND','RETURN_SHIPP','RETURN_SALES','RETURN_SHIPP_SALSE','REFUNDPURCHISES') NOT NULL,
   `IM_USER` bigint(20) NOT NULL,
   `IM_BRANCH` int(11) NOT NULL,
   `STO_ID` int(11) NOT NULL,
@@ -1847,6 +1847,9 @@ CREATE TABLE IF NOT EXISTS `accounts` (
   `system_account` TINYINT(1) NOT NULL DEFAULT 0,
   `is_system_created` TINYINT(1) NOT NULL DEFAULT 0,
   `description` VARCHAR(500) DEFAULT NULL,
+  `note` TEXT DEFAULT NULL,
+  `created_by` INT(11) DEFAULT NULL,
+  `updated_by` INT(11) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -1888,6 +1891,7 @@ CREATE TABLE IF NOT EXISTS `cash_boxes` (
   `branch_id` INT NOT NULL,
   `account_id` BIGINT UNSIGNED NOT NULL,
   `box_name` VARCHAR(100) NOT NULL,
+  `name` VARCHAR(150) DEFAULT NULL,
   `is_active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1939,6 +1943,8 @@ CREATE TABLE IF NOT EXISTS `journal_entry_details` (
   `reference_id` BIGINT UNSIGNED DEFAULT NULL,
   `debit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
   `credit` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+  `currency_id` INT(11) DEFAULT NULL,
+  `exchange_rate` DECIMAL(18,8) NOT NULL DEFAULT 1.00000000,
   `note` VARCHAR(500) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -2154,4 +2160,92 @@ CREATE TABLE IF NOT EXISTS `supplier_payment_allocations` (
   KEY `idx_supplier_payment_transaction` (`financial_transaction_id`),
   KEY `idx_supplier_payment_supplier` (`supplier_id`,`created_at`),
   KEY `idx_supplier_payment_order` (`purchase_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+-- =========================================================
+-- Tables present in the latest cptest structure backup (2026-11-05)
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS `banks` (
+  `id` int(11) NOT NULL,
+  `account_id` int(11) NOT NULL,
+  `bank_name` varchar(150) DEFAULT NULL,
+  `account_number` varchar(100) DEFAULT NULL,
+  `iban` varchar(100) DEFAULT NULL,
+  `swift_code` varchar(50) DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS `cost_centers` (
+  `id` int(11) NOT NULL,
+  `parent_id` int(11) DEFAULT NULL,
+  `code` varchar(20) DEFAULT NULL,
+  `name` varchar(150) NOT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS `crm_order_logs` (
+  `id` int(11) NOT NULL,
+  `ORDER_ID` bigint(20) NOT NULL,
+  `EMPLOYEE_ID` int(11) NOT NULL,
+  `employee_type` enum('admin','delivery','marketing','other') DEFAULT NULL,
+  `ACTION_TYPE` enum('call','whatsapp','sms','note','status_change') DEFAULT NULL,
+  `RESULT` enum('confirmed','editaddress','postponement','no_answer','phone_closed','call_later','cancelled','wrong_number','recall') DEFAULT NULL,
+  `call_duration_sec` int(11) DEFAULT NULL,
+  `NEXT_FOLLOW_UP` datetime DEFAULT NULL,
+  `NOTES` text DEFAULT NULL,
+  `CREATED_AT` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS `currencies` (
+  `id` int(11) NOT NULL,
+  `code` varchar(10) DEFAULT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `symbol` varchar(10) DEFAULT NULL,
+  `exchange_rate` decimal(18,8) DEFAULT 1.00000000,
+  `is_default` tinyint(1) DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS `inventory_counts` (
+  `COUNT_ID` bigint(20) NOT NULL,
+  `COUNT_CODE` varchar(30) NOT NULL,
+  `BRANCH_ID` int(11) NOT NULL,
+  `STORE_ID` int(11) NOT NULL,
+  `COUNT_DATE` datetime NOT NULL,
+  `STATUS` tinyint(4) NOT NULL DEFAULT 0 COMMENT '\n0=DRAFT\n1=COUNTING\n2=APPROVED\n3=CANCELLED',
+  `NOTE` text DEFAULT NULL,
+  `INVENTORY_MOVEMENT_ID` bigint(20) DEFAULT NULL,
+  `JOURNAL_ENTRY_ID` bigint(20) DEFAULT NULL,
+  `CREATED_BY` bigint(20) NOT NULL,
+  `CREATED_AT` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UPDATED_BY` bigint(20) DEFAULT NULL,
+  `UPDATED_AT` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
+  `APPROVED_BY` bigint(20) DEFAULT NULL,
+  `APPROVED_AT` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS `inventory_count_details` (
+  `ID` bigint(20) NOT NULL,
+  `COUNT_ID` bigint(20) NOT NULL,
+  `PRO_CODE` varchar(50) NOT NULL,
+  `SYSTEM_QTY` decimal(18,4) NOT NULL,
+  `ACTUAL_QTY` decimal(18,4) DEFAULT NULL,
+  `DIFFERENCE_QTY` decimal(18,4) DEFAULT 0.0000,
+  `UNIT_COST` decimal(18,4) DEFAULT 0.0000,
+  `DIFFERENCE_COST` decimal(18,4) DEFAULT 0.0000,
+  `NOTE` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS `reasons_data` (
+  `ID` int(10) UNSIGNED NOT NULL,
+  `REASON` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS `reasons_for_product_rejection` (
+  `ID` bigint(20) UNSIGNED NOT NULL,
+  `ORDER_ID` bigint(20) UNSIGNED NOT NULL,
+  `PRO_CODE` varchar(100) NOT NULL,
+  `REASON_ID` int(11) NOT NULL,
+  `COMMENT` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
