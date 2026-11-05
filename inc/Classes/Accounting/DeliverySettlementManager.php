@@ -667,9 +667,9 @@ final class DeliverySettlementManager
             $insert = $this->db->prepare("INSERT INTO delivery_company_settlements
                 (settlement_no, delivery_user_id, branch_id, payment_method_id, settlement_date,
                  commission_mode, collected_gross_amount, commission_offset_amount, cash_received_amount,
-                 status, note, created_by)
-                VALUES (NULL, ?, ?, ?, NOW(), ?, ?, ?, ?, 'DRAFT', ?, ?)");
-            $insert->execute([$deliveryId, $branchId, $paymentMethodId, $mode, $amount, $commissionOffset, $cashReceived, trim($note), $actorId]);
+                 status, note, created_by, request_key, request_hash)
+                VALUES (NULL, ?, ?, ?, NOW(), ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?)");
+            $insert->execute([$deliveryId, $branchId, $paymentMethodId, $mode, $amount, $commissionOffset, $cashReceived, trim($note), $actorId, $requestKey, $requestHash]);
             $settlementId = (int)$this->db->lastInsertId();
             $settlementNo = 'DSET-' . date('Y') . '-' . str_pad((string)$settlementId, 7, '0', STR_PAD_LEFT);
             $this->db->prepare('UPDATE delivery_company_settlements SET settlement_no = ? WHERE id = ?')->execute([$settlementNo, $settlementId]);
