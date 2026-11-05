@@ -87,7 +87,7 @@ final class DeliveryRejectedShippingCollectionManager
             // مفتاح الطلب يمنع تكرار تحصيل رسوم الشحن في محاولات الرفض اللاحقة.
             $existingStmt = $this->db->prepare(
                 "SELECT id, delivery_user_id, branch_id, shipping_amount_snapshot,
-                        accounting_event_id, journal_entry_id, status
+                        accounting_event_id, journal_entry_id, delivery_collection_id, status
                  FROM delivery_rejected_shipping_collections
                  WHERE order_id = ? LIMIT 1 FOR UPDATE"
             );
@@ -99,6 +99,7 @@ final class DeliveryRejectedShippingCollectionManager
                     || (int)$existing['branch_id'] !== $orderBranchId
                     || (int)$existing['accounting_event_id'] <= 0
                     || (int)$existing['journal_entry_id'] <= 0
+                    || (int)$existing['delivery_collection_id'] <= 0
                 ) {
                     throw new RuntimeException('سجل تحصيل رسوم الشحن السابق غير مكتمل أو غير متسق؛ يلزم فحصه.');
                 }
