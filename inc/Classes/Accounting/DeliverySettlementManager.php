@@ -560,6 +560,68 @@ final class DeliverySettlementManager
         ];
     }
 
+    /** التحقق من مفتاح منع تكرار الطلب والبصمة التي تمثل بياناته الأصلية. */
+    private function validateIdempotencyRequest(string $requestKey, string $requestHash): void
+    {
+        if (!preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', trim($requestKey))) {
+            throw new InvalidArgumentException('مفتاح منع التكرار مطلوب ويجب أن يكون من 8 إلى 64 حرفًا آمنًا.');
+        }
+        if (!preg_match('/^[a-f0-9]{64}$/D', $requestHash)) {
+            throw new InvalidArgumentException('بصمة طلب العملية غير صالحة.');
+        }
+    }
+
+    /** يعيد نتيجة التسوية السابقة عند إعادة نفس الطلب، ويرفض استخدام المفتاح ببيانات مختلفة. */
+    private function findExistingSettlement(string $requestKey, string $requestHash): ?array
+    {
+        $stmt = $this->db->prepare("SELECT id, settlement_no, journal_id, commission_mode,
+                collected_gross_amount, commission_offset_amount, cash_received_amount, status, request_hash
+            FROM delivery_company_settlements WHERE request_key = ? LIMIT 1 FOR UPDATE");
+        $stmt->execute([$requestKey]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return null;
+        if (!hash_equals((string)$row['request_hash'], $requestHash)) {
+            throw new RuntimeException('مفتاح التسوية مستخدم بالفعل مع بيانات مختلفة.');
+        }
+        if ($row['status'] !== 'POSTED' || empty($row['journal_id'])) {
+            throw new RuntimeException('طلب التسوية السابق غير مكتمل؛ يلزم فحص المستند قبل إعادة المحاولة.');
+        }
+        $links = $this->db->prepare("SELECT allocation_id, collection_id,
+                applied_gross_amount AS gross, applied_commission_amount AS commission
+            FROM delivery_settlement_collection_links WHERE settlement_id = ? ORDER BY id");
+        $links->execute([(int)$row['id']]);
+        return [
+            'success' => true, 'already_posted' => true,
+            'settlement_id' => (int)$row['id'], 'settlement_no' => $row['settlement_no'],
+            'journal_id' => (int)$row['journal_id'], 'commission_mode' => $row['commission_mode'],
+            'gross_settled' => (float)$row['collected_gross_amount'],
+            'commission_offset' => (float)$row['commission_offset_amount'],
+            'cash_received' => (float)$row['cash_received_amount'],
+            'allocations' => $links->fetchAll(PDO::FETCH_ASSOC),
+        ];
+    }
+
+    /** يعيد نتيجة صرف العمولة السابقة عند إعادة نفس الطلب. */
+    private function findExistingCommissionPayment(string $requestKey, string $requestHash): ?array
+    {
+        $stmt = $this->db->prepare("SELECT id, payment_no, journal_id, amount, status, request_hash
+            FROM delivery_commission_payments WHERE request_key = ? LIMIT 1 FOR UPDATE");
+        $stmt->execute([$requestKey]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return null;
+        if (!hash_equals((string)$row['request_hash'], $requestHash)) {
+            throw new RuntimeException('مفتاح صرف العمولة مستخدم بالفعل مع بيانات مختلفة.');
+        }
+        if ($row['status'] !== 'POSTED' || empty($row['journal_id'])) {
+            throw new RuntimeException('طلب صرف العمولة السابق غير مكتمل؛ يلزم فحص المستند قبل إعادة المحاولة.');
+        }
+        return [
+            'success' => true, 'already_posted' => true,
+            'payment_id' => (int)$row['id'], 'payment_no' => $row['payment_no'],
+            'journal_id' => (int)$row['journal_id'], 'amount' => (float)$row['amount'],
+        ];
+    }
+
     /** استلام كامل الأرصدة المفتوحة للأوامر المحددة يدويًا. */
     public function settleSelectedOrders(
         int $deliveryId,
@@ -567,14 +629,19 @@ final class DeliverySettlementManager
         int $paymentMethodId,
         array $orderIds,
         ?string $requestedMode = null,
-        string $note = ''
+        string $note = '',
+        string $requestKey = '',
+        string $requestHash = ''
     ): array {
+        $this->validateIdempotencyRequest($requestKey, $requestHash);
+        $existing = $this->findExistingSettlement($requestKey, $requestHash);
+        if ($existing !== null) return $existing;
         $preview = $this->previewSelectedOrders($deliveryId, $orderIds);
         if ((float)$preview['total_amount'] <= 0) {
             throw new RuntimeException('الأوامر المحددة ليس عليها مبالغ مفتوحة للتسوية.');
         }
         return $this->settle($deliveryId, $branchId, $paymentMethodId,
-            (float)$preview['total_amount'], $orderIds, $requestedMode, $note);
+            (float)$preview['total_amount'], $orderIds, $requestedMode, $note, $requestKey, $requestHash);
     }
 
     /**
@@ -589,8 +656,11 @@ final class DeliverySettlementManager
         float $amount,
         array $orderIds = [],
         ?string $requestedMode = null,
-        string $note = ''
+        string $note = '',
+        string $requestKey = '',
+        string $requestHash = ''
     ): array {
+        $this->validateIdempotencyRequest($requestKey, $requestHash);
         if ($deliveryId <= 0 || $branchId <= 0 || $paymentMethodId <= 0) {
             throw new InvalidArgumentException('المندوب والفرع وطريقة الدفع بيانات إلزامية.');
         }
@@ -604,6 +674,11 @@ final class DeliverySettlementManager
         if ($ownsTransaction) $this->db->beginTransaction();
         try {
             $settings = $this->getSettings(true);
+            $existingSettlement = $this->findExistingSettlement($requestKey, $requestHash);
+            if ($existingSettlement !== null) {
+                if ($ownsTransaction) $this->db->commit();
+                return $existingSettlement;
+            }
             $configuredMode = $settings['commission_settlement_mode'];
             if ($configuredMode === 'USER_CHOICE') {
                 $mode = strtoupper((string)$requestedMode);
@@ -743,8 +818,11 @@ final class DeliverySettlementManager
         int $branchId,
         int $paymentMethodId,
         float $amount,
-        string $note = ''
+        string $note = '',
+        string $requestKey = '',
+        string $requestHash = ''
     ): array {
+        $this->validateIdempotencyRequest($requestKey, $requestHash);
         if ($deliveryId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || !is_finite($amount) || $amount <= 0) {
             throw new InvalidArgumentException('المندوب والفرع وطريقة الدفع ومبلغ العمولة بيانات إلزامية.');
         }
@@ -754,6 +832,11 @@ final class DeliverySettlementManager
         if ($ownsTransaction) $this->db->beginTransaction();
         try {
             $settings = $this->getSettings(true);
+            $existingPayment = $this->findExistingCommissionPayment($requestKey, $requestHash);
+            if ($existingPayment !== null) {
+                if ($ownsTransaction) $this->db->commit();
+                return $existingPayment;
+            }
             $payableAccountId = (int)$settings['courier_commission_payable_account_id'];
             $cashAccountId = $this->accounts->transactionAccount($paymentMethodId, $branchId);
 
@@ -769,9 +852,9 @@ final class DeliverySettlementManager
 
             $insert = $this->db->prepare("INSERT INTO delivery_commission_payments
                 (payment_no, delivery_user_id, branch_id, payment_method_id, payment_date,
-                 amount, status, note, created_by)
-                VALUES (NULL, ?, ?, ?, NOW(), ?, 'DRAFT', ?, ?)");
-            $insert->execute([$deliveryId, $branchId, $paymentMethodId, $amount, trim($note), $actorId]);
+                 amount, status, note, created_by, request_key, request_hash)
+                VALUES (NULL, ?, ?, ?, NOW(), ?, 'DRAFT', ?, ?, ?, ?)");
+            $insert->execute([$deliveryId, $branchId, $paymentMethodId, $amount, trim($note), $actorId, $requestKey, $requestHash]);
             $paymentId = (int)$this->db->lastInsertId();
             $paymentNo = 'DCP-' . date('Y') . '-' . str_pad((string)$paymentId, 7, '0', STR_PAD_LEFT);
             $this->db->prepare('UPDATE delivery_commission_payments SET payment_no = ? WHERE id = ?')->execute([$paymentNo, $paymentId]);
