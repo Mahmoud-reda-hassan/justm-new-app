@@ -1,7 +1,6 @@
 -- Just-M database installer, assembled from the provided project archive.
 -- Target: MariaDB 10.5+ / MySQL compatible mode. Review the seed data before production.
-CREATE DATABASE IF NOT EXISTS `cptest` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `cptest`;
+-- اختر قاعدة البيانات المستهدفة من phpMyAdmin قبل تشغيل هذا الملف.
 
 -- phpMyAdmin SQL Dump
 -- version 5.2.2
