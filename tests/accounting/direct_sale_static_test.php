@@ -72,8 +72,8 @@ try {
     assertContainsText($directSale, "'event_type' => 'SALE_RECOGNIZED'", 'نوع حدث البيع غير صحيح.');
     assertContainsText($directSale, "'source_type' => 'ORDER'", 'مصدر حدث البيع غير صحيح.');
     assertContainsText($directSale, 'DIRECT_SALE:ORDER:', 'مفتاح منع التكرار الثابت غير موجود.');
-    assertContainsText($directSale, "'debit' => $productsAmount", 'مديونية العميل ليست بقيمة المنتجات فقط.');
-    assertContainsText($directSale, "'credit' => $productsAmount", 'إيراد المبيعات ليس بقيمة المنتجات فقط.');
+    assertContainsText($directSale, "'debit' => \$productsAmount", 'مديونية العميل ليست بقيمة المنتجات فقط.');
+    assertContainsText($directSale, "'credit' => \$productsAmount", 'إيراد المبيعات ليس بقيمة المنتجات فقط.');
     assertContainsText($directSale, 'FOR UPDATE', 'لا يوجد قفل لرأس الطلب وبنوده قبل الترحيل.');
     assertNotContainsText($directSale, 'SHIPPING_VAL', 'تم إدخال قيمة الشحن في مسار البيع المباشر.');
     assertNotContainsText($directSale, 'shippingRevenue', 'تم إدخال حساب إيراد الشحن في البيع المباشر.');
