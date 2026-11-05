@@ -1214,6 +1214,27 @@ class shipment_BE {
 	* @throws PDOException في حالة حدوث خطأ في قاعدة البيانات
 	*/ 
 	private function confirmShipmentDelivery(){
+	    // تطبيع حمولة الواجهة الحالية (oapp) إلى بنية confirm_staging المتوقعة.
+	    // الواجهة ترسل الكمية المسلمة الإجمالية لكل منتج، وليس كمية الحركة الإضافية.
+	    if (!isset($this->shipmentobj['ship']) && isset($this->shipmentobj['oapp']) && is_array($this->shipmentobj['oapp'])) {
+	        $orderId = (int)$this->orderobj;
+	        $deliveryId = (int)($this->delivery_id ?: $this->user_action);
+	        $normalizedItems = [];
+	        foreach ($this->shipmentobj['oapp'] as $productCode => $productData) {
+	            if (!is_array($productData) || !array_key_exists('appQty', $productData)) {
+	                return ['error', 'خطأ', 'بيانات كمية المنتج غير صالحة.', []];
+	            }
+	            $normalizedItems[] = [
+	                'ORDER_ID' => $orderId,
+	                'PRO_CODE' => (string)$productCode,
+	                'DELIVERY_ID' => $deliveryId,
+	                'TYPE' => 'SELSE',
+	                'productData' => ['appQty' => $productData['appQty'], 'recqty' => null],
+	            ];
+	        }
+	        $this->shipmentobj['ship'] = $normalizedItems;
+	    }
+
 	    // التحقق من البيانات المدخلة
 	    if (empty($this->shipmentobj['ship']) || !is_array($this->shipmentobj['ship'])) {
 	        return ['error', 'خطأ', 'بيانات الشحنة غير صالحة',[]];
