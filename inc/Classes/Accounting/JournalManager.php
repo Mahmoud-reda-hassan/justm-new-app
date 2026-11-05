@@ -381,6 +381,16 @@ class JournalManager{
 	        }
 
 	        $reversalId = $this->post();
+
+	        $markOriginal = $this->db->prepare(
+	            "UPDATE journal_entries SET status = 'REVERSED'
+	             WHERE id = ? AND status = 'POSTED'"
+	        );
+	        $markOriginal->execute([$journalId]);
+	        if ($markOriginal->rowCount() !== 1) {
+	            throw new Exception("Original journal entry status changed during reversal.");
+	        }
+
 	        if ($ownsTransaction && $this->db->inTransaction()) {
 	            $this->db->commit();
 	        }
