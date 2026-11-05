@@ -77,15 +77,25 @@ final class DeliveryAttemptCommissionManager
                 continue;
             }
 
-            $existingStmt = $this->db->prepare("SELECT status, order_id, delivery_user_id
+            $existingStmt = $this->db->prepare("SELECT status, order_id, delivery_user_id, branch_id,
+                    commission_amount, accounting_event_id, journal_entry_id
                 FROM delivery_attempt_commissions
                 WHERE shipmov_id = ? LIMIT 1 FOR UPDATE");
             $existingStmt->execute([$shipMovementId]);
             $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
             if ($existing) {
-                if (!in_array($existing['status'], ['POSTED', 'NO_COMMISSION'], true)
+                $existingIsPosted = $existing['status'] === 'POSTED'
+                    && (float)$existing['commission_amount'] > 0
+                    && (int)$existing['accounting_event_id'] > 0
+                    && (int)$existing['journal_entry_id'] > 0;
+                $existingHasNoCommission = $existing['status'] === 'NO_COMMISSION'
+                    && abs((float)$existing['commission_amount']) < 0.001
+                    && empty($existing['accounting_event_id'])
+                    && empty($existing['journal_entry_id']);
+                if ((!$existingIsPosted && !$existingHasNoCommission)
                     || (int)$existing['order_id'] !== $orderId
-                    || (int)$existing['delivery_user_id'] !== $deliveryId) {
+                    || (int)$existing['delivery_user_id'] !== $deliveryId
+                    || (int)$existing['branch_id'] !== $expectedBranchId) {
                     throw new RuntimeException('سجل عمولة محاولة الرفض السابق غير مكتمل أو غير متسق؛ يلزم فحصه.');
                 }
                 $result['already_recorded']++;
