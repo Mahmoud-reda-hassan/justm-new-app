@@ -134,9 +134,7 @@ function shipmentRequestIdentity(orderId, payload) {
         JSON.stringify({
             oapp: payload.oapp,
             orej: payload.orej,
-            ptype: payload.utype,
-            shipping_amount: payload.shipping_amount ?? null,
-            customer_paid_shipping: payload.customer_paid_shipping ?? null
+            ptype: payload.utype
         });
     let requestKey = '';
     try {
