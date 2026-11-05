@@ -57,9 +57,16 @@ function parseShipmentTable() {
 
     document.querySelectorAll(".table-swel tbody tr").forEach(tr => {
         let code = tr.dataset.code;
-        let dQty = parseFloat(tr.querySelector(".default-Qty").innerText);
-        let aQty = parseFloat(tr.querySelector(".approved-Qty").innerText);
+        const defaultText = tr.querySelector(".default-Qty").innerText.trim();
+        const approvedText = tr.querySelector(".approved-Qty").innerText.trim();
+        let dQty = Number(defaultText);
+        let aQty = Number(approvedText);
         let proName = tr.querySelector(".proname").innerText;
+
+        if (!defaultText || !approvedText || !Number.isFinite(dQty) || !Number.isFinite(aQty)) {
+            err++;
+            return;
+        }
 
         qtyDef += dQty;
         qtyApp += aQty;
