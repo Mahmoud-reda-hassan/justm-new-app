@@ -148,3 +148,9 @@
 - تمت إضافة مفتاح ثابت لمنع تكرار حدث البيع لكل طلب، مع التحقق من تطابق لقطة بيانات الطلب قبل إنشاء القيد.
 - لا يزال البيع عبر الشحن والتحصيل والمقدمات خارج التحويل.
 - لم يتم تشغيل PHP lint أو DB import أو runtime tests أو deploy.
+
+### اختبارات البيع المباشر الآلية — 2026-11-05
+- أضيفت اختبارات ثابتة في `tests/accounting/direct_sale_static_test.php` وWorkflow في `.github/workflows/accounting-php-validation.yml`.
+- نجح فحص PHP syntax واختبارات قواعد البيع المباشر على PHP 8.0 و8.4 في GitHub Actions.
+- شملت الاختبارات ملفات AccountingEvents وFinancialEventManager وJournalManager وAccountSettings، وقاعدة عدم إدخال الشحن في البيع المباشر.
+- لم يتم بعد اختبار قاعدة MariaDB فعلية أو سيناريوهات التزامن/التكرار على قاعدة بيانات؛ يجب إتمامها قبل اعتماد التشغيل الإنتاجي.
