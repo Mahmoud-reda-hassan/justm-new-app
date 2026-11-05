@@ -1336,9 +1336,6 @@ class shipment_BE {
                     $allItemsRejected = false;
                 }
             }
-            if ($allItemsRejected && !$customerPaidShippingProvided) {
-                throw new InvalidArgumentException('يجب تحديد ما إذا كان العميل دفع رسوم الشحن عند رفض الطلب بالكامل.');
-            }
             if (!$allItemsRejected && $customerPaidShipping === true) {
                 throw new InvalidArgumentException('لا يمكن تسجيل تحصيل رسوم رفض التوصيل إلا عند رفض الطلب بالكامل.');
             }
@@ -1420,6 +1417,12 @@ class shipment_BE {
             $lockedOrder = $orderMetaLock->fetch(PDO::FETCH_ASSOC);
             if (!$lockedOrder || (int)$lockedOrder['BRANCH_ID'] !== (int)$this->branch_id) {
                 throw new RuntimeException('الطلب غير موجود أو لا يتبع الفرع الحالي.');
+            }
+            if ($allItemsRejected && (int)$lockedOrder['ORDER_TYPE_ID'] !== 5 && !$customerPaidShippingProvided) {
+                throw new InvalidArgumentException('يجب تحديد ما إذا كان العميل دفع رسوم الشحن عند رفض الطلب بالكامل.');
+            }
+            if ((int)$lockedOrder['ORDER_TYPE_ID'] === 5 && $customerPaidShipping === true) {
+                throw new InvalidArgumentException('البيع المباشر لا يتضمن تحصيل رسوم شحن.');
             }
 
             // تحقق خادمي من أن كل منتج تابع للطلب وأن الكمية المسلمة لا تتجاوز الكمية المطلوبة.
