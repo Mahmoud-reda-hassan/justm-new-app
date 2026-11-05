@@ -61,8 +61,8 @@ try {
     has($shipping, 'if ($orderTypeId === 5 || $shippingAmount <= 0)', 'يجب استثناء البيع المباشر والطلبات بلا رسوم من حدث الشحن.');
     has($shipping, "'event_type' => 'SHIPPING_REVENUE_RECOGNIZED'", 'نوع حدث إيراد الشحن غير صحيح.');
     has($shipping, 'ORDER_SHIPPING:ORDER:', 'مفتاح منع تكرار إيراد الشحن غير موجود.');
-    has($shipping, "'debit' => $shippingAmount", 'مديونية رسوم الشحن غير مثبتة.');
-    has($shipping, "'credit' => $shippingAmount", 'إيراد الشحن غير مثبت.');
+    has($shipping, '\'debit\' => $shippingAmount', 'مديونية رسوم الشحن غير مثبتة.');
+    has($shipping, '\'credit\' => $shippingAmount', 'إيراد الشحن غير مثبت.');
     has($shipping, 'shippingRevenue()', 'إيراد الشحن لا يستخدم حساب الإعدادات.');
     has($shipping, 'FOR UPDATE', 'حدث الشحن لا يقفل الطلب قبل إعادة التحقق.');
 
