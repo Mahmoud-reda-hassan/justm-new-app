@@ -190,9 +190,64 @@ try {
     $check->execute([$invalidJournal['idempotency_key']]);
     assertSameValue(0, (int)$check->fetchColumn(), 'Event with missing journal must be rolled back.');
 
+    // اختبار عكس قيد حقيقي باستخدام JournalManager على MariaDB المؤقتة.
+    $journalManager = new JournalManager($db);
+    $journalManager->create([
+        'branch_id' => 1,
+        'entry_date' => '2026-11-05 13:00:00',
+        'reference_type' => 'CI_TEST',
+        'reference_id' => 2001,
+        'created_by' => 7,
+    ])->addLine(['account_id' => 10, 'debit' => 75.00])
+      ->addLine(['account_id' => 20, 'credit' => 75.00]);
+    $originalJournalId = $journalManager->post();
+
+    $reversalJournalId = $journalManager->reverse($originalJournalId, 'CI reversal test');
+    $statusStmt = $db->prepare('SELECT status FROM journal_entries WHERE id = ?');
+    $statusStmt->execute([$originalJournalId]);
+    assertSameValue('REVERSED', $statusStmt->fetchColumn(), 'Original journal must be marked REVERSED.');
+
+    $reversalStmt = $db->prepare("SELECT id FROM journal_entries
+        WHERE reference_type = 'JOURNAL_REVERSE' AND reference_id = ?");
+    $reversalStmt->execute([$originalJournalId]);
+    assertSameValue($reversalJournalId, (int)$reversalStmt->fetchColumn(), 'Reversal must reference the original journal.');
+
+    $lineStmt = $db->prepare('SELECT debit,credit FROM journal_entry_details
+        WHERE journal_entry_id = ? ORDER BY line_no');
+    $lineStmt->execute([$reversalJournalId]);
+    $reversedLines = $lineStmt->fetchAll();
+    assertSameValue(0.0, (float)$reversedLines[0]['debit'], 'Reversal first line debit must be zero.');
+    assertSameValue(75.0, (float)$reversedLines[0]['credit'], 'Reversal first line credit must equal original debit.');
+    assertSameValue(75.0, (float)$reversedLines[1]['debit'], 'Reversal second line debit must equal original credit.');
+    assertSameValue(0.0, (float)$reversedLines[1]['credit'], 'Reversal second line credit must be zero.');
+
+    expectException(function () use ($journalManager, $originalJournalId): void {
+        $journalManager->reverse($originalJournalId, 'duplicate');
+    }, 'A journal must not be reversed twice.');
+
+    $rollbackJournal = new JournalManager($db);
+    $rollbackJournal->create([
+        'branch_id' => 1,
+        'entry_date' => '2026-11-05 13:10:00',
+        'reference_type' => 'CI_TEST',
+        'reference_id' => 2002,
+        'created_by' => 7,
+    ])->addLine(['account_id' => 10, 'debit' => 40.00])
+      ->addLine(['account_id' => 20, 'credit' => 40.00]);
+    $rollbackOriginalId = $rollbackJournal->post();
+    $db->exec('UPDATE accounts SET is_active = 0 WHERE id = 10');
+    expectException(function () use ($rollbackJournal, $rollbackOriginalId): void {
+        $rollbackJournal->reverse($rollbackOriginalId, 'force rollback');
+    }, 'A reversal with an inactive account must fail.');
+    $statusStmt->execute([$rollbackOriginalId]);
+    assertSameValue('POSTED', $statusStmt->fetchColumn(), 'Failed reversal must leave original journal POSTED.');
+    $db->exec('UPDATE accounts SET is_active = 1 WHERE id = 10');
+
     echo "PASS: event posts once and duplicate returns the original journal.\n";
     echo "PASS: changed payload and PROCESSING duplicates are rejected.\n";
     echo "PASS: callback failure and invalid journal both roll back the event.\n";
+    echo "PASS: journal reversal swaps lines, marks original reversed and blocks duplicates.\n";
+    echo "PASS: failed reversal rolls back and leaves original journal POSTED.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: " . $e->getMessage() . "\n");
     exit(1);
