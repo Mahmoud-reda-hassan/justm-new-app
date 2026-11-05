@@ -4,11 +4,13 @@ include_once(__dir__.'/../../config.php');
 include_once(ABSPATH.'/inc/Databases/dbconn.php');
 include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliverySettlementManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 
 $DBconn        	= new dbconn();
 $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
 $CBE 	= new finance_BE($db);
 $deliveryAccounting = new DeliverySettlementManager($db);
+$shippingConfiguration = new ShippingConfigurationManager($db);
 $http_RQM = $_SERVER['REQUEST_METHOD'];
 /*===================================================
 ** $Database Shipment_tbl table 
@@ -41,6 +43,29 @@ $branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
 // معالجة الطلبات
 try {
     switch ($_POST['CONTROL']) {
+        case 'GetShippingAmountEditSetting':
+            $requireFinanceAdmin();
+            echo json_encode([
+                'success' => true,
+                'allow_shipping_amount_edit' => $shippingConfiguration->isShippingAmountEditAllowed(),
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'UpdateShippingAmountEditSetting':
+            $requireFinanceAdmin();
+            $rawValue = $_POST['allow_shipping_amount_edit'] ?? null;
+            if (!in_array((string)$rawValue, ['0', '1'], true)) {
+                throw new InvalidArgumentException('قيمة إعداد تعديل رسوم الشحن غير صحيحة.');
+            }
+            $shippingConfiguration->setShippingAmountEditAllowed(
+                $rawValue === '1',
+                (int)($_SESSION['USER_ID'] ?? 0)
+            );
+            echo json_encode([
+                'success' => true,
+                'allow_shipping_amount_edit' => $shippingConfiguration->isShippingAmountEditAllowed(),
+            ], JSON_UNESCAPED_UNICODE);
+            break;
         case 'GetDeliverySettlementPaymentMethods':
             $requireFinanceAdmin();
             if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
