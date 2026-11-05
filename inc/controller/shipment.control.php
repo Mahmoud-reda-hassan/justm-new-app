@@ -125,6 +125,7 @@ function ResponseData($data){
 					$shipment_tbl->urlControl    = $_POST['urlControl'];
 					$shipment_tbl->ShipApproved  = $_POST['ShipApproved'];
 					$shipment_tbl->shipmentobj   = $_POST['oshipp'];
+					$shipment_tbl->shipmentobj['request_key'] = $_POST['request_key'] ?? '';
 					$shipment_tbl->ShipExchange  = $_POST['exchange'];
 					$shipment_tbl->delivery_id   = isset($_POST['deliveryid']) && $_POST['deliveryid'] > 0 ? $_POST['deliveryid'] : $_SESSION["USER_ID"];
 					$shipment_tbl->branch_id     = $_SESSION["BRANCH_ID"];
