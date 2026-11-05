@@ -1,6 +1,6 @@
--- Just-M: legacy foreign-key relationships extracted from JUSTM_DATABASE_INSTALL.sql.
--- Run once after createDatabase.sql on a fresh schema.
--- Do not rerun after successful application unless constraints are first checked.
+-- DEPRECATED LEGACY RELATIONS: paired only with the historical createDatabase.sql snapshot.
+-- Do not use for new installations. The canonical installer already defines its constraints.
+-- Retained for historical reference; do not run after JUSTM_DATABASE_INSTALL.sql.
 
 ALTER TABLE `gov`
   ADD CONSTRAINT `GOV_ibfk_1` FOREIGN KEY (`COUNTRY_ID`) REFERENCES `countries` (`CO_ID`) ON UPDATE CASCADE,
