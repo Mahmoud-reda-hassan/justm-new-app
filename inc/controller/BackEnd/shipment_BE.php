@@ -38,6 +38,7 @@ include_once(ABSPATH.'/inc/Classes/LogManager.php');
 include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryAttemptCommissionManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingCollectionManager.php');
 
 class shipment_BE {
 	private $orders_log_Tbl = 'ORDERS_LOG';
@@ -1306,6 +1307,32 @@ class shipment_BE {
                 }
             }
 
+            $customerPaidShippingProvided = array_key_exists('customer_paid_shipping', $this->shipmentobj);
+            $customerPaidShipping = null;
+            if ($customerPaidShippingProvided) {
+                $rawCustomerPaidShipping = $this->shipmentobj['customer_paid_shipping'];
+                if (!in_array((string)$rawCustomerPaidShipping, ['0', '1'], true)) {
+                    throw new InvalidArgumentException('إجابة دفع رسوم الشحن غير صالحة.');
+                }
+                $customerPaidShipping = (string)$rawCustomerPaidShipping === '1';
+            }
+
+            $allItemsRejected = true;
+            foreach ($items as $item) {
+                $itemType = strtoupper((string)($item['TYPE'] ?? 'SELSE'));
+                $itemQty = $item['productData']['appQty'] ?? null;
+                if ($itemType !== 'SELSE' || !is_numeric($itemQty) || (float)$itemQty > 0) {
+                    $allItemsRejected = false;
+                    break;
+                }
+            }
+            if ($allItemsRejected && !$customerPaidShippingProvided) {
+                throw new InvalidArgumentException('يجب تحديد ما إذا كان العميل دفع رسوم الشحن عند رفض الطلب بالكامل.');
+            }
+            if (!$allItemsRejected && $customerPaidShipping === true) {
+                throw new InvalidArgumentException('لا يمكن تسجيل تحصيل رسوم رفض التوصيل إلا عند رفض الطلب بالكامل.');
+            }
+
             $requestPayload = [
                 'actor_id' => (int)$executedBy,
                 'branch_id' => (int)$this->branch_id,
@@ -1313,6 +1340,8 @@ class shipment_BE {
                 'items' => $items,
                 'shipping_amount_provided' => $shippingAmountProvided,
                 'shipping_amount' => $shippingAmountProvided ? number_format($shippingAmount, 2, '.', '') : null,
+                'customer_paid_shipping_provided' => $customerPaidShippingProvided,
+                'customer_paid_shipping' => $customerPaidShipping,
             ];
             $requestJson = json_encode($requestPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
             if ($requestJson === false) {
@@ -1561,6 +1590,17 @@ class shipment_BE {
                     (int)$this->branch_id,
                     (int)$executedBy
                 );
+
+                // لا يتم إنشاء تحصيل شحن إلا بعد إثبات أن العميل دفع فعليًا.
+                // المدير يمنع تكرار التحصيل لنفس الطلب حتى مع وجود محاولة رفض لاحقة.
+                if ($customerPaidShipping === true) {
+                    $shippingCollectionManager = new DeliveryRejectedShippingCollectionManager($this->conn);
+                    $shippingCollectionManager->collectPaidRejectedShipping(
+                        $sessionId,
+                        (int)$this->branch_id,
+                        (int)$executedBy
+                    );
+                }
 
                 $requestComplete = $this->conn->prepare(
                     "UPDATE delivery_confirmation_requests
