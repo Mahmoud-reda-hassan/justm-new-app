@@ -44,7 +44,7 @@ final class DeliveryRejectedShippingCollectionManager
 
         $stmt = $this->db->prepare(
             "SELECT sm.shipmov_id, sm.shipment_orders AS order_id, sm.delivery_id,
-                    sm.MOVING_DATE, o.ORDER_TYPE_ID, o.SHIPPING_VAL,
+                    sm.MOVING_DATE, o.ORDER_TYPE_ID, o.SHIPPING_VAL, o.CLIENT_ID,
                     s.BRANCH_ID AS order_branch_id
              FROM shipping_movement sm
              INNER JOIN orders o ON o.ORDER_ID = sm.shipment_orders
@@ -189,12 +189,45 @@ final class DeliveryRejectedShippingCollectionManager
                 return $this->journal->post();
             });
 
+            $customerId = (int)($attempt['CLIENT_ID'] ?? 0);
+            if ($customerId <= 0) {
+                throw new RuntimeException('تعذر تحديد العميل المرتبط بالطلب رقم ' . $orderId . '.');
+            }
+
+            // إنشاء مستند التحصيل ضمن نفس مصدر البيانات الذي تستخدمه شاشة تسوية عهدة المندوب.
+            $receiptNo = 'DRS-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            $collectionInsert = $this->db->prepare(
+                "INSERT INTO delivery_customer_collections
+                    (receipt_no, delivery_user_id, customer_id, branch_id, payment_method_id,
+                     collection_date, customer_paid_amount, commission_amount, commission_mode,
+                     collection_journal_id, status, note, created_by, posted_at, collection_source)
+                 VALUES (?, ?, ?, ?, NULL, NOW(), ?, 0, NULL, ?, 'POSTED', ?, ?, NOW(), 'REJECTED_SHIPPING')"
+            );
+            $collectionInsert->execute([
+                $receiptNo,
+                $deliveryId,
+                $customerId,
+                $orderBranchId,
+                $shippingAmount,
+                (int)$event['journal_entry_id'],
+                'رسوم شحن دفعها العميل للمندوب بعد رفض التوصيل - الطلب ' . $orderId,
+                $actorId,
+            ]);
+            $deliveryCollectionId = (int)$this->db->lastInsertId();
+
+            $allocationInsert = $this->db->prepare(
+                "INSERT INTO delivery_collection_order_allocations
+                    (collection_id, order_id, customer_amount, commission_amount)
+                 VALUES (?, ?, ?, 0)"
+            );
+            $allocationInsert->execute([$deliveryCollectionId, $orderId, $shippingAmount]);
+
             $insert = $this->db->prepare(
                 "INSERT INTO delivery_rejected_shipping_collections
                     (order_id, shipmov_id, delivery_user_id, branch_id,
                      shipping_amount_snapshot, accounting_event_id, journal_entry_id,
-                     status, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, 'POSTED', ?)"
+                     delivery_collection_id, status, created_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'POSTED', ?)"
             );
             $insert->execute([
                 $orderId,
@@ -204,6 +237,7 @@ final class DeliveryRejectedShippingCollectionManager
                 $shippingAmount,
                 (int)$event['event_id'],
                 (int)$event['journal_entry_id'],
+                $deliveryCollectionId,
                 $actorId,
             ]);
 
