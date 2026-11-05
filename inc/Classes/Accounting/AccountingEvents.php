@@ -103,6 +103,100 @@ class AccountingEvents {
 	    return $order;
 	}
 	
+
+    /**
+     * ترحيل رسوم الشحن كحدث مستقل عن بيع المنتجات.
+     * ORDER_TYPE_ID = 5 هو البيع المباشر وفق جدول order_type؛ لا يثبت له شحن.
+     * بقية أنواع الطلبات تثبت رسوم الشحن مرة واحدة على مستوى الطلب عند التسليم.
+     */
+    private function postOrderShippingCharge(int $orderId): int
+    {
+        $order = $this->getSalesOrder($orderId);
+        $orderTypeId = (int)$order['ORDER_TYPE'];
+        $shippingAmount = round((float)$order['SHIPPING_VAL'], 2);
+
+        // البيع المباشر لا يحتوي رسوم شحن، والطلب بلا رسوم لا ينشئ حدثًا صفريًا.
+        if ($orderTypeId === 5 || $shippingAmount <= 0) {
+            return 0;
+        }
+        if (!in_array((int)$order['ORDER_STATUS'], [3, 4], true)) {
+            throw new RuntimeException('لا يمكن إثبات إيراد الشحن قبل تسليم الطلب كليًا أو جزئيًا.');
+        }
+
+        $clientId = (int)$order['CLIENT_ID'];
+        $branchId = (int)$order['BRANCH_ID'];
+        if ($clientId <= 0 || $branchId <= 0) {
+            throw new RuntimeException('بيانات العميل أو الفرع غير صالحة لترحيل رسوم الشحن.');
+        }
+
+        $eventManager = new FinancialEventManager($this->db);
+        $result = $eventManager->post([
+            'idempotency_key' => 'ORDER_SHIPPING:ORDER:' . $orderId . ':SHIPPING_REVENUE',
+            'event_type' => 'SHIPPING_REVENUE_RECOGNIZED',
+            'source_type' => 'ORDER',
+            'source_id' => $orderId,
+            'branch_id' => $branchId,
+            'event_date' => (string)$order['JOURNAL_DATE'],
+            'created_by' => $this->getCurrentUserId(),
+            'payload' => [
+                'order_id' => $orderId,
+                'order_type_id' => $orderTypeId,
+                'client_id' => $clientId,
+                'shipping_amount' => $shippingAmount,
+            ],
+        ], function () use ($orderId, $orderTypeId, $clientId, $branchId, $shippingAmount): int {
+            $lock = $this->db->prepare(
+                'SELECT ORDER_ID FROM orders WHERE ORDER_ID = ? LIMIT 1 FOR UPDATE'
+            );
+            $lock->execute([$orderId]);
+            if (!$lock->fetchColumn()) {
+                throw new RuntimeException('أمر البيع غير موجود أثناء ترحيل رسوم الشحن.');
+            }
+
+            $fresh = $this->getSalesOrder($orderId);
+            if (
+                (int)$fresh['ORDER_TYPE'] !== $orderTypeId ||
+                (int)$fresh['CLIENT_ID'] !== $clientId ||
+                (int)$fresh['BRANCH_ID'] !== $branchId ||
+                round((float)$fresh['SHIPPING_VAL'], 2) !== $shippingAmount ||
+                !in_array((int)$fresh['ORDER_STATUS'], [3, 4], true)
+            ) {
+                throw new RuntimeException('تغيرت بيانات رسوم الشحن أو حالة الطلب أثناء الترحيل؛ أعد المحاولة.');
+            }
+            if ($orderTypeId === 5 || $shippingAmount <= 0) {
+                throw new RuntimeException('لا ينطبق حدث إيراد الشحن على هذا الطلب.');
+            }
+
+            $this->journal->reset()->create([
+                'branch_id' => $branchId,
+                'entry_date' => $fresh['JOURNAL_DATE'],
+                'reference_type' => 'ORDER_SHIPPING',
+                'reference_id' => $orderId,
+                'description' => 'إيراد شحن أمر بيع رقم ' . $fresh['SUB_ORDER_ID'],
+                'created_by' => $this->getCurrentUserId(),
+            ]);
+            $this->journal->addLine([
+                'account_id' => $this->settings->customers(),
+                'partner_type' => 'CLIENT',
+                'partner_id' => $clientId,
+                'debit' => $shippingAmount,
+                'reference_type' => 'ORDER_SHIPPING',
+                'reference_id' => $orderId,
+                'note' => 'مديونية رسوم شحن الطلب مرة واحدة',
+            ]);
+            $this->journal->addLine([
+                'account_id' => $this->settings->shippingRevenue(),
+                'credit' => $shippingAmount,
+                'reference_type' => 'ORDER_SHIPPING',
+                'reference_id' => $orderId,
+                'note' => 'إيراد شحن الطلب مرة واحدة',
+            ]);
+            return $this->journal->post();
+        });
+
+        return (int)$result['journal_entry_id'];
+    }
+
 /*****************************************************
 * البيع المباشر(دوال الاستخدام)
 *****************************************************/
@@ -259,6 +353,9 @@ class AccountingEvents {
             $this->markOrderPosted($orderId, $journalId);
             return $journalId;
         });
+
+        // الشحن حدث مستقل؛ لا يدخل في قيد مبيعات المنتجات.
+        $this->postOrderShippingCharge($orderId);
 
         return (int)$result['journal_entry_id'];
     }
