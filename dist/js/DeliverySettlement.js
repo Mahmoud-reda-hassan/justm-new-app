@@ -37,6 +37,18 @@
         else window.alert(message);
     }
 
+    // بصمة محلية مختصرة لمفتاح التخزين؛ لا نخزن نص الملاحظة أو بيانات العملية داخل sessionStorage.
+    function pendingFingerprint(value) {
+        let first = 2166136261;
+        let second = 2246822519;
+        for (let i = 0; i < value.length; i++) {
+            const code = value.charCodeAt(i);
+            first = Math.imul(first ^ code, 16777619);
+            second = Math.imul(second ^ code, 3266489917);
+        }
+        return (first >>> 0).toString(16) + (second >>> 0).toString(16);
+    }
+
     // يحتفظ بمفتاح مستقل لكل بيانات عملية حتى النجاح؛ تغيير البيانات لا يمحو مفاتيح المحاولات المعلقة الأخرى.
     function getPendingRequestKey(scope, fingerprint) {
         const storageKey = 'justm:pending:' + scope;
@@ -255,7 +267,7 @@
         };
         if (ids.length) payload.order_ids = JSON.stringify(ids);
         if (amount > 0) payload.amount = amount;
-        const fingerprint = JSON.stringify(payload);
+        const fingerprint = pendingFingerprint(JSON.stringify(payload));
         payload.request_key = getPendingRequestKey('settlement', fingerprint);
         const confirmation = `سيتم تسجيل تسوية عهدة المندوب. ${amount > 0 ? 'المبلغ: ' + money(amount) : 'إجمالي الأوامر المحددة: ' + money(selectedTotals().amount)}. هل تريد المتابعة؟`;
         const execute = () => request('SettleDeliveryCollections', payload).done(response => {
