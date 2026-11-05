@@ -44,8 +44,9 @@
 - `inc/Databases/Migrations/20261105_delivery_rejected_shipping_collection.sql`
 - `inc/Databases/Migrations/20261105_delivery_rejected_shipping_settlement_integration.sql` (ينفذ بعد migration إنشاء جدول التحصيل)
 
-## توافق الإجراء المخزن
-أضيف إلى جدول `confirm_staging` المؤقت في PHP العمودان `REASON_ID` و`COMMENT`؛ لأن نسخة `setDeliveryConfirmationOptimized` في نسخة قاعدة البيانات الاحتياطية تقرأهما عند تسجيل أسباب رفض المنتجات. لا ترسل الواجهة هذين الحقلين حاليًا، فيظلان NULL، لكن وجودهما يمنع خطأ العمود المفقود داخل الإجراء.
+## توافق الإجراء المخزن والتحقق الخادمي
+- يتحقق الخادم من أن كل منتج تابع للطلب وموجود في عهدة المندوب الحالي، وأن الكمية المسلمة رقم غير سالب ولا تتجاوز كمية الطلب.
+- أضيف إلى جدول `confirm_staging` المؤقت في PHP العمودان `REASON_ID` و`COMMENT`؛ لأن نسخة `setDeliveryConfirmationOptimized` في نسخة قاعدة البيانات الاحتياطية تقرأهما عند تسجيل أسباب رفض المنتجات. لا ترسل الواجهة هذين الحقلين حاليًا، فيظلان NULL، لكن وجودهما يمنع خطأ العمود المفقود داخل الإجراء.
 
 ## الاختبارات والقيود
 - لم يتم تشغيل PHP lint أو JavaScript lint أو اختبارات MariaDB/المتصفح.
