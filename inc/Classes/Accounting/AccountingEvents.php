@@ -133,10 +133,6 @@ class AccountingEvents {
 	    if ((int)($order['CLIENT_ID'] ?? 0) <= 0) {
 	        throw new Exception("لا يمكن ترحيل البيع: العميل غير مرتبط برقم هاتف الطلب.");
 	    }
-	    if ((float)($order['SHIPPING_VAL'] ?? 0) < 0) {
-	        throw new Exception("Order shipping amount cannot be negative.");
-	    }
-	    
 	    // فحص تكلفة كل سطر تم تسليمه؛ SUM يتجاهل NULL وقد يخفي صنفًا بلا تكلفة.
 	    if ((int)($order['DELIVERED_LINES_COUNT'] ?? 0) <= 0) {
 	        throw new Exception("Order has no delivered product lines.");
@@ -184,8 +180,26 @@ class AccountingEvents {
             ],
         ], function () use ($orderId, $productsAmount, $costAmount): int {
             // لا تُنفذ هذه الخطوات عند إعادة طلب حدث سبق ترحيله.
+            // قفل رأس الطلب داخل معاملة الحدث قبل إعادة قراءة تفاصيله.
+            $lockOrder = $this->db->prepare(
+                "SELECT ORDER_ID FROM orders WHERE ORDER_ID = ? LIMIT 1 FOR UPDATE"
+            );
+            $lockOrder->execute([$orderId]);
+            if (!$lockOrder->fetchColumn()) {
+                throw new Exception("Order not found.");
+            }
+
             $order = $this->getSalesOrder($orderId);
             $this->validateDirectSale($order);
+
+            // تأكد أن بيانات الطلب لم تتغير بين تكوين بصمة الحدث وبدء الترحيل.
+            if (
+                (int)$order['CLIENT_ID'] !== (int)($eventClientId = $order['CLIENT_ID']) ||
+                round((float)$order['SALES_AMOUNT'], 2) !== $productsAmount ||
+                round((float)$order['COST_AMOUNT'], 2) !== $costAmount
+            ) {
+                throw new RuntimeException('تغيرت بيانات البيع أثناء بدء الترحيل؛ أعد المحاولة بعد تحديث الطلب.');
+            }
 
             $this->journal->reset();
             $this->journal->create([
