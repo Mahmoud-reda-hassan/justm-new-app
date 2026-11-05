@@ -159,6 +159,11 @@ class AccountingEvents {
         $order = $this->getSalesOrder($orderId);
         $productsAmount = round((float)$order['SALES_AMOUNT'], 2);
         $costAmount = round((float)$order['COST_AMOUNT'], 2);
+        $clientId = (int)$order['CLIENT_ID'];
+        $storeId = (int)$order['STORE_ID'];
+        $branchId = (int)$order['BRANCH_ID'];
+        $deliveredLinesCount = (int)$order['DELIVERED_LINES_COUNT'];
+        $invalidCostLinesCount = (int)$order['INVALID_COST_LINES_COUNT'];
 
         $eventManager = new FinancialEventManager($this->db);
         $result = $eventManager->post([
@@ -166,19 +171,22 @@ class AccountingEvents {
             'event_type' => 'SALE_RECOGNIZED',
             'source_type' => 'ORDER',
             'source_id' => $orderId,
-            'branch_id' => (int)$order['BRANCH_ID'],
+            'branch_id' => $branchId,
             'event_date' => (string)$order['JOURNAL_DATE'],
             'created_by' => $this->getCurrentUserId(),
             'payload' => [
                 'order_id' => $orderId,
-                'client_id' => (int)$order['CLIENT_ID'],
-                'store_id' => (int)$order['STORE_ID'],
+                'client_id' => $clientId,
+                'store_id' => $storeId,
                 'products_amount' => $productsAmount,
                 'cost_amount' => $costAmount,
-                'delivered_lines_count' => (int)$order['DELIVERED_LINES_COUNT'],
-                'invalid_cost_lines_count' => (int)$order['INVALID_COST_LINES_COUNT'],
+                'delivered_lines_count' => $deliveredLinesCount,
+                'invalid_cost_lines_count' => $invalidCostLinesCount,
             ],
-        ], function () use ($orderId, $productsAmount, $costAmount): int {
+        ], function () use (
+            $orderId, $productsAmount, $costAmount, $clientId, $storeId,
+            $branchId, $deliveredLinesCount, $invalidCostLinesCount
+        ): int {
             // لا تُنفذ هذه الخطوات عند إعادة طلب حدث سبق ترحيله.
             // قفل رأس الطلب داخل معاملة الحدث قبل إعادة قراءة تفاصيله.
             $lockOrder = $this->db->prepare(
@@ -194,7 +202,11 @@ class AccountingEvents {
 
             // تأكد أن بيانات الطلب لم تتغير بين تكوين بصمة الحدث وبدء الترحيل.
             if (
-                (int)$order['CLIENT_ID'] !== (int)($eventClientId = $order['CLIENT_ID']) ||
+                (int)$order['CLIENT_ID'] !== $clientId ||
+                (int)$order['STORE_ID'] !== $storeId ||
+                (int)$order['BRANCH_ID'] !== $branchId ||
+                (int)$order['DELIVERED_LINES_COUNT'] !== $deliveredLinesCount ||
+                (int)$order['INVALID_COST_LINES_COUNT'] !== $invalidCostLinesCount ||
                 round((float)$order['SALES_AMOUNT'], 2) !== $productsAmount ||
                 round((float)$order['COST_AMOUNT'], 2) !== $costAmount
             ) {
