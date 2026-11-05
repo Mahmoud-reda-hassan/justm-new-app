@@ -5,19 +5,36 @@ on:
     branches: [main]
     paths:
       - 'inc/Classes/Accounting/**'
+      - 'inc/Databases/JUSTM_DATABASE_INSTALL.sql'
+      - 'JUSTM_DATABASE_INSTALL.sql'
       - 'tests/accounting/**'
       - '.github/workflows/accounting-php-validation.yml'
   pull_request:
     paths:
       - 'inc/Classes/Accounting/**'
+      - 'inc/Databases/JUSTM_DATABASE_INSTALL.sql'
+      - 'JUSTM_DATABASE_INSTALL.sql'
       - 'tests/accounting/**'
       - '.github/workflows/accounting-php-validation.yml'
   workflow_dispatch:
 
 jobs:
   php-validation:
-    name: PHP ${{ matrix.php }} syntax and direct-sale checks
+    name: PHP ${{ matrix.php }} accounting validation
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: accounting_test
+          MARIADB_DATABASE: accounting_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     strategy:
       fail-fast: false
       matrix:
@@ -30,15 +47,19 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
           coverage: none
 
-      - name: PHP syntax checks
+      - name: PHP syntax checks for all accounting classes and tests
         run: |
-          php -l inc/Classes/Accounting/AccountingEvents.php
-          php -l inc/Classes/Accounting/FinancialEventManager.php
-          php -l inc/Classes/Accounting/JournalManager.php
-          php -l inc/Classes/Accounting/AccountSettings.php
-          php -l tests/accounting/direct_sale_static_test.php
+          find inc/Classes/Accounting tests/accounting -type f -name '*.php' -print0 | xargs -0 -n1 php -l
 
-      - name: Direct sale business-rule checks
+      - name: Accounting static regression checks
         run: php tests/accounting/direct_sale_static_test.php
+
+      - name: Financial event MariaDB integration tests
+        env:
+          ACCOUNTING_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=accounting_test;charset=utf8mb4
+          ACCOUNTING_TEST_DB_USER: root
+          ACCOUNTING_TEST_DB_PASSWORD: accounting_test
+        run: php tests/accounting/financial_event_integration_test.php
