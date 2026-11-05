@@ -37,28 +37,38 @@
         else window.alert(message);
     }
 
-    // يحتفظ بمفتاح العملية حتى النجاح؛ إعادة المحاولة بعد انقطاع الاتصال تستخدم المفتاح نفسه.
+    // يحتفظ بمفتاح مستقل لكل بيانات عملية حتى النجاح؛ تغيير البيانات لا يمحو مفاتيح المحاولات المعلقة الأخرى.
     function getPendingRequestKey(scope, fingerprint) {
         const storageKey = 'justm:pending:' + scope;
         try {
-            const saved = JSON.parse(window.sessionStorage.getItem(storageKey) || 'null');
-            if (saved && saved.fingerprint === fingerprint && saved.key) return saved.key;
+            const saved = JSON.parse(window.sessionStorage.getItem(storageKey) || '{}');
+            if (saved[fingerprint]) return saved[fingerprint];
             const key = 'DS-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
-            window.sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint, key }));
+            saved[fingerprint] = key;
+            window.sessionStorage.setItem(storageKey, JSON.stringify(saved));
             return key;
         } catch (error) {
             window.__justmPendingKeys = window.__justmPendingKeys || {};
-            const saved = window.__justmPendingKeys[scope];
-            if (saved && saved.fingerprint === fingerprint) return saved.key;
+            const saved = window.__justmPendingKeys[scope] || {};
+            if (saved[fingerprint]) return saved[fingerprint];
             const key = 'DS-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
-            window.__justmPendingKeys[scope] = { fingerprint, key };
+            saved[fingerprint] = key;
+            window.__justmPendingKeys[scope] = saved;
             return key;
         }
     }
 
-    function clearPendingRequestKey(scope) {
-        try { window.sessionStorage.removeItem('justm:pending:' + scope); } catch (error) {}
-        if (window.__justmPendingKeys) delete window.__justmPendingKeys[scope];
+    function clearPendingRequestKey(scope, fingerprint) {
+        const storageKey = 'justm:pending:' + scope;
+        try {
+            const saved = JSON.parse(window.sessionStorage.getItem(storageKey) || '{}');
+            delete saved[fingerprint];
+            if (Object.keys(saved).length) window.sessionStorage.setItem(storageKey, JSON.stringify(saved));
+            else window.sessionStorage.removeItem(storageKey);
+        } catch (error) {}
+        if (window.__justmPendingKeys && window.__justmPendingKeys[scope]) {
+            delete window.__justmPendingKeys[scope][fingerprint];
+        }
     }
 
     function selectedIds() {
@@ -250,7 +260,7 @@
         const confirmation = `سيتم تسجيل تسوية عهدة المندوب. ${amount > 0 ? 'المبلغ: ' + money(amount) : 'إجمالي الأوامر المحددة: ' + money(selectedTotals().amount)}. هل تريد المتابعة؟`;
         const execute = () => request('SettleDeliveryCollections', payload).done(response => {
             if (!response || response.success !== true) { showError(new Error((response && (response.message || response[2] || response.error)) || 'لم يتم تأكيد نجاح التسوية.')); return; }
-            clearPendingRequestKey('settlement');
+            clearPendingRequestKey('settlement', fingerprint);
             showSuccess(response.already_posted ? 'تم التعرف على نفس الطلب السابق؛ لم يتم تكرار القيد.' : (response.message || 'تم تسجيل استلام العهدة بنجاح.'));
             $('#dsAmount, #dsNote').val('');
             lastPreview = null;
