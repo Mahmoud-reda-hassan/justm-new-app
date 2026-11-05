@@ -1304,8 +1304,9 @@ class shipment_BE {
             $shippingAmount = null;
             if ($shippingAmountProvided) {
                 $rawShippingAmount = $this->shipmentobj['shipping_amount'];
-                if (!is_scalar($rawShippingAmount) || !is_numeric((string)$rawShippingAmount)) {
-                    throw new InvalidArgumentException('قيمة رسوم الشحن غير صالحة.');
+                $rawShippingAmount = is_scalar($rawShippingAmount) ? trim((string)$rawShippingAmount) : '';
+                if ($rawShippingAmount === '' || !preg_match('/^\d+(?:\.\d{1,2})?$/D', $rawShippingAmount)) {
+                    throw new InvalidArgumentException('قيمة رسوم الشحن يجب أن تكون رقمًا صحيحًا أو تحتوي على منزلتين عشريتين كحد أقصى.');
                 }
                 $shippingAmount = round((float)$rawShippingAmount, 2);
                 if (!is_finite($shippingAmount) || $shippingAmount < 0 || $shippingAmount > 9999999999999.99) {
@@ -1327,8 +1328,9 @@ class shipment_BE {
             foreach ($items as $item) {
                 $itemType = strtoupper((string)($item['TYPE'] ?? 'SELSE'));
                 $itemQty = $item['productData']['appQty'] ?? null;
-                if (!is_numeric($itemQty) || !is_finite((float)$itemQty) || (float)$itemQty < 0) {
-                    throw new InvalidArgumentException('كمية التسليم يجب أن تكون رقمًا صالحًا غير سالب.');
+                if (!is_numeric($itemQty) || !is_finite((float)$itemQty) || (float)$itemQty < 0
+                    || abs((float)$itemQty - round((float)$itemQty, 3)) > 0.000001) {
+                    throw new InvalidArgumentException('كمية التسليم يجب أن تكون رقمًا غير سالب وبحد أقصى ثلاث منازل عشرية.');
                 }
                 if ($itemType !== 'SELSE' || (float)$itemQty > 0) {
                     $allItemsRejected = false;
