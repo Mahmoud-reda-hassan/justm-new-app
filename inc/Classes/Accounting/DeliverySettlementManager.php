@@ -142,6 +142,67 @@ final class DeliverySettlementManager
                     throw new RuntimeException('أمر البيع رقم ' . $orderId . ' لا يحتوي على قيد مديونية عميل صالح في النظام الجديد.');
                 }
 
+                $requestEventKey = 'DELIVERY_COLLECTION:' . $requestKey . ':ORDER:' . $orderId;
+                $eventManager = new FinancialEventManager($this->db);
+                $eventData = [
+                    'idempotency_key' => $requestEventKey,
+                    'event_type' => 'COURIER_COLLECTION',
+                    'source_type' => 'DELIVERY_COLLECTION',
+                    'source_id' => $orderId,
+                    'branch_id' => $branchId,
+                    'event_date' => date('Y-m-d H:i:s'),
+                    'created_by' => $actorId,
+                    'payload' => [
+                        'order_id' => $orderId,
+                        'delivery_id' => $deliveryId,
+                        'customer_id' => (int)$order['CLIENT_ID'],
+                        'branch_id' => $branchId,
+                        'payment_method_id' => $paymentMethodId,
+                        'amount' => $amount,
+                        'note' => trim($note),
+                    ],
+                ];
+
+                // افحص إعادة الإرسال قبل حساب الرصيد المفتوح؛ فالتحصيل السابق أغلق جزءًا من المديونية بالفعل.
+                $existingEventStmt = $this->db->prepare("SELECT id FROM accounting_events
+                    WHERE idempotency_key = ? LIMIT 1 FOR UPDATE");
+                $existingEventStmt->execute([$requestEventKey]);
+                if ($existingEventStmt->fetchColumn()) {
+                    $existingEvent = $eventManager->post($eventData, function (): int {
+                        throw new RuntimeException('لا يجوز إعادة تنفيذ callback لحدث تحصيل موجود.');
+                    });
+                    $existingCollectionStmt = $this->db->prepare("SELECT id, receipt_no, customer_paid_amount,
+                            commission_amount, commission_journal_id, status
+                        FROM delivery_customer_collections
+                        WHERE collection_journal_id = ? LIMIT 1 FOR UPDATE");
+                    $existingCollectionStmt->execute([(int)$existingEvent['journal_entry_id']]);
+                    $existingCollection = $existingCollectionStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$existingCollection || $existingCollection['status'] !== 'POSTED'
+                        || abs((float)$existingCollection['customer_paid_amount'] - $amount) > 0.009) {
+                        throw new RuntimeException('مستند التحصيل السابق غير متسق مع إعادة الإرسال.');
+                    }
+                    $existingAllocationStmt = $this->db->prepare("SELECT customer_amount
+                        FROM delivery_collection_order_allocations
+                        WHERE collection_id = ? AND order_id = ? LIMIT 1");
+                    $existingAllocationStmt->execute([(int)$existingCollection['id'], $orderId]);
+                    $existingAllocation = $existingAllocationStmt->fetchColumn();
+                    if ($existingAllocation === false || abs((float)$existingAllocation - $amount) > 0.009) {
+                        throw new RuntimeException('تخصيص التحصيل السابق غير متسق مع إعادة الإرسال.');
+                    }
+                    $created[] = [
+                        'collection_id' => (int)$existingCollection['id'],
+                        'receipt_no' => $existingCollection['receipt_no'],
+                        'order_id' => $orderId,
+                        'customer_id' => (int)$order['CLIENT_ID'],
+                        'amount' => $amount,
+                        'commission' => (float)$existingCollection['commission_amount'],
+                        'collection_journal_id' => (int)$existingEvent['journal_entry_id'],
+                        'commission_journal_id' => $existingCollection['commission_journal_id'] ? (int)$existingCollection['commission_journal_id'] : null,
+                        'already_posted' => true,
+                    ];
+                    continue;
+                }
+
                 // مديونية الطلب تتكون من المنتجات، ورسوم الشحن في قيد مستقل للطلبات المشحونة.
                 $receivableLines = [];
                 $saleLineStmt = $this->db->prepare("SELECT d.id, d.debit
@@ -213,31 +274,12 @@ final class DeliverySettlementManager
                 $commissionRemaining = max(0.0, round($expectedCommission - $commissionAlreadyAccrued, 2));
                 $commission = min($commissionRemaining, round($expectedCommission * $amount / max($totalReceivableAmount, 0.01), 2));
 
-                $requestEventKey = 'DELIVERY_COLLECTION:' . $requestKey . ':ORDER:' . $orderId;
                 $collectionId = 0;
                 $receipt = '';
-                $eventManager = new FinancialEventManager($this->db);
-                $eventResult = $eventManager->post([
-                    'idempotency_key' => $requestEventKey,
-                    'event_type' => 'COURIER_COLLECTION',
-                    'source_type' => 'DELIVERY_COLLECTION',
-                    'source_id' => $orderId,
-                    'branch_id' => $branchId,
-                    'event_date' => date('Y-m-d H:i:s'),
-                    'created_by' => $actorId,
-                    'payload' => [
-                        'order_id' => $orderId,
-                        'delivery_id' => $deliveryId,
-                        'customer_id' => (int)$order['CLIENT_ID'],
-                        'branch_id' => $branchId,
-                        'payment_method_id' => $paymentMethodId,
-                        'amount' => $amount,
-                        'note' => trim($note),
-                    ],
-                ], function () use (
+                $eventResult = $eventManager->post($eventData, function () use (
                     &$collectionId, &$receipt, $deliveryId, $branchId, $paymentMethodId,
                     $orderId, $order, $amount, $commission, $custodyAccountId,
-                    $customerAccountId, $actorId
+                    $customerAccountId, $actorId, $note
                 ): int {
                     $receipt = 'DCR-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
                     $insert = $this->db->prepare("INSERT INTO delivery_customer_collections
