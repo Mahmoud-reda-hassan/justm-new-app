@@ -98,7 +98,11 @@ try {
                     if (!is_array($item) || empty($item['order_id']) || !isset($item['amount'])) {
                         throw new InvalidArgumentException('كل تخصيص يجب أن يحتوي order_id و amount.');
                     }
-                    $normalized[(int)$item['order_id']] = (float)$item['amount'];
+                    $orderId = (int)$item['order_id'];
+                    if ($orderId <= 0 || array_key_exists($orderId, $normalized)) {
+                        throw new InvalidArgumentException('لا يمكن تكرار أمر البيع داخل طلب التحصيل.');
+                    }
+                    $normalized[$orderId] = (float)$item['amount'];
                 }
                 $orderAmounts = $normalized;
             }

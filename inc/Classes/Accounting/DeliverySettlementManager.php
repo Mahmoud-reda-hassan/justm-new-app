@@ -130,6 +130,7 @@ final class DeliverySettlementManager
             ];
         }
         $canonicalPayload = [
+            'actor_id' => $actorId,
             'delivery_id' => $deliveryId,
             'branch_id' => $branchId,
             'payment_method_id' => $paymentMethodId,
@@ -235,10 +236,12 @@ final class DeliverySettlementManager
             foreach ($normalized as $orderId => $amount) {
                 $orderStmt = $this->db->prepare("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_TYPE_ID, o.DELIVERY_ID,
                         o.SALE_ENTRY_ID, o.ORDER_STATUS, COALESCE(o.SHIPPING_VAL,0) AS SHIPPING_VAL,
-                        te.CLIENT_ID, COALESCE(ud.PERCENT,0) AS DELIVERY_PERCENT
+                        te.CLIENT_ID, COALESCE(ud.PERCENT,0) AS DELIVERY_PERCENT,
+                        sale_journal.branch_id AS SALE_BRANCH_ID
                     FROM orders o
                     LEFT JOIN telephones te ON te.TEL_ID = o.TEL_ID
                     LEFT JOIN users_delivery ud ON ud.USER_ID = o.DELIVERY_ID
+                    LEFT JOIN journal_entries sale_journal ON sale_journal.id = o.SALE_ENTRY_ID
                     WHERE o.ORDER_ID = ? FOR UPDATE");
                 $orderStmt->execute([$orderId]);
                 $order = $orderStmt->fetch(PDO::FETCH_ASSOC);
@@ -249,8 +252,11 @@ final class DeliverySettlementManager
                 if (!in_array((int)$order['ORDER_STATUS'], [3, 4], true)) {
                     throw new RuntimeException('لا يمكن تسجيل تحصيل لأمر بيع لم يتم تسليمه أو تسليمه جزئيًا.');
                 }
-                if (empty($order['SALE_ENTRY_ID']) || empty($order['CLIENT_ID'])) {
+                if (empty($order['SALE_ENTRY_ID']) || empty($order['CLIENT_ID']) || empty($order['SALE_BRANCH_ID'])) {
                     throw new RuntimeException('أمر البيع رقم ' . $orderId . ' لا يحتوي على قيد مديونية عميل صالح في النظام الجديد.');
+                }
+                if ((int)$order['SALE_BRANCH_ID'] !== $branchId) {
+                    throw new RuntimeException('فرع أمر البيع رقم ' . $orderId . ' لا يطابق فرع عملية التحصيل.');
                 }
 
                 $requestEventKey = 'DELIVERY_COLLECTION:' . $requestKey . ':ORDER:' . $orderId;
