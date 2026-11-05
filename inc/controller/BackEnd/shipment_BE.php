@@ -1240,7 +1240,8 @@ class shipment_BE {
 	        return ['error', 'خطأ', 'بيانات الشحنة غير صالحة',[]];
 	    }
 	    
-		if($_POST['oshipp']['ptype'] != 1 && ($this->ShipApproved === TRUE || $this->ShipApproved === 'TRUE' || $this->ShipApproved == 1)){
+		$shipmentType = (int)($this->shipmentobj['ptype'] ?? 0);
+		if($shipmentType !== 1 && ($this->ShipApproved === TRUE || $this->ShipApproved === 'TRUE' || $this->ShipApproved == 1)){
 			return ['error', 'خطأ', 'انت لا تملك صلاحية انشاء اذن استلام مخزنى',[]];
 		}
 	    $items = $this->shipmentobj['ship'];
