@@ -1213,8 +1213,16 @@ class shipment_BE {
 			return ['error', 'خطأ', 'انت لا تملك صلاحية انشاء اذن استلام مخزنى',[]];
 		}
 	    $items = $this->shipmentobj['ship'];
-	    $sessionId = uniqid('IM_', true);
-	    $executedBy = $this->user_action;
+        $requestKey = trim((string)($this->shipmentobj['request_key'] ?? ''));
+        if ($requestKey === '') {
+            // توافق مؤقت مع أي نسخة واجهة قديمة لم تُحدّث بعد.
+            $requestKey = 'LEGACY:' . bin2hex(random_bytes(16));
+        }
+        if (!preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', $requestKey)) {
+            return ['error', 'خطأ', 'مفتاح تأكيد الشحنة غير صالح، حدّث الصفحة وحاول مرة أخرى', []];
+        }
+        $sessionId = uniqid('IM_', true);
+        $executedBy = $this->user_action;
 	    $executedGr = $this->user_group;
 	
 	    $lockedOrders = [];
@@ -1222,6 +1230,50 @@ class shipment_BE {
 	
 	    try {
 	        $this->conn->beginTransaction();
+
+            // منع إعادة تنفيذ نفس تأكيد الشحنة عند تكرار طلب HTTP.
+            $requestPayload = [
+                'actor_id' => (int)$executedBy,
+                'branch_id' => (int)$this->branch_id,
+                'ship_approved' => (string)$this->ShipApproved,
+                'items' => $items,
+            ];
+            $requestJson = json_encode($requestPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+            if ($requestJson === false) {
+                throw new RuntimeException('تعذر تجهيز بصمة طلب تأكيد الشحنة.');
+            }
+            $requestHash = hash('sha256', $requestJson);
+
+            try {
+                $requestInsert = $this->conn->prepare(
+                    "INSERT INTO delivery_confirmation_requests
+                        (request_key, request_hash, session_id, actor_id, branch_id, status)
+                     VALUES (?, ?, ?, ?, ?, 'PROCESSING')"
+                );
+                $requestInsert->execute([$requestKey, $requestHash, $sessionId, $executedBy, $this->branch_id]);
+            } catch (PDOException $requestException) {
+                if ((string)$requestException->getCode() !== '23000') {
+                    throw $requestException;
+                }
+                $existingRequestStmt = $this->conn->prepare(
+                    "SELECT request_hash, status
+                     FROM delivery_confirmation_requests
+                     WHERE request_key = ? LIMIT 1 FOR UPDATE"
+                );
+                $existingRequestStmt->execute([$requestKey]);
+                $existingRequest = $existingRequestStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$existingRequest) {
+                    throw $requestException;
+                }
+                if (!hash_equals((string)$existingRequest['request_hash'], $requestHash)) {
+                    throw new RuntimeException('مفتاح تأكيد الشحنة مستخدم مع بيانات مختلفة؛ أعد فتح التأكيد.');
+                }
+                if ($existingRequest['status'] === 'COMPLETED') {
+                    $this->conn->commit();
+                    return ['success', 'نجح', 'تم تنفيذ تأكيد الشحنة بالفعل؛ لم تتم إعادة العملية', ''];
+                }
+                throw new RuntimeException('يوجد طلب تأكيد سابق غير مكتمل؛ يلزم مراجعته قبل إعادة التنفيذ.');
+            }
 
 			$orderids = array_map(function ($row) {
 			    return (int)$row['ORDER_ID'];
@@ -1389,6 +1441,15 @@ class shipment_BE {
 	        $call->closeCursor();
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
+                $requestComplete = $this->conn->prepare(
+                    "UPDATE delivery_confirmation_requests
+                     SET status = 'COMPLETED', completed_at = NOW()
+                     WHERE request_key = ? AND request_hash = ? AND status = 'PROCESSING'"
+                );
+                $requestComplete->execute([$requestKey, $requestHash]);
+                if ($requestComplete->rowCount() !== 1) {
+                    throw new RuntimeException('تعذر اعتماد سجل منع تكرار تأكيد الشحنة.');
+                }
 	            $this->conn->commit();
 	            return [
 	                'success',
