@@ -39,6 +39,34 @@ function renderShipmentProducts(response) {
         </tr>`;
     }).join('');
 
+    const returnedProducts = Array.isArray(response.returned) ? response.returned : [];
+    const returnedRows = returnedProducts.map(product => {
+        const name = escapeShipmentHtml(product.name);
+        const options = Array.isArray(product.option)
+            ? product.option.map(escapeShipmentHtml).filter(Boolean).join('، ')
+            : '';
+        const quantity = Number(product.qty || 0);
+        const returnedQuantity = Number(product.returned_qty || 0);
+        const status = escapeShipmentHtml(product.status || '');
+        return `<tr>
+            <td>${name}${options ? `<small class="d-block text-muted">${options}</small>` : ''}</td>
+            <td>${quantity}</td>
+            <td>${returnedQuantity}</td>
+            <td>${status}</td>
+        </tr>`;
+    }).join('');
+    const returnedSection = returnedRows
+        ? `<div class="mt-3">
+            <h6>منتجات مرتبطة بالاستبدال / المرتجع (للعرض فقط)</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered text-center">
+                    <thead><tr><th>المنتج</th><th>الكمية الأصلية</th><th>الكمية المرتجعة</th><th>الحالة</th></tr></thead>
+                    <tbody>${returnedRows}</tbody>
+                </table>
+            </div>
+        </div>`
+        : '';
+
     const shippingValue = Number(response.SHIPPING_VAL || 0);
     const shippingFeeAlreadyCollected = response.shipping_fee_already_collected === true;
     const shippingEditor = response.shipping_edit_allowed === true && Number(response.order_type_id) !== 5
@@ -61,6 +89,7 @@ function renderShipmentProducts(response) {
             </table>
         </div>
         <small class="text-muted">يمكن تعديل الكمية المسلمة بالضغط على الخانة الأخيرة. أدخل كمية من صفر وحتى الكمية المطلوبة.</small>
+        ${returnedSection}
     </div>`;
 }
 
