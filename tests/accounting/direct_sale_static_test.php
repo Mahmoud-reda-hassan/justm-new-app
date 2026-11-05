@@ -49,8 +49,8 @@ try {
     has($sale, "'event_type' => 'SALE_RECOGNIZED'", 'نوع حدث البيع غير صحيح.');
     has($sale, "'source_type' => 'ORDER'", 'مصدر حدث البيع غير صحيح.');
     has($sale, 'DIRECT_SALE:ORDER:', 'مفتاح منع تكرار البيع غير موجود.');
-    has($sale, "'debit' => $productsAmount", 'مديونية العميل لا تساوي قيمة المنتجات.');
-    has($sale, "'credit' => $productsAmount", 'إيراد البيع لا يساوي قيمة المنتجات.');
+    has($sale, '\'debit\' => $productsAmount', 'مديونية العميل لا تساوي قيمة المنتجات.');
+    has($sale, '\'credit\' => $productsAmount', 'إيراد البيع لا يساوي قيمة المنتجات.');
     has($sale, 'FOR UPDATE', 'لا يوجد قفل للطلب وبنوده.');
     lacks($sale, 'SHIPPING_VAL', 'الشحن دخل في البيع المباشر.');
     lacks($sale, 'shippingRevenue', 'إيراد الشحن دخل في البيع المباشر.');
@@ -58,7 +58,7 @@ try {
     lacks($validation, 'shippingRevenue', 'التحقق من البيع المباشر يستدعي إيراد الشحن.');
 
     has($sale, 'postOrderShippingCharge($orderId)', 'مسار البيع لا يستدعي حدث الشحن المنفصل.');
-    has($shipping, "if ($orderTypeId === 5 || $shippingAmount <= 0)", 'يجب استثناء البيع المباشر والطلبات بلا رسوم من حدث الشحن.');
+    has($shipping, 'if ($orderTypeId === 5 || $shippingAmount <= 0)', 'يجب استثناء البيع المباشر والطلبات بلا رسوم من حدث الشحن.');
     has($shipping, "'event_type' => 'SHIPPING_REVENUE_RECOGNIZED'", 'نوع حدث إيراد الشحن غير صحيح.');
     has($shipping, 'ORDER_SHIPPING:ORDER:', 'مفتاح منع تكرار إيراد الشحن غير موجود.');
     has($shipping, "'debit' => $shippingAmount", 'مديونية رسوم الشحن غير مثبتة.');
