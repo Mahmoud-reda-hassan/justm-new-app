@@ -1931,6 +1931,29 @@ CREATE TABLE IF NOT EXISTS `journal_entries` (
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `accounting_events` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `idempotency_key` VARCHAR(128) NOT NULL,
+  `event_type` VARCHAR(60) NOT NULL,
+  `source_type` VARCHAR(60) NOT NULL,
+  `source_id` BIGINT UNSIGNED NOT NULL,
+  `branch_id` INT NOT NULL,
+  `event_date` DATETIME NOT NULL,
+  `payload_hash` CHAR(64) NOT NULL,
+  `status` ENUM('PROCESSING','POSTED') NOT NULL DEFAULT 'PROCESSING',
+  `journal_entry_id` BIGINT UNSIGNED DEFAULT NULL,
+  `created_by` BIGINT UNSIGNED NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `posted_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_accounting_event_idempotency` (`idempotency_key`),
+  KEY `idx_accounting_event_source` (`source_type`,`source_id`,`event_type`),
+  KEY `idx_accounting_event_status_date` (`status`,`event_date`),
+  UNIQUE KEY `uq_accounting_event_journal` (`journal_entry_id`),
+  CONSTRAINT `fk_accounting_event_journal` FOREIGN KEY (`journal_entry_id`) REFERENCES `journal_entries` (`id`)
+    ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `journal_entry_details` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `journal_entry_id` BIGINT UNSIGNED NOT NULL,
