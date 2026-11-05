@@ -40,6 +40,7 @@ function renderShipmentProducts(response) {
     }).join('');
 
     const shippingValue = Number(response.SHIPPING_VAL || 0);
+    const shippingFeeAlreadyCollected = response.shipping_fee_already_collected === true;
     const shippingEditor = response.shipping_edit_allowed === true && Number(response.order_type_id) !== 5
         ? `<div class="form-group text-right mt-3">
             <label for="shipmentShippingAmount">رسوم الشحن للطلب</label>
@@ -47,7 +48,11 @@ function renderShipmentProducts(response) {
             <small class="form-text text-muted">التعديل متاح حسب إعدادات النظام، وتُحفظ القيمة الجديدة مع محاولة التوصيل.</small>
         </div>`
         : `<div class="mb-2">رسوم الشحن: <strong>${shippingValue.toFixed(2)}</strong></div>`;
-    return `<div class="text-right">
+    const feeCollectionNotice = shippingFeeAlreadyCollected
+        ? '<div class="alert alert-info text-right">تم تحصيل رسوم الشحن لهذا الطلب مسبقًا، ولن يتم تحصيلها مرة أخرى.</div>'
+        : '';
+    return `<div class="text-right" data-shipping-fee-collected="${shippingFeeAlreadyCollected ? '1' : '0'}">
+        ${feeCollectionNotice}
         ${shippingEditor}
         <div class="table-responsive">
             <table class="table table-bordered table-striped table-swel text-center">
@@ -89,6 +94,7 @@ function parseShipmentTable() {
     });
 
     let shippingAmount = null;
+    const shippingFeeAlreadyCollected = document.querySelector("[data-shipping-fee-collected]")?.dataset.shippingFeeCollected === "1";
     const shippingInput = document.getElementById("shipmentShippingAmount");
     if (shippingInput) {
         const rawShippingAmount = shippingInput.value.trim();
@@ -101,11 +107,11 @@ function parseShipmentTable() {
         }
     }
 
-    return { objApprov, objReject, qtyApp, qtyDef, err, shippingAmount };
+    return { objApprov, objReject, qtyApp, qtyDef, err, shippingAmount, shippingFeeAlreadyCollected };
 };
 
 function createShipmentObject(orderId, parsed) {
-    const { objApprov, objReject, qtyApp, qtyDef, shippingAmount } = parsed;
+    const { objApprov, objReject, qtyApp, qtyDef, shippingAmount, shippingFeeAlreadyCollected } = parsed;
     let reapp = "رفض امر البيع بالكامل";
     let qty_rejected = 0;
 
@@ -125,7 +131,8 @@ function createShipmentObject(orderId, parsed) {
         reapp,
         utype: ptype,
         qty_rejected,
-        shipping_amount: shippingAmount
+        shipping_amount: shippingAmount,
+        shipping_fee_already_collected: shippingFeeAlreadyCollected
     };
 };
 
@@ -242,7 +249,10 @@ export function ShipmentDelivery(orderId) {
 
                 const askShippingPayment = () => {
                     // سؤال الدفع يخص الرفض الكامل فقط؛ الرفض الجزئي لا ينشئ تحصيل رسوم شحن مستقلًا.
-                    if (Number(result.value.qtyApp) === 0) {
+                    if (Number(result.value.qtyApp) === 0 && result.value.shipping_fee_already_collected) {
+                        // رسوم الشحن سبق تحصيلها؛ لا نطلب من العميل دفعها مرة أخرى.
+                        submitConfirmation(false);
+                    } else if (Number(result.value.qtyApp) === 0) {
                         Swal.fire({
                             title: 'رسوم الشحن',
                             icon: 'question',
