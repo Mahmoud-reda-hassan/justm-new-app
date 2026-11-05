@@ -86,7 +86,7 @@ try {
     assertContainsText($eventManager, 'rollBack()', 'خدمة الأحداث لا تلغي المعاملة عند الفشل.');
 
     assertContainsText($installer, 'CREATE TABLE IF NOT EXISTS `accounting_events`', 'جدول accounting_events غير موجود في Installer.');
-    assertContainsText($installer, 'UNIQUE KEY `uq_accounting_events_idempotency`', 'قيد التفرد لمفتاح الحدث غير موجود.');
+    assertContainsText($installer, 'UNIQUE KEY `uq_accounting_event_idempotency`', 'قيد التفرد لمفتاح الحدث غير موجود.');
 
     echo "PASS: direct sale is product-only and uses idempotent financial events.\n";
     echo "PASS: direct sale contains no shipping amount or shipping revenue reference.\n";
