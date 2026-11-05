@@ -44,6 +44,7 @@ try {
 
     $sale = methodBody($accounting, 'public function directSale(int $orderId): int');
     $validation = methodBody($accounting, 'protected function validateDirectSale(array $order): void');
+    $shipping = methodBody($accounting, 'private function postOrderShippingCharge(int $orderId): int');
     has($sale, 'new FinancialEventManager($this->db)', 'البيع المباشر لا يستخدم بوابة الأحداث.');
     has($sale, "'event_type' => 'SALE_RECOGNIZED'", 'نوع حدث البيع غير صحيح.');
     has($sale, "'source_type' => 'ORDER'", 'مصدر حدث البيع غير صحيح.');
@@ -55,6 +56,16 @@ try {
     lacks($sale, 'shippingRevenue', 'إيراد الشحن دخل في البيع المباشر.');
     lacks($validation, 'SHIPPING_VAL', 'التحقق من البيع المباشر يعتمد على الشحن.');
     lacks($validation, 'shippingRevenue', 'التحقق من البيع المباشر يستدعي إيراد الشحن.');
+
+    has($sale, 'postOrderShippingCharge($orderId)', 'مسار البيع لا يستدعي حدث الشحن المنفصل.');
+    has($shipping, "if ($orderTypeId === 5 || $shippingAmount <= 0)", 'يجب استثناء البيع المباشر والطلبات بلا رسوم من حدث الشحن.');
+    has($shipping, "'event_type' => 'SHIPPING_REVENUE_RECOGNIZED'", 'نوع حدث إيراد الشحن غير صحيح.');
+    has($shipping, 'ORDER_SHIPPING:ORDER:', 'مفتاح منع تكرار إيراد الشحن غير موجود.');
+    has($shipping, "'debit' => $shippingAmount", 'مديونية رسوم الشحن غير مثبتة.');
+    has($shipping, "'credit' => $shippingAmount", 'إيراد الشحن غير مثبت.');
+    has($shipping, 'shippingRevenue()', 'إيراد الشحن لا يستخدم حساب الإعدادات.');
+    has($shipping, 'FOR UPDATE', 'حدث الشحن لا يقفل الطلب قبل إعادة التحقق.');
+
 
     $reverse = methodBody($journal, 'public function reverse(');
     has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
