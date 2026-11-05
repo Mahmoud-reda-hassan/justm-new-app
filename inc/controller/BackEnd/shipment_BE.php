@@ -1189,6 +1189,11 @@ class shipment_BE {
 			}
 			$shippingEditAllowed = (int)$orderMeta['ORDER_TYPE_ID'] !== 5
 				&& (new ShippingConfigurationManager($this->conn))->isShippingAmountEditAllowed();
+			$shippingFeeCollectedStmt = $this->conn->prepare(
+				"SELECT 1 FROM delivery_rejected_shipping_collections WHERE order_id = ? LIMIT 1"
+			);
+			$shippingFeeCollectedStmt->execute([$this->order_id]);
+			$shippingFeeAlreadyCollected = (bool)$shippingFeeCollectedStmt->fetchColumn();
 
 			// جلب المنتجات المرتجعة للطلب
 			//$returned = $this->fetchOrderProducts($sql['getReturnOProducts'], $this->order_id, true);
@@ -1200,7 +1205,8 @@ class shipment_BE {
 				'returned' => $products['ex'],
 				'SHIPPING_VAL' => $products['SHIPPING_VAL'],
 				'order_type_id' => (int)$orderMeta['ORDER_TYPE_ID'],
-				'shipping_edit_allowed' => $shippingEditAllowed
+				'shipping_edit_allowed' => $shippingEditAllowed,
+				'shipping_fee_already_collected' => $shippingFeeAlreadyCollected
 			];
 
 		} catch (Exception $e) {
