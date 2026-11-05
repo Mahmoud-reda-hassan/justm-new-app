@@ -11,6 +11,47 @@ function loadOrderDetails(orderId) {
     });
 };
 
+function escapeShipmentHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    })[char]);
+}
+
+function renderShipmentProducts(response) {
+    const products = Array.isArray(response.products) ? response.products : [];
+    if (!products.length) {
+        return '<div class="alert alert-warning text-right">لا توجد منتجات مسجلة في عهدة هذا المندوب لهذا الطلب.</div>';
+    }
+
+    const rows = products.map(product => {
+        const code = escapeShipmentHtml(product.code);
+        const name = escapeShipmentHtml(product.name);
+        const options = Array.isArray(product.option)
+            ? product.option.map(escapeShipmentHtml).filter(Boolean).join('، ')
+            : '';
+        const requiredQty = Number(product.qty || 0);
+        const deliveredQty = Number(product.delivered_qty || 0);
+
+        return `<tr data-code="${code}">
+            <td class="proname">${name}${options ? `<small class="d-block text-muted">${options}</small>` : ''}</td>
+            <td class="default-Qty">${requiredQty}</td>
+            <td class="approved-Qty" contenteditable="true" inputmode="decimal" role="textbox" aria-label="الكمية المسلمة">${deliveredQty}</td>
+        </tr>`;
+    }).join('');
+
+    const shippingValue = Number(response.SHIPPING_VAL || 0);
+    return `<div class="text-right">
+        <div class="mb-2">رسوم الشحن الحالية: <strong>${shippingValue.toFixed(2)}</strong></div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped table-swel text-center">
+                <thead><tr><th>المنتج</th><th>الكمية المطلوبة</th><th>الكمية المسلمة</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        <small class="text-muted">يمكن تعديل الكمية المسلمة بالضغط على الخانة الأخيرة. أدخل كمية من صفر وحتى الكمية المطلوبة.</small>
+    </div>`;
+}
+
 function parseShipmentTable() {
     let objApprov = {}, objReject = {}, qtyApp = 0, qtyDef = 0, err = 0;
 
@@ -92,13 +133,19 @@ export function ShipmentDelivery(orderId) {
             Swal.showLoading();
             $(".swal2-cancel").hide();
             loadOrderDetails(orderId).done(response => {
-                if (response[0] === "success") {
-                    $(".swal2-title").html("تأكيد تسليم امر البيع");
-                    $(".swal2-html-container").html(response[1]).show();
+                if (response && response.type === "success") {
+                    $(".swal2-title").text("تأكيد تسليم أمر البيع");
+                    $(".swal2-html-container").html(renderShipmentProducts(response)).show();
                     $(".swal2-cancel").show();
                     Swal.hideLoading();
-                } else if (response[0] === "warning") {
-                    responseMsg(response);
+                } else if (response && (response.type === "warning" || response.type === "error")) {
+                    Swal.fire(
+                        response.title || "تنبيه",
+                        response.message || "تعذر تحميل بيانات الطلب.",
+                        response.type === "warning" ? "warning" : "error"
+                    );
+                } else {
+                    Swal.fire("خطأ", "استجابة غير مفهومة من الخادم أثناء تحميل الطلب.", "error");
                 }
             }).fail(() => {
                 Swal.fire('نأسف', 'حدث خطأ غير معروف أثناء التنفيذ', 'error');
