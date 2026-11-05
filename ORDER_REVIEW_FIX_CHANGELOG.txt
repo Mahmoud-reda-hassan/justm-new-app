@@ -1,0 +1,21 @@
+Just-M NewOrder review/cart visibility fix
+Date: 2026-11-01
+
+Problem:
+The legacy jm-step1-active class remained on #addorderform after switching to the three-step wizard. Legacy CSS tied to this class forcibly hid .invoice-info, .jm-store-cart, .jm-store-bottom, and .order-foot with !important. As a result, customer details, cart rows, shipping/date details, client notes, and save controls could be hidden in the new wizard.
+
+Changes:
+1. Removed jm-step1-active from the NewOrder markup.
+2. Explicitly remove the legacy class when building the wizard, protecting against stale markup/cache.
+3. When entering review step 3, rebuild #itemorder from localStorage itemarr and the current newOrder draft, then explicitly show the customer details, cart, order summary/notes, and save area.
+4. Kept the agreed flow: customer -> products -> cart review/save.
+5. No database schema or order accounting logic changed in this fix.
+
+Validation:
+- node --check dist/js/selectProduct.js
+- php -l inc/Views/Neworder.php
+- ZIP integrity test
+- Static checks for the legacy class removal and review-step cart rendering
+
+Not performed:
+No live browser interaction or database integration test was available in this environment. Test on staging before production.

@@ -1,0 +1,18 @@
+Just-M - Customer-first order creation update
+
+New order flow:
+1. Select customer, phone and delivery address.
+2. Resolve route-derived shipping value, shipping date and address-linked store ID using the original client/address radio data.
+3. Load/select products using the selected order store.
+4. Review cart, customer, shipping and final total; save.
+
+The employee default store fallback was removed from the new-order store lookup. The selected address date-stoid value is the source of stoid, matching the original project behavior. Existing price floor/ceiling validation and automatic discount calculation are retained.
+
+Files included:
+- inc/Views/Neworder.php
+- dist/js/selectProduct.js
+- dist/js/sreach_client.js
+- inc/Classes/Order_tbl.php
+- dist/css/order-storefront.css
+
+Validation performed: JavaScript syntax checks and PHP lint. Browser interaction and live database integration are not yet verified.

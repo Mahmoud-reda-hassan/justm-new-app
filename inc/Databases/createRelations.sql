@@ -1,0 +1,215 @@
+-- Just-M: legacy foreign-key relationships extracted from JUSTM_DATABASE_INSTALL.sql.
+-- Run once after createDatabase.sql on a fresh schema.
+-- Do not rerun after successful application unless constraints are first checked.
+
+ALTER TABLE `gov`
+  ADD CONSTRAINT `GOV_ibfk_1` FOREIGN KEY (`COUNTRY_ID`) REFERENCES `countries` (`CO_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `GOV_ibfk_2` FOREIGN KEY (`REGIONAL_AREAS_ID`) REFERENCES `regional_areas` (`ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `zones`
+  ADD CONSTRAINT `zones_ibfk_1` FOREIGN KEY (`STORE_ID`) REFERENCES `stores` (`STO_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `city`
+  ADD CONSTRAINT `CITY_ibfk_1` FOREIGN KEY (`GOV_ID`) REFERENCES `gov` (`GOV_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `CITY_ibfk_2` FOREIGN KEY (`ZONE_ID`) REFERENCES `zones` (`ZONE_ID`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+
+ALTER TABLE `companies`
+  ADD CONSTRAINT `COMPANY_ibfk_1` FOREIGN KEY (`CITY_ID`) REFERENCES `city` (`CI_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `branches`
+  ADD CONSTRAINT `BRANCHES_ibfk_1` FOREIGN KEY (`CITY_ID`) REFERENCES `city` (`CI_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `BRANCHES_ibfk_2` FOREIGN KEY (`COMPANIE_ID`) REFERENCES `companies` (`COM_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `stores`
+  ADD CONSTRAINT `STORES_ibfk_1` FOREIGN KEY (`BRANCH_ID`) REFERENCES `branches` (`BR_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `STORES_ibfk_2` FOREIGN KEY (`STTY_ID`) REFERENCES `stores_type` (`STTY_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `users`
+  ADD CONSTRAINT `USERS_ibfk_1` FOREIGN KEY (`BRANCH_ID`) REFERENCES `branches` (`BR_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `USERS_ibfk_2` FOREIGN KEY (`USER_GRUOP_ID`) REFERENCES `user_gruop` (`USER_GRUOP_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `users_affiliate`
+  ADD CONSTRAINT `users_affiliate_ibfk_1` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `users_affiliate_ibfk_2` FOREIGN KEY (`AFFILIATEED_WITH`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `users_delivery`
+  ADD CONSTRAINT `users_delivery_ibfk_1` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `users_delivery_ibfk_2` FOREIGN KEY (`ZONE_ID`) REFERENCES `zones` (`ZONE_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `telephones`
+  ADD CONSTRAINT `telephones_ibfk_1` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `telephones_ibfk_2` FOREIGN KEY (`CLIENT_ID`) REFERENCES `client` (`CLIENT_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `telephones_ibfk_3` FOREIGN KEY (`SUPPLIER_ID`) REFERENCES `suppliers` (`SUP_ID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+
+ALTER TABLE `addresses`
+  ADD CONSTRAINT `ADDRESSES_ibfk_1` FOREIGN KEY (`CLIENT_ID`) REFERENCES `client` (`CLIENT_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `ADDRESSES_ibfk_2` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `ADDRESSES_ibfk_3` FOREIGN KEY (`CITY_ID`) REFERENCES `city` (`CI_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `products`
+  ADD CONSTRAINT `PRODUCTS_ibfk_1` FOREIGN KEY (`CAT_ID`) REFERENCES `product_category` (`CAT_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `product_option`
+  ADD CONSTRAINT `product_option_ibfk_1` FOREIGN KEY (`OPTION_ID`) REFERENCES `product_option_group` (`OPTION_ID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+
+ALTER TABLE `product_codes`
+  ADD CONSTRAINT `product_codes_ibfk_1` FOREIGN KEY (`PRODUCT_ID`) REFERENCES `products` (`PRO_ID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+
+ALTER TABLE `product_join_option_group`
+  ADD CONSTRAINT `product_join_option_group_ibfk_1` FOREIGN KEY (`PRODUCT_ID`) REFERENCES `products` (`PRO_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `product_join_option_group_ibfk_2` FOREIGN KEY (`OPTION_GROUP_ID`) REFERENCES `product_option_group` (`OPTION_ID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+
+ALTER TABLE `product_code_join_option`
+  ADD CONSTRAINT `product_code_join_option_ibfk_1` FOREIGN KEY (`PRODUCT_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `product_code_join_option_ibfk_2` FOREIGN KEY (`OPTION_VALUE_ID`) REFERENCES `product_option` (`ID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+
+ALTER TABLE `stores_product`
+  ADD CONSTRAINT `STORES_PRODUCT_ibfk_1` FOREIGN KEY (`PRO_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `STORES_PRODUCT_ibfk_2` FOREIGN KEY (`STO_ID`) REFERENCES `stores` (`STO_ID`) ON UPDATE CASCADE;
+ 
+
+ALTER TABLE `order_exists`
+  ADD CONSTRAINT `order_exists_ibfk_1` FOREIGN KEY (`STA_ID`) REFERENCES `order_statuse` (`STA_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `orders`
+  ADD CONSTRAINT `ORDERS_ibfk_1` FOREIGN KEY (`CITY_ID`) REFERENCES `city` (`CI_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDERS_ibfk_2` FOREIGN KEY (`DELIVERY_ID`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDERS_ibfk_3` FOREIGN KEY (`ORDER_TYPE_ID`) REFERENCES `order_type` (`ORDER_TYPE_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDERS_ibfk_4` FOREIGN KEY (`ADDRESS_ID`) REFERENCES `addresses` (`ADDRESS_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDERS_ibfk_5` FOREIGN KEY (`TEL_ID`) REFERENCES `telephones` (`TEL_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDERS_ibfk_6` FOREIGN KEY (`ORDER_STATUS`) REFERENCES `order_statuse` (`STA_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDERS_ibfk_7` FOREIGN KEY (`STO_ID`) REFERENCES `stores` (`STO_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDERS_ibfk_7` FOREIGN KEY (`ORDER_BY`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `order_product`
+  ADD CONSTRAINT `ORDER_PRODUCT_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `orders` (`ORDER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `ORDER_PRODUCT_ibfk_2` FOREIGN KEY (`PRO_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `order_service`
+  ADD CONSTRAINT `order_service_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `orders` (`ORDER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `order_service_ibfk_2` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `order_service_ibfk_3` FOREIGN KEY (`OST_ID`) REFERENCES `order_service_type` (`OST_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `order_service_text`
+  ADD CONSTRAINT `order_service_text_ibfk_1` FOREIGN KEY (`OS_ID`) REFERENCES `order_service` (`OS_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `order_service_text_ibfk_2` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `orders_log`
+  ADD CONSTRAINT `orders_log_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `orders` (`ORDER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `orders_log_ibfk_2` FOREIGN KEY (`USER_ACTION`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `inventory_movement`
+  ADD CONSTRAINT `inventory_movement_ibfk_1` FOREIGN KEY (`STO_ID`) REFERENCES `stores` (`STO_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `inventory_movement_ibfk_2` FOREIGN KEY (`IM_USER`) REFERENCES `users` (`USER_ID`) ON DELETE NO ACTION ON UPDATE CASCADE,
+  ADD CONSTRAINT `inventory_movement_ibfk_3` FOREIGN KEY (`IM_BRANCH`) REFERENCES `branches` (`BR_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `inventory_product_movement`
+  ADD CONSTRAINT `inventory_product_movement_ibfk_1` FOREIGN KEY (`IM_ID`) REFERENCES `inventory_movement` (`IM_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `inventory_product_movement_ibfk_2` FOREIGN KEY (`IPM_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `shipping_movement`
+  ADD CONSTRAINT `shipping_movement_ibfk_1` FOREIGN KEY (`delivery_id`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `shipping_movement_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `custody_orders`
+  ADD CONSTRAINT `custody_orders_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `orders` (`ORDER_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `custody_orders_ibfk_2` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `custody_product`
+  ADD CONSTRAINT `custody_product_ibfk_1` FOREIGN KEY (`ORDER_ID`,`USER_ID`) REFERENCES `custody_orders` (`ORDER_ID`, `USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `custody_product_ibfk_2` FOREIGN KEY (`PRO_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `custody_return_orders`
+  ADD CONSTRAINT `custody_return_orders_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `orders` (`ORDER_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `custody_return_orders_ibfk_2` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `custody_return_product`
+  ADD CONSTRAINT `custody_return_product_ibfk_1` FOREIGN KEY (`ORDER_ID`,`USER_ID`) REFERENCES `custody_return_orders` (`ORDER_ID`, `USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `custody_return_product_ibfk_2` FOREIGN KEY (`PRO_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `sales_return_orders`
+  ADD CONSTRAINT `sales_return_orders_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `orders` (`ORDER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `sales_return_products`
+  ADD CONSTRAINT `sales_return_products_ibfk_1` FOREIGN KEY (`RETURN_ID`) REFERENCES `sales_return_orders` (`RETURN_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `sales_return_products_ibfk_2` FOREIGN KEY (`PRO_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `purchases_orders`
+  ADD CONSTRAINT `purchases_orders_ibfk_1` FOREIGN KEY (`SUPPLIER_ID`) REFERENCES `suppliers` (`SUP_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `purchases_products`
+  ADD CONSTRAINT `purchases_products_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `purchases_orders` (`ORDER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `purchases_products_ibfk_2` FOREIGN KEY (`PRO_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `purchases_return_orders`
+  ADD CONSTRAINT `purchases_return_orders_ibfk_1` FOREIGN KEY (`SUPPLIER_ID`) REFERENCES `suppliers` (`SUP_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `purchases_return_orders_ibfk_2` FOREIGN KEY (`REFERANC`) REFERENCES `purchases_orders` (`ORDER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `purchases_return_products`
+  ADD CONSTRAINT `purchases_return_products_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `purchases_return_orders` (`ORDER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `purchases_return_products_ibfk_2` FOREIGN KEY (`PRO_CODE`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `purchases_payments`
+  ADD CONSTRAINT `purchases_payments_ibfk_1` FOREIGN KEY (`ORDER_ID`) REFERENCES `purchases_orders` (`ORDER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `purchases_payments_ibfk_2` FOREIGN KEY (`CREATED_BY`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `supply_orders`
+  ADD CONSTRAINT `supply_orders_ibfk_1` FOREIGN KEY (`order_by`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `supply_order_details`
+  ADD CONSTRAINT `supply_order_details_ibfk_1` FOREIGN KEY (`supply_order_id`) REFERENCES `supply_orders` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `supply_order_details_ibfk_2` FOREIGN KEY (`pro_code`) REFERENCES `product_codes` (`PRO_CODE`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `transaction_categories`
+  ADD CONSTRAINT `transaction_categories_ibfk_1` FOREIGN KEY (`parent_category_id`) REFERENCES `transaction_categories` (`id`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `financial_transactions`
+  ADD CONSTRAINT `financial_transactions_ibfk_1` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods` (`id`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `financial_transactions_ibfk_2` FOREIGN KEY (`category_id`) REFERENCES `transaction_categories` (`id`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `financial_transactions_ibfk_3` FOREIGN KEY (`transaction_user_id`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `financial_transactions_ibfk_4` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`BR_ID`) ON UPDATE CASCADE;
+
+
+ALTER TABLE `partners_balance`
+  ADD CONSTRAINT `partners_balance_ibfk_1` FOREIGN KEY (`PARTNER_ID`) REFERENCES `users` (`USER_ID`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `partners_balance_ibfk_2` FOREIGN KEY (`TRANSACTION_CATEGORY_ID`) REFERENCES `transaction_categories` (`id`) ON UPDATE CASCADE;
+

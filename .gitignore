@@ -1,0 +1,23 @@
+# Local configuration and secrets
+/config.php
+/.user.ini
+*.local.php
+.env
+.env.*
+!.env.example
+
+# Runtime data
+/App_Logs/
+/AppLogs/
+/inc/sessions/*
+!/inc/sessions/.gitkeep
+*.log
+*.tmp
+*.cache
+
+# Local/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+__pycache__/
