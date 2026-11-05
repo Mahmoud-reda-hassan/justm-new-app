@@ -79,7 +79,7 @@ function renderShipmentProducts(response) {
     const feeCollectionNotice = shippingFeeAlreadyCollected
         ? '<div class="alert alert-info text-right">تم تحصيل رسوم الشحن لهذا الطلب مسبقًا، ولن يتم تحصيلها مرة أخرى.</div>'
         : '';
-    return `<div class="text-right" data-shipping-fee-collected="${shippingFeeAlreadyCollected ? '1' : '0'}">
+    return `<div class="text-right" data-shipping-fee-collected="${shippingFeeAlreadyCollected ? '1' : '0'}" data-order-type-id="${Number(response.order_type_id)}">
         ${feeCollectionNotice}
         ${shippingEditor}
         <div class="table-responsive">
@@ -125,7 +125,9 @@ function parseShipmentTable() {
     });
 
     let shippingAmount = null;
-    const shippingFeeAlreadyCollected = document.querySelector("[data-shipping-fee-collected]")?.dataset.shippingFeeCollected === "1";
+    const shipmentContainer = document.querySelector("[data-shipping-fee-collected]");
+    const shippingFeeAlreadyCollected = shipmentContainer?.dataset.shippingFeeCollected === "1";
+    const orderTypeId = Number(shipmentContainer?.dataset.orderTypeId || 0);
     const shippingInput = document.getElementById("shipmentShippingAmount");
     if (shippingInput) {
         const rawShippingAmount = shippingInput.value.trim();
@@ -138,11 +140,11 @@ function parseShipmentTable() {
         }
     }
 
-    return { objApprov, objReject, qtyApp, qtyDef, err, shippingAmount, shippingFeeAlreadyCollected };
+    return { objApprov, objReject, qtyApp, qtyDef, err, shippingAmount, shippingFeeAlreadyCollected, orderTypeId };
 };
 
 function createShipmentObject(orderId, parsed) {
-    const { objApprov, objReject, qtyApp, qtyDef, shippingAmount, shippingFeeAlreadyCollected } = parsed;
+    const { objApprov, objReject, qtyApp, qtyDef, shippingAmount, shippingFeeAlreadyCollected, orderTypeId } = parsed;
     let reapp = "رفض امر البيع بالكامل";
     let qty_rejected = 0;
 
@@ -163,7 +165,8 @@ function createShipmentObject(orderId, parsed) {
         utype: ptype,
         qty_rejected,
         shipping_amount: shippingAmount,
-        shipping_fee_already_collected: shippingFeeAlreadyCollected
+        shipping_fee_already_collected: shippingFeeAlreadyCollected,
+        order_type_id: orderTypeId
     };
 };
 
@@ -280,7 +283,9 @@ export function ShipmentDelivery(orderId) {
 
                 const askShippingPayment = () => {
                     // سؤال الدفع يخص الرفض الكامل فقط؛ الرفض الجزئي لا ينشئ تحصيل رسوم شحن مستقلًا.
-                    if (Number(result.value.qtyApp) === 0 && result.value.shipping_fee_already_collected) {
+                    if (Number(result.value.order_type_id) === 5) {
+                        submitConfirmation(null);
+                    } else if (Number(result.value.qtyApp) === 0 && result.value.shipping_fee_already_collected) {
                         // رسوم الشحن سبق تحصيلها؛ لا نطلب من العميل دفعها مرة أخرى.
                         submitConfirmation(false);
                     } else if (Number(result.value.qtyApp) === 0) {
