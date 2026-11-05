@@ -49,6 +49,15 @@ if ($loginType === 1 && $pageType > 0) {
                         </a>
                     </li>
 
+                    <?php if ((int)($_SESSION["ADMIN_TYPE"] ?? 0) === 1 && $pageType === 1) { ?>
+                    <li class="nav-item">
+                        <a href="?Go=ShippingSettings" class="nav-link">
+                            <i class="nav-icon fas fa-truck"></i>
+                            <p>إعدادات الشحن والتوصيل</p>
+                        </a>
+                    </li>
+                    <?php } ?>
+
             <?php 
             	if($_SESSION["ADMIN_TYPE"] 		  && $pageType  === 1){ ?>
 				
