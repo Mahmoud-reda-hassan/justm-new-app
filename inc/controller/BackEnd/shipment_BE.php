@@ -1134,9 +1134,18 @@ class shipment_BE {
 	*/
 	private function handleViewMode(array $sql): array {
 		try {
-			$this->delivery_id = $this->orderobj[array_key_first($this->orderobj)]['shipUid'];
-			// تحديد رقم الطلب من خلال أول مفتاح في مصفوفة الطلبات
-			$this->order_id = array_key_first($this->orderobj);
+			// يدعم شكل الطلب القديم (مصفوفة) وشكل الواجهة الحالي (رقم الطلب مباشرة).
+			if (is_array($this->orderobj)) {
+				$this->order_id = (int)array_key_first($this->orderobj);
+				$orderData = $this->orderobj[$this->order_id] ?? [];
+				$this->delivery_id = (int)($orderData['shipUid'] ?? $this->delivery_id ?? $this->user_action);
+			} else {
+				$this->order_id = (int)$this->orderobj;
+				$this->delivery_id = (int)($this->delivery_id ?: $this->user_action);
+			}
+			if ($this->order_id <= 0 || $this->delivery_id <= 0) {
+				throw new InvalidArgumentException('رقم الطلب أو المندوب غير صالح.');
+			}
 
 			// التحقق من وجود مرتجع للطلب
 			if (isset($this->orderobj[$this->order_id]['returns']) &&
@@ -3847,9 +3856,14 @@ class shipment_BE {
 	public function ShipmentDelivery(string $type = 'view'): array {
 		try {
 			$sql = $this->query();
-			// حالة العرض: عندما يكون هناك طلب واحد فقط
-			if ($type === 'view' && count($this->orderobj) === 1) {
-				return $this->handleViewMode($sql);
+			// حالة العرض: الواجهة الحالية ترسل رقم الطلب مباشرة، والواجهات القديمة ترسل مصفوفة.
+			if ($type === 'view') {
+				if (is_array($this->orderobj) && count($this->orderobj) === 1) {
+					return $this->handleViewMode($sql);
+				}
+				if (!is_array($this->orderobj) && filter_var($this->orderobj, FILTER_VALIDATE_INT) !== false) {
+					return $this->handleViewMode($sql);
+				}
 			}
 			// حالة التأكيد
 			if ($type === 'confirm') {
