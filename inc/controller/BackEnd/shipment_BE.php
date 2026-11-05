@@ -1416,7 +1416,14 @@ class shipment_BE {
 
             // تحقق خادمي من أن كل منتج تابع للطلب وأن الكمية المسلمة لا تتجاوز الكمية المطلوبة.
             $productQuantityStmt = $this->conn->prepare(
-                "SELECT QTY FROM order_product WHERE ORDER_ID = ? AND PRO_CODE = ? LIMIT 1 FOR UPDATE"
+                "SELECT op.QTY
+                 FROM order_product op
+                 INNER JOIN custody_product cp
+                    ON cp.ORDER_ID = op.ORDER_ID
+                   AND cp.PRO_CODE = op.PRO_CODE
+                   AND cp.USER_ID = ?
+                 WHERE op.ORDER_ID = ? AND op.PRO_CODE = ?
+                 LIMIT 1 FOR UPDATE"
             );
             foreach ($items as $item) {
                 $itemOrderId = (int)($item['ORDER_ID'] ?? 0);
@@ -1435,7 +1442,7 @@ class shipment_BE {
                     throw new RuntimeException('المندوب المحدد في بيانات المنتج لا يطابق المندوب الحالي.');
                 }
                 if ($itemType === 'SELSE') {
-                    $productQuantityStmt->execute([$itemOrderId, $itemProductCode]);
+                    $productQuantityStmt->execute([$itemDeliveryId, $itemOrderId, $itemProductCode]);
                     $orderedQty = $productQuantityStmt->fetchColumn();
                     if ($orderedQty === false || $itemAppQty > (float)$orderedQty + 0.0005) {
                         throw new InvalidArgumentException('الكمية المسلمة أكبر من الكمية المطلوبة أو المنتج غير موجود: ' . $itemProductCode);
