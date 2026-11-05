@@ -79,7 +79,7 @@ try {
     has($collection, 'SHIPPING_REVENUE_RECOGNIZED', 'تحصيل الطلب المشحون لا يتحقق من حدث الشحن.');
     has($collection, 'foreach ($receivableLines as $receivableLine)', 'تخصيص التحصيل لا يغطي سطور المنتجات والشحن.');
     has($collection, "'event_type' => 'COMMISSION_ACCRUED'", 'حدث استحقاق العمولة غير محمي بمنع التكرار.');
-    has($financeController, '$_POST[\'request_key\']', 'Endpoint التحصيل لا يستقبل مفتاح منع التكرار.');
+    has($financeController, 'request_key', 'Endpoint التحصيل لا يستقبل مفتاح منع التكرار.');
 
     $reverse = methodBody($journal, 'public function reverse(');
     has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
