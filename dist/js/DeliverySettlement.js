@@ -245,10 +245,13 @@
         };
         if (ids.length) payload.order_ids = JSON.stringify(ids);
         if (amount > 0) payload.amount = amount;
+        const fingerprint = JSON.stringify(payload);
+        payload.request_key = getPendingRequestKey('settlement', fingerprint);
         const confirmation = `سيتم تسجيل تسوية عهدة المندوب. ${amount > 0 ? 'المبلغ: ' + money(amount) : 'إجمالي الأوامر المحددة: ' + money(selectedTotals().amount)}. هل تريد المتابعة؟`;
         const execute = () => request('SettleDeliveryCollections', payload).done(response => {
             if (!response || response.success !== true) { showError(new Error((response && (response.message || response[2] || response.error)) || 'لم يتم تأكيد نجاح التسوية.')); return; }
-            showSuccess(response.message || 'تم تسجيل استلام العهدة بنجاح.');
+            clearPendingRequestKey('settlement');
+            showSuccess(response.already_posted ? 'تم التعرف على نفس الطلب السابق؛ لم يتم تكرار القيد.' : (response.message || 'تم تسجيل استلام العهدة بنجاح.'));
             $('#dsAmount, #dsNote').val('');
             lastPreview = null;
             loadOpenOrders();
