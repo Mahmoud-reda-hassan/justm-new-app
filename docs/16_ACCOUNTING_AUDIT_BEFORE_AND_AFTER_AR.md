@@ -141,3 +141,12 @@
 
 ### 10.2 حدود الجولة
 فُحصت مقاطع DAO والإجراءات المذكورة ساكنًا. لم يتم تشغيل الإجراء أو استدعاؤه من PHP، ولم يتم إثبات أي نسخة منشورة على قاعدة التشغيل. لا PHP lint ولا SQL import ولا runtime test.
+
+
+## 11. ربط JavaScript بنقاط التحكم — 2026-11-05
+
+- dist/js/DeliverySettlement.js يرسل PreviewDeliverySettlement وSettleDeliveryCollections إلى finance.control.php؛ نجاح الواجهة يعتمد على response.success. هذا يثبت اتصال واجهة التسوية بالمدير الجديد.
+- dist/js/PaymentDisbursement.js يرسل GetRefundBalance إلى PaymentDisbursement.control.php، ويرسل PaymentOfCustomerDues وSaveSupplierPayment وPaymentOfMarketerDues وPaymentOfDeliveryDues إلى finance.control.php. بذلك تأكد أن شاشة الصرف ما زالت تستدعي أربع عمليات Backend قديمة مباشرة.
+- dist/js/ReceivePayments.js يقرأ قائمة الطلبات من accounts.control.php?CONTROL=ReceivePayments، ويحتفظ أيضًا بعنوان finance.control.php لعمليات مالية أخرى؛ لم يتم تتبع كل event handler حتى النهاية.
+- dist/js/AddPurchaseOrder.js يستخدم purchases.control.php لقائمة أوامر الشراء؛ يلزم فحص action حفظ أمر الشراء داخل الملف وربطه بـ purchases_BE وPurchaseOrderDAO.
+- هذه الجولة تتبعت عناوين الطلبات وبعض أسماء actions فقط؛ لم تنفذ AJAX requests ولم تختبر استجابات الخادم.
