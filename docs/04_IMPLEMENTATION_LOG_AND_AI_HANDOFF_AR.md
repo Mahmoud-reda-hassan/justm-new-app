@@ -219,3 +219,11 @@
 - **الخطوة التالية:** تحديث `DeliverySettlementManager::registerCustomerCollection()` لتخصيص المبلغ بين سطر مديونية المنتجات وسطر مديونية الشحن، ثم إضافة idempotency لطلب التحصيل، ثم توصيل واجهة `ReceivePayments`.
 - لا يزال `ReceivePayments.js` على endpoint القديم `CollectingFinancialPledge`، ولم يتم إيقاف الجداول القديمة.
 - لا Installer changes، لا SQL على الاستضافة، ولا deploy.
+
+
+### نتيجة CI لحدث الشحن المستقل — 2026-11-05
+
+- Workflow run `42074459801` على commit `cd0695509182fb63b467c1f6ad194f8bc360862b` نجح بالكامل على PHP 8.0 و8.4.
+- نجح lint، والفحص الثابت لاستثناء البيع المباشر وفصل قيد الشحن، واختبارات MariaDB 10.11 الموجودة.
+- حصل فشل أولي في اختبار assertions بسبب interpolation لمتغيرات PHP؛ تم إصلاحه ثم نجح التشغيل المشار إليه.
+- لا تعتبر هذه النتيجة اختبارًا end-to-end لحدث شحن على مخطط التطبيق الكامل؛ ذلك الاختبار ما زال مطلوبًا.
