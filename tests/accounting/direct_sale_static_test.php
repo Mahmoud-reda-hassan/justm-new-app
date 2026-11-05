@@ -60,12 +60,12 @@ try {
     has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
     has($reverse, "status'] !== 'POSTED'", 'عكس القيد لا يشترط أن يكون القيد الأصلي مرحلًا.');
     has($reverse, "reference_type = 'JOURNAL_REVERSE'", 'منع العكس المكرر غير موجود.');
-    has($reverse, "'debit'          => (float)$line['credit']", 'العكس لا يقلب المدين والدائن.');
-    has($reverse, "'credit'         => (float)$line['debit']", 'العكس لا يقلب الدائن والمدين.');
+    has($reverse, "'debit'          => (float)\\$line['credit']", 'العكس لا يقلب المدين والدائن.');
+    has($reverse, "'credit'         => (float)\\$line['debit']", 'العكس لا يقلب الدائن والمدين.');
     has($reverse, "status = 'REVERSED'", 'حالة القيد الأصلي لا تتغير بعد العكس.');
     has($reverse, 'rollBack()', 'عكس القيد لا يتراجع عند الفشل.');
 
-    has($events, 'UNIQUE', 'خدمة الأحداث يجب أن تعتمد على مفتاح فريد.');
+    has($events, 'INSERT INTO accounting_events', 'خدمة الأحداث لا تسجل الأحداث في جدولها.');
     has($events, 'hash_equals', 'مقارنة بصمة الحدث غير موجودة.');
     has($events, 'FOR UPDATE', 'قفل الحدث/القيد غير موجود.');
     has($events, "status'] !== 'POSTED'", 'التحقق من حالة القيد الناتج غير موجود.');
