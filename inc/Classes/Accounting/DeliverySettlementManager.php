@@ -146,14 +146,6 @@ final class DeliverySettlementManager
         $ownsTransaction = !$this->db->inTransaction();
         if ($ownsTransaction) $this->db->beginTransaction();
         try {
-            // تحقق من أن طريقة الدفع ما زالت فعالة قبل حجز طلب التحصيل.
-            $paymentMethodStmt = $this->db->prepare("SELECT id FROM payment_methods
-                WHERE id = ? AND COALESCE(is_active, 0) = 1 LIMIT 1");
-            $paymentMethodStmt->execute([$paymentMethodId]);
-            if (!$paymentMethodStmt->fetchColumn()) {
-                throw new RuntimeException('طريقة الدفع المحددة غير موجودة أو غير مفعلة.');
-            }
-
             // حجز المفتاح على مستوى الطلب الكامل قبل إنشاء أي حدث أو مستند فرعي.
             $requestId = 0;
             try {
@@ -232,6 +224,14 @@ final class DeliverySettlementManager
                     'total_amount' => round(array_sum($normalized), 2),
                     'already_posted' => true,
                 ];
+            }
+
+            // تحقق من طريقة الدفع للطلب الجديد فقط؛ إعادة الطلب المكتمل لا تعتمد على حالتها الحالية.
+            $paymentMethodStmt = $this->db->prepare("SELECT id FROM payment_methods
+                WHERE id = ? AND COALESCE(is_active, 0) = 1 LIMIT 1");
+            $paymentMethodStmt->execute([$paymentMethodId]);
+            if (!$paymentMethodStmt->fetchColumn()) {
+                throw new RuntimeException('طريقة الدفع المحددة غير موجودة أو غير مفعلة.');
             }
 
             $settings = $this->getSettings(true);
