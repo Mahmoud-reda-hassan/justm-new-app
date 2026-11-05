@@ -176,3 +176,36 @@
 | dist/js/AddPurchaseOrder.js | listPurchasesDT | purchases.control.php | قائمة المشتريات؛ يلزم تتبع عملية الحفظ نفسها |
 
 الفحص يثبت تكوين عناوين الطلبات وأسماء بعض actions فقط؛ لا يثبت استجابة HTTP أو نجاح الحفظ في بيئة التشغيل.
+
+
+## 10. الخزائن والبنوك والسندات والتقارير — مصفوفة الاعتماديات
+
+| المجال | المصدر الحالي المثبت | حالة التنفيذ | البديل المطلوب |
+|---|---|---|---|
+| دليل الحسابات | AccountManager.php | تنفيذ جزئي | استكمال دورة الحسابات والصلاحيات ومنع تعديل الحسابات المستخدمة |
+| ربط طرق الدفع | AccountSettings.php / payment_method_accounts | يوجد lookup | إلزام كل قبض/صرف باختيار حساب الدفع الفعلي والتحقق من الفرع |
+| الصندوق | cash_boxes + AccountSettings::cash | جدول/lookup فقط؛ CashBox.php فارغ | CashBoxService وحركة صندوق مستندة إلى قيود الأستاذ |
+| البنك | إعداد BANK وpayment_method_accounts | Bank.php فارغ؛ لا مطابقة بنكية مثبتة | BankService وتحويلات ومطابقة كشف البنك |
+| سندات القبض | CashReceiptVouchers.php وعمليات متفرقة في finance_BE | لا يوجد backend عام مثبت؛ JS يشير إلى endpoints غير ظاهرة في شجرة المستودع | مستند قبض موحد ببنود وتخصيصات ووسيلة دفع وصندوق/بنك |
+| سندات الصرف | PaymentDisbursement.php وعمليات PaymentOf* في finance_BE | عمليات متفرقة ومتصلة بالجداول القديمة | سند صرف موحد مع مستفيد وبنود ومركز تكلفة واعتماد |
+| كشف حساب طرف | reports_BE::AccountStatement | يقرأ partners_balance مباشرة | PartnerLedger + تخصيصات GL |
+| تقرير حركة البيع | reports_BE::SalesMovementReport | يربط invoices | ربط بمستند البيع/القيد الجديد |
+| تقرير المسوق | marketerDailyReport/marketerDailyDetails | يقرأ partners_balance | استخراج الاستحقاق والصرف من قيود الأستاذ وتخصيصاتها |
+| ملخص العهدة/النقدية | accounts_BE::custodyTotal | financial_transactions + transaction_categories | أرصدة عهدة المندوب والصندوق/البنك من GL منفصلة |
+| رصيد/مرتجع العميل | PaymentDisbursement_BE | partners_balance | PartnerLedger وأرصدة الدائنين وتخصيصاتهم |
+| رصيد المورد | PaymentDisbursement_BE + purchases_orders.TOTAL_PAYMENTS | مصادر مختلطة | ذمم المورد من GL، وتفاصيل المستند من أوامر الشراء والتخصيصات الجديدة |
+
+### 10.1 ملفات ذات تنفيذ صفري
+Bank.php وCashBox.php وReports.php وPartnerBalance.php في Classes/Accounting فارغة (0 بايت) في المستودع وقت الفحص. لا تعتبر أسماء الكلاسات دليلًا على وجود الوظائف.
+
+### 10.2 نقاط واجهة غير مثبتة داخل المستودع
+dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_balance.php وget_masouq_data.php وget_masouq_balance.php وget_morad_data.php وget_morad_balance.php وget_client_data.php. هذه الملفات لم تظهر في شجرة GitHub الحالية؛ يلزم التحقق من كونها ملفات نشر خارج المستودع قبل حذف/استبدال الواجهة.
+
+### 10.3 التقارير التي يجب قطع اعتمادها القديم
+- AccountStatement: partners_balance.
+- SalesMovementReport: invoices.
+- marketerDailyReport وmarketerDailyDetails: partners_balance.
+- custodyTotal: financial_transactions وtransaction_categories.
+- GetClientData/GetClientRetrnOrder/GetRefundBalance/GetPartnersBalance: partners_balance.
+
+لا يتم حذف التقارير؛ يعاد بناؤها على قيود الأستاذ والتخصيصات مع الحفاظ على نفس الفلاتر ومخرجات الواجهة المطلوبة.
