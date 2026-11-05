@@ -146,6 +146,14 @@ final class DeliverySettlementManager
         $ownsTransaction = !$this->db->inTransaction();
         if ($ownsTransaction) $this->db->beginTransaction();
         try {
+            // تحقق من أن طريقة الدفع ما زالت فعالة قبل حجز طلب التحصيل.
+            $paymentMethodStmt = $this->db->prepare("SELECT id FROM payment_methods
+                WHERE id = ? AND COALESCE(is_active, 0) = 1 LIMIT 1");
+            $paymentMethodStmt->execute([$paymentMethodId]);
+            if (!$paymentMethodStmt->fetchColumn()) {
+                throw new RuntimeException('طريقة الدفع المحددة غير موجودة أو غير مفعلة.');
+            }
+
             // حجز المفتاح على مستوى الطلب الكامل قبل إنشاء أي حدث أو مستند فرعي.
             $requestId = 0;
             try {
@@ -237,6 +245,7 @@ final class DeliverySettlementManager
                 $orderStmt = $this->db->prepare("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_TYPE_ID, o.DELIVERY_ID,
                         o.SALE_ENTRY_ID, o.ORDER_STATUS, COALESCE(o.SHIPPING_VAL,0) AS SHIPPING_VAL,
                         te.CLIENT_ID, COALESCE(ud.PERCENT,0) AS DELIVERY_PERCENT,
+                        ud.USER_ID AS DELIVERY_PROFILE_ID,
                         sale_journal.branch_id AS SALE_BRANCH_ID
                     FROM orders o
                     LEFT JOIN telephones te ON te.TEL_ID = o.TEL_ID
@@ -246,8 +255,9 @@ final class DeliverySettlementManager
                 $orderStmt->execute([$orderId]);
                 $order = $orderStmt->fetch(PDO::FETCH_ASSOC);
                 if (!$order) throw new RuntimeException('أمر البيع رقم ' . $orderId . ' غير موجود.');
-                if ((int)$order['DELIVERY_ID'] !== $deliveryId) {
-                    throw new RuntimeException('أمر البيع رقم ' . $orderId . ' ليس على عهدة المندوب المحدد.');
+                if ((int)$order['DELIVERY_ID'] !== $deliveryId
+                    || empty($order['DELIVERY_PROFILE_ID'])) {
+                    throw new RuntimeException('أمر البيع رقم ' . $orderId . ' ليس على عهدة مندوب صالح أو لا يطابق المندوب المحدد.');
                 }
                 if (!in_array((int)$order['ORDER_STATUS'], [3, 4], true)) {
                     throw new RuntimeException('لا يمكن تسجيل تحصيل لأمر بيع لم يتم تسليمه أو تسليمه جزئيًا.');
