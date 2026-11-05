@@ -135,7 +135,8 @@ function shipmentRequestIdentity(orderId, payload) {
             oapp: payload.oapp,
             orej: payload.orej,
             ptype: payload.utype,
-            shipping_amount: payload.shipping_amount ?? null
+            shipping_amount: payload.shipping_amount ?? null,
+            customer_paid_shipping: payload.customer_paid_shipping ?? null
         });
     let requestKey = '';
     try {
@@ -201,28 +202,67 @@ export function ShipmentDelivery(orderId) {
                 showCancelButton: true,
                 confirmButtonText: 'حفظ',
                 cancelButtonText: 'إلغاء',
-                preConfirm: () => {
-                    const requestIdentity = shipmentRequestIdentity(result.value.odata, result.value);
-                    return {
-                        CONTROL: "shipDelivered",
-                        request_key: requestIdentity.requestKey,
-                        odata: result.value.odata,
-                        oshipp: {
-                            oapp: result.value.oapp,
-                            orej: result.value.orej,
-                            reapp: result.value.reapp,
-                            ptype: result.value.utype,
-                            ...(result.value.shipping_amount !== null
-                                ? { shipping_amount: result.value.shipping_amount }
-                                : {})
-                        },
-                        ShipApproved: false,
-                        urlControl: Go
-                    };
-                }
+                preConfirm: () => ({
+                    CONTROL: "shipDelivered",
+                    odata: result.value.odata,
+                    oshipp: {
+                        oapp: result.value.oapp,
+                        orej: result.value.orej,
+                        reapp: result.value.reapp,
+                        ptype: result.value.utype,
+                        ...(result.value.shipping_amount !== null
+                            ? { shipping_amount: result.value.shipping_amount }
+                            : {})
+                    },
+                    ShipApproved: false,
+                    urlControl: Go
+                })
             }).then(confirmRes => {
-                if (confirmRes.isConfirmed) {
-                    let finalData = confirmRes.value;
+                if (!confirmRes.isConfirmed) return;
+
+                const finalData = confirmRes.value;
+
+                const submitConfirmation = (customerPaidShipping = null) => {
+                    if (customerPaidShipping !== null) {
+                        finalData.oshipp.customer_paid_shipping = customerPaidShipping ? 1 : 0;
+                    }
+
+                    const identityPayload = {
+                        ...result.value,
+                        customer_paid_shipping: customerPaidShipping === null ? null : (customerPaidShipping ? 1 : 0)
+                    };
+                    const requestIdentity = shipmentRequestIdentity(result.value.odata, identityPayload);
+                    finalData.request_key = requestIdentity.requestKey;
+
+                    const response = sendRequest(urlship, finalData);
+                    responseMsg(response);
+                    if (response && response[0] === 'success') {
+                        try { sessionStorage.removeItem(requestIdentity.storageKey); } catch (error) {}
+                    }
+                    table.ajax.reload(null, false).on('draw', custodyTotal);
+                };
+
+                const askShippingPayment = () => {
+                    // سؤال الدفع يخص الرفض الكامل فقط؛ الرفض الجزئي لا ينشئ تحصيل رسوم شحن مستقلًا.
+                    if (Number(result.value.qtyApp) === 0) {
+                        Swal.fire({
+                            title: 'رسوم الشحن',
+                            icon: 'question',
+                            text: 'هل دفع العميل رسوم الشحن؟',
+                            showCancelButton: true,
+                            confirmButtonText: 'نعم، دفع',
+                            cancelButtonText: 'لا، لم يدفع',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        }).then(paymentResult => {
+                            submitConfirmation(paymentResult.isConfirmed);
+                        });
+                    } else {
+                        submitConfirmation(null);
+                    }
+                };
+
+                const askInventoryReturn = () => {
                     if (ptype === 1 && Go === "OrdersCustody" && result.value.qty_rejected > 0) {
                         Swal.fire({
                             title: 'تأكيد',
@@ -231,24 +271,17 @@ export function ShipmentDelivery(orderId) {
                             showCancelButton: true,
                             confirmButtonText: 'نعم',
                             cancelButtonText: 'لا',
-                            preConfirm: () => { finalData.ShipApproved = true; }
-                        }).then(() => {
-                            let res = sendRequest(urlship, finalData);
-                            responseMsg(res);
-                            if (res && res[0] === 'success') {
-                                try { sessionStorage.removeItem(shipmentRequestIdentity(result.value.odata, result.value).storageKey); } catch (error) {}
-                            }
-                            table.ajax.reload(null, false).on('draw', custodyTotal);
+                            allowOutsideClick: false
+                        }).then(returnResult => {
+                            if (returnResult.isConfirmed) finalData.ShipApproved = true;
+                            askShippingPayment();
                         });
                     } else {
-                        let res = sendRequest(urlship, finalData);
-                        responseMsg(res);
-                        if (res && res[0] === 'success') {
-                            try { sessionStorage.removeItem(shipmentRequestIdentity(result.value.odata, result.value).storageKey); } catch (error) {}
-                        }
-                        table.ajax.reload(null, false).on('draw', custodyTotal);
+                        askShippingPayment();
                     }
-                }
+                };
+
+                askInventoryReturn();
             });
         }
     });
