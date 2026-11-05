@@ -1321,9 +1321,11 @@ class shipment_BE {
             foreach ($items as $item) {
                 $itemType = strtoupper((string)($item['TYPE'] ?? 'SELSE'));
                 $itemQty = $item['productData']['appQty'] ?? null;
-                if ($itemType !== 'SELSE' || !is_numeric($itemQty) || (float)$itemQty > 0) {
+                if (!is_numeric($itemQty) || !is_finite((float)$itemQty) || (float)$itemQty < 0) {
+                    throw new InvalidArgumentException('كمية التسليم يجب أن تكون رقمًا صالحًا غير سالب.');
+                }
+                if ($itemType !== 'SELSE' || (float)$itemQty > 0) {
                     $allItemsRejected = false;
-                    break;
                 }
             }
             if ($allItemsRejected && !$customerPaidShippingProvided) {
@@ -1451,6 +1453,8 @@ class shipment_BE {
 	                APP_QTY       DECIMAL(18,3) NOT NULL,
 	                STATUSE       VARCHAR(50) NOT NULL,
 	                TYPE          ENUM('SELSE','REFUND') NOT NULL,
+	                REASON_ID     INT NULL,
+	                COMMENT       TEXT NULL,
 	                CREATED_AT    DATETIME(3) DEFAULT NOW(3),
 	                PRIMARY KEY (SESSION_ID, ORDER_ID, PRO_CODE, TYPE)
 	            ) ENGINE=InnoDB;
@@ -1472,7 +1476,11 @@ class shipment_BE {
 	            $orderId = (int)$row['ORDER_ID'];
 	            $proCode = trim($row['PRO_CODE']);
 	            $userId  = isset($row['DELIVERY_ID']) ? (int)$row['DELIVERY_ID'] : $executedBy;
-	            $appQty  = isset($row['productData']['appQty']) && is_numeric($row['productData']['appQty']) ? (float)$row['productData']['appQty'] : 0.0;
+	            $appQtyRaw = $row['productData']['appQty'] ?? null;
+	            if (!is_numeric($appQtyRaw) || !is_finite((float)$appQtyRaw) || (float)$appQtyRaw < 0) {
+	                throw new InvalidArgumentException("كمية التسليم غير صالحة للمنتج " . $proCode);
+	            }
+	            $appQty = (float)$appQtyRaw;
 	            $recQty  = $row['productData']['recqty'] ?? null;
 	            $statuse = (!empty($recQty) && is_numeric($recQty) && (float)$recQty > 0) ? 'returned' : 'pending';
 	            $type = in_array($row['TYPE'] ?? '', ['SELSE', 'REFUND']) ? $row['TYPE'] : 'SELSE';
