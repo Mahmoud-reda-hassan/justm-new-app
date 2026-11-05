@@ -1,0 +1,44 @@
+name: Accounting PHP Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'inc/Classes/Accounting/**'
+      - 'tests/accounting/**'
+      - '.github/workflows/accounting-php-validation.yml'
+  pull_request:
+    paths:
+      - 'inc/Classes/Accounting/**'
+      - 'tests/accounting/**'
+      - '.github/workflows/accounting-php-validation.yml'
+  workflow_dispatch:
+
+jobs:
+  php-validation:
+    name: PHP ${{ matrix.php }} syntax and direct-sale checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.0', '8.4']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: PHP syntax checks
+        run: |
+          php -l inc/Classes/Accounting/AccountingEvents.php
+          php -l inc/Classes/Accounting/FinancialEventManager.php
+          php -l inc/Classes/Accounting/JournalManager.php
+          php -l inc/Classes/Accounting/AccountSettings.php
+          php -l tests/accounting/direct_sale_static_test.php
+
+      - name: Direct sale business-rule checks
+        run: php tests/accounting/direct_sale_static_test.php
