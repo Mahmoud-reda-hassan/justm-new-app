@@ -119,12 +119,25 @@ try {
             $orderIds = array_map('intval', $readArray($_POST['order_ids'] ?? [], 'order_ids'));
             $amount = (float)($_POST['amount'] ?? 0);
             $mode = isset($_POST['commission_mode']) && $_POST['commission_mode'] !== '' ? (string)$_POST['commission_mode'] : null;
+            $note = trim((string)($_POST['note'] ?? ''));
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $canonicalOrderIds = array_values(array_unique(array_map('intval', $orderIds)));
+            sort($canonicalOrderIds, SORT_NUMERIC);
+            $requestHash = hash('sha256', json_encode([
+                'delivery_id' => $deliveryId,
+                'branch_id' => $branchId,
+                'payment_method_id' => $paymentMethodId,
+                'order_ids' => $canonicalOrderIds,
+                'amount' => round($amount, 2),
+                'commission_mode' => $mode,
+                'note' => $note,
+            ], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
             if ($orderIds && $amount <= 0) {
                 $result = $deliveryAccounting->settleSelectedOrders($deliveryId, $branchId, $paymentMethodId,
-                    $orderIds, $mode, (string)($_POST['note'] ?? ''));
+                    $orderIds, $mode, $note, $requestKey, $requestHash);
             } else {
                 $result = $deliveryAccounting->settle($deliveryId, $branchId, $paymentMethodId,
-                    $amount, $orderIds, $mode, (string)($_POST['note'] ?? ''));
+                    $amount, $orderIds, $mode, $note, $requestKey, $requestHash);
             }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
@@ -132,10 +145,20 @@ try {
         case 'PayDeliveryCommission':
             $requireFinanceAdmin();
             if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            $deliveryId = (int)($_POST['delivery_id'] ?? 0);
+            $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $amount = round((float)($_POST['amount'] ?? 0), 2);
+            $note = trim((string)($_POST['note'] ?? ''));
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $requestHash = hash('sha256', json_encode([
+                'delivery_id' => $deliveryId,
+                'branch_id' => $branchId,
+                'payment_method_id' => $paymentMethodId,
+                'amount' => $amount,
+                'note' => $note,
+            ], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
             $result = $deliveryAccounting->payCommission(
-                (int)($_POST['delivery_id'] ?? 0), $branchId,
-                (int)($_POST['payment_method_id'] ?? 0), (float)($_POST['amount'] ?? 0),
-                (string)($_POST['note'] ?? '')
+                $deliveryId, $branchId, $paymentMethodId, $amount, $note, $requestKey, $requestHash
             );
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
