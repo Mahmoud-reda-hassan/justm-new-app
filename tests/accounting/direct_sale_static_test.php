@@ -1,97 +1,86 @@
 <?php
 declare(strict_types=1);
 
-/**
- * فحوص ثابتة لقواعد البيع المباشر وسجل الأحداث.
- * هذه الفحوص لا تستبدل اختبارات قاعدة البيانات أو التشغيل الفعلي.
- */
-
+/** فحوص ثابتة لقواعد البيع المباشر وعكس القيود وخدمة الأحداث المالية. */
 $root = dirname(__DIR__, 2);
 
-function readProjectFile(string $root, string $relative): string
+function projectFile(string $root, string $relative): string
 {
     $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
     if (!is_file($path)) {
-        fwrite(STDERR, "FAIL: الملف غير موجود: {$relative}\n");
-        exit(1);
+        throw new RuntimeException("الملف غير موجود: {$relative}");
     }
     return (string)file_get_contents($path);
 }
-
-function extractMethod(string $source, string $signature): string
+function methodBody(string $source, string $signature): string
 {
     $start = strpos($source, $signature);
     if ($start === false) {
-        throw new RuntimeException("لم يتم العثور على الدالة: {$signature}");
+        throw new RuntimeException("الدالة غير موجودة: {$signature}");
     }
-
     $open = strpos($source, '{', $start);
-    if ($open === false) {
-        throw new RuntimeException("بداية جسم الدالة غير موجودة: {$signature}");
-    }
-
     $depth = 0;
-    $length = strlen($source);
-    for ($i = $open; $i < $length; $i++) {
-        if ($source[$i] === '{') {
-            $depth++;
-        } elseif ($source[$i] === '}') {
-            $depth--;
-            if ($depth === 0) {
-                return substr($source, $start, $i - $start + 1);
-            }
-        }
+    for ($i = $open, $n = strlen($source); $i < $n; $i++) {
+        if ($source[$i] === '{') $depth++;
+        elseif ($source[$i] === '}' && --$depth === 0) return substr($source, $start, $i - $start + 1);
     }
-
-    throw new RuntimeException("أقواس الدالة غير متوازنة: {$signature}");
+    throw new RuntimeException("أقواس غير متوازنة: {$signature}");
 }
-
-function assertContainsText(string $haystack, string $needle, string $message): void
+function has(string $source, string $needle, string $message): void
 {
-    if (strpos($haystack, $needle) === false) {
-        throw new RuntimeException($message);
-    }
+    if (strpos($source, $needle) === false) throw new RuntimeException($message);
 }
-
-function assertNotContainsText(string $haystack, string $needle, string $message): void
+function lacks(string $source, string $needle, string $message): void
 {
-    if (strpos($haystack, $needle) !== false) {
-        throw new RuntimeException($message);
-    }
+    if (strpos($source, $needle) !== false) throw new RuntimeException($message);
 }
 
 try {
-    $accounting = readProjectFile($root, 'inc/Classes/Accounting/AccountingEvents.php');
-    $eventManager = readProjectFile($root, 'inc/Classes/Accounting/FinancialEventManager.php');
-    $installer = readProjectFile($root, 'inc/Databases/JUSTM_DATABASE_INSTALL.sql');
+    $accounting = projectFile($root, 'inc/Classes/Accounting/AccountingEvents.php');
+    $events = projectFile($root, 'inc/Classes/Accounting/FinancialEventManager.php');
+    $journal = projectFile($root, 'inc/Classes/Accounting/JournalManager.php');
+    $installer = projectFile($root, 'inc/Databases/JUSTM_DATABASE_INSTALL.sql');
+    $rootInstaller = projectFile($root, 'JUSTM_DATABASE_INSTALL.sql');
 
-    $directSale = extractMethod($accounting, 'public function directSale(int $orderId): int');
-    $validation = extractMethod($accounting, 'protected function validateDirectSale(array $order): void');
+    $sale = methodBody($accounting, 'public function directSale(int $orderId): int');
+    $validation = methodBody($accounting, 'protected function validateDirectSale(array $order): void');
+    has($sale, 'new FinancialEventManager($this->db)', 'البيع المباشر لا يستخدم بوابة الأحداث.');
+    has($sale, "'event_type' => 'SALE_RECOGNIZED'", 'نوع حدث البيع غير صحيح.');
+    has($sale, "'source_type' => 'ORDER'", 'مصدر حدث البيع غير صحيح.');
+    has($sale, 'DIRECT_SALE:ORDER:', 'مفتاح منع تكرار البيع غير موجود.');
+    has($sale, "'debit' => $productsAmount", 'مديونية العميل لا تساوي قيمة المنتجات.');
+    has($sale, "'credit' => $productsAmount", 'إيراد البيع لا يساوي قيمة المنتجات.');
+    has($sale, 'FOR UPDATE', 'لا يوجد قفل للطلب وبنوده.');
+    lacks($sale, 'SHIPPING_VAL', 'الشحن دخل في البيع المباشر.');
+    lacks($sale, 'shippingRevenue', 'إيراد الشحن دخل في البيع المباشر.');
+    lacks($validation, 'SHIPPING_VAL', 'التحقق من البيع المباشر يعتمد على الشحن.');
+    lacks($validation, 'shippingRevenue', 'التحقق من البيع المباشر يستدعي إيراد الشحن.');
 
-    assertContainsText($directSale, 'new FinancialEventManager($this->db)', 'البيع المباشر لا يستخدم FinancialEventManager.');
-    assertContainsText($directSale, "'event_type' => 'SALE_RECOGNIZED'", 'نوع حدث البيع غير صحيح.');
-    assertContainsText($directSale, "'source_type' => 'ORDER'", 'مصدر حدث البيع غير صحيح.');
-    assertContainsText($directSale, 'DIRECT_SALE:ORDER:', 'مفتاح منع التكرار الثابت غير موجود.');
-    assertContainsText($directSale, "'debit' => \$productsAmount", 'مديونية العميل ليست بقيمة المنتجات فقط.');
-    assertContainsText($directSale, "'credit' => \$productsAmount", 'إيراد المبيعات ليس بقيمة المنتجات فقط.');
-    assertContainsText($directSale, 'FOR UPDATE', 'لا يوجد قفل لرأس الطلب وبنوده قبل الترحيل.');
-    assertNotContainsText($directSale, 'SHIPPING_VAL', 'تم إدخال قيمة الشحن في مسار البيع المباشر.');
-    assertNotContainsText($directSale, 'shippingRevenue', 'تم إدخال حساب إيراد الشحن في البيع المباشر.');
-    assertNotContainsText($validation, 'SHIPPING_VAL', 'التحقق من البيع المباشر ما زال يعتمد على رسوم الشحن.');
-    assertNotContainsText($validation, 'shippingRevenue', 'التحقق من البيع المباشر يعتمد على حساب الشحن.');
+    $reverse = methodBody($journal, 'public function reverse(');
+    has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
+    has($reverse, "status'] !== 'POSTED'", 'عكس القيد لا يشترط أن يكون القيد الأصلي مرحلًا.');
+    has($reverse, "reference_type = 'JOURNAL_REVERSE'", 'منع العكس المكرر غير موجود.');
+    has($reverse, "'debit'          => (float)$line['credit']", 'العكس لا يقلب المدين والدائن.');
+    has($reverse, "'credit'         => (float)$line['debit']", 'العكس لا يقلب الدائن والمدين.');
+    has($reverse, "status = 'REVERSED'", 'حالة القيد الأصلي لا تتغير بعد العكس.');
+    has($reverse, 'rollBack()', 'عكس القيد لا يتراجع عند الفشل.');
 
-    assertContainsText($eventManager, 'idempotency_key', 'خدمة الأحداث لا تحتوي مفتاح منع التكرار.');
-    assertContainsText($eventManager, "status'] !== 'POSTED'", 'خدمة الأحداث لا تتحقق من حالة القيد.');
-    assertContainsText($eventManager, 'beginTransaction()', 'خدمة الأحداث لا تبدأ معاملة عند الحاجة.');
-    assertContainsText($eventManager, 'rollBack()', 'خدمة الأحداث لا تلغي المعاملة عند الفشل.');
+    has($events, 'UNIQUE', 'خدمة الأحداث يجب أن تعتمد على مفتاح فريد.');
+    has($events, 'hash_equals', 'مقارنة بصمة الحدث غير موجودة.');
+    has($events, 'FOR UPDATE', 'قفل الحدث/القيد غير موجود.');
+    has($events, "status'] !== 'POSTED'", 'التحقق من حالة القيد الناتج غير موجود.');
+    has($events, 'rollBack()', 'التراجع عند فشل الحدث غير موجود.');
 
-    assertContainsText($installer, 'CREATE TABLE IF NOT EXISTS `accounting_events`', 'جدول accounting_events غير موجود في Installer.');
-    assertContainsText($installer, 'UNIQUE KEY `uq_accounting_event_idempotency`', 'قيد التفرد لمفتاح الحدث غير موجود.');
+    has($installer, 'CREATE TABLE IF NOT EXISTS `accounting_events`', 'جدول accounting_events غير موجود.');
+    has($installer, 'UNIQUE KEY `uq_accounting_event_idempotency`', 'قيد منع تكرار الحدث غير موجود.');
+    if (hash('sha256', $installer) !== hash('sha256', $rootInstaller)) {
+        throw new RuntimeException('نسخة Installer في الجذر تختلف عن نسخة inc/Databases.');
+    }
 
-    echo "PASS: direct sale is product-only and uses idempotent financial events.\n";
-    echo "PASS: direct sale contains no shipping amount or shipping revenue reference.\n";
-    echo "PASS: event manager transaction/idempotency safeguards are present.\n";
-    echo "PASS: installer defines accounting_events with a unique idempotency key.\n";
+    echo "PASS: direct sale posts product value only and excludes shipping.\n";
+    echo "PASS: journal reversal locks, swaps lines, prevents duplicates and marks original reversed.\n";
+    echo "PASS: financial event idempotency and transaction safeguards exist.\n";
+    echo "PASS: both installer copies are identical and define accounting_events.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: " . $e->getMessage() . "\n");
     exit(1);
