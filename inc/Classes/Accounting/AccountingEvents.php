@@ -197,6 +197,13 @@ class AccountingEvents {
                 throw new Exception("Order not found.");
             }
 
+            // قفل بنود الطلب أيضًا حتى لا تتغير الكميات أو الأسعار أثناء احتساب القيد.
+            $lockProducts = $this->db->prepare(
+                "SELECT ORDER_ID FROM order_product WHERE ORDER_ID = ? FOR UPDATE"
+            );
+            $lockProducts->execute([$orderId]);
+            $lockProducts->fetchAll(PDO::FETCH_COLUMN);
+
             $order = $this->getSalesOrder($orderId);
             $this->validateDirectSale($order);
 
