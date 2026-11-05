@@ -37,6 +37,7 @@ final class FinancialEventManager
 
         try {
             $inserted = true;
+            $insertException = null;
             try {
                 $insert = $this->db->prepare(
                     "INSERT INTO accounting_events
@@ -60,6 +61,7 @@ final class FinancialEventManager
                     throw $e;
                 }
                 $inserted = false;
+                $insertException = $e;
                 $eventId = 0;
             }
 
@@ -78,7 +80,10 @@ final class FinancialEventManager
                 if (!$existing) {
                     // قد يكون SQLSTATE 23000 ناتجًا عن قيد آخر، وليس تكرار مفتاح الحدث.
                     // إذا لم نجد المفتاح نفسه، أعد خطأ قاعدة البيانات الأصلي دون إخفائه.
-                    throw $e;
+                    if ($insertException instanceof PDOException) {
+                        throw $insertException;
+                    }
+                    throw new RuntimeException('تعذر التحقق من سبب تعارض سجل الحدث المالي.');
                 }
                 if (
                     $existing['event_type'] !== $data['event_type'] ||
