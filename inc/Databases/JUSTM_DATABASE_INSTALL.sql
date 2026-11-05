@@ -582,8 +582,8 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `SHIPPING_VAL` decimal(18,2) NOT NULL,
   `SHIPP_PAYMENT` tinyint(1) NOT NULL DEFAULT 1,
   `ORDER_STATUS` int(2) NOT NULL,
-  `SALE_ENTRY_ID` int(11) DEFAULT NULL,
-  `RETURN_ENTRY_ID` int(11) DEFAULT NULL,
+  `SALE_ENTRY_ID` BIGINT(20) UNSIGNED DEFAULT NULL,
+  `RETURN_ENTRY_ID` BIGINT(20) UNSIGNED DEFAULT NULL,
   `EXISTS_ID` int(4) NOT NULL DEFAULT 1,
   `PRINT` tinyint(1) NOT NULL DEFAULT 0,
   `ORDER_SUCCESS` tinyint(1) NOT NULL,
@@ -606,7 +606,9 @@ CREATE TABLE IF NOT EXISTS `orders` (
   KEY `orders_exists_id_index` (`EXISTS_ID`),
   KEY `orders_statuse_index` (`ORDER_STATUS`),
   KEY `idx_last_update` (`LAST_UPDATE`),
-  KEY `idx_orders_id_status` (`ORDER_ID`,`ORDER_STATUS`)
+  KEY `idx_orders_id_status` (`ORDER_ID`,`ORDER_STATUS`),
+  KEY `idx_orders_sale_entry` (`SALE_ENTRY_ID`),
+  KEY `idx_orders_return_entry` (`RETURN_ENTRY_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 -- --------------------------------------------------------
@@ -620,7 +622,7 @@ CREATE TABLE IF NOT EXISTS `order_product` (
   `PRO_CODE` varchar(50) NOT NULL,
   `QTY` decimal(18,2) NOT NULL,
   `PRICE` decimal(18,2) NOT NULL,
-  `COST_PRICE` decimal(18,4) NOT NULL,
+  `COST_PRICE` DECIMAL(18,2) NULL COMMENT 'تكلفة الوحدة وقت إنشاء أمر البيع؛ NULL للسجلات التاريخية غير المعروفة',
   `DISCOUNT` decimal(18,2) NOT NULL DEFAULT 0.00,
   `DELIVERED_QTY` decimal(18,2) NOT NULL DEFAULT 0.00,
   `RETURNED_QTY` decimal(18,2) NOT NULL DEFAULT 0.00,
@@ -1045,13 +1047,14 @@ CREATE TABLE IF NOT EXISTS `financial_transactions` (
   `category_id` int(11) DEFAULT NULL,
   `status` enum('COMPLETED','CANCELLED','DEFERRED') DEFAULT 'COMPLETED',
   `accounting_posted` tinyint(1) NOT NULL DEFAULT 0,
-  `accounting_entry_id` bigint(20) DEFAULT NULL,
+  `accounting_entry_id` BIGINT(20) UNSIGNED DEFAULT NULL,
   `note` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `payment_method_id` (`payment_method_id`),
   KEY `category_id` (`category_id`),
   KEY `transaction_USER_ID` (`transaction_user_id`),
-  KEY `branch_id` (`branch_id`)
+  KEY `branch_id` (`branch_id`),
+  KEY `idx_financial_accounting_entry` (`accounting_entry_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 -- --------------------------------------------------------
