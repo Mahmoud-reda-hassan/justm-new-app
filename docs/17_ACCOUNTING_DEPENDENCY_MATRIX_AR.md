@@ -225,3 +225,14 @@ dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_bal
 | delivery_* | رؤوس collections/settlements/commission وروابطها | لا يوجد مفتاح idempotency عام لكل الأحداث | حماية تفرد الحدث على مستوى كل مصدر ومرحلة/جزء |
 
 **ملاحظة:** هذه ملاحظات على DDL في Installer، وليست نتيجة `SHOW CREATE TABLE` من قاعدة التشغيل. لا يتم تعديل Installer قبل مطابقة Backup وبيانات المفاتيح الحالية.
+
+## إضافة اعتماديات المرحلة — FinancialEventManager
+
+| المكوّن | الاعتماد الجديد | الحالة |
+|---|---|---|
+| FinancialEventManager | PDO + accounting_events + journal_entries | أضيفت الخدمة والجدول إلى Installer |
+| JournalManager | نفس اتصال PDO المستخدم في معاملة الحدث | مطلوب داخل callback |
+| AccountingEvents | لم يُحوّل بعد إلى الخدمة | ما زال يعتمد جزئيًا على financial_transactions |
+| نقاط البيع والتحصيل | تحتاج مفتاح idempotency ثابتًا لكل حدث تشغيلي | لم تُربط بعد |
+
+تنبيه: إضافة الخدمة لا تعني أن النظام القديم قد توقف. يظل القطع النهائي محظورًا حتى تحويل كل المستهلكين، ترحيل التاريخ المطلوب، مطابقة الأرصدة، وتشغيل اختبارات القبول.
