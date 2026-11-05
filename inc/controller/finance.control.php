@@ -102,10 +102,11 @@ try {
                 }
                 $orderAmounts = $normalized;
             }
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
             $result = $deliveryAccounting->registerCustomerCollection(
                 (int)($_POST['delivery_id'] ?? 0), $branchId,
                 (int)($_POST['payment_method_id'] ?? 0), $orderAmounts,
-                (string)($_POST['note'] ?? '')
+                $requestKey, (string)($_POST['note'] ?? '')
             );
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
