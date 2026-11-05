@@ -41,6 +41,8 @@ try {
     $journal = projectFile($root, 'inc/Classes/Accounting/JournalManager.php');
     $installer = projectFile($root, 'inc/Databases/JUSTM_DATABASE_INSTALL.sql');
     $rootInstaller = projectFile($root, 'JUSTM_DATABASE_INSTALL.sql');
+    $deliveryManager = projectFile($root, 'inc/Classes/Accounting/DeliverySettlementManager.php');
+    $financeController = projectFile($root, 'inc/controller/finance.control.php');
 
     $sale = methodBody($accounting, 'public function directSale(int $orderId): int');
     $validation = methodBody($accounting, 'protected function validateDirectSale(array $order): void');
@@ -66,6 +68,18 @@ try {
     has($shipping, 'shippingRevenue()', 'إيراد الشحن لا يستخدم حساب الإعدادات.');
     has($shipping, 'FOR UPDATE', 'حدث الشحن لا يقفل الطلب قبل إعادة التحقق.');
 
+
+
+    $collection = methodBody($deliveryManager, 'public function registerCustomerCollection(');
+    has($deliveryManager, "require_once __DIR__ . '/FinancialEventManager.php'", 'خدمة تحصيل المندوب لا تحمل FinancialEventManager.');
+    has($collection, "preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', $requestKey)", 'مفتاح طلب التحصيل غير محمي أو غير إلزامي.');
+    has($collection, "'event_type' => 'COURIER_COLLECTION'", 'حدث تحصيل المندوب غير مسجل في سجل الأحداث.');
+    has($collection, '$eventManager->post($eventData', 'تحصيل المندوب لا يمر عبر FinancialEventManager.');
+    has($collection, 'WHERE idempotency_key = ? LIMIT 1 FOR UPDATE', 'إعادة إرسال التحصيل لا تفحص الحدث قبل فحص الرصيد المفتوح.');
+    has($collection, 'SHIPPING_REVENUE_RECOGNIZED', 'تحصيل الطلب المشحون لا يتحقق من حدث الشحن.');
+    has($collection, 'foreach ($receivableLines as $receivableLine)', 'تخصيص التحصيل لا يغطي سطور المنتجات والشحن.');
+    has($collection, "'event_type' => 'COMMISSION_ACCRUED'", 'حدث استحقاق العمولة غير محمي بمنع التكرار.');
+    has($financeController, "$_POST['request_key']", 'Endpoint التحصيل لا يستقبل مفتاح منع التكرار.');
 
     $reverse = methodBody($journal, 'public function reverse(');
     has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
