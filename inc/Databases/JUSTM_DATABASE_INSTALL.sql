@@ -1181,6 +1181,9 @@ CREATE TABLE IF NOT EXISTS `system_settings` (
   UNIQUE KEY `SETTING_KEY` (`SETTING_KEY`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
+INSERT IGNORE INTO `system_settings` (`SETTING_KEY`, `SETTING_VALUE`, `SETTING_DESCRIPTION`)
+VALUES ('ALLOW_SHIPPING_AMOUNT_EDIT_DURING_CONFIRMATION', '0', 'السماح بتعديل قيمة الشحن أثناء تأكيد محاولة التوصيل');
+
 -- منع تكرار نفس طلب تأكيد الشحنة عند إعادة إرسال HTTP.
 -- لا يمنع محاولة توصيل جديدة؛ الواجهة تنشئ request_key جديدًا بعد نجاح المحاولة.
 CREATE TABLE IF NOT EXISTS `delivery_confirmation_requests` (
