@@ -1148,7 +1148,8 @@ class shipment_BE {
 			}
 
 			// التحقق من وجود مرتجع للطلب
-			if (isset($this->orderobj[$this->order_id]['returns']) &&
+			if (is_array($this->orderobj) &&
+				isset($this->orderobj[$this->order_id]['returns']) &&
 				$this->orderobj[$this->order_id]['returns']) {
 
 				// إذا كان هناك مرتجع، نرجع رسالة تحذير
@@ -1161,6 +1162,13 @@ class shipment_BE {
 
 			// جلب المنتجات العادية للطلب
 			$products = $this->fetchOrderProducts($sql['getOProducts'], $this->order_id);
+			if (empty($products['no'])) {
+				return [
+					'type' => 'error',
+					'title' => 'لا توجد منتجات',
+					'message' => 'لم يتم العثور على منتجات هذا الطلب داخل عهدة المندوب الحالي.'
+				];
+			}
 
 			// جلب المنتجات المرتجعة للطلب
 			//$returned = $this->fetchOrderProducts($sql['getReturnOProducts'], $this->order_id, true);
