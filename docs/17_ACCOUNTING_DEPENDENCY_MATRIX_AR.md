@@ -163,3 +163,16 @@
 
 ### 8.1 أثر معماري مهم
 تأكيد التسليم/المرتجع حاليًا قد يحدّث الأرصدة من SQL مباشرة؛ لذلك لا يكفي استبدال finance_BE أو التقارير. يجب أن يصبح الإجراء التشغيلي مسؤولًا عن تجهيز/تأكيد حركة المخزون فقط، وأن يطلق حدثًا ماليًا ذريًا واحدًا بمعرف فريد، ثم يسجل القيد والتخصيصات في GL. إنشاء أمر الشراء ومرتجعه يجب ألا يتوقف على رصيد الشريك القديم.
+
+
+## 9. ربط واجهات JavaScript بالعمليات المالية
+
+| ملف الواجهة | الطلب المثبت | Backend | ملاحظة الاستبدال |
+|---|---|---|---|
+| dist/js/DeliverySettlement.js | PreviewDeliverySettlement وSettleDeliveryCollections | finance.control.php | اتصال مباشر بخدمة التسوية الجديدة الجزئية |
+| dist/js/PaymentDisbursement.js | GetRefundBalance | PaymentDisbursement.control.php | يعتمد على Backend الصرف/رصيد المرتجع القديم |
+| dist/js/PaymentDisbursement.js | PaymentOfCustomerDues وSaveSupplierPayment وPaymentOfMarketerDues وPaymentOfDeliveryDues | finance.control.php | أربع عمليات صرف/تحصيل ما زالت تستدعي finance_BE |
+| dist/js/ReceivePayments.js | CONTROL=ReceivePayments | accounts.control.php | تحميل قائمة التحصيل؛ يلزم استكمال تتبع أحداث الأزرار |
+| dist/js/AddPurchaseOrder.js | listPurchasesDT | purchases.control.php | قائمة المشتريات؛ يلزم تتبع عملية الحفظ نفسها |
+
+الفحص يثبت تكوين عناوين الطلبات وأسماء بعض actions فقط؛ لا يثبت استجابة HTTP أو نجاح الحفظ في بيئة التشغيل.
