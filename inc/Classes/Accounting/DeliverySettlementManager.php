@@ -98,9 +98,16 @@ final class DeliverySettlementManager
         if (!preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', $requestKey)) {
             throw new InvalidArgumentException('مفتاح طلب التحصيل مطلوب ويجب أن يكون من 8 إلى 64 حرفًا آمنًا.');
         }
+        $note = trim($note);
+        if (strlen($note) > 500) {
+            throw new InvalidArgumentException('ملاحظة التحصيل لا يمكن أن تتجاوز 500 حرف.');
+        }
         $normalized = [];
         foreach ($orderAmounts as $orderId => $amount) {
             $orderId = (int)$orderId;
+            if (!is_numeric($amount)) {
+                throw new InvalidArgumentException('مبلغ التحصيل يجب أن يكون رقمًا صحيحًا.');
+            }
             $amount = round((float)$amount, 2);
             if ($orderId <= 0 || !is_finite($amount) || $amount <= 0) {
                 throw new InvalidArgumentException('بيانات مبلغ التحصيل أو رقم أمر البيع غير صحيحة.');
@@ -110,10 +117,108 @@ final class DeliverySettlementManager
             }
             $normalized[$orderId] = $amount;
         }
+        ksort($normalized, SORT_NUMERIC);
+
+        // بصمة ثابتة للطلب بالكامل؛ ترتيب الأوامر أو تنسيق المبلغ لا يغيران البصمة.
+        $canonicalOrders = [];
+        foreach ($normalized as $orderId => $amount) {
+            $canonicalOrders[] = [
+                'order_id' => (int)$orderId,
+                'amount' => number_format($amount, 2, '.', ''),
+            ];
+        }
+        $canonicalPayload = [
+            'delivery_id' => $deliveryId,
+            'branch_id' => $branchId,
+            'payment_method_id' => $paymentMethodId,
+            'orders' => $canonicalOrders,
+            'note' => $note,
+        ];
+        $canonicalJson = json_encode($canonicalPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($canonicalJson === false) {
+            throw new RuntimeException('تعذر تكوين بصمة طلب التحصيل.');
+        }
+        $requestHash = hash('sha256', $canonicalJson);
 
         $ownsTransaction = !$this->db->inTransaction();
         if ($ownsTransaction) $this->db->beginTransaction();
         try {
+            // حجز المفتاح على مستوى الطلب الكامل قبل إنشاء أي حدث أو مستند فرعي.
+            $requestId = 0;
+            try {
+                $requestInsert = $this->db->prepare("INSERT INTO delivery_collection_requests
+                    (request_key, request_hash, delivery_user_id, branch_id, payment_method_id,
+                     total_amount, order_count, note, status, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PROCESSING', ?)");
+                $requestInsert->execute([
+                    $requestKey, $requestHash, $deliveryId, $branchId, $paymentMethodId,
+                    round(array_sum($normalized), 2), count($normalized), $note, $actorId
+                ]);
+                $requestId = (int)$this->db->lastInsertId();
+            } catch (PDOException $insertException) {
+                $driverCode = isset($insertException->errorInfo[1]) ? (int)$insertException->errorInfo[1] : 0;
+                if ($insertException->getCode() !== '23000' && $driverCode !== 1062) {
+                    throw $insertException;
+                }
+
+                // INSERT المتزامن بالمفتاح نفسه ينتظر المعاملة الأولى؛ ثم نقرأ نتيجتها بعد القفل.
+                $existingRequestStmt = $this->db->prepare("SELECT id, request_hash, status, total_amount, order_count
+                    FROM delivery_collection_requests WHERE request_key = ? LIMIT 1 FOR UPDATE");
+                $existingRequestStmt->execute([$requestKey]);
+                $existingRequest = $existingRequestStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$existingRequest) {
+                    throw $insertException;
+                }
+                if (!hash_equals((string)$existingRequest['request_hash'], $requestHash)) {
+                    throw new RuntimeException('مفتاح طلب التحصيل مستخدم بالفعل مع بيانات مختلفة؛ تم رفض الطلب دون إنشاء مستندات جديدة.');
+                }
+                if ($existingRequest['status'] !== 'POSTED') {
+                    throw new RuntimeException('طلب التحصيل السابق غير مكتمل أو قيد المعالجة؛ لن تتم إعادة تنفيذه تلقائيًا.');
+                }
+
+                $replayStmt = $this->db->prepare("SELECT l.order_id, l.customer_amount, l.commission_amount,
+                        c.id AS collection_id, c.receipt_no, c.customer_id, c.collection_journal_id,
+                        c.commission_journal_id, c.status
+                    FROM delivery_collection_request_collections l
+                    INNER JOIN delivery_customer_collections c ON c.id = l.collection_id
+                    WHERE l.request_id = ? ORDER BY l.order_id");
+                $replayStmt->execute([(int)$existingRequest['id']]);
+                $replayRows = $replayStmt->fetchAll(PDO::FETCH_ASSOC);
+                if (count($replayRows) !== count($normalized)
+                    || abs((float)$existingRequest['total_amount'] - round(array_sum($normalized), 2)) > 0.009
+                    || (int)$existingRequest['order_count'] !== count($normalized)) {
+                    throw new RuntimeException('نتيجة طلب التحصيل السابق غير مكتملة؛ يلزم فحصها قبل إعادة الإرسال.');
+                }
+
+                $replayed = [];
+                foreach ($replayRows as $row) {
+                    $orderId = (int)$row['order_id'];
+                    if (!isset($normalized[$orderId]) || $row['status'] !== 'POSTED'
+                        || abs((float)$row['customer_amount'] - $normalized[$orderId]) > 0.009
+                        || empty($row['collection_journal_id'])) {
+                        throw new RuntimeException('أحد مستندات طلب التحصيل السابق غير متسق؛ يلزم فحصه.');
+                    }
+                    $replayed[] = [
+                        'collection_id' => (int)$row['collection_id'],
+                        'receipt_no' => $row['receipt_no'],
+                        'order_id' => $orderId,
+                        'customer_id' => (int)$row['customer_id'],
+                        'amount' => (float)$row['customer_amount'],
+                        'commission' => (float)$row['commission_amount'],
+                        'collection_journal_id' => (int)$row['collection_journal_id'],
+                        'commission_journal_id' => $row['commission_journal_id'] ? (int)$row['commission_journal_id'] : null,
+                        'already_posted' => true,
+                    ];
+                }
+                if ($ownsTransaction) $this->db->commit();
+                return [
+                    'success' => true,
+                    'collections' => $replayed,
+                    'total_amount' => round(array_sum($normalized), 2),
+                    'already_posted' => true,
+                ];
+            }
+
             $settings = $this->getSettings(true);
             $custodyAccountId = (int)$settings['courier_custody_account_id'];
             $commissionExpenseAccountId = (int)$settings['courier_commission_expense_account_id'];
@@ -443,6 +548,27 @@ final class DeliverySettlementManager
                     'collection_journal_id' => $collectionJournalId,
                     'commission_journal_id' => $commissionJournalId,
                 ];
+            }
+
+            // ربط كل مستند فرعي بالطلب الرئيسي بعد اكتمال إنشاء جميع أوامر الطلب.
+            $linkStmt = $this->db->prepare("INSERT INTO delivery_collection_request_collections
+                (request_id, collection_id, order_id, customer_amount, commission_amount)
+                VALUES (?, ?, ?, ?, ?)");
+            foreach ($created as $collectionResult) {
+                $linkStmt->execute([
+                    $requestId,
+                    (int)$collectionResult['collection_id'],
+                    (int)$collectionResult['order_id'],
+                    round((float)$collectionResult['amount'], 2),
+                    round((float)$collectionResult['commission'], 2),
+                ]);
+            }
+            $requestPosted = $this->db->prepare("UPDATE delivery_collection_requests
+                SET status = 'POSTED', completed_at = NOW()
+                WHERE id = ? AND status = 'PROCESSING'");
+            $requestPosted->execute([$requestId]);
+            if ($requestPosted->rowCount() !== 1) {
+                throw new RuntimeException('تعذر اعتماد طلب التحصيل الرئيسي بعد اكتمال مستنداته.');
             }
 
             if ($ownsTransaction) $this->db->commit();
