@@ -311,43 +311,89 @@ class JournalManager{
 	public function reverse(
 	    int $journalId,
 	    string $reason = ''): int {
-	    $this->load($journalId);
-	
-	    $header = $this->header;
-	    $lines  = $this->lines;
-	
-	    $this->reset();
-	
-	    $this->create([
-	
-	        'branch_id'      => $header['branch_id'],
-	        'entry_date'     => date('Y-m-d H:i:s'),
-	        'reference_type' => 'JOURNAL_REVERSE',
-	        'reference_id'   => $journalId,
-	        'description'    => 'Reverse Entry : '.$reason,
-	        'created_by'     => $header['created_by']
-	
-	    ]);
-        foreach ($lines as $line) {
-            // addLine يستقبل مصفوفة واحدة؛ نعكس المدين والدائن مع الحفاظ على بيانات السطر.
-            $this->addLine([
-                'account_id'     => (int)$line['account_id'],
-                'branch_id'      => $line['branch_id'] ?? null,
-                'store_id'       => $line['store_id'] ?? null,
-                'cost_center_id' => $line['cost_center_id'] ?? null,
-                'partner_type'   => $line['partner_type'] ?? null,
-                'partner_id'     => $line['partner_id'] ?? null,
-                'reference_type' => $line['reference_type'] ?? null,
-                'reference_id'   => $line['reference_id'] ?? null,
-                'debit'          => (float)$line['credit'],
-                'credit'         => (float)$line['debit'],
-                'note'           => $line['note'] ?? '',
-            ]);
-        }
-	
-	    return $this->post();
+	    if ($journalId <= 0) {
+	        throw new InvalidArgumentException("Journal ID is required.");
+	    }
+
+	    // قفل القيد الأصلي يمنع طلبين متزامنين من إنشاء عكسين لنفس القيد.
+	    $ownsTransaction = !$this->db->inTransaction();
+	    if ($ownsTransaction) {
+	        $this->db->beginTransaction();
+	    }
+
+	    try {
+	        $lock = $this->db->prepare("
+	            SELECT id, branch_id, created_by, status
+	            FROM journal_entries
+	            WHERE id = ?
+	            LIMIT 1
+	            FOR UPDATE
+	        ");
+	        $lock->execute([$journalId]);
+	        $original = $lock->fetch(PDO::FETCH_ASSOC);
+	        if (!$original) {
+	            throw new Exception("Journal entry not found.");
+	        }
+	        if ($original['status'] !== 'POSTED') {
+	            throw new Exception("Only a posted journal entry can be reversed.");
+	        }
+
+	        $existing = $this->db->prepare("
+	            SELECT id
+	            FROM journal_entries
+	            WHERE reference_type = 'JOURNAL_REVERSE'
+	              AND reference_id = ?
+	            LIMIT 1
+	        ");
+	        $existing->execute([$journalId]);
+	        if ($existing->fetchColumn()) {
+	            throw new Exception("Journal entry has already been reversed.");
+	        }
+
+	        $this->load($journalId);
+	        $header = $this->header;
+	        $lines = $this->lines;
+	        $this->reset();
+
+	        $this->create([
+	            'branch_id'      => (int)$header['branch_id'],
+	            'entry_date'     => date('Y-m-d H:i:s'),
+	            'reference_type' => 'JOURNAL_REVERSE',
+	            'reference_id'   => $journalId,
+	            'description'    => 'Reverse Entry : ' . $reason,
+	            'created_by'     => (int)$header['created_by']
+	        ]);
+
+	        foreach ($lines as $line) {
+	            $this->addLine([
+	                'account_id'     => (int)$line['account_id'],
+	                'branch_id'      => $line['branch_id'] ?? null,
+	                'store_id'       => $line['store_id'] ?? null,
+	                'cost_center_id' => $line['cost_center_id'] ?? null,
+	                'partner_type'   => $line['partner_type'] ?? null,
+	                'partner_id'     => $line['partner_id'] ?? null,
+	                'reference_type' => $line['reference_type'] ?? null,
+	                'reference_id'   => $line['reference_id'] ?? null,
+	                'debit'          => (float)$line['credit'],
+	                'credit'         => (float)$line['debit'],
+	                'note'           => $line['note'] ?? '',
+	            ]);
+	        }
+
+	        $reversalId = $this->post();
+	        if ($ownsTransaction && $this->db->inTransaction()) {
+	            $this->db->commit();
+	        }
+	        return $reversalId;
+	    } catch (Throwable $e) {
+	        if ($ownsTransaction && $this->db->inTransaction()) {
+	            $this->db->rollBack();
+	        }
+	        $this->reset();
+	        throw $e;
+	    }
 	}
-	
+
 	/*****************************************************
 	 * البحث عن قيد
 	 *****************************************************/
