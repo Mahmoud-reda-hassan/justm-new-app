@@ -99,7 +99,9 @@ final class DeliverySettlementManager
             throw new InvalidArgumentException('مفتاح طلب التحصيل مطلوب ويجب أن يكون من 8 إلى 64 حرفًا آمنًا.');
         }
         $note = trim($note);
-        if (strlen($note) > 500) {
+        // عدّ حروف UTF-8 الفعلية بدل عدد البايتات حتى لا تُرفض الملاحظات العربية مبكرًا.
+        $noteCharacterCount = preg_match_all('/./us', $note, $noteCharacters);
+        if ($noteCharacterCount === false || $noteCharacterCount > 500) {
             throw new InvalidArgumentException('ملاحظة التحصيل لا يمكن أن تتجاوز 500 حرف.');
         }
         $normalized = [];
@@ -177,8 +179,10 @@ final class DeliverySettlementManager
                 }
 
                 $replayStmt = $this->db->prepare("SELECT l.order_id, l.customer_amount, l.commission_amount,
-                        c.id AS collection_id, c.receipt_no, c.customer_id, c.collection_journal_id,
-                        c.commission_journal_id, c.status
+                        c.id AS collection_id, c.receipt_no, c.customer_id,
+                        c.customer_paid_amount AS document_customer_amount,
+                        c.commission_amount AS document_commission_amount,
+                        c.collection_journal_id, c.commission_journal_id, c.status
                     FROM delivery_collection_request_collections l
                     INNER JOIN delivery_customer_collections c ON c.id = l.collection_id
                     WHERE l.request_id = ? ORDER BY l.order_id");
@@ -195,6 +199,8 @@ final class DeliverySettlementManager
                     $orderId = (int)$row['order_id'];
                     if (!isset($normalized[$orderId]) || $row['status'] !== 'POSTED'
                         || abs((float)$row['customer_amount'] - $normalized[$orderId]) > 0.009
+                        || abs((float)$row['document_customer_amount'] - $normalized[$orderId]) > 0.009
+                        || abs((float)$row['commission_amount'] - (float)$row['document_commission_amount']) > 0.009
                         || empty($row['collection_journal_id'])) {
                         throw new RuntimeException('أحد مستندات طلب التحصيل السابق غير متسق؛ يلزم فحصه.');
                     }
