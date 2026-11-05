@@ -96,7 +96,6 @@ final class DeliveryRejectedShippingCollectionManager
             if ($existing) {
                 if (
                     $existing['status'] !== 'POSTED'
-                    || (int)$existing['delivery_user_id'] !== $deliveryId
                     || (int)$existing['branch_id'] !== $orderBranchId
                     || (int)$existing['accounting_event_id'] <= 0
                     || (int)$existing['journal_entry_id'] <= 0
