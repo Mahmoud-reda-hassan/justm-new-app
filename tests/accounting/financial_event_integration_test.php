@@ -42,10 +42,56 @@ try {
 
     // الجداول هنا مصغرة ومخصصة لاختبار FinancialEventManager فقط.
     $db->exec('DROP TABLE IF EXISTS accounting_events');
+    $db->exec('DROP TABLE IF EXISTS journal_entry_details');
     $db->exec('DROP TABLE IF EXISTS journal_entries');
+    $db->exec('DROP TABLE IF EXISTS financial_years');
+    $db->exec('DROP TABLE IF EXISTS accounts');
+    $db->exec("CREATE TABLE accounts (
+        id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        allow_posting TINYINT(1) NOT NULL DEFAULT 1
+    ) ENGINE=InnoDB");
+    $db->exec("INSERT INTO accounts (id,is_active,allow_posting) VALUES (10,1,1),(20,1,1)");
+    $db->exec("CREATE TABLE financial_years (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        year_name VARCHAR(20) NOT NULL,
+        date_from DATE NOT NULL,
+        date_to DATE NOT NULL,
+        is_closed TINYINT(1) NOT NULL DEFAULT 0
+    ) ENGINE=InnoDB");
+    $db->exec("INSERT INTO financial_years (year_name,date_from,date_to,is_closed)
+        VALUES ('2026','2026-01-01','2026-12-31',0)");
     $db->exec("CREATE TABLE journal_entries (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        status VARCHAR(20) NOT NULL
+        entry_no VARCHAR(40) NULL,
+        fiscal_year BIGINT UNSIGNED NULL,
+        branch_id BIGINT UNSIGNED NULL,
+        entry_date DATETIME NULL,
+        reference_type VARCHAR(60) NULL,
+        reference_id BIGINT UNSIGNED NULL,
+        description TEXT NULL,
+        total_debit DECIMAL(18,2) NULL,
+        total_credit DECIMAL(18,2) NULL,
+        status VARCHAR(20) NOT NULL,
+        posted_at DATETIME NULL,
+        posted_by BIGINT UNSIGNED NULL,
+        created_by BIGINT UNSIGNED NULL
+    ) ENGINE=InnoDB");
+    $db->exec("CREATE TABLE journal_entry_details (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        journal_entry_id BIGINT UNSIGNED NOT NULL,
+        line_no INT NOT NULL,
+        account_id BIGINT UNSIGNED NOT NULL,
+        branch_id BIGINT UNSIGNED NULL,
+        store_id BIGINT UNSIGNED NULL,
+        cost_center_id BIGINT UNSIGNED NULL,
+        partner_type VARCHAR(30) NULL,
+        partner_id BIGINT UNSIGNED NULL,
+        reference_type VARCHAR(60) NULL,
+        reference_id BIGINT UNSIGNED NULL,
+        debit DECIMAL(18,2) NOT NULL DEFAULT 0,
+        credit DECIMAL(18,2) NOT NULL DEFAULT 0,
+        note TEXT NULL
     ) ENGINE=InnoDB");
     $db->exec("CREATE TABLE accounting_events (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -104,17 +150,22 @@ try {
     }, 'Same idempotency key with changed payload must fail.');
     assertSameValue(1, $callbackCalls, 'Changed payload callback must not run.');
 
-    $db->exec("INSERT INTO accounting_events
+    $processingHash = hash('sha256', '{"amount":125.5,"client_id":50}');
+    $processingInsert = $db->prepare("INSERT INTO accounting_events
         (idempotency_key,event_type,source_type,source_id,branch_id,event_date,payload_hash,status,created_by)
-        VALUES ('CI:PROCESSING:1002','SALE_RECOGNIZED','ORDER',1002,1,'2026-11-05 12:00:00',REPEAT('a',64),'PROCESSING',7)");
+        VALUES ('CI:PROCESSING:1002','SALE_RECOGNIZED','ORDER',1002,1,'2026-11-05 12:00:00',?,'PROCESSING',7)");
+    $processingInsert->execute([$processingHash]);
     $processing = $event;
     $processing['idempotency_key'] = 'CI:PROCESSING:1002';
     $processing['source_id'] = 1002;
-    expectException(function () use ($manager, $processing): void {
+    $processingError = expectException(function () use ($manager, $processing): void {
         $manager->post($processing, function (): int {
             throw new RuntimeException('PROCESSING callback must not run.');
         });
     }, 'Existing PROCESSING event must fail safely.');
+    if (strpos($processingError->getMessage(), 'غير مكتمل') === false) {
+        throw new RuntimeException('Existing PROCESSING event was rejected for the wrong reason.');
+    }
 
     $failed = $event;
     $failed['idempotency_key'] = 'CI:ROLLBACK:1003';
