@@ -1,7 +1,6 @@
--- Just-M: complete table creation and reference data script.
--- Select the target database before running this file.
--- Run createRelations.sql immediately after this file to add legacy foreign-key constraints.
--- For a one-file fresh installation use ../JUSTM_DATABASE_INSTALL.sql instead.
+-- DEPRECATED LEGACY INSTALLER: this split schema is not synchronized with the current accounting and delivery-ledger schema.
+-- Do not use for new installations. Use ../JUSTM_DATABASE_INSTALL.sql (canonical one-file installer).
+-- This file is retained only for historical reference; do not combine it with the canonical installer.
 
 -- Just-M database installer, assembled from the provided project archive.
 -- Target: MariaDB 10.5+ / MySQL compatible mode. Review the seed data before production.
