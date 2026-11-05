@@ -209,3 +209,19 @@ dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_bal
 - GetClientData/GetClientRetrnOrder/GetRefundBalance/GetPartnersBalance: partners_balance.
 
 لا يتم حذف التقارير؛ يعاد بناؤها على قيود الأستاذ والتخصيصات مع الحفاظ على نفس الفلاتر ومخرجات الواجهة المطلوبة.
+
+
+## 11. مخاطر مخطط Installer التي يجب إغلاقها قبل التنفيذ
+
+| الجدول/الحقل | ما ثبت في DDL | الخطر | الإجراء المطلوب |
+|---|---|---|---|
+| journal_entries.reference_type/reference_id | فهرس غير فريد | يمكن نظريًا تكرار قيد نفس المصدر | اعتماد unique event/source key بعد فحص القيود التاريخية |
+| accounting_line_allocations | لا يوجد unique لزوج debit_line_id/credit_line_id | احتمال تكرار تخصيص الزوج نفسه | منع التكرار والتحقق من المتبقي تحت قفل داخل الخدمة، مع قيد مناسب بعد معالجة التاريخ |
+| cash_boxes | أكثر من صندوق لكل فرع ممكن | AccountSettings::cash يختار أول صندوق فقط | اختيار صندوق صريح في مستند القبض/الصرف وربطه بالفرع والحساب |
+| banks | لا PK/FK/unique ظاهر، account_id INT | ضعف التكامل وتعارض النوع مع accounts.id BIGINT UNSIGNED | مطابقة Backup ثم إصلاح المفتاح والنوع والعلاقة |
+| cost_centers | id وparent_id من نوع INT | journal_entry_details.cost_center_id من نوع BIGINT UNSIGNED | توحيد النوع وإضافة العلاقات المناسبة بعد فحص البيانات |
+| financial_transactions | accounting_posted وaccounting_entry_id | المحرك الحالي يربط ترحيل GL بسجل قديم | بناء مرجع حدث جديد ثم نقل كل المستهلكين قبل إيقاف الجدول |
+| supplier_payment_allocations | financial_transaction_id يشير منطقيًا للحركة القديمة | لا يمكن حذف الحركة القديمة مع بقاء التخصيص | نقل رأس الدفعة والتخصيصات إلى مستندات الدفع الجديدة |
+| delivery_* | رؤوس collections/settlements/commission وروابطها | لا يوجد مفتاح idempotency عام لكل الأحداث | حماية تفرد الحدث على مستوى كل مصدر ومرحلة/جزء |
+
+**ملاحظة:** هذه ملاحظات على DDL في Installer، وليست نتيجة `SHOW CREATE TABLE` من قاعدة التشغيل. لا يتم تعديل Installer قبل مطابقة Backup وبيانات المفاتيح الحالية.
