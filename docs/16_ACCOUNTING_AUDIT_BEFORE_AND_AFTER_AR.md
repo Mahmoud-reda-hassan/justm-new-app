@@ -150,3 +150,40 @@
 - dist/js/ReceivePayments.js يقرأ قائمة الطلبات من accounts.control.php?CONTROL=ReceivePayments، ويحتفظ أيضًا بعنوان finance.control.php لعمليات مالية أخرى؛ لم يتم تتبع كل event handler حتى النهاية.
 - dist/js/AddPurchaseOrder.js يستخدم purchases.control.php لقائمة أوامر الشراء؛ يلزم فحص action حفظ أمر الشراء داخل الملف وربطه بـ purchases_BE وPurchaseOrderDAO.
 - هذه الجولة تتبعت عناوين الطلبات وبعض أسماء actions فقط؛ لم تنفذ AJAX requests ولم تختبر استجابات الخادم.
+
+
+## 12. حصر الخزائن والبنوك والسندات والتقارير المالية — 2026-11-05
+
+### 12.1 فجوات تنفيذ نواة الأستاذ
+تم فحص أحجام/محتوى ملفات Classes/Accounting التالية في المستودع:
+- Bank.php وCashBox.php وReports.php وPartnerBalance.php: ملفات فارغة (0 بايت)، وليست خدمات تنفيذية.
+- AccountManager.php وAccountSettings.php وJournalManager.php وAccountingEvents.php وPartnerLedger.php وDeliverySettlementManager.php تحتوي تنفيذًا فعليًا بدرجات مختلفة.
+- لذلك لا يوجد حاليًا تنفيذ خدمة مستقل لإدارة الخزائن والبنوك أو تقارير الأستاذ، رغم وجود جداول وإعدادات مرتبطة بها.
+
+### 12.2 الخزائن والبنوك ووسائل الدفع
+- AccountSettings.php يقرأ حساب الصندوق من cash_boxes حسب الفرع، ويقرأ ربط طريقة الدفع من payment_method_accounts مع payment_methods، كما يقرأ حساب البنك من إعداد BANK.
+- finance_BE::Add_transaction() ما زالت تسجل في financial_transactions، وتربط الحركة بفرع ومستخدم وفاتورة وطرف ومبلغ وطريقة دفع وفئة وحالة.
+- AccountingEvents يعتمد في ترحيل التحصيل ورد المرتجع على financial_transactions وinvoices وtransaction_categories، ولا يختار حساب الأستاذ من payment_method_accounts في جميع المسارات؛ وثائق PHASE4 تسجل أن بعض التحصيلات تُرحّل إلى حساب صندوق الفرع بغض النظر عن وسيلة الدفع.
+- لم يظهر تنفيذ فعلي في Bank.php أو CashBox.php لإدارة أرصدة/حركات الصندوق والبنك أو التحويل الداخلي أو المطابقة البنكية.
+
+### 12.3 سندات القبض والصرف
+- CashReceiptVouchers.php يعرض خيارات قبض من مندوب/مورد/عميل واستلام مفتوح، لكنه يضمّن ReceivePayments.php داخل قسم المندوب.
+- dist/js/CashReceiptVouchers.js يطلب نقاطًا مستقلة مثل get_mandob_data.php وget_mandob_balance.php وget_masouq_data.php وget_masouq_balance.php وget_morad_data.php وget_morad_balance.php وget_client_data.php. لم تظهر هذه الملفات ضمن شجرة المستودع الحالية؛ لذلك هذه النداءات غير مثبتة الوجهة داخل المستودع وتحتاج تحديد هل هي ملفات خارجية/قديمة أو روابط مكسورة.
+- لا يوجد في controllers التي فُحصت مسار عام واضح لسند قبض/صرف متعدد البنود مع حساب مقابل ومركز تكلفة ومرفقات واعتماد وترحيل. العمليات الحالية منفصلة حسب نوع الطرف.
+- finance_BE يحتوي PaymentOfDeliveryDues وPaymentOfMarketerDues وPaymentOfSupplierDues وPaymentOfCustomerDues وregisterCollection؛ أغلبها ما زال يكتب في financial_transactions و/أو partners_balance. دفعة المورد تكتب أيضًا purchases_payments وsupplier_payment_allocations وتحدّث purchases_orders.TOTAL_PAYMENTS.
+
+### 12.4 التقارير وكشوف الحساب
+- reports.control.php يوجه AccountStatement إلى reports_BE::AccountStatement؛ الدالة تبني الرصيد السابق والحركة والرصيد الجاري مباشرة من partners_balance. يجب استبدال التقرير باستعلام PartnerLedger/دفتر الأستاذ، لا مجرد تغيير مصدر الرقم.
+- reports_BE::SalesMovementReport يربط orders بجدول invoices، وmarketerDailyReport/marketerDailyDetails يقرآن partners_balance. بذلك تقارير البيع والمسوق ما زالت مرتبطة بالمصادر القديمة.
+- accounts_BE::custodyTotal يجمع إجمالي CASH_IN وCASH_OUT وصافي النقدية من financial_transactions وtransaction_categories حسب الفرع، ويعرضها ضمن شاشة التحصيل/العهدة؛ لا يوجد ربط مثبت برصيد حسابات الأستاذ الفعلي أو فصل الصندوق عن البنك/طرق الدفع.
+- PaymentDisbursement_BE::GetClientData وGetClientRetrnOrder وGetRefundBalance وGetPartnersBalance تقرأ partners_balance مباشرة. كما أن GetSupplierOrderList يعتمد على TOTAL_PAYMENTS ومرتجعات الشراء؛ يجب تحويل مصدر الرصيد والتخصيص إلى الأستاذ الجديد مع إبقاء تفاصيل أمر الشراء.
+
+### 12.5 تصنيف الاعتماديات الجديدة
+1. حرج — كتابة قديمة: finance_BE::Add_transaction وAdd_partners_balance وجميع عمليات الدفع والتحصيل التابعة لها.
+2. حرج — قراءة قديمة: reports_BE::AccountStatement وتقارير المسوق وPaymentDisbursement_BE وأرصدة شاشة accounts_BE.
+3. حرج — ربط مستند: invoices داخل تقارير البيع وAccountingEvents وقوائم الطلبات.
+4. غير مكتمل — خزائن/بنوك: جداول ومفاتيح ربط موجودة، لكن ملفات Bank/CashBox فارغة ولا توجد خدمة تحويل/مطابقة مثبتة.
+5. غير مثبت — سندات عامة: واجهة القبض الحالية تشير إلى endpoints غير موجودة في شجرة المستودع، ولا يظهر backend عام للسندات متعددة البنود.
+
+### 12.6 الاختبارات والحدود
+هذه الجولة فحص ساكن لشجرة GitHub ومحتوى الملفات وتعريفات الدوال. لم يتم استدعاء endpoints، ولم يتم تنفيذ AJAX، ولم يتم فحص قاعدة تشغيل أو أرصدة فعلية. لم ينفذ PHP lint أو SQL import في هذه الجولة. يجب عدم اعتبار غياب ملفات endpoints من GitHub دليلًا قاطعًا على عدم وجودها على الخادم قبل مقارنة نسخة النشر.
