@@ -586,9 +586,11 @@ final class DeliverySettlementManager
         if ($row['status'] !== 'POSTED' || empty($row['journal_id'])) {
             throw new RuntimeException('طلب التسوية السابق غير مكتمل؛ يلزم فحص المستند قبل إعادة المحاولة.');
         }
-        $links = $this->db->prepare("SELECT allocation_id, collection_id,
-                applied_gross_amount AS gross, applied_commission_amount AS commission
-            FROM delivery_settlement_collection_links WHERE settlement_id = ? ORDER BY id");
+        $links = $this->db->prepare("SELECT l.allocation_id, l.collection_id, a.order_id,
+                l.applied_gross_amount AS gross, l.applied_commission_amount AS commission
+            FROM delivery_settlement_collection_links l
+            INNER JOIN delivery_collection_order_allocations a ON a.id = l.allocation_id
+            WHERE l.settlement_id = ? ORDER BY l.id");
         $links->execute([(int)$row['id']]);
         return [
             'success' => true, 'already_posted' => true,
