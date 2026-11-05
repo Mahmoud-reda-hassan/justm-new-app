@@ -94,3 +94,56 @@
 **معيار إغلاق كل اعتماد قديم:** تحديد البديل الجديد، ترحيل البيانات المطلوبة، تحويل كل المستهلكين، اختبار الوظيفة والنتائج والمطابقة، ثم إزالة القراءة/الكتابة القديمة وتوثيق ذلك في سجل ما قبل/بعد التغيير.
 
 **ممنوع:** dual-write إنتاجي، أو تحديث أرصدة قديمة وجديدة لنفس الحدث، أو إبقاء تقارير تعتمد على الأرصدة القديمة بعد اعتماد الأستاذ العام.
+
+
+## 7. إضافات الحصر من الواجهات ونقاط التحكم — 2026-11-05
+
+المرجع: HEAD 64ed1a678c73900199d57688321c869afa6d9188. النتائج فحص ساكن فقط.
+
+### 7.1 نقاط الدخول والواجهات
+| النقطة | الاعتماد المثبت | اتجاه الاستبدال |
+|---|---|---|
+| finance.control.php | يجمع DeliverySettlementManager مع PaymentOfCustomerDues وSaveSupplierPayment وPaymentOfMarketerDues وPaymentOfDeliveryDues | فصل عمليات القبض والصرف والتخصيص والتسوية إلى خدمات جديدة |
+| ReceivePayments.php | لوحة تسوية عهدة المندوب وطريقة الدفع وإجماليات الأوامر والعمولة | إبقاء الواجهة كعميل لخدمة التسوية الجديدة |
+| PaymentDisbursement.control.php | GetRefundBalance عبر PaymentDisbursement_BE | استبدال رصيد المرتجع باستعلام الأستاذ والتخصيصات |
+| accounts.control.php | ReceivePayments | تحويله لخدمة قبض وتخصيص واحدة |
+| ordersList_BE.php وordersList_BE2.php | ربط قوائم الطلبات بجدول invoices | إزالة الربط بعد توفير مستند مالي جديد |
+| shipment_BE.php | استلام وتسليم عهدة البضاعة وShipmentRefundFN وShipmentRefundFromClient وحركات refund المخزنية | فصل إثبات المرتجع المخزني عن قيد رد النقد |
+| purchases_BE.php | إنشاء أمر شراء ومرتجع عبر DAO وتمرير totalPayments | فحص DAO لتحديد طبيعة المبلغ قبل تصميم خدمة المورد |
+
+### 7.2 عمليات مالية مثبتة
+| العملية | نقطة الدخول | المكون الحالي | الحالة |
+|---|---|---|---|
+| معاينة تسوية المندوب | finance.control.php / PreviewDeliverySettlement | DeliverySettlementManager | جديد جزئيًا ويحتاج اختبار |
+| تسجيل تسوية العهدة | finance.control.php / SettleDeliveryCollections | DeliverySettlementManager | جديد جزئيًا |
+| صرف عمولة المندوب | finance.control.php / PayDeliveryCommission | DeliverySettlementManager | جديد جزئيًا |
+| تحصيل مديونية عميل | finance.control.php / PaymentOfCustomerDues | finance_BE | قديم ويستبدل |
+| دفع مورد | finance.control.php / SaveSupplierPayment | finance_BE | قديم ويستبدل |
+| صرف مستحق مسوق | finance.control.php / PaymentOfMarketerDues | finance_BE | قديم ويستبدل |
+| صرف مستحق مندوب | finance.control.php / PaymentOfDeliveryDues | finance_BE | قديم/مختلط ويستبدل بخدمة موحدة |
+| عرض رصيد مرتجع | PaymentDisbursement.control.php / GetRefundBalance | PaymentDisbursement_BE | قديم/انتقالي |
+| استلام دفعات العملاء | accounts.control.php / ReceivePayments | accounts_BE | يحتاج تتبع SQL والدالة |
+
+### 7.3 ملفات SQL الواجب فحصها
+| الملف | التصنيف الأولي |
+|---|---|
+| Procedure_in_mysql.sql | غير محسوم حتى فحص المحتوى |
+| procedure_partners_balance.sql | اعتماد قديم مرشح للإزالة بعد نقل الوظيفة |
+| procedure_inventory.sql | تشغيلي؛ يجب فصل الأثر المالي عن المخزني |
+| restClientDebtBatch.sql | غير محسوم |
+| setDeliveryConfirmationOptimized.sql | تشغيلي مع احتمال استدعاء مالي |
+| setRetunedConfirmationOptimized.sql | مخزني/تشغيلي مع احتمال استدعاء مالي |
+| shipping_movement.sql | تشغيلي ولا يثبت وحده قيدًا ماليًا |
+| migrations PHASE11 إلى PHASE16 | DDL وترحيل بيانات يجب فحصهما كلٌ على حدة |
+
+### 7.4 استنتاجات وحدود
+1. finance.control.php يمزج خدمات تسوية الأستاذ الجديدة مع عمليات مالية قديمة؛ القطع يجب أن يكون على مستوى العملية لا إنشاء الجداول فقط.
+2. قوائم الطلبات لا تزال تقرأ invoices، لذلك يجب تحويلها ضمن خطة القطع.
+3. حركة استلام المرتجع في shipment_BE.php إثبات مخزني/عهدة، وليست إيصال رد نقدي.
+4. totalPayments الممرر إلى DAO لا يمكن تصنيفه دون فحص DAO.
+5. البحث النصي السلبي لا يثبت غياب اعتماد غير مباشر.
+
+### 7.5 المطلوب قبل عقود التنفيذ
+تتبع AJAX actions، وفحص PurchaseOrderDAO.php وSupplyOrderDAO.php، ومراجعة SQL procedures، وحصر شاشات الخزائن والبنوك والمصروفات والإيرادات والتحويلات والتقارير وكشف الحساب. بعدها تثبيت نموذج الحدث المالي وidempotency والقيود والتخصيصات وعقود الخدمات.
+
+لم يتم تعديل PHP أو SQL، ولم يتم تنفيذ SQL أو نشر تغييرات على الاستضافة في هذه الجولة.
