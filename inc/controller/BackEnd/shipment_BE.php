@@ -1413,6 +1413,36 @@ class shipment_BE {
             if (!$lockedOrder || (int)$lockedOrder['BRANCH_ID'] !== (int)$this->branch_id) {
                 throw new RuntimeException('الطلب غير موجود أو لا يتبع الفرع الحالي.');
             }
+
+            // تحقق خادمي من أن كل منتج تابع للطلب وأن الكمية المسلمة لا تتجاوز الكمية المطلوبة.
+            $productQuantityStmt = $this->conn->prepare(
+                "SELECT QTY FROM order_product WHERE ORDER_ID = ? AND PRO_CODE = ? LIMIT 1 FOR UPDATE"
+            );
+            foreach ($items as $item) {
+                $itemOrderId = (int)($item['ORDER_ID'] ?? 0);
+                $itemProductCode = trim((string)($item['PRO_CODE'] ?? ''));
+                $itemDeliveryId = (int)($item['DELIVERY_ID'] ?? $this->delivery_id);
+                $itemType = strtoupper((string)($item['TYPE'] ?? 'SELSE'));
+                $itemAppQty = (float)($item['productData']['appQty'] ?? -1);
+
+                if ($itemOrderId !== (int)$lockedOrder['ORDER_ID'] || $itemProductCode === '') {
+                    throw new InvalidArgumentException('يوجد منتج لا يتبع أمر البيع المحدد.');
+                }
+                if (!in_array($itemType, ['SELSE', 'REFUND'], true)) {
+                    throw new InvalidArgumentException('نوع حركة المنتج غير صالح.');
+                }
+                if ($itemDeliveryId !== (int)$this->delivery_id) {
+                    throw new RuntimeException('المندوب المحدد في بيانات المنتج لا يطابق المندوب الحالي.');
+                }
+                if ($itemType === 'SELSE') {
+                    $productQuantityStmt->execute([$itemOrderId, $itemProductCode]);
+                    $orderedQty = $productQuantityStmt->fetchColumn();
+                    if ($orderedQty === false || $itemAppQty > (float)$orderedQty + 0.0005) {
+                        throw new InvalidArgumentException('الكمية المسلمة أكبر من الكمية المطلوبة أو المنتج غير موجود: ' . $itemProductCode);
+                    }
+                }
+            }
+
             if ($shippingAmountProvided) {
                 $shippingSetting = $this->conn->prepare(
                     "SELECT SETTING_VALUE FROM system_settings
