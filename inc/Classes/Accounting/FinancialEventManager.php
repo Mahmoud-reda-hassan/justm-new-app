@@ -76,7 +76,9 @@ final class FinancialEventManager
                 $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
 
                 if (!$existing) {
-                    throw new RuntimeException('تعذر قراءة الحدث المالي الموجود بعد تعارض مفتاح التكرار.');
+                    // قد يكون SQLSTATE 23000 ناتجًا عن قيد آخر، وليس تكرار مفتاح الحدث.
+                    // إذا لم نجد المفتاح نفسه، أعد خطأ قاعدة البيانات الأصلي دون إخفائه.
+                    throw $e;
                 }
                 if (
                     $existing['event_type'] !== $data['event_type'] ||
