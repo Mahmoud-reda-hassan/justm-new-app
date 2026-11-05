@@ -104,7 +104,9 @@ function parseShipmentTable() {
         let aQty = Number(approvedText);
         let proName = tr.querySelector(".proname").innerText;
 
-        if (!defaultText || !approvedText || !Number.isFinite(dQty) || !Number.isFinite(aQty)) {
+        if (!defaultText || !approvedText || !Number.isFinite(dQty) || !Number.isFinite(aQty)
+            || Math.abs(dQty * 1000 - Math.round(dQty * 1000)) > 0.000001
+            || Math.abs(aQty * 1000 - Math.round(aQty * 1000)) > 0.000001) {
             err++;
             return;
         }
