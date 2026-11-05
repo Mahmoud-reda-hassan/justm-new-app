@@ -40,8 +40,15 @@ function renderShipmentProducts(response) {
     }).join('');
 
     const shippingValue = Number(response.SHIPPING_VAL || 0);
+    const shippingEditor = response.shipping_edit_allowed === true && Number(response.order_type_id) !== 5
+        ? `<div class="form-group text-right mt-3">
+            <label for="shipmentShippingAmount">رسوم الشحن للطلب</label>
+            <input id="shipmentShippingAmount" class="form-control" type="number" min="0" step="0.01" value="${shippingValue.toFixed(2)}">
+            <small class="form-text text-muted">التعديل متاح حسب إعدادات النظام، وتُحفظ القيمة الجديدة مع محاولة التوصيل.</small>
+        </div>`
+        : `<div class="mb-2">رسوم الشحن: <strong>${shippingValue.toFixed(2)}</strong></div>`;
     return `<div class="text-right">
-        <div class="mb-2">رسوم الشحن الحالية: <strong>${shippingValue.toFixed(2)}</strong></div>
+        ${shippingEditor}
         <div class="table-responsive">
             <table class="table table-bordered table-striped table-swel text-center">
                 <thead><tr><th>المنتج</th><th>الكمية المطلوبة</th><th>الكمية المسلمة</th></tr></thead>
@@ -81,11 +88,24 @@ function parseShipmentTable() {
         }
     });
 
-    return { objApprov, objReject, qtyApp, qtyDef, err };
+    let shippingAmount = null;
+    const shippingInput = document.getElementById("shipmentShippingAmount");
+    if (shippingInput) {
+        const rawShippingAmount = shippingInput.value.trim();
+        const parsedShippingAmount = Number(rawShippingAmount);
+        if (!rawShippingAmount || !Number.isFinite(parsedShippingAmount) || parsedShippingAmount < 0
+            || Math.abs(parsedShippingAmount * 100 - Math.round(parsedShippingAmount * 100)) > 0.000001) {
+            err++;
+        } else {
+            shippingAmount = parsedShippingAmount.toFixed(2);
+        }
+    }
+
+    return { objApprov, objReject, qtyApp, qtyDef, err, shippingAmount };
 };
 
 function createShipmentObject(orderId, parsed) {
-    const { objApprov, objReject, qtyApp, qtyDef } = parsed;
+    const { objApprov, objReject, qtyApp, qtyDef, shippingAmount } = parsed;
     let reapp = "رفض امر البيع بالكامل";
     let qty_rejected = 0;
 
@@ -104,13 +124,19 @@ function createShipmentObject(orderId, parsed) {
         orej: objReject,
         reapp,
         utype: ptype,
-        qty_rejected
+        qty_rejected,
+        shipping_amount: shippingAmount
     };
 };
 
 function shipmentRequestIdentity(orderId, payload) {
     const storageKey = 'shipment-confirm-request:' + orderId + ':' +
-        JSON.stringify({ oapp: payload.oapp, orej: payload.orej, ptype: payload.utype });
+        JSON.stringify({
+            oapp: payload.oapp,
+            orej: payload.orej,
+            ptype: payload.utype,
+            shipping_amount: payload.shipping_amount ?? null
+        });
     let requestKey = '';
     try {
         requestKey = sessionStorage.getItem(storageKey) || '';
@@ -185,7 +211,10 @@ export function ShipmentDelivery(orderId) {
                             oapp: result.value.oapp,
                             orej: result.value.orej,
                             reapp: result.value.reapp,
-                            ptype: result.value.utype
+                            ptype: result.value.utype,
+                            ...(result.value.shipping_amount !== null
+                                ? { shipping_amount: result.value.shipping_amount }
+                                : {})
                         },
                         ShipApproved: false,
                         urlControl: Go
