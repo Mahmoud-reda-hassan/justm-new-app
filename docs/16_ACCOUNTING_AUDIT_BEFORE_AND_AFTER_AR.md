@@ -101,3 +101,28 @@
 - بعد نجاح الترحيل والمطابقة والاختبارات، تُوقف الجداول والمسارات القديمة وتُؤرشف أو تُحذف حسب سياسة الاحتفاظ.
 - لا يعني هذا حذف التاريخ قبل ترحيله أو قبل التأكد من إمكانية الرجوع إلى المستندات المطلوبة قانونيًا وتشغيليًا.
 
+
+
+## 9. استكمال الحصر — الواجهات ونقاط التحكم (2026-11-05)
+
+مرجع الفحص: HEAD 64ed1a678c73900199d57688321c869afa6d9188. هذه مراجعة ساكنة للمصدر وليست اختبار تشغيل.
+
+### 9.1 نقاط الدخول المثبتة
+- inc/controller/finance.control.php يجمع بين DeliverySettlementManager وعمليات PaymentOfCustomerDues وSaveSupplierPayment وPaymentOfMarketerDues وPaymentOfDeliveryDues، إضافة إلى معاينة وتسوية عهدة المندوب وصرف عمولته. هذا يثبت اختلاط خدمات GL الجزئية مع دوال finance_BE القديمة في نقطة دخول واحدة.
+- inc/Views/ReceivePayments.php يحتوي لوحة تسوية عهدة المندوب، اختيار طريقة الدفع، إجماليات الأوامر والعمولة، وزر تسجيل استلام العهدة، وتبويب قيد التسوية.
+- inc/controller/PaymentDisbursement.control.php يحمّل PaymentDisbursement_BE.php ويعرض GetRefundBalance.
+- inc/controller/accounts.control.php يمرر ReceivePayments إلى Backend الحسابات.
+- inc/controller/BackEnd/ordersList_BE.php وordersList_BE2.php يربطان قوائم الطلبات بجدول invoices؛ يجب نقل مؤشر المستند المالي إلى المصدر الجديد.
+- inc/controller/BackEnd/shipment_BE.php يحتوي ShipmentRefundFN وShipmentRefundFromClient وحركات مخزون refund. هذا مسار مخزني/عهدة ولا يثبت وحده ردًا نقديًا.
+
+### 9.2 المشتريات والموردون
+- inc/controller/BackEnd/purchases_BE.php يفوض إنشاء أمر الشراء ومرتجع الشراء إلى DAO عبر insertOrder وinsertReturnOrder ويمرر totalPayments. يلزم فحص DAO لتحديد هل هو مقدم أو دفعة فعلية أو إجمالي محفوظ.
+- لم يثبت حتى الآن مسار GL كامل لفاتورة المورد ودفعاتها وتخصيصاتها ومرتجع الشراء ورد المبلغ.
+- عدم ظهور أسماء الجداول في فحص supplyOrders_BE.php وreturnSelse_BE.php لا يثبت عدم وجود أثر غير مباشر عبر DAO أو استدعاءات أخرى.
+
+### 9.3 SQL والواجهات
+ملفات SQL المطلوب استكمالها: Procedure_in_mysql.sql وprocedure_partners_balance.sql وprocedure_inventory.sql وrestClientDebtBatch.sql وsetDeliveryConfirmationOptimized.sql وsetRetunedConfirmationOptimized.sql وshipping_movement.sql ومigrations من PHASE11 إلى PHASE16. وجودها بالمستودع لا يثبت نشرها على قاعدة التشغيل، ولم يتم تنفيذ أي منها.
+ملفات الواجهة ذات الصلة: CashReceiptVouchers.js وReceivePayments.js وDeliverySettlement.js وPaymentDisbursement.js وAddPurchaseOrder.js وreports.js. لم يكتمل تتبع كل AJAX action فيها.
+
+### 9.4 سجل الجولة
+التغييرات: تحديث وثيقتي التدقيق والمصفوفة فقط؛ لا تعديل PHP أو SQL أو بيانات. الاختبارات: قراءة شجرة GitHub وفحص محتوى الملفات واستخراج مواضع العمليات. لا PHP lint ولا SQL import ولا runtime/API test. النتيجة: اكتشاف نقطة تحكم تمزج المسارين، واستمرار ربط قوائم الطلبات بجدول invoices. المتبقي: تتبع AJAX وDAO وSQL والتقارير قبل تصميم عقود الأحداث.
