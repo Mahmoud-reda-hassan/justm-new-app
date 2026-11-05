@@ -37,6 +37,7 @@ include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/LogManager.php');
 include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryAttemptCommissionManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 
 class shipment_BE {
 	private $orders_log_Tbl = 'ORDERS_LOG';
@@ -1161,6 +1162,22 @@ class shipment_BE {
 			}
 
 			// جلب المنتجات العادية للطلب
+			$orderMetaStmt = $this->conn->prepare(
+				"SELECT o.ORDER_TYPE_ID, s.BRANCH_ID
+				 FROM orders o
+				 LEFT JOIN stores s ON s.STO_ID = o.STO_ID
+				 WHERE o.ORDER_ID = ? LIMIT 1"
+			);
+			$orderMetaStmt->execute([$this->order_id]);
+			$orderMeta = $orderMetaStmt->fetch(PDO::FETCH_ASSOC);
+			if (!$orderMeta || (int)$orderMeta['BRANCH_ID'] !== (int)$this->branch_id) {
+				return [
+					'type' => 'error',
+					'title' => 'الطلب غير متاح',
+					'message' => 'الطلب غير موجود أو لا يتبع الفرع الحالي.'
+				];
+			}
+
 			$products = $this->fetchOrderProducts($sql['getOProducts'], $this->order_id);
 			if (empty($products['no'])) {
 				return [
@@ -1169,6 +1186,8 @@ class shipment_BE {
 					'message' => 'لم يتم العثور على منتجات هذا الطلب داخل عهدة المندوب الحالي.'
 				];
 			}
+			$shippingEditAllowed = (int)$orderMeta['ORDER_TYPE_ID'] !== 5
+				&& (new ShippingConfigurationManager($this->conn))->isShippingAmountEditAllowed();
 
 			// جلب المنتجات المرتجعة للطلب
 			//$returned = $this->fetchOrderProducts($sql['getReturnOProducts'], $this->order_id, true);
@@ -1178,7 +1197,9 @@ class shipment_BE {
 				'type' => 'success',
 				'products' => $products['no'],
 				'returned' => $products['ex'],
-				'SHIPPING_VAL' => $products['SHIPPING_VAL']
+				'SHIPPING_VAL' => $products['SHIPPING_VAL'],
+				'order_type_id' => (int)$orderMeta['ORDER_TYPE_ID'],
+				'shipping_edit_allowed' => $shippingEditAllowed
 			];
 
 		} catch (Exception $e) {
@@ -1272,11 +1293,26 @@ class shipment_BE {
 	        $this->conn->beginTransaction();
 
             // منع إعادة تنفيذ نفس تأكيد الشحنة عند تكرار طلب HTTP.
+            $shippingAmountProvided = array_key_exists('shipping_amount', $this->shipmentobj);
+            $shippingAmount = null;
+            if ($shippingAmountProvided) {
+                $rawShippingAmount = $this->shipmentobj['shipping_amount'];
+                if (!is_scalar($rawShippingAmount) || !is_numeric((string)$rawShippingAmount)) {
+                    throw new InvalidArgumentException('قيمة رسوم الشحن غير صالحة.');
+                }
+                $shippingAmount = round((float)$rawShippingAmount, 2);
+                if (!is_finite($shippingAmount) || $shippingAmount < 0 || $shippingAmount > 9999999999999.99) {
+                    throw new InvalidArgumentException('قيمة رسوم الشحن يجب أن تكون رقمًا موجبًا أو صفرًا وبحد أقصى مناسب.');
+                }
+            }
+
             $requestPayload = [
                 'actor_id' => (int)$executedBy,
                 'branch_id' => (int)$this->branch_id,
                 'ship_approved' => (string)$this->ShipApproved,
                 'items' => $items,
+                'shipping_amount_provided' => $shippingAmountProvided,
+                'shipping_amount' => $shippingAmountProvided ? number_format($shippingAmount, 2, '.', '') : null,
             ];
             $requestJson = json_encode($requestPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
             if ($requestJson === false) {
@@ -1329,6 +1365,43 @@ class shipment_BE {
 		        FOR UPDATE NOWAIT
 		    ");
 		    $stmtLock->execute($orderids);
+
+            // التحقق من الفرع ونوع الطلب وسياسة تعديل الشحن داخل نفس المعاملة.
+            $orderMetaLock = $this->conn->prepare(
+                "SELECT o.ORDER_ID, o.ORDER_TYPE_ID, o.SHIPPING_VAL, s.BRANCH_ID
+                 FROM orders o
+                 LEFT JOIN stores s ON s.STO_ID = o.STO_ID
+                 WHERE o.ORDER_ID = ? LIMIT 1 FOR UPDATE"
+            );
+            $uniqueOrderIds = array_values(array_unique($orderids));
+            if (count($uniqueOrderIds) !== 1) {
+                throw new RuntimeException('يجب أن يحتوي تأكيد الشحنة على أمر بيع واحد فقط.');
+            }
+            $orderMetaLock->execute([$uniqueOrderIds[0]]);
+            $lockedOrder = $orderMetaLock->fetch(PDO::FETCH_ASSOC);
+            if (!$lockedOrder || (int)$lockedOrder['BRANCH_ID'] !== (int)$this->branch_id) {
+                throw new RuntimeException('الطلب غير موجود أو لا يتبع الفرع الحالي.');
+            }
+            if ($shippingAmountProvided) {
+                $shippingSetting = $this->conn->prepare(
+                    "SELECT SETTING_VALUE FROM system_settings
+                     WHERE SETTING_KEY = 'ALLOW_SHIPPING_AMOUNT_EDIT_DURING_CONFIRMATION'
+                     LIMIT 1 FOR UPDATE"
+                );
+                $shippingSetting->execute();
+                $settingValue = strtolower(trim((string)$shippingSetting->fetchColumn()));
+                $canEditShipping = in_array($settingValue, ['1', 'true', 'yes', 'on'], true);
+                if (!$canEditShipping) {
+                    throw new RuntimeException('تعديل رسوم الشحن غير مسموح به من إعدادات النظام.');
+                }
+                if ((int)$lockedOrder['ORDER_TYPE_ID'] === 5) {
+                    throw new RuntimeException('لا يمكن تعديل رسوم الشحن في البيع المباشر.');
+                }
+                $updateShipping = $this->conn->prepare(
+                    "UPDATE orders SET SHIPPING_VAL = ?, LAST_UPDATE = NOW(3) WHERE ORDER_ID = ?"
+                );
+                $updateShipping->execute([$shippingAmount, (int)$lockedOrder['ORDER_ID']]);
+            }
 
 	        // 🔒 2. أقفل المخزون والحركات (الجديد)
 	        $inventoryLocked = $this->acquireGlobalInventoryLock();
