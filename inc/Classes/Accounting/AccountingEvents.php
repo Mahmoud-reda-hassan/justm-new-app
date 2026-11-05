@@ -1,6 +1,7 @@
 <?php
 include_once(__dir__.'/../../Classes/Accounting/JournalManager.php');
 include_once(__dir__.'/../../Classes/Accounting/AccountSettings.php');
+include_once(__dir__.'/../../Classes/Accounting/FinancialEventManager.php');
 
 class AccountingEvents {
 
@@ -153,82 +154,81 @@ class AccountingEvents {
 	    
 	}
 	
-    // الدالة الرئيسيه لصرف المنتجات من المخزن للعميل فى حالة البيع المباشر
-	public function directSale(int $orderId): int {
-        return $this->runAtomically(function () use ($orderId) {
-            return $this->directSaleInternal($orderId);
+    // البيع المباشر: قيمة المنتجات فقط، ولا تدخل رسوم الشحن في هذا القيد.
+    public function directSale(int $orderId): int {
+        if ($orderId <= 0) {
+            throw new InvalidArgumentException('رقم أمر البيع غير صالح.');
+        }
+
+        $order = $this->getSalesOrder($orderId);
+        $productsAmount = round((float)$order['SALES_AMOUNT'], 2);
+        $costAmount = round((float)$order['COST_AMOUNT'], 2);
+
+        $eventManager = new FinancialEventManager($this->db);
+        $result = $eventManager->post([
+            'idempotency_key' => 'DIRECT_SALE:ORDER:' . $orderId . ':SALE_RECOGNIZED',
+            'event_type' => 'SALE_RECOGNIZED',
+            'source_type' => 'ORDER',
+            'source_id' => $orderId,
+            'branch_id' => (int)$order['BRANCH_ID'],
+            'event_date' => (string)$order['JOURNAL_DATE'],
+            'created_by' => $this->getCurrentUserId(),
+            'payload' => [
+                'order_id' => $orderId,
+                'client_id' => (int)$order['CLIENT_ID'],
+                'store_id' => (int)$order['STORE_ID'],
+                'products_amount' => $productsAmount,
+                'cost_amount' => $costAmount,
+                'delivered_lines_count' => (int)$order['DELIVERED_LINES_COUNT'],
+                'invalid_cost_lines_count' => (int)$order['INVALID_COST_LINES_COUNT'],
+            ],
+        ], function () use ($orderId, $productsAmount, $costAmount): int {
+            // لا تُنفذ هذه الخطوات عند إعادة طلب حدث سبق ترحيله.
+            $order = $this->getSalesOrder($orderId);
+            $this->validateDirectSale($order);
+
+            $this->journal->reset();
+            $this->journal->create([
+                'branch_id' => (int)$order['BRANCH_ID'],
+                'entry_date' => $order['JOURNAL_DATE'],
+                'reference_type' => 'DIRECT_SALE',
+                'reference_id' => $orderId,
+                'description' => 'بيع مباشر رقم ' . $order['SUB_ORDER_ID'],
+                'created_by' => $this->getCurrentUserId(),
+            ]);
+
+            // إثبات مديونية العميل بقيمة المنتجات فقط.
+            $this->journal->addLine([
+                'account_id' => $this->settings->customers(),
+                'partner_type' => 'CLIENT',
+                'partner_id' => $order['CLIENT_ID'],
+                'debit' => $productsAmount,
+            ]);
+
+            // إثبات إيراد المنتجات فقط؛ لا يوجد حساب شحن في البيع المباشر.
+            $this->journal->addLine([
+                'account_id' => $this->settings->sales(),
+                'credit' => $productsAmount,
+            ]);
+
+            // إثبات تكلفة البضاعة وتخفيض المخزون.
+            $this->journal->addLine([
+                'account_id' => $this->settings->cogs(),
+                'debit' => $costAmount,
+            ]);
+            $this->journal->addLine([
+                'account_id' => $this->settings->inventory(),
+                'store_id' => $order['STORE_ID'],
+                'credit' => $costAmount,
+            ]);
+
+            $journalId = $this->journal->post();
+            $this->markOrderPosted($orderId, $journalId);
+            return $journalId;
         });
+
+        return (int)$result['journal_entry_id'];
     }
-
-    private function directSaleInternal(int $orderId): int {
-	    
-	    // جلب بيانات أمر البيع
-	    $order = $this->getSalesOrder($orderId);
-	
-	    // التحقق من حالة أمر البيع
-	    $this->validateDirectSale($order);
-	
-	    // قيمة المنتجات + رسوم الشحن مرة واحدة على مستوى أمر البيع.
-	    $productsAmount = round((float)$order['SALES_AMOUNT'], 2);
-	    $shippingAmount = round((float)($order['SHIPPING_VAL'] ?? 0), 2);
-	    $salesAmount = round($productsAmount + $shippingAmount, 2);
-	    $costAmount  = (float)$order['COST_AMOUNT'];
-		
-	    // إنشاء قيد اليومية
-	    $this->journal->reset();
-
-	    $this->journal->create([
-	        'branch_id'      => (int)$order['BRANCH_ID'],
-	        'entry_date'     => $order['JOURNAL_DATE'],
-	        'reference_type' => 'DIRECT_SALE',
-	        'reference_id'   => $orderId,
-	        'description'    => 'بيع مباشر رقم '.$order['SUB_ORDER_ID'],
-	        'created_by'     => $this->getCurrentUserId()
-	    ]);
-	
-	    // إثبات مديونية العميل
-	    $this->journal->addLine([
-	        'account_id'   => $this->settings->customers(),
-	        'partner_type' => 'CLIENT',
-	        'partner_id'   => $order['CLIENT_ID'],
-	        'debit'        => $salesAmount
-	    ]);
-	
-	    // إيراد المنتجات منفصل عن إيراد الشحن؛ رسوم الشحن تُثبت مرة واحدة فقط.
-	    if ($productsAmount > 0) {
-	        $this->journal->addLine([
-	            'account_id' => $this->settings->sales(),
-	            'credit'     => $productsAmount
-	        ]);
-	    }
-	    if ($shippingAmount > 0) {
-	        $this->journal->addLine([
-	            'account_id' => $this->settings->shippingRevenue(),
-	            'credit'     => $shippingAmount
-	        ]);
-	    }
-	
-	    // إثبات تكلفة البضاعة
-	    $this->journal->addLine([
-	        'account_id' => $this->settings->cogs(),
-	        'debit'      => $costAmount
-	    ]);
-	
-	    // تخفيض المخزون
-	    $this->journal->addLine([
-	        'account_id' => $this->settings->inventory(),
-	        'store_id'   => $order['STORE_ID'],
-	        'credit'     => $costAmount
-	    ]);
-	
-	    // ترحيل القيد
-	    $journalId = $this->journal->post();
-	
-	    // ربط أمر البيع بالقيد
-	    $this->markOrderPosted($orderId, $journalId);
-	
-	    return $journalId;
-	}    
 	
 	//================================================
 	
