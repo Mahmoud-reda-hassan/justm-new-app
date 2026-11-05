@@ -2229,7 +2229,7 @@ CREATE TABLE IF NOT EXISTS `delivery_settlement_collection_links` (
 
 -- IMPORTANT: This script creates table structure only for the new ledger.
 -- Before posting transactions, an accountant must populate accounts and map:
--- CUSTOMERS, SALES, COGS, INVENTORY, SALES_RETURNS in account_settings;
+-- CUSTOMERS, SALES, SHIPPING_REVENUE, COGS, INVENTORY, SALES_RETURNS in account_settings;
 -- branch cash boxes in cash_boxes; and payment_method_accounts for each branch.
 -- The actual account chart and those mappings were not included in the supplied archive.
 
