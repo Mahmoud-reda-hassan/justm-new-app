@@ -37,6 +37,30 @@
         else window.alert(message);
     }
 
+    // يحتفظ بمفتاح العملية حتى النجاح؛ إعادة المحاولة بعد انقطاع الاتصال تستخدم المفتاح نفسه.
+    function getPendingRequestKey(scope, fingerprint) {
+        const storageKey = 'justm:pending:' + scope;
+        try {
+            const saved = JSON.parse(window.sessionStorage.getItem(storageKey) || 'null');
+            if (saved && saved.fingerprint === fingerprint && saved.key) return saved.key;
+            const key = 'DS-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+            window.sessionStorage.setItem(storageKey, JSON.stringify({ fingerprint, key }));
+            return key;
+        } catch (error) {
+            window.__justmPendingKeys = window.__justmPendingKeys || {};
+            const saved = window.__justmPendingKeys[scope];
+            if (saved && saved.fingerprint === fingerprint) return saved.key;
+            const key = 'DS-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+            window.__justmPendingKeys[scope] = { fingerprint, key };
+            return key;
+        }
+    }
+
+    function clearPendingRequestKey(scope) {
+        try { window.sessionStorage.removeItem('justm:pending:' + scope); } catch (error) {}
+        if (window.__justmPendingKeys) delete window.__justmPendingKeys[scope];
+    }
+
     function selectedIds() {
         return $('#dsOrdersTable tbody input.ds-order-check:checked').map(function () {
             return Number(this.value);
