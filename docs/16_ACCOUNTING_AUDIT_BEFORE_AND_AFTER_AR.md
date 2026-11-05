@@ -126,3 +126,18 @@
 
 ### 9.4 سجل الجولة
 التغييرات: تحديث وثيقتي التدقيق والمصفوفة فقط؛ لا تعديل PHP أو SQL أو بيانات. الاختبارات: قراءة شجرة GitHub وفحص محتوى الملفات واستخراج مواضع العمليات. لا PHP lint ولا SQL import ولا runtime/API test. النتيجة: اكتشاف نقطة تحكم تمزج المسارين، واستمرار ربط قوائم الطلبات بجدول invoices. المتبقي: تتبع AJAX وDAO وSQL والتقارير قبل تصميم عقود الأحداث.
+
+
+## 10. إثبات الاعتماد المباشر على إجراءات SQL وDAO — 2026-11-05
+
+- PurchaseOrderDAO::insertOrder يحفظ purchases_orders.TOTAL_PAYMENTS، ثم يحفظ المنتجات، ثم يستدعي finance->addSupplierDebt؛ وإذا فشل يعتبر أمر الشراء غير مؤكد برسالة partner balanceis not confirmed.
+- PurchaseOrderDAO::insertReturnOrder يحفظ purchases_return_orders.TOTAL_PAYMENTS والمنتجات، ثم يستدعي finance->addSupplierCredit؛ والفشل مرتبط برسالة partner balanceis not confirmed. إذن رصيد المورد القديم شرط نجاح صريح لإنشاء أمر الشراء/مرتجعه، وليس مجرد تقرير.
+- inc/Databases/procedure_partners_balance.sql يحتوي restClientDebtBatch وreduceClientCreditBatch. الأول يبني checkorders من confirm_staging وorders وorder_product ثم يكتب/يحدث partners_balance. الثاني يبني refund_orders من بيانات المرتجعات ثم يحدث partners_balance ويضيف رصيدًا دائنًا لفئة 14.
+- inc/Databases/Procedure_in_mysql.sql يحتوي نسخًا من الإجراءات ذاتها، ويوثق partners_balance ضمن الجداول المستخدمة. يجب تحديد أي نسخة تُستدعى/تُثبت فعليًا قبل إيقافها؛ لا يمكن افتراض التطابق التشغيلي من وجود الملفين.
+- بذلك يمتد الاعتماد القديم إلى DAO وإجراءات SQL التي تؤكد التسليم والمرتجعات، وليس إلى finance_BE والتقارير فقط.
+
+### 10.1 قرار هندسي مطلوب للتنفيذ
+يجب نقل حساب أثر تأكيد التسليم والمرتجع إلى خدمة/حدث مالي ذري قابل لإعادة المحاولة بأمان، مع مفتاح منع تكرار لكل حدث ومصدر مستند واضح. تبقى إجراءات المخزون مسؤولة عن إثبات الكميات فقط؛ ولا تعدل أرصدة مالية. ويجب ألا يعتمد نجاح إنشاء أمر الشراء أو مرتجعه على partners_balance بعد القطع.
+
+### 10.2 حدود الجولة
+فُحصت مقاطع DAO والإجراءات المذكورة ساكنًا. لم يتم تشغيل الإجراء أو استدعاؤه من PHP، ولم يتم إثبات أي نسخة منشورة على قاعدة التشغيل. لا PHP lint ولا SQL import ولا runtime test.
