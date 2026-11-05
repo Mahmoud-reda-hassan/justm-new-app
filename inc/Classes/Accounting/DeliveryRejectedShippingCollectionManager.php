@@ -103,6 +103,24 @@ final class DeliveryRejectedShippingCollectionManager
                 ) {
                     throw new RuntimeException('سجل تحصيل رسوم الشحن السابق غير مكتمل أو غير متسق؛ يلزم فحصه.');
                 }
+                $settlementAllocationStmt = $this->db->prepare(
+                    "SELECT dc.status, dc.collection_source, a.customer_amount, a.commission_amount
+                     FROM delivery_customer_collections dc
+                     INNER JOIN delivery_collection_order_allocations a
+                        ON a.collection_id = dc.id AND a.order_id = ?
+                     WHERE dc.id = ? LIMIT 1"
+                );
+                $settlementAllocationStmt->execute([$orderId, (int)$existing['delivery_collection_id']]);
+                $settlementAllocation = $settlementAllocationStmt->fetch(PDO::FETCH_ASSOC);
+                if (
+                    !$settlementAllocation
+                    || $settlementAllocation['status'] !== 'POSTED'
+                    || $settlementAllocation['collection_source'] !== 'REJECTED_SHIPPING'
+                    || abs((float)$settlementAllocation['customer_amount'] - (float)$existing['shipping_amount_snapshot']) > 0.009
+                    || abs((float)$settlementAllocation['commission_amount']) > 0.009
+                ) {
+                    throw new RuntimeException('تخصيص عهدة رسوم الشحن السابق غير مكتمل أو غير متسق.');
+                }
                 $result['already_collected']++;
                 continue;
             }
