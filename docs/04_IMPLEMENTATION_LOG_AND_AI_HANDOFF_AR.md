@@ -204,3 +204,18 @@
 - تفاصيل التدقيق وخطة التنفيذ: `docs/finance/PHASE17_CUSTOMER_COLLECTION_FLOW_AUDIT_AR.md`.
 - لم يتم تعديل كود التشغيل أو Installer، ولم يتم تشغيل SQL أو نشر على الاستضافة. هذه مراجعة ساكنة فقط.
 - نقطة الاستكمال: تصميم وترحيل حدث إيراد/مديونية الشحن المستقل، ثم تخصيص التحصيل على أسطر الطلب الصحيحة، ثم ربط الواجهة الجديدة واختبارها على MariaDB مؤقتة.
+
+
+## استكمال بعد المرحلة 17 — حدث إيراد الشحن المستقل (2026-11-05)
+
+- تمت مراجعة `docs/finance/PHASE17_CUSTOMER_COLLECTION_FLOW_AUDIT_AR.md` و`PHASE14_DELIVERY_COLLECTION_AND_SETTLEMENT_AR.md` ومسار `Order_tbl::addOrders()` وتعريفات `ORDER_TYPE`.
+- ثبت من Installer أن `ORDER_TYPE_ID = 5` هو «بيع مباشر»، وأن الأنواع 1–4 ليست البيع المباشر.
+- أضيفت `AccountingEvents::postOrderShippingCharge()` في commit `94eb7d9ae04dcfa834dfdc109d281a28d04be18a`.
+- الحدث `SHIPPING_REVENUE_RECOGNIZED` مستقل عن `SALE_RECOGNIZED`، ومفتاحه `ORDER_SHIPPING:ORDER:{orderId}:SHIPPING_REVENUE`.
+- يثبت مدين العملاء ودائن `SHIPPING_REVENUE)، مرة واحدة لكل طلب، بعد التسليم الكامل/الجزئي، ويستثني البيع المباشر (النوع 5) والرسوم الصفرية.
+- تم ربط استدعاء حدث الشحن بعد حدث بيع المنتجات في `directSale()`؛ قيد المنتجات لم يتغير ولا يحتوي على رسوم الشحن.
+- أضيفت فحوص ثابتة في commit `b4f11819440e016995d68a754dcb8e70533c496b`.
+- حالة CI لهذين التعديلين يجب مراجعتها من GitHub Actions قبل اعتبارهما ناجحين؛ لم يتم الادعاء باختبار تشغيل محلي.
+- **الخطوة التالية:** تحديث `DeliverySettlementManager::registerCustomerCollection()` لتخصيص المبلغ بين سطر مديونية المنتجات وسطر مديونية الشحن، ثم إضافة idempotency لطلب التحصيل، ثم توصيل واجهة `ReceivePayments`.
+- لا يزال `ReceivePayments.js` على endpoint القديم `CollectingFinancialPledge`، ولم يتم إيقاف الجداول القديمة.
+- لا Installer changes، لا SQL على الاستضافة، ولا deploy.
