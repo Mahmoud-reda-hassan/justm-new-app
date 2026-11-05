@@ -36,6 +36,7 @@ include_once(ABSPATH.'/inc/controller/BackEnd/inventory_BE.php');
 include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/LogManager.php');
 include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryAttemptCommissionManager.php');
 
 class shipment_BE {
 	private $orders_log_Tbl = 'ORDERS_LOG';
@@ -1441,6 +1442,14 @@ class shipment_BE {
 	        $call->closeCursor();
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
+                // ترحيل عمولة كل حركة رفض فعلية قبل اعتماد طلب التأكيد.
+                $attemptCommissionManager = new DeliveryAttemptCommissionManager($this->conn);
+                $attemptCommissionManager->accrueRejectedAttempts(
+                    $sessionId,
+                    (int)$this->branch_id,
+                    (int)$executedBy
+                );
+
                 $requestComplete = $this->conn->prepare(
                     "UPDATE delivery_confirmation_requests
                      SET status = 'COMPLETED', completed_at = NOW()
