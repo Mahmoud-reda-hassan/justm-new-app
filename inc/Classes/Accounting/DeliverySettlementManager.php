@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/JournalManager.php';
 require_once __DIR__ . '/AccountSettings.php';
+require_once __DIR__ . '/FinancialEventManager.php';
 
 /**
  * تسوية عهدة المندوب على تحصيلات العملاء المسجلة في نظام المحاسبة الجديد.
@@ -86,12 +87,17 @@ final class DeliverySettlementManager
         int $branchId,
         int $paymentMethodId,
         array $orderAmounts,
+        string $requestKey,
         string $note = ''
     ): array {
         if ($deliveryId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || !$orderAmounts) {
             throw new InvalidArgumentException('المندوب والفرع وطريقة الدفع وأمر بيع واحد على الأقل مطلوبة.');
         }
         $actorId = $this->actorId();
+        $requestKey = trim($requestKey);
+        if (!preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', $requestKey)) {
+            throw new InvalidArgumentException('مفتاح طلب التحصيل مطلوب ويجب أن يكون من 8 إلى 64 حرفًا آمنًا.');
+        }
         $normalized = [];
         foreach ($orderAmounts as $orderId => $amount) {
             $orderId = (int)$orderId;
@@ -116,7 +122,7 @@ final class DeliverySettlementManager
             $created = [];
 
             foreach ($normalized as $orderId => $amount) {
-                $orderStmt = $this->db->prepare("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.DELIVERY_ID,
+                $orderStmt = $this->db->prepare("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_TYPE_ID, o.DELIVERY_ID,
                         o.SALE_ENTRY_ID, o.ORDER_STATUS, COALESCE(o.SHIPPING_VAL,0) AS SHIPPING_VAL,
                         te.CLIENT_ID, COALESCE(ud.PERCENT,0) AS DELIVERY_PERCENT
                     FROM orders o
@@ -136,25 +142,67 @@ final class DeliverySettlementManager
                     throw new RuntimeException('أمر البيع رقم ' . $orderId . ' لا يحتوي على قيد مديونية عميل صالح في النظام الجديد.');
                 }
 
+                // مديونية الطلب تتكون من المنتجات، ورسوم الشحن في قيد مستقل للطلبات المشحونة.
+                $receivableLines = [];
                 $saleLineStmt = $this->db->prepare("SELECT d.id, d.debit
                     FROM journal_entry_details d
+                    INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
                     WHERE d.journal_entry_id = ? AND d.account_id = ?
                       AND d.partner_type = 'CLIENT' AND d.partner_id = ? AND d.debit > 0
                     ORDER BY d.id LIMIT 1 FOR UPDATE");
                 $saleLineStmt->execute([(int)$order['SALE_ENTRY_ID'], $customerAccountId, (int)$order['CLIENT_ID']]);
                 $saleLine = $saleLineStmt->fetch(PDO::FETCH_ASSOC);
-                if (!$saleLine) throw new RuntimeException('لم يتم العثور على سطر مديونية العميل لأمر البيع رقم ' . $orderId . '.');
+                if (!$saleLine) throw new RuntimeException('لم يتم العثور على سطر مديونية المنتجات لأمر البيع رقم ' . $orderId . '.');
+                $receivableLines[] = ['id' => (int)$saleLine['id'], 'debit' => (float)$saleLine['debit'], 'kind' => 'PRODUCTS'];
 
-                $balanceStmt = $this->db->prepare("SELECT COALESCE(SUM(amount),0)
-                    FROM accounting_line_allocations WHERE debit_line_id = ? AND status = 'ACTIVE'");
-                $balanceStmt->execute([(int)$saleLine['id']]);
-                $allocated = (float)$balanceStmt->fetchColumn();
-                $openAmount = round((float)$saleLine['debit'] - $allocated, 2);
-                if ($amount - $openAmount > 0.009) {
-                    throw new RuntimeException('مبلغ التحصيل لأمر البيع رقم ' . $orderId . ' أكبر من المديونية المفتوحة (' . number_format(max(0, $openAmount), 2, '.', '') . ').');
+                // النوع 5 بيع مباشر ولا يحمل شحنًا؛ الأنواع الأخرى ذات رسوم الشحن تحتاج حدث الشحن المرحل.
+                if ((int)$order['ORDER_TYPE_ID'] !== 5 && (float)$order['SHIPPING_VAL'] > 0) {
+                    $shippingEventKey = 'ORDER_SHIPPING:ORDER:' . $orderId . ':SHIPPING_REVENUE';
+                    $shippingEventStmt = $this->db->prepare("SELECT journal_entry_id
+                        FROM accounting_events
+                        WHERE idempotency_key = ? AND event_type = 'SHIPPING_REVENUE_RECOGNIZED'
+                          AND status = 'POSTED' AND journal_entry_id IS NOT NULL
+                        LIMIT 1 FOR UPDATE");
+                    $shippingEventStmt->execute([$shippingEventKey]);
+                    $shippingJournalId = (int)$shippingEventStmt->fetchColumn();
+                    if ($shippingJournalId <= 0) {
+                        throw new RuntimeException('لم يتم ترحيل مديونية رسوم الشحن لهذا الطلب؛ لا يمكن تسجيل التحصيل قبل إثباتها.');
+                    }
+
+                    $shippingLineStmt = $this->db->prepare("SELECT d.id, d.debit
+                        FROM journal_entry_details d
+                        INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                        WHERE d.journal_entry_id = ? AND d.account_id = ?
+                          AND d.partner_type = 'CLIENT' AND d.partner_id = ? AND d.debit > 0
+                        ORDER BY d.id LIMIT 1 FOR UPDATE");
+                    $shippingLineStmt->execute([$shippingJournalId, $customerAccountId, (int)$order['CLIENT_ID']]);
+                    $shippingLine = $shippingLineStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$shippingLine || abs((float)$shippingLine['debit'] - (float)$order['SHIPPING_VAL']) > 0.009) {
+                        throw new RuntimeException('سطر مديونية الشحن غير مطابق لقيمة الشحن المسجلة على الطلب.');
+                    }
+                    $receivableLines[] = ['id' => (int)$shippingLine['id'], 'debit' => (float)$shippingLine['debit'], 'kind' => 'SHIPPING'];
                 }
 
-                // احتساب عمولة متناسبة مع المبلغ المحصل، دون تجاوز عمولة الشحن المتوقعة للأمر.
+                $totalReceivableAmount = 0.0;
+                $totalOpenAmount = 0.0;
+                $lineOpenStmt = $this->db->prepare("SELECT COALESCE(SUM(amount),0)
+                    FROM accounting_line_allocations
+                    WHERE debit_line_id = ? AND status = 'ACTIVE'");
+                foreach ($receivableLines as &$receivableLine) {
+                    $lineOpenStmt->execute([$receivableLine['id']]);
+                    $allocated = (float)$lineOpenStmt->fetchColumn();
+                    $receivableLine['open_amount'] = max(0.0, round($receivableLine['debit'] - $allocated, 2));
+                    $totalReceivableAmount += $receivableLine['debit'];
+                    $totalOpenAmount += $receivableLine['open_amount'];
+                }
+                unset($receivableLine);
+                $totalReceivableAmount = round($totalReceivableAmount, 2);
+                $totalOpenAmount = round($totalOpenAmount, 2);
+                if ($amount - $totalOpenAmount > 0.009) {
+                    throw new RuntimeException('مبلغ التحصيل لأمر البيع رقم ' . $orderId . ' أكبر من إجمالي المديونية المفتوحة (' . number_format($totalOpenAmount, 2, '.', '') . ').');
+                }
+
+                // احتساب العمولة بنسبة المبلغ المحصل إلى إجمالي مديونية الطلب، مع سقف العمولة المتبقية.
                 $expectedCommission = round(((float)$order['SHIPPING_VAL'] * (float)$order['DELIVERY_PERCENT']) / 100, 2);
                 $commissionUsedStmt = $this->db->prepare("SELECT COALESCE(SUM(a.commission_amount),0)
                     FROM delivery_collection_order_allocations a
@@ -163,85 +211,185 @@ final class DeliverySettlementManager
                 $commissionUsedStmt->execute([$orderId]);
                 $commissionAlreadyAccrued = (float)$commissionUsedStmt->fetchColumn();
                 $commissionRemaining = max(0.0, round($expectedCommission - $commissionAlreadyAccrued, 2));
-                $commission = min($commissionRemaining, round($expectedCommission * $amount / max((float)$saleLine['debit'], 0.01), 2));
+                $commission = min($commissionRemaining, round($expectedCommission * $amount / max($totalReceivableAmount, 0.01), 2));
 
-                $receipt = 'DCR-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
-                $insert = $this->db->prepare("INSERT INTO delivery_customer_collections
-                    (receipt_no, delivery_user_id, customer_id, branch_id, payment_method_id,
-                     collection_date, customer_paid_amount, commission_amount, commission_mode,
-                     status, note, created_by)
-                    VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, NULL, 'DRAFT', ?, ?)");
-                $insert->execute([$receipt, $deliveryId, (int)$order['CLIENT_ID'], $branchId, $paymentMethodId,
-                    $amount, $commission, trim($note), $actorId]);
-                $collectionId = (int)$this->db->lastInsertId();
-
-                $this->journal->reset()->create([
+                $requestEventKey = 'DELIVERY_COLLECTION:' . $requestKey . ':ORDER:' . $orderId;
+                $collectionId = 0;
+                $receipt = '';
+                $eventManager = new FinancialEventManager($this->db);
+                $eventResult = $eventManager->post([
+                    'idempotency_key' => $requestEventKey,
+                    'event_type' => 'COURIER_COLLECTION',
+                    'source_type' => 'DELIVERY_COLLECTION',
+                    'source_id' => $orderId,
                     'branch_id' => $branchId,
-                    'entry_date' => date('Y-m-d H:i:s'),
-                    'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION',
-                    'reference_id' => $collectionId,
-                    'description' => 'تحصيل مندوب من العميل لأمر ' . $order['SUB_ORDER_ID'],
+                    'event_date' => date('Y-m-d H:i:s'),
                     'created_by' => $actorId,
-                ]);
-                $this->journal->addLine([
-                    'account_id' => $custodyAccountId,
-                    'partner_type' => 'DELIVERY', 'partner_id' => $deliveryId,
-                    'debit' => $amount, 'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION',
-                    'reference_id' => $collectionId, 'note' => 'مبلغ محصل لدى المندوب',
-                ]);
-                $this->journal->addLine([
-                    'account_id' => $customerAccountId,
-                    'partner_type' => 'CLIENT', 'partner_id' => (int)$order['CLIENT_ID'],
-                    'credit' => $amount, 'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION',
-                    'reference_id' => $collectionId, 'note' => 'سداد العميل عن أمر ' . $order['SUB_ORDER_ID'],
-                ]);
-                $collectionJournalId = $this->journal->post();
+                    'payload' => [
+                        'order_id' => $orderId,
+                        'delivery_id' => $deliveryId,
+                        'customer_id' => (int)$order['CLIENT_ID'],
+                        'branch_id' => $branchId,
+                        'payment_method_id' => $paymentMethodId,
+                        'amount' => $amount,
+                        'note' => trim($note),
+                    ],
+                ], function () use (
+                    &$collectionId, &$receipt, $deliveryId, $branchId, $paymentMethodId,
+                    $orderId, $order, $amount, $commission, $custodyAccountId,
+                    $customerAccountId, $actorId
+                ): int {
+                    $receipt = 'DCR-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+                    $insert = $this->db->prepare("INSERT INTO delivery_customer_collections
+                        (receipt_no, delivery_user_id, customer_id, branch_id, payment_method_id,
+                         collection_date, customer_paid_amount, commission_amount, commission_mode,
+                         status, note, created_by)
+                        VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, NULL, 'DRAFT', ?, ?)");
+                    $insert->execute([$receipt, $deliveryId, (int)$order['CLIENT_ID'], $branchId, $paymentMethodId,
+                        $amount, $commission, trim($note), $actorId]);
+                    $collectionId = (int)$this->db->lastInsertId();
 
-                $creditLineStmt = $this->db->prepare("SELECT id FROM journal_entry_details
-                    WHERE journal_entry_id = ? AND account_id = ? AND credit > 0
-                      AND reference_type = 'DELIVERY_CUSTOMER_COLLECTION' AND reference_id = ? LIMIT 1");
-                $creditLineStmt->execute([$collectionJournalId, $customerAccountId, $collectionId]);
-                $creditLineId = (int)$creditLineStmt->fetchColumn();
-                if ($creditLineId <= 0) throw new RuntimeException('تعذر تحديد سطر سداد العميل لتخصيصه على أمر البيع.');
-
-                $allocation = $this->db->prepare("INSERT INTO accounting_line_allocations
-                    (debit_line_id, credit_line_id, amount, allocation_date, status, note, created_by)
-                    VALUES (?, ?, ?, NOW(), 'ACTIVE', ?, ?)");
-                $allocation->execute([(int)$saleLine['id'], $creditLineId, $amount,
-                    'تخصيص تحصيل مندوب لأمر ' . $order['SUB_ORDER_ID'], $actorId]);
-
-                $commissionJournalId = null;
-                if ($commission > 0) {
                     $this->journal->reset()->create([
                         'branch_id' => $branchId,
                         'entry_date' => date('Y-m-d H:i:s'),
-                        'reference_type' => 'DELIVERY_COMMISSION_ACCRUAL',
+                        'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION',
                         'reference_id' => $collectionId,
-                        'description' => 'استحقاق عمولة مندوب عن أمر ' . $order['SUB_ORDER_ID'],
+                        'description' => 'تحصيل مندوب من العميل لأمر ' . $order['SUB_ORDER_ID'],
                         'created_by' => $actorId,
                     ]);
                     $this->journal->addLine([
-                        'account_id' => $commissionExpenseAccountId,
-                        'debit' => $commission,
-                        'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION', 'reference_id' => $collectionId,
-                        'note' => 'مصروف عمولة المندوب',
+                        'account_id' => $custodyAccountId,
+                        'partner_type' => 'DELIVERY', 'partner_id' => $deliveryId,
+                        'debit' => $amount, 'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION',
+                        'reference_id' => $collectionId, 'note' => 'مبلغ محصل لدى المندوب',
                     ]);
                     $this->journal->addLine([
-                        'account_id' => $commissionPayableAccountId,
-                        'partner_type' => 'DELIVERY', 'partner_id' => $deliveryId,
-                        'credit' => $commission,
-                        'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION', 'reference_id' => $collectionId,
-                        'note' => 'عمولة مستحقة للمندوب',
+                        'account_id' => $customerAccountId,
+                        'partner_type' => 'CLIENT', 'partner_id' => (int)$order['CLIENT_ID'],
+                        'credit' => $amount, 'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION',
+                        'reference_id' => $collectionId, 'note' => 'سداد العميل عن أمر ' . $order['SUB_ORDER_ID'],
                     ]);
-                    $commissionJournalId = $this->journal->post();
+                    return $this->journal->post();
+                });
+                $collectionJournalId = (int)$eventResult['journal_entry_id'];
+
+                if (!empty($eventResult['already_posted'])) {
+                    $existingStmt = $this->db->prepare("SELECT id, receipt_no, customer_paid_amount,
+                            commission_amount, commission_journal_id, status
+                        FROM delivery_customer_collections
+                        WHERE collection_journal_id = ? LIMIT 1 FOR UPDATE");
+                    $existingStmt->execute([$collectionJournalId]);
+                    $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
+                    if (!$existing || $existing['status'] !== 'POSTED'
+                        || abs((float)$existing['customer_paid_amount'] - $amount) > 0.009) {
+                        throw new RuntimeException('تم العثور على حدث تحصيل سابق غير متسق مع مستنده؛ يلزم فحصه.');
+                    }
+                    $existingAllocationStmt = $this->db->prepare("SELECT customer_amount
+                        FROM delivery_collection_order_allocations
+                        WHERE collection_id = ? AND order_id = ? LIMIT 1");
+                    $existingAllocationStmt->execute([(int)$existing['id'], $orderId]);
+                    $existingAllocation = $existingAllocationStmt->fetchColumn();
+                    if ($existingAllocation === false || abs((float)$existingAllocation - $amount) > 0.009) {
+                        throw new RuntimeException('تخصيص التحصيل السابق غير متسق مع طلب إعادة الإرسال.');
+                    }
+                    $created[] = [
+                        'collection_id' => (int)$existing['id'],
+                        'receipt_no' => $existing['receipt_no'],
+                        'order_id' => $orderId,
+                        'customer_id' => (int)$order['CLIENT_ID'],
+                        'amount' => $amount,
+                        'commission' => (float)$existing['commission_amount'],
+                        'collection_journal_id' => $collectionJournalId,
+                        'commission_journal_id' => $existing['commission_journal_id'] ? (int)$existing['commission_journal_id'] : null,
+                        'already_posted' => true,
+                    ];
+                    continue;
+                }
+                if ($collectionId <= 0) {
+                    throw new RuntimeException('تعذر إنشاء مستند التحصيل المرتبط بالحدث المالي.');
+                }
+
+                $creditLineStmt = $this->db->prepare("SELECT id FROM journal_entry_details
+                    WHERE journal_entry_id = ? AND account_id = ? AND partner_type = 'CLIENT'
+                      AND partner_id = ? AND credit > 0
+                      AND reference_type = 'DELIVERY_CUSTOMER_COLLECTION' AND reference_id = ? LIMIT 1");
+                $creditLineStmt->execute([$collectionJournalId, $customerAccountId, (int)$order['CLIENT_ID'], $collectionId]);
+                $creditLineId = (int)$creditLineStmt->fetchColumn();
+                if ($creditLineId <= 0) throw new RuntimeException('تعذر تحديد سطر سداد العميل لتخصيصه على أمر البيع.');
+
+                // توزيع التحصيل على مديونية المنتجات أولًا ثم مديونية الشحن، دون تجاوز الرصيد المفتوح لأي سطر.
+                $remainingToAllocate = $amount;
+                $allocation = $this->db->prepare("INSERT INTO accounting_line_allocations
+                    (debit_line_id, credit_line_id, amount, allocation_date, status, note, created_by)
+                    VALUES (?, ?, ?, NOW(), 'ACTIVE', ?, ?)");
+                foreach ($receivableLines as $receivableLine) {
+                    if ($remainingToAllocate <= 0.009) break;
+                    $take = min($remainingToAllocate, (float)$receivableLine['open_amount']);
+                    if ($take <= 0) continue;
+                    $allocation->execute([
+                        (int)$receivableLine['id'], $creditLineId, round($take, 2),
+                        'تخصيص تحصيل مندوب (' . $receivableLine['kind'] . ') لأمر ' . $order['SUB_ORDER_ID'],
+                        $actorId
+                    ]);
+                    $remainingToAllocate = round($remainingToAllocate - $take, 2);
+                }
+                if ($remainingToAllocate > 0.009) {
+                    throw new RuntimeException('تعذر تخصيص كامل مبلغ التحصيل على مديونية الطلب.');
+                }
+
+                $commissionJournalId = null;
+                if ($commission > 0) {
+                    $commissionResult = $eventManager->post([
+                        'idempotency_key' => 'DELIVERY_COMMISSION:COLLECTION:' . $collectionId . ':COMMISSION_ACCRUED',
+                        'event_type' => 'COMMISSION_ACCRUED',
+                        'source_type' => 'DELIVERY_COLLECTION',
+                        'source_id' => $collectionId,
+                        'branch_id' => $branchId,
+                        'event_date' => date('Y-m-d H:i:s'),
+                        'created_by' => $actorId,
+                        'payload' => [
+                            'collection_id' => $collectionId,
+                            'delivery_id' => $deliveryId,
+                            'commission_amount' => $commission,
+                        ],
+                    ], function () use ($branchId, $collectionId, $deliveryId, $commission,
+                        $commissionExpenseAccountId, $commissionPayableAccountId, $actorId, $order): int {
+                        $this->journal->reset()->create([
+                            'branch_id' => $branchId,
+                            'entry_date' => date('Y-m-d H:i:s'),
+                            'reference_type' => 'DELIVERY_COMMISSION_ACCRUAL',
+                            'reference_id' => $collectionId,
+                            'description' => 'استحقاق عمولة مندوب عن أمر ' . $order['SUB_ORDER_ID'],
+                            'created_by' => $actorId,
+                        ]);
+                        $this->journal->addLine([
+                            'account_id' => $commissionExpenseAccountId,
+                            'debit' => $commission,
+                            'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION', 'reference_id' => $collectionId,
+                            'note' => 'مصروف عمولة المندوب',
+                        ]);
+                        $this->journal->addLine([
+                            'account_id' => $commissionPayableAccountId,
+                            'partner_type' => 'DELIVERY', 'partner_id' => $deliveryId,
+                            'credit' => $commission,
+                            'reference_type' => 'DELIVERY_CUSTOMER_COLLECTION', 'reference_id' => $collectionId,
+                            'note' => 'عمولة مستحقة للمندوب',
+                        ]);
+                        return $this->journal->post();
+                    });
+                    $commissionJournalId = (int)$commissionResult['journal_entry_id'];
                 }
 
                 $this->db->prepare("INSERT INTO delivery_collection_order_allocations
                     (collection_id, order_id, customer_amount, commission_amount)
                     VALUES (?, ?, ?, ?)")->execute([$collectionId, $orderId, $amount, $commission]);
-                $this->db->prepare("UPDATE delivery_customer_collections
+                $postedUpdate = $this->db->prepare("UPDATE delivery_customer_collections
                     SET collection_journal_id = ?, commission_journal_id = ?, status = 'POSTED', posted_at = NOW()
-                    WHERE id = ? AND status = 'DRAFT'")->execute([$collectionJournalId, $commissionJournalId, $collectionId]);
+                    WHERE id = ? AND status = 'DRAFT'");
+                $postedUpdate->execute([$collectionJournalId, $commissionJournalId, $collectionId]);
+                if ($postedUpdate->rowCount() !== 1) {
+                    throw new RuntimeException('تعذر اعتماد مستند تحصيل المندوب بعد ترحيل القيود.');
+                }
 
                 $created[] = [
                     'collection_id' => $collectionId,
