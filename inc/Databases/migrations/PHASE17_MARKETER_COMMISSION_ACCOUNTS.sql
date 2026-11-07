@@ -1,26 +1,28 @@
 -- PHASE17: حسابات مستقلة لعمولات المسوقين وقادة الفرق.
--- 2152 مستحقات (التزام/رصيد دائن)، و5230 مصروف عمولات (مصروف/رصيد مدين).
+-- 2152 مستحقات (التزام/رصيد دائن)، و5420 تسويق بالعمولة (مصروف/رصيد مدين).
 -- ينشئ الحسابين فقط عند عدم وجود كود الحساب، ثم يربطهما بإعدادات دفتر الأستاذ.
 -- لا يتم دمج هذه الحسابات مع حسابات عمولات المندوبين.
 
 INSERT INTO accounts
-    (account_code, account_name, account_type, normal_balance, account_level,
+    (parent_id, account_code, account_name, account_type, normal_balance, account_level,
      is_active, allow_posting, system_account, is_system_created, description)
 SELECT
-    '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 1,
+    (SELECT id FROM accounts WHERE account_code = '2150' LIMIT 1),
+    '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 3,
     1, 1, 1, 1, 'مستحقات مستقلة لعمولات المسوقين وقادة الفرق'
 WHERE NOT EXISTS (
     SELECT 1 FROM accounts WHERE account_code = '2152'
 );
 
 INSERT INTO accounts
-    (account_code, account_name, account_type, normal_balance, account_level,
+    (parent_id, account_code, account_name, account_type, normal_balance, account_level,
      is_active, allow_posting, system_account, is_system_created, description)
 SELECT
-    '5230', 'مصروف عمولات المسوقين وقادة الفرق', 'EXPENSE', 'DEBIT', 1,
-    1, 1, 1, 1, 'مصروف مستقل لعمولات المسوقين وقادة الفرق'
+    (SELECT id FROM accounts WHERE account_code = '5400' LIMIT 1),
+    '5420', 'التسويق بالعمولة', 'EXPENSE', 'DEBIT', 3,
+    1, 1, 1, 1, 'مصروف عمولات المسوقين وقادة الفرق'
 WHERE NOT EXISTS (
-    SELECT 1 FROM accounts WHERE account_code = '5230'
+    SELECT 1 FROM accounts WHERE account_code = '5420'
 );
 
 -- ربط مفاتيح الحسابات بمعرفاتها الفعلية؛ لا توجد أرقام IDs ثابتة.
@@ -33,8 +35,8 @@ ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
 
 INSERT INTO account_settings (setting_key, account_id, description)
 SELECT 'MARKETER_COMMISSION_EXPENSE', id,
-       'حساب مصروف عمولات المسوقين وقادة الفرق - 5230'
-FROM accounts WHERE account_code = '5230'
+       'حساب مصروف عمولات المسوقين وقادة الفرق - 5420'
+FROM accounts WHERE account_code = '5420'
 ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
                         description = VALUES(description);
 
@@ -42,7 +44,7 @@ ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
 SELECT account_code, account_name, account_type, normal_balance,
        is_active, allow_posting
 FROM accounts
-WHERE account_code IN ('2152', '5230')
+WHERE account_code IN ('2152', '5420')
 ORDER BY account_code;
 
 
