@@ -1639,22 +1639,22 @@ class shipment_BE {
 	        $call->closeCursor();
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
-                // ترحيل عمولة كل حركة رفض فعلية قبل اعتماد طلب التأكيد.
-                $attemptCommissionManager = new DeliveryAttemptCommissionManager($this->conn);
-                $attemptCommissionManager->accrueRejectedAttempts(
-                    $sessionId,
-                    (int)$this->branch_id,
-                    (int)$executedBy
-                );
-
-                // لا يتم إنشاء تحصيل شحن إلا بعد إثبات أن العميل دفع فعليًا.
-                // المدير يمنع تكرار التحصيل لنفس الطلب حتى مع وجود محاولة رفض لاحقة.
                 if ($customerPaidShipping === true) {
+                    // الشحن المحصل: عمولة الرفض العادية + تحصيل الشحن مرة واحدة للطلب.
+                    $attemptCommissionManager = new DeliveryAttemptCommissionManager($this->conn);
+                    $attemptCommissionManager->accrueRejectedAttempts(
+                        $sessionId, (int)$this->branch_id, (int)$executedBy
+                    );
                     $shippingCollectionManager = new DeliveryRejectedShippingCollectionManager($this->conn);
                     $shippingCollectionManager->collectPaidRejectedShipping(
-                        $sessionId,
-                        (int)$this->branch_id,
-                        (int)$executedBy
+                        $sessionId, (int)$this->branch_id, (int)$executedBy
+                    );
+                } else {
+                    // الشحن غير المحصل: لا عمولة تلقائية ولا تحصيل وهمي؛ فقط طلب مراجعة للتعويض الاختياري.
+                    require_once ABSPATH . '/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php';
+                    $shippingReviewManager = new DeliveryRejectedShippingReviewManager($this->conn);
+                    $shippingReviewManager->recordUnpaidAttempts(
+                        $sessionId, (int)$this->branch_id, (int)$executedBy
                     );
                 }
 
