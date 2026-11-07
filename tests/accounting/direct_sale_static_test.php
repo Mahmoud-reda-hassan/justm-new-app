@@ -117,6 +117,19 @@ try {
     $payoutJs = projectFile($root, 'dist/js/PaymentDisbursement.js');
     has($payoutJs, "'PayMarketerCommission'", 'شاشة الصرف لا تستخدم endpoint الأستاذ العام.');
     has($payoutJs, 'request_key', 'شاشة الصرف لا ترسل مفتاح منع التكرار.');
+
+    $courierPayout = methodBody($deliveryManager, 'public function payCommission(');
+    has($courierPayout, 'delivery_commission_payments', 'صرف عمولة المندوب لا ينشئ مستند صرف GL.');
+    has($courierPayout, 'transactionAccount($paymentMethodId, $branchId)', 'صرف عمولة المندوب لا يستخدم حساب طريقة الدفع.');
+    has($courierPayout, "'partner_type' => 'DELIVERY'", 'قيد صرف عمولة المندوب لا يربط الشريك.');
+    has($payoutBackend, 'courier_commission_payable_account_id', 'رصيد المندوب في شاشة الصرف لا يُقرأ من حساب GL.');
+    has($payoutView, 'delivery-payment-method', 'شاشة صرف المندوب لا تطلب طريقة الدفع.');
+    has($payoutJs, "'PayDeliveryCommission'", 'شاشة صرف المندوب لا تستخدم endpoint الأستاذ العام.');
+    has($payoutController, "case 'PaymentOfMarketerDues':", 'لم يتم إغلاق endpoint الصرف القديم للمسوق.');
+    has($payoutController, "case 'PaymentOfDeliveryDues':", 'لم يتم إغلاق endpoint الصرف القديم للمندوب.');
+    lacks($payoutController, '$CBE->PaymentOfMarketerDues(', 'endpoint الصرف القديم للمسوق ما زال نشطًا.');
+    lacks($payoutController, '$CBE->PaymentOfDeliveryDues(', 'endpoint الصرف القديم للمندوب ما زال نشطًا.');
+
     has($installer, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer inc.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer الجذر.');
 
