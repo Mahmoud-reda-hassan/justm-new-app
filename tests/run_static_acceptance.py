@@ -80,7 +80,8 @@ check('Courier settlement validates selected box against payment mapping',
 check('Courier settlement stores cash-box ID on received cash journal line',
       "'cash_box_id' => $cashBoxId" in settlement_manager)
 check('Finance endpoint returns branch cash boxes and requires selected box',
-      'GetDeliverySettlementCashBoxes' in finance_controller and "'cash_box_id' => $cashBoxId" in finance_controller)
+      'GetDeliverySettlementCashBoxes' in finance_controller and "'cash_box_id' => $cashBoxId" in finance_controller
+      and 'INNER JOIN cash_boxes cb' in finance_controller and 'SELECT DISTINCT pm.id' in finance_controller)
 check('Courier settlement UI requires and sends selected cash box',
       'id="dsCashBox"' in settlement_view and 'cash_box_id: cashBoxId' in settlement_js
       and 'GetDeliverySettlementCashBoxes' in settlement_js)
