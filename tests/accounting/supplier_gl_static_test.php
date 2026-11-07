@@ -65,6 +65,7 @@ $supplierStatementEnd = strpos($report, 'if (strtoupper((string)$partnerType) ==
 $supplierStatement = substr($report, $supplierStatementStart, $supplierStatementEnd - $supplierStatementStart);
 $assert(strpos($supplierStatement, "'رصيد سابق (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد سابق (GL)'") !== false, 'Supplier statement must show historical and GL opening balances separately.');
 $assert(strpos($supplierStatement, "'رصيد حالي (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد حالي (GL)'") !== false, 'Supplier statement must show historical and GL closing balances separately.');
+$assert(strpos($supplierStatement, "CASE WHEN d.reference_type='SUPPLIER_ADVANCE' THEN NULL") !== false, 'Supplier advance credit line must not be displayed as a purchase order number.');
 
 echo "PASS: supplier purchase, receipt, return and payment paths use GL for new events.\n";
 echo "PASS: historical supplier balances remain untouched and are combined in transitional balance reads.\n";
