@@ -280,7 +280,7 @@ dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_bal
 
 | المسار | الوضع الحالي | المطلوب قبل القطع النهائي |
 |---|---|---|
-| `CollectingFinancialPledge` / `finance_BE::registerCollection()` | ما زال مسارًا قديمًا مرتبطًا بواجهة استلام العهدة | استبدال سلوك الواجهة بخطوتي تحصيل العميل في عهدة المندوب ثم استلام الشركة، مع الحفاظ على إغلاق العهدة وحالة الطلب |
+| `CollectingFinancialPledge` / `finance_BE::registerCollection()` | تم تعطيل endpoint القديم؛ شاشة الأوامر تسجل الآن `RegisterDeliveryCustomerCollection` وتضيف التحصيل إلى عهدة المندوب، ولوحة التسوية تستقبل العهدة لاحقًا | يلزم اختبار دورة كاملة على بيانات اختبار والتأكد من تحديث حالة الطلب/العهدة التشغيلية دون الاعتماد على `ORDER_SUCCESS` القديم |
 | `PaymentOfSupplierDues()` و`SaveSupplierPayment` | ما زال يكتب `financial_transactions` و`purchases_payments` و`partners_balance` ويحدّث `TOTAL_PAYMENTS` | بناء دورة مشتريات/ذمم موردين GL كاملة تشمل إثبات الشراء والمرتجع والمقدمات قبل تحويل الصرف |
 | كشف حساب المورد | ما زال يعتمد المسار القديم | يتطلب حساب موردين معتمدًا وترحيل أرصدة/مستندات المشتريات إلى GL |
 | `directSalePayment()` و`salesReturnPayment()` التاريخيان | ما زالا يقرآن مستندات `invoices/financial_transactions` لإعادة بناء قيد تاريخي | نقل مصدر البيانات إلى أحداث/مستندات GL-native ثم إيقاف إنشاء المستندات القديمة |
@@ -298,3 +298,4 @@ dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_bal
 - لا يُسمح بالكتابة المزدوجة لنفس الحدث.
 - لا تتغير دورة المخزون أو عهدة البضاعة ضمن هذا التحويل.
 - لا يتم دمج الفرع أو تطبيق Migration على testar دون مراجعة واعتماد المستخدم.
+- تحديث 2026-11-07: شاشة تحصيل المندوب أصبحت تحسب المديونية المفتوحة من قيود العميل وتخصيصات `accounting_line_allocations`، وملخص النقدية من حسابات الصناديق وطرق الدفع في GL؛ تم إيقاف `CollectingFinancialPledge` القديم.
