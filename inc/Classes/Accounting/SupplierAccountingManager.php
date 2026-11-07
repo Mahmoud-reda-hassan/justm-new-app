@@ -218,4 +218,142 @@ final class SupplierAccountingManager
             'supplier_id'=>(int)$payment['supplier_id'],'total_amount'=>(float)$payment['amount'],
             'allocated_amount'=>$allocated,'advance_amount'=>$advance,'already_posted'=>(bool)$event['already_posted']];
     }
+
+    /**
+     * تطبيق مقدمات المورد السابقة على أوامر الشراء، تلقائيًا FIFO أو بتوزيع يدوي.
+     * لا ينشئ حركة نقدية جديدة؛ ينقل الرصيد من مقدمات المورد إلى مستحقات أوامر الشراء.
+     */
+    public function applyAdvances(int $supplierId, array $orders, string $mode, int $branchId,
+        int $userId, string $requestKey): array
+    {
+        $mode = strtoupper(trim($mode));
+        if (!in_array($mode, ['AUTO', 'MANUAL'], true)) throw new InvalidArgumentException('طريقة توزيع المقدم غير صحيحة.');
+        if ($supplierId <= 0 || $branchId <= 0 || $userId <= 0) throw new InvalidArgumentException('بيانات المورد أو الفرع أو المستخدم غير مكتملة.');
+        if (!preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', $requestKey)) throw new InvalidArgumentException('مفتاح تطبيق المقدم مطلوب لمنع التكرار.');
+
+        $requested = [];
+        foreach ($orders as $item) {
+            if (!is_array($item)) throw new InvalidArgumentException('توزيع المقدم غير صالح.');
+            $orderId = (int)($item['orderId'] ?? $item['order_id'] ?? 0);
+            $value = round((float)($item['amount'] ?? 0), 2);
+            if ($orderId <= 0 || $value <= 0 || isset($requested[$orderId])) throw new InvalidArgumentException('أوامر أو مبالغ تطبيق المقدم غير صحيحة أو مكررة.');
+            $requested[$orderId] = $value;
+        }
+        if ($mode === 'MANUAL' && !$requested) throw new InvalidArgumentException('حدد مبالغ المقدم على أوامر الشراء أولًا.');
+        ksort($requested, SORT_NUMERIC);
+        $payload = ['supplier_id'=>$supplierId, 'mode'=>$mode, 'orders'=>array_map(
+            static fn($id,$amount)=>['order_id'=>$id,'amount'=>number_format($amount,2,'.','')],
+            array_keys($requested), array_values($requested)
+        )];
+
+        $event = $this->postEvent('SUPPLIER_ADVANCE_APPLY:'.$requestKey, 'SUPPLIER_ADVANCE_APPLIED',
+            'SUPPLIER_ADVANCE_REQUEST', $supplierId, $branchId, $userId, $payload,
+            function () use ($supplierId,$requested,$mode,$branchId,$userId): int {
+                $lock = $this->db->prepare('SELECT SUP_ID FROM suppliers WHERE SUP_ID=? FOR UPDATE');
+                $lock->execute([$supplierId]);
+                if (!$lock->fetchColumn()) throw new RuntimeException('المورد المحدد غير موجود.');
+
+                $sourceSql = "SELECT A.id,A.payment_id,A.amount,
+                    ROUND(A.amount-COALESCE(SUM(X.amount),0),2) AS AVAILABLE
+                    FROM supplier_gl_payment_allocations A
+                    INNER JOIN supplier_gl_payments P ON P.id=A.payment_id
+                    LEFT JOIN supplier_gl_advance_applications X ON X.source_advance_allocation_id=A.id
+                    WHERE A.supplier_id=? AND A.allocation_type='ADVANCE'
+                    GROUP BY A.id,A.payment_id,A.amount,P.created_at
+                    HAVING AVAILABLE>0 ORDER BY P.created_at,A.id FOR UPDATE";
+                $sourceStmt=$this->db->prepare($sourceSql);
+                $sourceStmt->execute([$supplierId]);
+                $sources=$sourceStmt->fetchAll(PDO::FETCH_ASSOC);
+                $available=0.0;
+                foreach($sources as $source) $available=round($available+(float)$source['AVAILABLE'],2);
+                if($available<=0) throw new RuntimeException('لا يوجد مقدم متاح لهذا المورد.');
+
+                $orderSql = "SELECT PO.ORDER_ID,PO.SUPPLIER_ID,PO.TOTAL_PRICE,PO.TOTAL_PAYMENTS,
+                    COALESCE((SELECT SUM(PR.TOTAL_PRICE-PR.TOTAL_PAYMENTS) FROM purchases_return_orders PR
+                        WHERE PR.REFERANC=PO.ORDER_ID AND PR.STATUSE='DEFERRED'
+                        AND EXISTS (SELECT 1 FROM inventory_movement IM
+                            WHERE IM.REFERENCE=PR.ORDER_ID AND LOWER(IM.IM_MOVE_TYPE)='refundpurchises')),0) RETURN_TOTAL
+                    FROM purchases_orders PO WHERE PO.SUPPLIER_ID=? AND
+                    (PO.TOTAL_PRICE-PO.TOTAL_PAYMENTS-COALESCE((SELECT SUM(PR.TOTAL_PRICE-PR.TOTAL_PAYMENTS)
+                        FROM purchases_return_orders PR WHERE PR.REFERANC=PO.ORDER_ID AND PR.STATUSE='DEFERRED'
+                        AND EXISTS (SELECT 1 FROM inventory_movement IM WHERE IM.REFERENCE=PR.ORDER_ID
+                            AND LOWER(IM.IM_MOVE_TYPE)='refundpurchises')),0))>0
+                    ORDER BY PO.ORDER_ID ASC FOR UPDATE";
+                $orderStmt=$this->db->prepare($orderSql);
+                $orderStmt->execute([$supplierId]);
+                $openOrders=$orderStmt->fetchAll(PDO::FETCH_ASSOC);
+                $openById=[];
+                foreach($openOrders as $row) $openById[(int)$row['ORDER_ID']]=$row;
+
+                $targets=[];
+                if($mode==='AUTO'){
+                    $remaining=$available;
+                    foreach($openOrders as $row){
+                        if($remaining<=0) break;
+                        $oid=(int)$row['ORDER_ID'];
+                        $due=round((float)$row['TOTAL_PRICE']-(float)$row['TOTAL_PAYMENTS']-(float)$row['RETURN_TOTAL'],2);
+                        $take=min($remaining,$due);
+                        if($take>0){$targets[$oid]=$take;$remaining=round($remaining-$take,2);}
+                    }
+                } else {
+                    $targets=$requested;
+                    foreach($targets as $oid=>$value){
+                        if(!isset($openById[$oid])) throw new RuntimeException('أمر الشراء رقم '.$oid.' لا يتبع المورد أو لا يوجد عليه مستحق.');
+                        $row=$openById[$oid];
+                        $due=round((float)$row['TOTAL_PRICE']-(float)$row['TOTAL_PAYMENTS']-(float)$row['RETURN_TOTAL'],2);
+                        if($value-$due>0.009) throw new RuntimeException('المبلغ المحدد لأمر الشراء رقم '.$oid.' يتجاوز المتبقي.');
+                    }
+                }
+                $total=round(array_sum($targets),2);
+                if($total<=0) throw new RuntimeException('لا توجد أوامر شراء مستحقة لتطبيق المقدم عليها.');
+                if($total-$available>0.009) throw new RuntimeException('إجمالي التوزيع أكبر من مقدم المورد المتاح.');
+
+                $journal=new JournalManager($this->db);
+                $journal->create(['branch_id'=>$branchId,'entry_date'=>date('Y-m-d H:i:s'),
+                    'reference_type'=>'SUPPLIER_ADVANCE_APPLICATION','reference_id'=>$supplierId,
+                    'description'=>'تطبيق مقدمات المورد على أوامر الشراء رقم '.$supplierId,'created_by'=>$userId]);
+                foreach($targets as $oid=>$value){
+                    $journal->addLine(['account_id'=>$this->accounts->suppliers(),'branch_id'=>$branchId,
+                        'partner_type'=>'SUPPLIER','partner_id'=>$supplierId,'reference_type'=>'PURCHASE_ORDER',
+                        'reference_id'=>$oid,'debit'=>$value,'note'=>'تطبيق مقدم مورد على أمر شراء رقم '.$oid]);
+                }
+                $journal->addLine(['account_id'=>$this->accounts->supplierAdvances(),'branch_id'=>$branchId,
+                    'partner_type'=>'SUPPLIER','partner_id'=>$supplierId,'reference_type'=>'SUPPLIER_ADVANCE',
+                    'reference_id'=>$supplierId,'credit'=>$total,'note'=>'تسوية مقدم المورد على أوامر الشراء']);
+                $journalId=$journal->post();
+
+                $appInsert=$this->db->prepare("INSERT INTO supplier_gl_advance_applications
+                    (supplier_id,source_advance_allocation_id,purchase_order_id,amount,journal_entry_id,created_by)
+                    VALUES (?,?,?,?,?,?)");
+                $sourceIndex=0;
+                foreach($targets as $oid=>$targetAmount){
+                    $need=$targetAmount;
+                    while($need>0.009){
+                        if(!isset($sources[$sourceIndex])) throw new RuntimeException('تعذر مطابقة المقدمات المتاحة مع التوزيع المطلوب.');
+                        $source=$sources[$sourceIndex];
+                        $sourceAvailable=round((float)$source['AVAILABLE'],2);
+                        if($sourceAvailable<=0.009){$sourceIndex++;continue;}
+                        $take=min($need,$sourceAvailable);
+                        $appInsert->execute([$supplierId,(int)$source['id'],(int)$oid,$take,$journalId,$userId]);
+                        $sources[$sourceIndex]['AVAILABLE']=round($sourceAvailable-$take,2);
+                        $need=round($need-$take,2);
+                    }
+                }
+                $update=$this->db->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS=?,
+                    STATUSE=CASE WHEN ?>=? THEN 'COMPLETED' ELSE 'DEFERRED' END
+                    WHERE ORDER_ID=? AND SUPPLIER_ID=?");
+                foreach($targets as $oid=>$value){
+                    $row=$openById[$oid];
+                    $newPaid=round((float)$row['TOTAL_PAYMENTS']+$value,2);
+                    $netTotal=round((float)$row['TOTAL_PRICE']-(float)$row['RETURN_TOTAL'],2);
+                    $update->execute([$newPaid,$newPaid,$netTotal,$oid,$supplierId]);
+                    if($update->rowCount()!==1) throw new RuntimeException('تعذر تحديث أمر الشراء رقم '.$oid.'.');
+                }
+                return $journalId;
+            });
+        return ['journal_entry_id'=>(int)$event['journal_entry_id'],'supplier_id'=>$supplierId,
+            'applied_amount'=>round(array_sum($requested),2),'mode'=>$mode,'already_posted'=>(bool)$event['already_posted']];
+    }
+
+
 }
