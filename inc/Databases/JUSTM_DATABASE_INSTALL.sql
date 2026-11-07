@@ -1919,6 +1919,37 @@ CREATE TABLE IF NOT EXISTS `account_settings` (
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- PHASE17: حسابات مستقلة لعمولات المسوقين وقادة الفرق.
+INSERT INTO accounts
+    (account_code, account_name, account_type, normal_balance, account_level,
+     is_active, allow_posting, system_account, is_system_created, description)
+SELECT
+    '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 1,
+    1, 1, 1, 1, 'مستحقات مستقلة لعمولات المسوقين وقادة الفرق'
+WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = '2152');
+
+INSERT INTO accounts
+    (account_code, account_name, account_type, normal_balance, account_level,
+     is_active, allow_posting, system_account, is_system_created, description)
+SELECT
+    '5230', 'مصروف عمولات المسوقين وقادة الفرق', 'EXPENSE', 'DEBIT', 1,
+    1, 1, 1, 1, 'مصروف مستقل لعمولات المسوقين وقادة الفرق'
+WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = '5230');
+
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'MARKETER_COMMISSION_PAYABLE', id,
+       'حساب مستحقات عمولات المسوقين وقادة الفرق - 2152'
+FROM accounts WHERE account_code = '2152'
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
+                        description = VALUES(description);
+
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'MARKETER_COMMISSION_EXPENSE', id,
+       'حساب مصروف عمولات المسوقين وقادة الفرق - 5230'
+FROM accounts WHERE account_code = '5230'
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
+                        description = VALUES(description);
+
 CREATE TABLE IF NOT EXISTS `cash_boxes` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `branch_id` INT NOT NULL,
