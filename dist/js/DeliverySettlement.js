@@ -379,6 +379,7 @@
         $('#dsRefresh').on('click', loadOpenOrders);
         $('#dsPreview').on('click', preview);
         $('#dsSettle').on('click', settle);
+        ensureRejectedReviewPanel();
         $('#dsRejectedReviewsTable').on('click', '.ds-review-approve', function () {
             decideRejectedReview($(this).data('review'), true);
         });
