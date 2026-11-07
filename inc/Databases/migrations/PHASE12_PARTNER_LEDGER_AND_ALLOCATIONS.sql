@@ -5,8 +5,8 @@
 
 CREATE TABLE IF NOT EXISTS accounting_line_allocations (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    debit_line_id INT NOT NULL,
-    credit_line_id INT NOT NULL,
+    debit_line_id BIGINT UNSIGNED NOT NULL,
+    credit_line_id BIGINT UNSIGNED NOT NULL,
     amount DECIMAL(15,2) NOT NULL,
     allocation_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status ENUM('ACTIVE','REVERSED') NOT NULL DEFAULT 'ACTIVE',

@@ -56,6 +56,12 @@ if ($loginType === 1 && $pageType > 0) {
                             <p>إعدادات الشحن والتوصيل</p>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a href="?Go=DatabaseMigrations" class="nav-link">
+                            <i class="nav-icon fas fa-database"></i>
+                            <p>إدارة تحديثات قاعدة البيانات</p>
+                        </a>
+                    </li>
                     <?php } ?>
 
             <?php 
