@@ -222,6 +222,10 @@ class PurchaseOrderDAO {
 	}
 	// دالة لإدخال أمر الشراء في جدول `purchases_orders`
 	public function insertOrder($supplierId, $reference, $total_price, $total_payments, $status, $note, $products) {
+		// إيقاف تسجيل الدفعة الأولية مؤقتًا حتى يُعتمد مسارها المحاسبي في GL.
+		if ((float)$total_payments > 0) {
+			throw new Exception('لا يمكن تسجيل دفعة أولية مع أمر الشراء حاليًا. سجّل أمر الشراء بدون دفعة، ثم سجّل الصرف من شاشة صرف مستحقات المورد.');
+		}
 		$tbln = $this->DBTables->getTableName('purchases_orders');
 		$fields = $this->DBTables->getTableFieldsName('purchases_orders');
 
