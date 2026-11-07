@@ -40,7 +40,7 @@ $assert(strpos($inventory, 'WHERE STO_ID = ? AND BRANCH_ID = ? FOR UPDATE') !== 
 $assert(strpos($inventory, 'FROM purchases_products') !== false && strpos($inventory, 'QTY_SUPPLIED') !== false, 'Supplier return quantities must be based on quantities actually received.');
 $assert(strpos($inventory, "LOWER(IM.IM_MOVE_TYPE) = 'refundpurchises'") !== false && strpos($inventory, 'SUM(IPM.IPM_QTY)') !== false, 'Previously returned quantities must include only completed physical return movements.');
 $assert(strpos($inventory, 'كمية مرتجع المنتج') !== false && strpos($inventory, 'المتبقية للمرتجع') !== false, 'Supplier return must reject quantities exceeding the remaining received quantity.');
-$assert(strpos($inventory, 'رصيد المنتج') !== false && strpos($inventory, 'لا يكفي لتنفيذ المرتجع') !== false, 'Supplier return must reject quantities exceeding locked warehouse stock.');
+$assert(strpos($inventoryManager, 'WHERE STO_ID = ? AND PRO_CODE IN ($stockPlaceholders)') !== false && strpos($inventoryManager, 'FOR UPDATE') !== false && strpos($inventoryManager, 'لا يكفي لتنفيذ المرتجع') !== false, 'Supplier return must reject insufficient stock while holding the global inventory lock.');
 $assert(strpos($inventory, "'QTY_RETURN' => \$qty") !== false && strpos($inventory, "'PURCHASE_UNIT_PRICE' => \$unitPrice") !== false, 'Supplier return rows must persist server-verified return quantities and purchase prices.');
 
 $assert(strpos($inventory, 'recordReceiptByMovementUniqueId') !== false, 'Physical purchase receipts are not linked to GL.');
