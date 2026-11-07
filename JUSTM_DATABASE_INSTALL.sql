@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `branches` (
   `BR_MAIN` tinyint(1) NOT NULL,
   `BR_ADDRESS` varchar(200) DEFAULT NULL,
   PRIMARY KEY (`BR_ID`),
-  UNIQUE KEY `BR_NAME` (`BR_NAME`),
+  UNIQUE KEY `uq_branches_company_name` (`COMPANIE_ID`,`BR_NAME`),
   KEY `BRANCHES_COMPANIE_ID_COMPANIES_COM_ID` (`COMPANIE_ID`),
   KEY `BRANCHES_CITY_ID_CITY_CI_ID` (`CITY_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -1183,6 +1183,25 @@ CREATE TABLE IF NOT EXISTS `system_settings` (
   UNIQUE KEY `SETTING_KEY` (`SETTING_KEY`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
+INSERT IGNORE INTO `system_settings` (`SETTING_KEY`, `SETTING_VALUE`, `SETTING_DESCRIPTION`)
+VALUES ('ALLOW_SHIPPING_AMOUNT_EDIT_DURING_CONFIRMATION', '0', 'السماح بتعديل قيمة الشحن أثناء تأكيد محاولة التوصيل');
+
+-- منع تكرار نفس طلب تأكيد الشحنة عند إعادة إرسال HTTP.
+-- لا يمنع محاولة توصيل جديدة؛ الواجهة تنشئ request_key جديدًا بعد نجاح المحاولة.
+CREATE TABLE IF NOT EXISTS `delivery_confirmation_requests` (
+    `request_key` VARCHAR(64) NOT NULL,
+    `request_hash` CHAR(64) NOT NULL,
+    `session_id` VARCHAR(64) NOT NULL,
+    `actor_id` BIGINT UNSIGNED NOT NULL,
+    `branch_id` BIGINT UNSIGNED NOT NULL,
+    `status` ENUM('PROCESSING','COMPLETED') NOT NULL DEFAULT 'PROCESSING',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `completed_at` DATETIME NULL,
+    PRIMARY KEY (`request_key`),
+    KEY `idx_delivery_confirmation_status_created` (`status`, `created_at`),
+    KEY `idx_delivery_confirmation_session` (`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 --
 -- قيود الجداول الملقاة
 --
@@ -1946,6 +1965,8 @@ CREATE TABLE IF NOT EXISTS `cash_boxes` (
   KEY `idx_cash_boxes_branch_active` (`branch_id`,`is_active`),
   KEY `idx_cash_boxes_account` (`account_id`),
   CONSTRAINT `fk_cash_boxes_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)
+    ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT `fk_cash_boxes_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`BR_ID`)
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2047,8 +2068,11 @@ CREATE TABLE IF NOT EXISTS `payment_method_accounts` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_payment_method_branch` (`payment_method_id`, `branch_id`),
     KEY `idx_pma_account` (`account_id`),
+    KEY `idx_pma_branch_fk` (`branch_id`),
     CONSTRAINT `fk_pma_method` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods` (`id`),
-    CONSTRAINT `fk_pma_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)
+    CONSTRAINT `fk_pma_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`),
+    CONSTRAINT `fk_pma_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`BR_ID`)
+        ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `accounting_line_allocations` (
@@ -2119,6 +2143,47 @@ CREATE TABLE IF NOT EXISTS `delivery_customer_collections` (
     CONSTRAINT `chk_delivery_customer_paid_positive` CHECK (`customer_paid_amount` > 0),
     CONSTRAINT `chk_delivery_commission_nonnegative` CHECK (`commission_amount` >= 0),
     CONSTRAINT `chk_delivery_collection_commission_not_overpaid` CHECK (`commission_amount` <= `customer_paid_amount`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PHASE21: سجل رئيسي يمنع إعادة استخدام مفتاح التحصيل مع حمولة مختلفة.
+CREATE TABLE IF NOT EXISTS `delivery_collection_requests` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `request_key` VARCHAR(64) NOT NULL,
+    `request_hash` CHAR(64) NOT NULL,
+    `delivery_user_id` BIGINT UNSIGNED NOT NULL,
+    `branch_id` BIGINT UNSIGNED NOT NULL,
+    `payment_method_id` BIGINT UNSIGNED NOT NULL,
+    `total_amount` DECIMAL(15,2) NOT NULL,
+    `order_count` INT UNSIGNED NOT NULL,
+    `note` VARCHAR(500) NULL,
+    `status` ENUM('PROCESSING','POSTED') NOT NULL DEFAULT 'PROCESSING',
+    `created_by` BIGINT UNSIGNED NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `completed_at` DATETIME NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_collection_request_key` (`request_key`),
+    KEY `idx_delivery_collection_request_delivery` (`delivery_user_id`,`created_at`),
+    CONSTRAINT `chk_delivery_collection_request_total` CHECK (`total_amount` > 0),
+    CONSTRAINT `chk_delivery_collection_request_orders` CHECK (`order_count` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ربط كل مستند تحصيل فرعي بطلب التحصيل الرئيسي.
+CREATE TABLE IF NOT EXISTS `delivery_collection_request_collections` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `request_id` BIGINT UNSIGNED NOT NULL,
+    `collection_id` BIGINT UNSIGNED NOT NULL,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `customer_amount` DECIMAL(15,2) NOT NULL,
+    `commission_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_request_order` (`request_id`,`order_id`),
+    UNIQUE KEY `uq_delivery_request_collection` (`collection_id`),
+    KEY `idx_delivery_request_collection_request` (`request_id`),
+    CONSTRAINT `fk_delivery_request_collection_request` FOREIGN KEY (`request_id`) REFERENCES `delivery_collection_requests` (`id`),
+    CONSTRAINT `fk_delivery_request_collection_document` FOREIGN KEY (`collection_id`) REFERENCES `delivery_customer_collections` (`id`),
+    CONSTRAINT `chk_delivery_request_collection_amount` CHECK (`customer_amount` > 0),
+    CONSTRAINT `chk_delivery_request_collection_commission` CHECK (`commission_amount` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `delivery_collection_order_allocations` (
@@ -2215,7 +2280,7 @@ CREATE TABLE IF NOT EXISTS `delivery_settlement_collection_links` (
 
 -- IMPORTANT: This script creates table structure only for the new ledger.
 -- Before posting transactions, an accountant must populate accounts and map:
--- CUSTOMERS, SALES, COGS, INVENTORY, SALES_RETURNS in account_settings;
+-- CUSTOMERS, SALES, SHIPPING_REVENUE, COGS, INVENTORY, SALES_RETURNS in account_settings;
 -- branch cash boxes in cash_boxes; and payment_method_accounts for each branch.
 -- The actual account chart and those mappings were not included in the supplied archive.
 
@@ -2327,8 +2392,8 @@ CREATE TABLE IF NOT EXISTS `reasons_for_product_rejection` (
   `COMMENT` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
--- جداول تسوية رفض التوصيل ومحاولات العمولة.
-
+-- PHASE25: عمولة مستقلة لكل محاولة رفض توصيل فعلية.
+-- shipmov_id هو مفتاح المحاولة؛ لا نستخدم order_id لمنع تكرار عمولة محاولات لاحقة.
 CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `shipmov_id` INT(11) NOT NULL,
@@ -2359,6 +2424,7 @@ CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions` (
     )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- PHASE29: تحصيل رسوم الشحن مرة واحدة للطلب عند رفض العميل ودفعه الرسوم.
 CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `order_id` BIGINT UNSIGNED NOT NULL,
@@ -2382,6 +2448,8 @@ CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections` (
     KEY `idx_rejected_shipping_branch` (`branch_id`, `created_at`),
     CONSTRAINT `chk_rejected_shipping_amount_positive` CHECK (`shipping_amount_snapshot` > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- جداول تسوية رفض التوصيل ومحاولات العمولة.
 
 CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews` (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -2418,61 +2486,6 @@ CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews` (
   OR (status='REJECTED' AND approved_compensation=0 AND accounting_event_id IS NULL AND journal_entry_id IS NULL AND decided_by IS NOT NULL)
   OR (status='APPROVED' AND approved_compensation>0 AND accounting_event_id IS NOT NULL AND journal_entry_id IS NOT NULL AND decided_by IS NOT NULL)
  )
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- جداول منع تكرار تأكيد الشحن والتحصيل.
-
-CREATE TABLE IF NOT EXISTS `delivery_confirmation_requests` (
-    `request_key` VARCHAR(64) NOT NULL,
-    `request_hash` CHAR(64) NOT NULL,
-    `session_id` VARCHAR(64) NOT NULL,
-    `actor_id` BIGINT UNSIGNED NOT NULL,
-    `branch_id` BIGINT UNSIGNED NOT NULL,
-    `status` ENUM('PROCESSING','COMPLETED') NOT NULL DEFAULT 'PROCESSING',
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `completed_at` DATETIME NULL,
-    PRIMARY KEY (`request_key`),
-    KEY `idx_delivery_confirmation_status_created` (`status`, `created_at`),
-    KEY `idx_delivery_confirmation_session` (`session_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `delivery_collection_requests` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `request_key` VARCHAR(64) NOT NULL,
-    `request_hash` CHAR(64) NOT NULL,
-    `delivery_user_id` BIGINT UNSIGNED NOT NULL,
-    `branch_id` BIGINT UNSIGNED NOT NULL,
-    `payment_method_id` BIGINT UNSIGNED NOT NULL,
-    `total_amount` DECIMAL(15,2) NOT NULL,
-    `order_count` INT UNSIGNED NOT NULL,
-    `note` VARCHAR(500) NULL,
-    `status` ENUM('PROCESSING','POSTED') NOT NULL DEFAULT 'PROCESSING',
-    `created_by` BIGINT UNSIGNED NOT NULL,
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `completed_at` DATETIME NULL,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_delivery_collection_request_key` (`request_key`),
-    KEY `idx_delivery_collection_request_delivery` (`delivery_user_id`,`created_at`),
-    CONSTRAINT `chk_delivery_collection_request_total` CHECK (`total_amount` > 0),
-    CONSTRAINT `chk_delivery_collection_request_orders` CHECK (`order_count` > 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `delivery_collection_request_collections` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    `request_id` BIGINT UNSIGNED NOT NULL,
-    `collection_id` BIGINT UNSIGNED NOT NULL,
-    `order_id` BIGINT UNSIGNED NOT NULL,
-    `customer_amount` DECIMAL(15,2) NOT NULL,
-    `commission_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_delivery_request_order` (`request_id`,`order_id`),
-    UNIQUE KEY `uq_delivery_request_collection` (`collection_id`),
-    KEY `idx_delivery_request_collection_request` (`request_id`),
-    CONSTRAINT `fk_delivery_request_collection_request` FOREIGN KEY (`request_id`) REFERENCES `delivery_collection_requests` (`id`),
-    CONSTRAINT `fk_delivery_request_collection_document` FOREIGN KEY (`collection_id`) REFERENCES `delivery_customer_collections` (`id`),
-    CONSTRAINT `chk_delivery_request_collection_amount` CHECK (`customer_amount` > 0),
-    CONSTRAINT `chk_delivery_request_collection_commission` CHECK (`commission_amount` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
