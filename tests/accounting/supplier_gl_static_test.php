@@ -27,6 +27,7 @@ $assert(strpos($dao, 'recordPurchaseOrder') !== false && strpos($dao, 'addSuppli
 $assert(strpos($dao, 'addSupplierCredit') === false, 'New supplier returns still write legacy supplier balances.');
 $assert(strpos($inventory, 'recordReceiptByMovementUniqueId') !== false, 'Physical purchase receipts are not linked to GL.');
 $assert(strpos($inventory, 'recordReturnByMovementUniqueId') !== false, 'Physical supplier returns are not linked to GL.');
+$assert(strpos($inventory, 'addSupplierCredit') === false, 'New supplier return path still references the legacy balance helper.');
 $paymentStart = strpos($finance, 'public function PaymentOfSupplierDues');
 $paymentEnd = strpos($finance, '// صرف مستحقات عميل', $paymentStart);
 $paymentMethod = substr($finance, $paymentStart, $paymentEnd - $paymentStart);
