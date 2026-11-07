@@ -216,7 +216,11 @@ try {
                 (int)($_POST['payment_method_id'] ?? 0), $orderAmounts,
                 $requestKey, (string)($_POST['note'] ?? '')
             );
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            echo json_encode(array_merge([
+                'success',
+                'ناجح',
+                !empty($result['already_posted']) ? 'تم تسجيل نفس التحصيل سابقًا دون تكرار القيد.' : 'تم تسجيل تحصيل العميل وإضافته إلى عهدة المندوب.',
+            ], $result), JSON_UNESCAPED_UNICODE);
             break;
 
         case 'SettleDeliveryCollections':
@@ -272,10 +276,7 @@ try {
             break;
 
 		case 'CollectingFinancialPledge':
-			$CBE->transaction_user_id = $_SESSION['USER_ID'];
-			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];
-			echo json_encode($CBE->registerCollection($_POST['delivery_id'], $_POST['orderObj'], $_POST['totalAmount']));
-		    break;
+			throw new RuntimeException('تم إيقاف مسار التحصيل القديم. استخدم تسجيل تحصيل العميل ثم تسوية عهدة المندوب من الأستاذ العام.');
 		case 'PaymentOfCustomerDues':
 			throw new RuntimeException('تم إيقاف مسار رد المرتجع القديم. استخدم مسار رد المبلغ المعتمد في الأستاذ العام.');
 		case 'SaveSupplierPayment':
