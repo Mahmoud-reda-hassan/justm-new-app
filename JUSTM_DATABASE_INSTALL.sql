@@ -2588,3 +2588,21 @@ CREATE TABLE IF NOT EXISTS supplier_gl_payment_allocations (
     KEY idx_supplier_gl_allocation_supplier (supplier_id, created_at),
     KEY idx_supplier_gl_allocation_order (purchase_order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+
+-- ربط كل جزء من المقدم الأصلي بأمر الشراء الذي تمت تسويته به.
+CREATE TABLE IF NOT EXISTS supplier_gl_advance_applications (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    supplier_id BIGINT UNSIGNED NOT NULL,
+    source_advance_allocation_id BIGINT UNSIGNED NOT NULL,
+    purchase_order_id BIGINT UNSIGNED NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    journal_entry_id BIGINT UNSIGNED NOT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_supplier_advance_source (source_advance_allocation_id),
+    KEY idx_supplier_advance_order (purchase_order_id),
+    KEY idx_supplier_advance_journal (journal_entry_id),
+    KEY idx_supplier_advance_supplier (supplier_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
