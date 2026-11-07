@@ -6,12 +6,14 @@ include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliverySettlementManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/CustomerRefundManager.php');
 
 $DBconn        	= new dbconn();
 $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
 $deliveryShippingReviews = new DeliveryRejectedShippingReviewManager($db);
 $CBE 	= new finance_BE($db);
 $deliveryAccounting = new DeliverySettlementManager($db);
+$customerRefunds = new CustomerRefundManager($db);
 $shippingConfiguration = new ShippingConfigurationManager($db);
 $http_RQM = $_SERVER['REQUEST_METHOD'];
 /*===================================================
@@ -68,6 +70,30 @@ try {
                 'allow_shipping_amount_edit' => $shippingConfiguration->isShippingAmountEditAllowed(),
             ], JSON_UNESCAPED_UNICODE);
             break;
+        case 'RefundCustomerReturn':
+            $requireFinanceAdmin();
+            $orderId = (int)($_POST['oid'] ?? 0);
+            $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $amount = round((float)($_POST['amount'] ?? 0), 2);
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+            if ($actorId <= 0) throw new RuntimeException('تعذر تحديد المستخدم المنفذ للعملية.');
+            $requestHash = hash('sha256', json_encode([
+                'actor_id' => $actorId,
+                'order_id' => $orderId,
+                'payment_method_id' => $paymentMethodId,
+                'amount' => number_format($amount, 2, '.', ''),
+                'branch_id' => $branchId,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $result = $customerRefunds->refund($orderId, $paymentMethodId, $amount, $requestKey, $requestHash);
+            echo json_encode([
+                'success',
+                'ناجح',
+                !empty($result['already_posted']) ? 'تم تسجيل نفس رد المبلغ سابقًا دون تكرار القيد.' : 'تم رد مبلغ المرتجع بنجاح.',
+                'refund' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'PayMarketerCommission':
             $requireFinanceAdmin();
             $marketerId = (int)($_POST['partner_id'] ?? 0);
