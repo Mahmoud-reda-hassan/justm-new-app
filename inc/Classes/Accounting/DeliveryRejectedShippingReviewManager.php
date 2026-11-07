@@ -18,6 +18,7 @@ final class DeliveryRejectedShippingReviewManager
    FROM shipping_movement sm JOIN orders o ON o.ORDER_ID=sm.shipment_orders
    LEFT JOIN stores s ON s.STO_ID=o.STO_ID LEFT JOIN users_delivery ud ON ud.USER_ID=sm.delivery_id
    WHERE sm.UNIQUE_ID=? AND sm.movement_type=5
+   AND NOT EXISTS (SELECT 1 FROM delivery_rejected_shipping_collections paid WHERE paid.order_id=o.ORDER_ID AND paid.status='POSTED')
    AND sm.shipmov_id=(SELECT MIN(sm2.shipmov_id) FROM shipping_movement sm2
     WHERE sm2.UNIQUE_ID=sm.UNIQUE_ID AND sm2.movement_type=sm.movement_type
       AND sm2.shipment_orders=sm.shipment_orders AND sm2.delivery_id=sm.delivery_id)
