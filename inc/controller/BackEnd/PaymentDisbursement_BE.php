@@ -181,6 +181,18 @@ class PaymentDisbursement {
 	}
 	
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
+		// مستحقات المندوبين مصدرها حساب مستحقات العمولة في الأستاذ العام فقط.
+		if (strtoupper((string)$partnerType) === 'DELIVERY') {
+			if ($order_id) return [['total_balance' => 0]];
+			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit - d.debit),0) AS total_balance
+				FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+				INNER JOIN delivery_accounting_settings das ON das.courier_commission_payable_account_id = d.account_id
+				WHERE das.id = 1 AND d.partner_type = 'DELIVERY' AND d.partner_id = ?");
+			$stmt->execute([(int)$partnerId]);
+			return [['total_balance' => round((float)$stmt->fetchColumn(), 2)]];
+		}
+
 		// مستحقات المسوقين وقادة الفرق مصدرها حساب المستحقات في الأستاذ العام فقط.
 		if (strtoupper((string)$partnerType) === 'MARKETER') {
 			if ($order_id) return [['total_balance' => 0]];
