@@ -475,76 +475,165 @@ class inventory_BE {
 	}
 	
 	public function returnPurchisesFormStock($stoid ,$supplierId, $reference, $comment, $products , $deliveryProduct = true) {
-		
-		$store_id 	 = $stoid;
-		$branchId    = $_SESSION['BRANCH_ID'];
-		$userActionId=$_SESSION['USER_ID'];
-	    $startpoint = 'spSTAR1001';
-	    $totalPrice = 0;
-	    foreach ($products as $pro) {
-	    	
-	    	$totalPrice += ($pro['PURCHASE_UNIT_PRICE'] * $pro['QTY']);
-	    }
+		$store_id = (int)$stoid;
+		$branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+		$userActionId = (int)($_SESSION['USER_ID'] ?? 0);
+
 		try {
-		    $this->conn->beginTransaction();
-		    //$finance  = new finance_BE($this->conn);
-		    //$purchase = new purchases_BE($this->conn);
-		
-		    $this->conn->exec("SET innodb_lock_wait_timeout = 0");
-		    $this->conn->exec("SAVEPOINT $startpoint");
-		
-		    if ($totalPrice === 0) {
-		        throw new Exception("لا يمكن حفظ أمر الشراء بدون سعر الشراء.");
-		    }
-		
-		    $productCodes = array_values(array_unique(array_column($products, 'PRO_CODE')));
-		    if (!$productCodes) {
-		        throw new Exception("لا توجد منتجات محددة في مرتجع المورد.");
-		    }
-		    $placeholders = implode(',', array_fill(0, count($productCodes), '?'));
-		    // قفل أرصدة المنتجات في المخزن الصحيح قبل إنشاء حركة الصرف.
-		    $stmtStopUpdate = $this->conn->prepare("SELECT STO_ID, PRO_CODE, STO_QTY FROM stores_product WHERE STO_ID = ? AND PRO_CODE IN ($placeholders) FOR UPDATE");
-		    $params = array_merge([$store_id], $productCodes);
-		    $stmtStopUpdate->execute($params);
-		
-		    $resA = $this->purchase->returnPurchaseOrder($supplierId, $reference, $totalPrice, 0, 'DEFERRED', '', $products, $returnOrderID = true);
-		    
-		    if (!$resA) throw new Exception("لم يتم تأكيد حفظ  مرتجع أمر الشراء.");
-		    $resB2 = $this->finance->Add_invoice($resA, 'PURCHASES', $totalPrice, 0, 0, 0);
-		    if (!$resB2)  throw new Exception("لم يتم تأكيد حفظ فاتورة الشراء.");
-		    
-		
-		    //$resC = $finance->Add_transaction($resB, 'SUPPLIER', $supplierId, $totalPrice, 1, 10, 'deferred', $comment);
-		     
-		    //if($deliveryProduct)  $this->inventoryMovement($products, $resA, $supplierId, 'refundpurchises',$store_id):true;
-		   	if ($deliveryProduct) {
+			if ($store_id <= 0 || (int)$supplierId <= 0 || (int)$reference <= 0 || $branchId <= 0 || $userActionId <= 0) {
+				throw new Exception("بيانات المورد أو أمر الشراء أو المخزن غير صحيحة.");
+			}
+			if (!is_array($products) || !$products) {
+				throw new Exception("لا توجد منتجات محددة في مرتجع المورد.");
+			}
+
+			$this->conn->beginTransaction();
+			$this->conn->exec("SET innodb_lock_wait_timeout = 0");
+
+			// قفل أمر الشراء الأصلي حتى لا يتجاوز مرتجعان متزامنان الكمية المستلمة.
+			$sourceStmt = $this->conn->prepare("
+				SELECT ORDER_ID, SUPPLIER_ID
+				FROM purchases_orders
+				WHERE ORDER_ID = ? AND SUPPLIER_ID = ?
+				FOR UPDATE
+			");
+			$sourceStmt->execute([(int)$reference, (int)$supplierId]);
+			if (!$sourceStmt->fetch(PDO::FETCH_ASSOC)) {
+				throw new Exception("أمر الشراء المحدد غير موجود أو لا يتبع المورد المختار.");
+			}
+
+			// اعتماد الكميات والأسعار من أمر الشراء الأصلي، وعدم الثقة في قيم الواجهة.
+			$sourceProductsStmt = $this->conn->prepare("
+				SELECT PRO_CODE, PURCHASE_UNIT_PRICE, QTY_SUPPLIED
+				FROM purchases_products
+				WHERE ORDER_ID = ?
+			");
+			$sourceProductsStmt->execute([(int)$reference]);
+			$sourceProducts = [];
+			foreach ($sourceProductsStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+				$sourceProducts[(string)$row['PRO_CODE']] = $row;
+			}
+			if (!$sourceProducts) {
+				throw new Exception("أمر الشراء الأصلي لا يحتوي على منتجات مستلمة.");
+			}
+
+			// احتساب المرتجعات السابقة من حركات الصرف الفعلية فقط؛ طلبات المرتجع غير المصروفة لا تخصم من المتاح.
+			$returnedStmt = $this->conn->prepare("
+				SELECT IPM.IPM_CODE, COALESCE(SUM(IPM.IPM_QTY), 0) AS RETURNED_QTY
+				FROM inventory_movement IM
+				INNER JOIN inventory_product_movement IPM ON IPM.IM_ID = IM.IM_ID
+				INNER JOIN purchases_return_orders PRO ON PRO.ORDER_ID = IM.REFERENCE
+				WHERE PRO.REFERANC = ?
+				  AND PRO.SUPPLIER_ID = ?
+				  AND LOWER(IM.IM_MOVE_TYPE) = 'refundpurchises'
+				  AND IPM.IPM_TYPE_MOV = 'OUT'
+				GROUP BY IPM.IPM_CODE
+			");
+			$returnedStmt->execute([(int)$reference, (int)$supplierId]);
+			$alreadyReturned = [];
+			foreach ($returnedStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+				$alreadyReturned[(string)$row['IPM_CODE']] = (float)$row['RETURNED_QTY'];
+			}
+
+			$normalizedProducts = [];
+			$productCodes = [];
+			$totalPrice = 0.0;
+			foreach ($products as $product) {
+				$code = isset($product['PRO_CODE']) ? trim((string)$product['PRO_CODE']) : '';
+				$requestedQty = $product['QTY_RETURN'] ?? $product['QTY'] ?? null;
+				if ($code === '' || !isset($sourceProducts[$code]) || !is_numeric($requestedQty)) {
+					throw new Exception("بيانات أحد منتجات المرتجع غير صحيحة أو المنتج غير تابع لأمر الشراء.");
+				}
+				$qty = (float)$requestedQty;
+				if (!is_finite($qty) || $qty <= 0 || isset($productCodes[$code])) {
+					throw new Exception("كمية مرتجع المنتج $code غير صالحة أو المنتج مكرر.");
+				}
+				$source = $sourceProducts[$code];
+				$receivedQty = (float)$source['QTY_SUPPLIED'];
+				$remainingReturnQty = $receivedQty - (float)($alreadyReturned[$code] ?? 0);
+				if ($qty - $remainingReturnQty > 0.00001) {
+					throw new Exception("كمية مرتجع المنتج $code أكبر من الكمية المستلمة والمتبقية للمرتجع.");
+				}
+				$unitPrice = (float)$source['PURCHASE_UNIT_PRICE'];
+				if (!is_finite($unitPrice) || $unitPrice <= 0) {
+					throw new Exception("سعر شراء المنتج $code غير صالح في أمر الشراء الأصلي.");
+				}
+				$productCodes[$code] = true;
+				$totalPrice += $unitPrice * $qty;
+				$normalizedProducts[] = [
+					'PRO_CODE' => $code,
+					'PURCHASE_UNIT_PRICE' => $unitPrice,
+					'QTY_SUPPLIED' => $receivedQty,
+					'QTY_RETURN' => $qty
+				];
+			}
+			if (!is_finite($totalPrice) || $totalPrice <= 0) {
+				throw new Exception("قيمة مرتجع المورد غير صالحة.");
+			}
+
+			if ($deliveryProduct) {
+				// قفل أرصدة المخزن والتحقق من كفايتها قبل إنشاء أي حركة أو قيد.
+				$codes = array_keys($productCodes);
+				$placeholders = implode(',', array_fill(0, count($codes), '?'));
+				$stockStmt = $this->conn->prepare("
+					SELECT STO_ID, PRO_CODE, STO_QTY
+					FROM stores_product
+					WHERE STO_ID = ? AND PRO_CODE IN ($placeholders)
+					FOR UPDATE
+				");
+				$stockStmt->execute(array_merge([$store_id], $codes));
+				$stockRows = [];
+				foreach ($stockStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+					$stockRows[(string)$row['PRO_CODE']] = (float)$row['STO_QTY'];
+				}
+				foreach ($normalizedProducts as $product) {
+					$code = $product['PRO_CODE'];
+					$availableQty = (float)($stockRows[$code] ?? 0);
+					if ($product['QTY_RETURN'] - $availableQty > 0.00001) {
+						throw new Exception("رصيد المنتج $code في المخزن لا يكفي لتنفيذ المرتجع.");
+					}
+				}
+			}
+
+			$resA = $this->purchase->returnPurchaseOrder(
+				(int)$supplierId,
+				(int)$reference,
+				round($totalPrice, 2),
+				0,
+				'DEFERRED',
+				'',
+				$normalizedProducts,
+				true
+			);
+			if (!$resA) {
+				throw new Exception("لم يتم تأكيد حفظ مرتجع أمر الشراء.");
+			}
+
+			$resB2 = $this->finance->Add_invoice($resA, 'PURCHASES', round($totalPrice, 2), 0, 0, 0);
+			if (!$resB2) {
+				throw new Exception("لم يتم تأكيد حفظ فاتورة مرتجع الشراء.");
+			}
+
+			if ($deliveryProduct) {
 				$movementUniqueId = 'PURCHASE_RETURN_' . bin2hex(random_bytes(16));
 				$this->InventoryManager->processInventory('refundpurchises', [$resA], $userActionId, $branchId, $movementUniqueId, $store_id);
 				(new SupplierAccountingManager($this->conn))->recordReturnByMovementUniqueId($movementUniqueId);
 			}
-		   	
-		    if ($resB2) {
-		        $this->conn->commit();
-		        return array('success', 'نجح', 'تم الحفظ بنجاح', []);
-		    } else {
-		        if ($this->conn->inTransaction()) {
-		            $this->conn->exec("ROLLBACK TO SAVEPOINT $startpoint");
-		        }
-		        throw new Exception("لم ننجح في حفظ الحركة المخزنية.");
-		    }
+
+			$this->conn->commit();
+			return array('success', 'نجح', 'تم الحفظ بنجاح', []);
 		} catch (PDOException $e) {
-		    if ($this->conn->inTransaction()) {
-		        $this->conn->rollBack();
-		    }
-		    return array('error', 'خطأ', 'حدث خطأ أثناء تنفيذ عملية الحفظ: ' . $e->getMessage(), []);
+			if ($this->conn->inTransaction()) {
+				$this->conn->rollBack();
+			}
+			return array('error', 'خطأ', 'حدث خطأ أثناء تنفيذ عملية الحفظ: ' . $e->getMessage(), []);
 		} catch (Exception $e) {
-		    if ($this->conn->inTransaction()) {
-		        $this->conn->rollBack();
-		    }
-		    return array('error', 'خطأ', 'حدث خطأ: ' . $e->getMessage(), []);
+			if ($this->conn->inTransaction()) {
+				$this->conn->rollBack();
+			}
+			return array('error', 'خطأ', 'حدث خطأ: ' . $e->getMessage(), []);
 		}
 	}
-		
 	public function SuppliedStock($orderid, $note, $supplierId, $products) {
 		
 		$branch_id 	 = $_SESSION["BRANCH_ID"];
