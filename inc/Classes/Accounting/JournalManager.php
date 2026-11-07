@@ -172,6 +172,7 @@ class JournalManager{
 	    $line = array_merge([
 	        'account_id'     => null,
 	        'branch_id'      => null,
+	        'cash_box_id'    => null,
 	        'store_id'       => null,
 	        'cost_center_id' => null,
 	        'partner_type'   => null,
@@ -373,6 +374,7 @@ class JournalManager{
 	            $this->addLine([
 	                'account_id'     => (int)$line['account_id'],
 	                'branch_id'      => $line['branch_id'] ?? null,
+	                'cash_box_id'    => $line['cash_box_id'] ?? null,
 	                'store_id'       => $line['store_id'] ?? null,
 	                'cost_center_id' => $line['cost_center_id'] ?? null,
 	                'partner_type'   => $line['partner_type'] ?? null,
@@ -492,7 +494,23 @@ class JournalManager{
 	        )
 	            throw new Exception("Invalid debit/credit at line ".($index + 1));
 	
-	    }
+	    
+	        if (!empty($line['cash_box_id'])) {
+	            $boxStmt = $this->db->prepare(
+	                "SELECT cb.account_id
+	                 FROM cash_boxes cb
+	                 INNER JOIN accounts a ON a.id = cb.account_id
+	                 WHERE cb.id = ? AND cb.branch_id = ? AND cb.is_active = 1
+	                   AND a.is_active = 1 AND a.allow_posting = 1
+	                 LIMIT 1"
+	            );
+	            $boxStmt->execute([(int)$line['cash_box_id'], (int)($line['branch_id'] ?: $this->header['branch_id'])]);
+	            $boxAccountId = $boxStmt->fetchColumn();
+	            if (!$boxAccountId || (int)$boxAccountId !== (int)$line['account_id']) {
+	                throw new RuntimeException('الخزينة المحددة غير نشطة أو لا تتبع الفرع أو لا تطابق حساب سطر القيد.');
+	            }
+	        }
+}
 	}
 	
 	
@@ -637,7 +655,7 @@ class JournalManager{
 	
 	        VALUES
 	
-	        (?,?,?,?,?,?,?,?,?,?,?,?,?)
+	        (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	
 	    ");
 	
@@ -675,6 +693,7 @@ class JournalManager{
 	            line_no,
 	            account_id,
 	            branch_id,
+	            cash_box_id,
 	            store_id,
 	            cost_center_id,
 	            partner_type,
@@ -703,6 +722,7 @@ class JournalManager{
 	            $lineNo,
 	            $line['account_id'],
 	            $line['branch_id'],
+	            $line['cash_box_id'],
 	            $line['store_id'],
 	            $line['cost_center_id'],
 	            $line['partner_type'],
