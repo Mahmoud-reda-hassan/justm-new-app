@@ -58,6 +58,15 @@ check('Cash selection rejects multiple active boxes', bool(cash_method) and 'cou
 phase21 = read('inc/Databases/migrations/PHASE21_BRANCH_AND_CASHBOX_REFERENCES.sql')
 check('Legacy branch/cash-box migration includes orphan preflight', 'orphan_cash_boxes' in phase21 and 'orphan_payment_method_accounts' in phase21)
 check('Phase 21 migration adds branch foreign keys', 'fk_cash_boxes_branch' in phase21 and 'fk_pma_branch' in phase21)
+check('Journal lines store cash-box identity', '`cash_box_id` BIGINT UNSIGNED DEFAULT NULL' in table_block(installer, 'journal_entry_details'))
+check('Journal cash-box foreign key exists', 'fk_journal_detail_cash_box' in table_block(installer, 'journal_entry_details'))
+journal_manager = read('inc/Classes/Accounting/JournalManager.php')
+check('JournalManager validates cash-box branch and account', 'cash_box_id' in journal_manager and 'الخزينة المحددة غير نشطة' in journal_manager)
+check('JournalManager persists cash-box reference', 'cash_box_id,' in journal_manager and "$line['cash_box_id']" in journal_manager)
+phase22 = read('inc/Databases/migrations/PHASE22_JOURNAL_CASHBOX_REFERENCE.sql')
+check('Phase 22 migration adds nullable cash-box reference', 'ADD COLUMN cash_box_id BIGINT UNSIGNED NULL' in phase22 and 'fk_journal_detail_cash_box' in phase22)
+migration_manager = read('inc/Classes/DatabaseMigrationManager.php')
+check('Phase 22 is registered in migration manager', 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql' in migration_manager)
 
 # 2) Accounting safeguards and approved shipping behavior.
 accounting = read('inc/Classes/Accounting/AccountingEvents.php')
