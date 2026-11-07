@@ -68,6 +68,37 @@ try {
                 'allow_shipping_amount_edit' => $shippingConfiguration->isShippingAmountEditAllowed(),
             ], JSON_UNESCAPED_UNICODE);
             break;
+        case 'PayMarketerCommission':
+            $requireFinanceAdmin();
+            $marketerId = (int)($_POST['partner_id'] ?? 0);
+            $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $amount = (float)($_POST['amount'] ?? 0);
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $note = trim((string)($_POST['note'] ?? ''));
+            $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            if ($actorId <= 0) throw new RuntimeException('تعذر تحديد المستخدم المنفذ للعملية.');
+            if (!preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', $requestKey)) {
+                throw new InvalidArgumentException('مفتاح طلب الصرف مطلوب.');
+            }
+            $requestHash = hash('sha256', json_encode([
+                'actor_id' => $actorId,
+                'marketer_id' => $marketerId,
+                'branch_id' => $branchId,
+                'payment_method_id' => $paymentMethodId,
+                'amount' => number_format(round($amount, 2), 2, '.', ''),
+                'note' => $note,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $result = $deliveryAccounting->payMarketerCommission(
+                $marketerId, $branchId, $paymentMethodId, $amount, $note, $requestKey, $requestHash
+            );
+            echo json_encode([
+                'success' => true,
+                'message' => !empty($result['already_posted']) ? 'تم تسجيل نفس عملية الصرف سابقًا دون تكرار القيد.' : 'تم صرف مستحقات المسوق بنجاح.',
+                'payment' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'GetDeliverySettlementPaymentMethods':
             $requireFinanceAdmin();
             if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
