@@ -29,6 +29,10 @@ $assert(count($parts) === 2, 'SQL parser must preserve semicolons inside strings
 $environment = $manager->getEnvironment();
 $assert(stripos((string)$environment['database'], 'test') !== false, 'Migration runner integration test must use a test database.');
 
+// Force the two first CREATE TABLE migrations through their real creation path.
+$pdo->exec('DROP TABLE IF EXISTS payment_method_accounts');
+$pdo->exec('DROP TABLE IF EXISTS accounting_line_allocations');
+
 $migrations = $manager->listMigrations();
 $assert(count($migrations) === 10, 'The approved migration registry must contain ten numbered phases.');
 $byFile = [];
@@ -52,6 +56,11 @@ foreach ($migrations as $migration) {
     $repeat = $manager->run($migration['file'], $migration['file'], 1);
     $assert(!empty($repeat['already_applied']), 'An applied migration must not execute twice: ' . $migration['file']);
 }
+
+$paymentAccountType = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_method_accounts' AND COLUMN_NAME = 'account_id'")->fetchColumn();
+$allocationDebitType = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounting_line_allocations' AND COLUMN_NAME = 'debit_line_id'")->fetchColumn();
+$assert(strtolower((string)$paymentAccountType) === 'bigint(20) unsigned', 'Phase 11 account_id must match accounts.id as BIGINT UNSIGNED.');
+$assert(strtolower((string)$allocationDebitType) === 'bigint(20) unsigned', 'Phase 12 debit_line_id must match journal_entry_details.id as BIGINT UNSIGNED.');
 
 $final = $manager->listMigrations();
 foreach ($final as $migration) {
