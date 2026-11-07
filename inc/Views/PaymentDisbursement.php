@@ -90,6 +90,13 @@
             </div>
             
             <div class="mt-3">
+                <label for="marketer-payment-method" class="fw-bold">طريقة صرف العمولة</label>
+                <select class="form-control form-control-lg mt-1" id="marketer-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
+                </select>
+            </div>
+
+            <div class="mt-3">
                 <label for="amount-masouq" class="fw-bold">المبلغ المراد صرفه:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-masouq" min="0" step="0.01">
             </div>
