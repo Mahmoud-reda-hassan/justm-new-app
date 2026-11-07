@@ -386,12 +386,12 @@ final class SupplierAccountingManager
             $supplierLock = $this->db->prepare('SELECT SUP_ID FROM suppliers WHERE SUP_ID=? FOR UPDATE');
             $supplierLock->execute([$supplierId]);
             if (!$supplierLock->fetchColumn()) throw new RuntimeException('المورد المرتبط بالتطبيق غير موجود.');
-            $orderLock = $this->db->prepare('SELECT PO.ORDER_ID,PO.TOTAL_PRICE,PO.TOTAL_PAYMENTS,
+            $orderLock = $this->db->prepare("SELECT PO.ORDER_ID,PO.TOTAL_PRICE,PO.TOTAL_PAYMENTS,
                 COALESCE((SELECT SUM(PR.TOTAL_PRICE-PR.TOTAL_PAYMENTS) FROM purchases_return_orders PR
                     WHERE PR.REFERANC=PO.ORDER_ID AND PR.STATUSE='DEFERRED'
                     AND EXISTS (SELECT 1 FROM inventory_movement IM WHERE IM.REFERENCE=PR.ORDER_ID
                         AND LOWER(IM.IM_MOVE_TYPE)='refundpurchises')),0) RETURN_TOTAL
-                FROM purchases_orders PO WHERE PO.ORDER_ID=? AND PO.SUPPLIER_ID=? FOR UPDATE');
+                FROM purchases_orders PO WHERE PO.ORDER_ID=? AND PO.SUPPLIER_ID=? FOR UPDATE");
             $orderUpdate = $this->db->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS=?,
                 STATUSE=CASE WHEN ?>=? THEN 'COMPLETED' ELSE 'DEFERRED' END
                 WHERE ORDER_ID=? AND SUPPLIER_ID=?");
@@ -450,12 +450,12 @@ final class SupplierAccountingManager
                 GROUP BY purchase_order_id ORDER BY purchase_order_id FOR UPDATE");
             $allocations->execute([$paymentId]);
             $rows = $allocations->fetchAll(PDO::FETCH_ASSOC);
-            $orderLock = $this->db->prepare('SELECT PO.ORDER_ID,PO.TOTAL_PRICE,PO.TOTAL_PAYMENTS,
+            $orderLock = $this->db->prepare("SELECT PO.ORDER_ID,PO.TOTAL_PRICE,PO.TOTAL_PAYMENTS,
                 COALESCE((SELECT SUM(PR.TOTAL_PRICE-PR.TOTAL_PAYMENTS) FROM purchases_return_orders PR
                     WHERE PR.REFERANC=PO.ORDER_ID AND PR.STATUSE='DEFERRED'
                     AND EXISTS (SELECT 1 FROM inventory_movement IM WHERE IM.REFERENCE=PR.ORDER_ID
                         AND LOWER(IM.IM_MOVE_TYPE)='refundpurchises')),0) RETURN_TOTAL
-                FROM purchases_orders PO WHERE PO.ORDER_ID=? AND PO.SUPPLIER_ID=? FOR UPDATE');
+                FROM purchases_orders PO WHERE PO.ORDER_ID=? AND PO.SUPPLIER_ID=? FOR UPDATE");
             $orderUpdate = $this->db->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS=?,
                 STATUSE=CASE WHEN ?>=? THEN 'COMPLETED' ELSE 'DEFERRED' END
                 WHERE ORDER_ID=? AND SUPPLIER_ID=?");
