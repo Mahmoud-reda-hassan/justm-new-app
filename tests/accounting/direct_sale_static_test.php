@@ -112,6 +112,8 @@ try {
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions`', 'جدول عمولات محاولات التوصيل غير موجود في Installer الجذر.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections`', 'جدول تحصيل شحن الرفض غير موجود في Installer الجذر.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews`', 'جدول مراجعة تعويض الشحن غير موجود في Installer الجذر.');
+    has($rootInstaller, "`payment_method_id` BIGINT UNSIGNED NULL", 'طريقة الدفع يجب أن تسمح بالقيمة NULL لتحصيل الشحن المرفوض.');
+    has($rootInstaller, "`collection_source` ENUM('ORDER_COLLECTION','REJECTED_SHIPPING')", 'مصدر التحصيل غير موجود في Installer الجذر.');
     has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions`', 'جدول عمولات المحاولات غير موجود في Installer inc.');
     has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections`', 'جدول تحصيل شحن الرفض غير موجود في Installer inc.');
     has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews`', 'جدول مراجعة تعويض الشحن غير موجود في Installer inc.');
