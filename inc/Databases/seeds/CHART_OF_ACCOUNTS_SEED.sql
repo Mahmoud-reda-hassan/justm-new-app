@@ -55,6 +55,7 @@ INSERT INTO tmp_justm_coa VALUES ('2141','مصروفات شحن مستحقة','L
 INSERT INTO tmp_justm_coa VALUES ('2142','عمولات بوابات دفع مستحقة','LIABILITY','CREDIT','2140',1,'حساب ضمن شجرة التجارة الإلكترونية المعتمدة');
 INSERT INTO tmp_justm_coa VALUES ('2143','مصروفات تشغيل مستحقة','LIABILITY','CREDIT','2140',1,'حساب ضمن شجرة التجارة الإلكترونية المعتمدة');
 INSERT INTO tmp_justm_coa VALUES ('2151','التزامات متنوعة','LIABILITY','CREDIT','2150',1,'حساب ضمن شجرة التجارة الإلكترونية المعتمدة');
+INSERT INTO tmp_justm_coa VALUES ('2152','مستحقات عمولات المسوقين وقادة الفرق','LIABILITY','CREDIT','2150',1,'حساب مستقل لمستحقات عمولات المسوقين وقادة الفرق');
 INSERT INTO tmp_justm_coa VALUES ('2200','الالتزامات طويلة الأجل','LIABILITY','CREDIT','2000',0,'حساب ضمن شجرة التجارة الإلكترونية المعتمدة');
 INSERT INTO tmp_justm_coa VALUES ('2210','قروض طويلة الأجل','LIABILITY','CREDIT','2200',1,'حساب ضمن شجرة التجارة الإلكترونية المعتمدة');
 INSERT INTO tmp_justm_coa VALUES ('3000','حقوق الملكية','EQUITY','CREDIT',NULL,0,'حساب ضمن شجرة التجارة الإلكترونية المعتمدة');
