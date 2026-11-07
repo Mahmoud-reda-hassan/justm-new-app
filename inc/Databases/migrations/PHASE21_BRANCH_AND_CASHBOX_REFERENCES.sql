@@ -42,7 +42,6 @@ ALTER TABLE branches
 
 -- Enforce valid branch ownership for operational cash boxes and payment mappings.
 ALTER TABLE cash_boxes
-    ADD KEY idx_cash_boxes_branch_fk (branch_id),
     ADD CONSTRAINT fk_cash_boxes_branch
         FOREIGN KEY (branch_id) REFERENCES branches (BR_ID)
         ON UPDATE CASCADE ON DELETE RESTRICT;
