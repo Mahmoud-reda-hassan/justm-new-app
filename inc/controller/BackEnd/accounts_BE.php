@@ -86,10 +86,31 @@ class accounts_BE {
 			   
 			   Round(if(CO.CUST_STAT = 'FREEZE' ,0,O.SHIPPING_VAL), 2) AS SHIPPING_VAL,
 			   
-			   Round(Sum(if(CO.RETURNS = 0 ,CP.QTY ,CP.DELIVERED_QTY) * ( CP.PRICE - CP.DISCOUNT )) + if(CO.CUST_STAT = 'FREEZE',0,O.SHIPPING_VAL), 2) AS REQUIRED_PAYMENT,
-			   
-			   Round(PB.BALANCE,2) AS BP_REQUIRED_PAYMENT,
-			   
+			   Round(
+				COALESCE((
+					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
+					FROM journal_entry_details d
+					INNER JOIN journal_entries j ON j.id = d.journal_entry_id AND j.status = 'POSTED'
+					INNER JOIN account_settings aset ON aset.account_id = d.account_id AND aset.setting_key = 'CUSTOMERS'
+					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
+					WHERE d.journal_entry_id = O.SALE_ENTRY_ID AND d.partner_type = 'CLIENT'
+						AND d.partner_id = H.CLIENT_ID AND d.debit > 0
+					GROUP BY d.id, d.debit
+				),0)
+				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND CO.CUST_STAT <> 'FREEZE' THEN COALESCE((
+					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
+					FROM accounting_events ev
+					INNER JOIN journal_entries j ON j.id = ev.journal_entry_id AND j.status = 'POSTED'
+					INNER JOIN journal_entry_details d ON d.journal_entry_id = j.id
+					INNER JOIN account_settings aset ON aset.account_id = d.account_id AND aset.setting_key = 'CUSTOMERS'
+					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
+					WHERE ev.idempotency_key = CONCAT('ORDER_SHIPPING:ORDER:', O.ORDER_ID, ':SHIPPING_REVENUE')
+						AND ev.event_type = 'SHIPPING_REVENUE_RECOGNIZED'
+						AND d.partner_type = 'CLIENT' AND d.partner_id = H.CLIENT_ID AND d.debit > 0
+					GROUP BY d.id, d.debit
+				),0) ELSE 0 END
+			   ,2) AS REQUIRED_PAYMENT,
+
 			   Json_arrayagg(
 			   	Json_object(
 			   		'PRODUCT_CODE', 		VOP.PRO_CODE, 
@@ -114,7 +135,6 @@ class accounts_BE {
 			   LEFT JOIN CLIENT 			AS H ON G.CLIENT_ID = H.CLIENT_ID
 			   LEFT JOIN CITY 				AS K ON O.CITY_ID = K.CI_ID
 			   LEFT JOIN ZONES 				AS L ON K.ZONE_ID = L.ZONE_ID
-			   LEFT JOIN PARTNERS_BALANCE 	AS PB ON CO.ORDER_ID = PB.REFERENCE_ID AND PARTNER_TYPE = 'CLIENT' AND TRANSACTION_CATEGORY_ID = 8
 			   LEFT JOIN (SELECT  CP.ORDER_ID,
 			       CP.USER_ID,
 			       CP.PRO_CODE,
