@@ -138,6 +138,7 @@ try {
     $custodyTotals = methodBody($accountsBackend, 'private function custodyTotal');
     has($accountsMainQuery, 'accounting_line_allocations', 'قائمة تحصيل المندوب لا تحسب المديونية المفتوحة من تخصيصات GL.');
     has($accountsMainQuery, 'SHIPPING_REVENUE_RECOGNIZED', 'قائمة التحصيل لا تضم مديونية الشحن المرحّلة.');
+    has($accountsMainQuery, "COALESCE(CO.CUST_STAT,'')", 'احتساب الشحن لا يحافظ على السلوك عند غياب حالة العهدة.');
     lacks($accountsMainQuery, 'partners_balance', 'قائمة تحصيل المندوب ما زالت تقرأ partners_balance.');
     has($custodyTotals, 'payment_method_accounts', 'ملخص النقدية لا يقرأ حسابات طرق الدفع من GL.');
     lacks($custodyTotals, 'financial_transactions', 'ملخص النقدية ما زال يعتمد على financial_transactions.');
@@ -186,6 +187,7 @@ try {
     $accountStatement = methodBody($reportsBackend, 'public function AccountStatement(');
     has($accountStatement, "if (strtoupper((string)\$partnerType) === 'MARKETER')", 'كشف حساب المسوق لا يقرأ الأستاذ العام.');
     has($accountStatement, 'MARKETER_COMMISSION_PAYABLE', 'كشف حساب المسوق لا يحدد حساب المستحقات.');
+    has($accountStatement, "h.reference_type IN ('MARKETER_COMMISSION_ACCRUAL','SALES_RETURN')", 'كشف حساب المسوق لا يربط عكس العمولة بأمر البيع الأصلي.');
     has($accountStatement, "strtoupper((string)\$partnerType) === 'DELIVERY'", 'كشف حساب المندوب لا يقرأ الأستاذ العام.');
     has($accountStatement, 'courier_custody_account_id', 'كشف حساب المندوب لا يضم حساب العهدة.');
     has($accountStatement, 'courier_commission_payable_account_id', 'كشف حساب المندوب لا يضم مستحقات العمولة.');
