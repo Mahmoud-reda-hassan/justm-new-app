@@ -1640,23 +1640,26 @@ class shipment_BE {
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
                 if ($customerPaidShipping === true) {
-                    // الشحن المحصل: عمولة الرفض العادية + تحصيل الشحن مرة واحدة للطلب.
-                    $attemptCommissionManager = new DeliveryAttemptCommissionManager($this->conn);
-                    $attemptCommissionManager->accrueRejectedAttempts(
-                        $sessionId, (int)$this->branch_id, (int)$executedBy
-                    );
+                    // إثبات التحصيل أولًا حتى تُحتسب عمولة هذه المحاولة بعد نجاح التحصيل.
                     $shippingCollectionManager = new DeliveryRejectedShippingCollectionManager($this->conn);
                     $shippingCollectionManager->collectPaidRejectedShipping(
                         $sessionId, (int)$this->branch_id, (int)$executedBy
                     );
-                } else {
-                    // الشحن غير المحصل: لا عمولة تلقائية ولا تحصيل وهمي؛ فقط طلب مراجعة للتعويض الاختياري.
-                    require_once ABSPATH . '/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php';
-                    $shippingReviewManager = new DeliveryRejectedShippingReviewManager($this->conn);
-                    $shippingReviewManager->recordUnpaidAttempts(
-                        $sessionId, (int)$this->branch_id, (int)$executedBy
-                    );
                 }
+
+                // العمولة التلقائية لا تُرحّل إلا إذا كان للطلب تحصيل شحن مثبت سابقًا،
+                // سواء في المحاولة الحالية أو في محاولة سابقة لنفس الطلب.
+                $attemptCommissionManager = new DeliveryAttemptCommissionManager($this->conn);
+                $attemptCommissionManager->accrueRejectedAttempts(
+                    $sessionId, (int)$this->branch_id, (int)$executedBy
+                );
+
+                // الطلبات التي لم يثبت تحصيل الشحن لها تظهر في قائمة التسوية الاختيارية فقط.
+                require_once ABSPATH . '/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php';
+                $shippingReviewManager = new DeliveryRejectedShippingReviewManager($this->conn);
+                $shippingReviewManager->recordUnpaidAttempts(
+                    $sessionId, (int)$this->branch_id, (int)$executedBy
+                );
 
                 $requestComplete = $this->conn->prepare(
                     "UPDATE delivery_confirmation_requests
