@@ -259,7 +259,9 @@ final class SupplierAccountingManager
                     FROM supplier_gl_payment_allocations A
                     INNER JOIN supplier_gl_payments P ON P.id=A.payment_id
                     WHERE A.supplier_id=? AND A.allocation_type='ADVANCE'
-                    HAVING AVAILABLE>0 ORDER BY P.created_at,A.id FOR UPDATE";
+                      AND A.amount>COALESCE((SELECT SUM(X.amount) FROM supplier_gl_advance_applications X
+                        WHERE X.source_advance_allocation_id=A.id),0)
+                    ORDER BY P.created_at,A.id FOR UPDATE";
                 $sourceStmt=$this->db->prepare($sourceSql);
                 $sourceStmt->execute([$supplierId]);
                 $sources=$sourceStmt->fetchAll(PDO::FETCH_ASSOC);
