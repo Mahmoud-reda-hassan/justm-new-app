@@ -1032,6 +1032,18 @@ class finance_BE {
         );
     }
 
+    public function ReverseSupplierPayment(int $payment_id, string $reason = ''): array {
+        return (new SupplierAccountingManager($this->conn))->reversePayment(
+            $payment_id, (int)($_SESSION['USER_ID'] ?? 0), $reason
+        );
+    }
+
+    public function ReverseSupplierAdvanceApplication(int $journal_id, string $reason = ''): array {
+        return (new SupplierAccountingManager($this->conn))->reverseAdvanceApplication(
+            $journal_id, (int)($_SESSION['USER_ID'] ?? 0), $reason
+        );
+    }
+
 	// صرف مستحقات عميل (مرتجع مبيعات)
 	public function PaymentOfCustomerDues($oid){
 		if(!$oid) throw new Exception("من فضلك قم بإختيار امر البيع اولا"); 
