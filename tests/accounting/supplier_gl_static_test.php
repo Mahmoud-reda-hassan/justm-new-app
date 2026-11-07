@@ -108,4 +108,4 @@ $assert(strpos($supplierStatement, 'partners_balance') === false
 $assert(strpos($supplierStatement, "CASE WHEN d.reference_type='SUPPLIER_ADVANCE' THEN NULL") !== false, 'Supplier advance credit line must not be displayed as a purchase order number.');
 
 echo "PASS: supplier purchase, receipt, return and payment paths use GL for new events.\n";
-echo "PASS: historical supplier balances remain untouched and are combined in transitional balance reads.\n";
+echo "PASS: supplier balances and statements use GL only.\n";
