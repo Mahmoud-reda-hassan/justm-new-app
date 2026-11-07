@@ -243,13 +243,26 @@ final class DeliverySettlementManager
 
             foreach ($normalized as $orderId => $amount) {
                 $orderStmt = $this->db->prepare("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_TYPE_ID, o.DELIVERY_ID,
-                        o.SALE_ENTRY_ID, o.ORDER_STATUS, COALESCE(o.SHIPPING_VAL,0) AS SHIPPING_VAL,
+                        o.ORDER_BY, o.SALE_ENTRY_ID, o.ORDER_STATUS, COALESCE(o.SHIPPING_VAL,0) AS SHIPPING_VAL,
                         te.CLIENT_ID, COALESCE(ud.PERCENT,0) AS DELIVERY_PERCENT,
                         ud.USER_ID AS DELIVERY_PROFILE_ID,
+                        custody.CUST_STAT,
+                        COALESCE(affiliate.COMMISSION_SALES,0) AS MARKETER_COMMISSION_RATE,
+                        affiliate.USER_ID AS MARKETER_ID,
+                        affiliate.AFFILIATEED_WITH AS LEADER_ID,
+                        COALESCE(leader.TEAM_COMMISSION,0) AS LEADER_COMMISSION_RATE,
+                        COALESCE(delivered.DELIVERED_QTY,0) AS DELIVERED_QTY,
                         sale_journal.branch_id AS SALE_BRANCH_ID
                     FROM orders o
                     LEFT JOIN telephones te ON te.TEL_ID = o.TEL_ID
                     LEFT JOIN users_delivery ud ON ud.USER_ID = o.DELIVERY_ID
+                    LEFT JOIN custody_orders custody ON custody.ORDER_ID = o.ORDER_ID AND custody.USER_ID = o.DELIVERY_ID
+                    LEFT JOIN users_affiliate affiliate ON affiliate.USER_ID = o.ORDER_BY
+                    LEFT JOIN users_affiliate leader ON leader.USER_ID = affiliate.AFFILIATEED_WITH
+                    LEFT JOIN (
+                        SELECT ORDER_ID, USER_ID, SUM(DELIVERED_QTY) AS DELIVERED_QTY
+                        FROM custody_product GROUP BY ORDER_ID, USER_ID
+                    ) delivered ON delivered.ORDER_ID = o.ORDER_ID AND delivered.USER_ID = o.DELIVERY_ID
                     LEFT JOIN journal_entries sale_journal ON sale_journal.id = o.SALE_ENTRY_ID
                     WHERE o.ORDER_ID = ? FOR UPDATE");
                 $orderStmt->execute([$orderId]);
@@ -401,6 +414,50 @@ final class DeliverySettlementManager
                 $commissionRemaining = max(0.0, round($expectedCommission - $commissionAlreadyAccrued, 2));
                 $commission = min($commissionRemaining, round($expectedCommission * $amount / max($totalReceivableAmount, 0.01), 2));
 
+                // عمولات المسوق وقائد الفريق تستحق فقط لطلبات المسوق غير المجمدة.
+                // يتم توزيع الاستحقاق على التحصيلات الجزئية، مع خصم ما سبق ترحيله لنفس الطلب.
+                $marketerCommission = 0.0;
+                $leaderCommission = 0.0;
+                $marketerId = (int)($order['MARKETER_ID'] ?? 0);
+                $leaderId = (int)($order['LEADER_ID'] ?? 0);
+                $marketingEligible = (int)$order['ORDER_TYPE_ID'] === 2
+                    && $marketerId > 0
+                    && (string)($order['CUST_STAT'] ?? '') !== 'FREEZE';
+                if ($marketingEligible && (float)$order['DELIVERED_QTY'] > 0) {
+                    $marketerExpected = round((float)$order['DELIVERED_QTY'] * (float)$order['MARKETER_COMMISSION_RATE'], 2);
+                    $leaderExpected = ($leaderId > 0)
+                        ? round((float)$order['DELIVERED_QTY'] * (float)$order['LEADER_COMMISSION_RATE'], 2)
+                        : 0.0;
+                    $payableAccountId = $this->accounts->marketerCommissionPayable();
+
+                    $priorCommissionStmt = $this->db->prepare("SELECT COALESCE(SUM(d.credit),0)
+                        FROM journal_entry_details d
+                        INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                        WHERE d.account_id = ? AND d.partner_type = 'MARKETER' AND d.partner_id = ?
+                          AND d.reference_type = 'MARKETER_COMMISSION_ACCRUAL'
+                          AND d.reference_id = ?");
+                    $priorCommissionStmt->execute([$payableAccountId, $marketerId, $orderId]);
+                    $marketerAlreadyAccrued = (float)$priorCommissionStmt->fetchColumn();
+                    $marketerRemaining = max(0.0, round($marketerExpected - $marketerAlreadyAccrued, 2));
+                    $marketerCommission = min($marketerRemaining,
+                        round($marketerExpected * $amount / max($totalReceivableAmount, 0.01), 2));
+
+                    if ($leaderId > 0 && $leaderId !== $marketerId && $leaderExpected > 0) {
+                        $priorCommissionStmt->execute([$payableAccountId, $leaderId, $orderId]);
+                        $leaderAlreadyAccrued = (float)$priorCommissionStmt->fetchColumn();
+                        $leaderRemaining = max(0.0, round($leaderExpected - $leaderAlreadyAccrued, 2));
+                        $leaderCommission = min($leaderRemaining,
+                            round($leaderExpected * $amount / max($totalReceivableAmount, 0.01), 2));
+                    } elseif ($leaderId === $marketerId) {
+                        // إذا كان المسوق هو قائد الفريق نفسه، يُجمع الاستحقاق في حساب شريك واحد.
+                        $leaderCommission = 0.0;
+                        $marketerCommission = min(
+                            max(0.0, round($marketerExpected + $leaderExpected - $marketerAlreadyAccrued, 2)),
+                            round(($marketerExpected + $leaderExpected) * $amount / max($totalReceivableAmount, 0.01), 2)
+                        );
+                    }
+                }
+
                 $collectionId = 0;
                 $receipt = '';
                 $eventResult = $eventManager->post($eventData, function () use (
@@ -547,6 +604,72 @@ final class DeliverySettlementManager
                         return $this->journal->post();
                     });
                     $commissionJournalId = (int)$commissionResult['journal_entry_id'];
+                }
+
+                $marketingCommissionTotal = round($marketerCommission + $leaderCommission, 2);
+                if ($marketingCommissionTotal > 0) {
+                    $marketingExpenseAccountId = $this->accounts->marketerCommissionExpense();
+                    $marketingPayableAccountId = $this->accounts->marketerCommissionPayable();
+                    $marketingEvent = $eventManager->post([
+                        'idempotency_key' => 'MARKETER_COMMISSION:COLLECTION:' . $collectionId . ':ORDER:' . $orderId,
+                        'event_type' => 'MARKETER_COMMISSION_ACCRUED',
+                        'source_type' => 'DELIVERY_COLLECTION',
+                        'source_id' => $collectionId,
+                        'branch_id' => $branchId,
+                        'event_date' => date('Y-m-d H:i:s'),
+                        'created_by' => $actorId,
+                        'payload' => [
+                            'collection_id' => $collectionId,
+                            'order_id' => $orderId,
+                            'marketer_id' => $marketerId,
+                            'leader_id' => $leaderId,
+                            'marketer_commission' => $marketerCommission,
+                            'leader_commission' => $leaderCommission,
+                        ],
+                    ], function () use (
+                        $branchId, $collectionId, $orderId, $order, $actorId,
+                        $marketingCommissionTotal, $marketerCommission, $leaderCommission,
+                        $marketerId, $leaderId, $marketingExpenseAccountId, $marketingPayableAccountId
+                    ): int {
+                        $this->journal->reset()->create([
+                            'branch_id' => $branchId,
+                            'entry_date' => date('Y-m-d H:i:s'),
+                            'reference_type' => 'MARKETER_COMMISSION_ACCRUAL',
+                            'reference_id' => $orderId,
+                            'description' => 'استحقاق عمولات المسوقين وقائد الفريق عن أمر ' . $order['SUB_ORDER_ID'],
+                            'created_by' => $actorId,
+                        ]);
+                        $this->journal->addLine([
+                            'account_id' => $marketingExpenseAccountId,
+                            'debit' => $marketingCommissionTotal,
+                            'reference_type' => 'MARKETER_COMMISSION_ACCRUAL',
+                            'reference_id' => $orderId,
+                            'note' => 'مصروف عمولات المسوقين وقادة الفرق',
+                        ]);
+                        if ($marketerCommission > 0) {
+                            $this->journal->addLine([
+                                'account_id' => $marketingPayableAccountId,
+                                'partner_type' => 'MARKETER',
+                                'partner_id' => $marketerId,
+                                'credit' => $marketerCommission,
+                                'reference_type' => 'MARKETER_COMMISSION_ACCRUAL',
+                                'reference_id' => $orderId,
+                                'note' => 'عمولة مستحقة للمسوق',
+                            ]);
+                        }
+                        if ($leaderCommission > 0) {
+                            $this->journal->addLine([
+                                'account_id' => $marketingPayableAccountId,
+                                'partner_type' => 'MARKETER',
+                                'partner_id' => $leaderId,
+                                'credit' => $leaderCommission,
+                                'reference_type' => 'MARKETER_COMMISSION_ACCRUAL',
+                                'reference_id' => $orderId,
+                                'note' => 'عمولة مستحقة لقائد الفريق',
+                            ]);
+                        }
+                        return $this->journal->post();
+                    });
                 }
 
                 $this->db->prepare("INSERT INTO delivery_collection_order_allocations
