@@ -173,6 +173,7 @@ class DatabaseMigrationManager
             throw new RuntimeException('تعذر قراءة ملف الترحيل.');
         }
         $checksum = hash('sha256', $sql);
+        $this->assertPrerequisites($file);
         $statements = $this->splitSqlStatements($sql);
         if (!$statements) {
             throw new RuntimeException('ملف الترحيل لا يحتوي على أوامر SQL قابلة للتنفيذ.');
@@ -222,6 +223,42 @@ class DatabaseMigrationManager
             return ['already_applied' => false, 'message' => 'تم تنفيذ الترحيل بنجاح.', 'statement_count' => count($statements)];
         } finally {
             $this->db->query("SELECT RELEASE_LOCK('justm_database_migrations')");
+        }
+    }
+
+    private function assertPrerequisites(string $file): void
+    {
+        $required = [];
+        if ($file === 'PHASE11_PAYMENT_METHOD_ACCOUNT_MAPPING.sql') {
+            $required = ['accounts', 'payment_methods'];
+        } elseif ($file === 'PHASE12_PARTNER_LEDGER_AND_ALLOCATIONS.sql') {
+            $required = ['journal_entry_details'];
+        } elseif ($file === 'PHASE14_DELIVERY_COLLECTION_AND_SETTLEMENT.sql') {
+            $required = ['accounts'];
+        } elseif ($file === 'PHASE15_ACCOUNTING_SCHEMA_ALIGNMENT.sql') {
+            $required = ['orders', 'order_product', 'financial_transactions', 'inventory_movement', 'inventory_product_movement'];
+        } elseif ($file === 'PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql') {
+            $required = ['accounts', 'account_settings'];
+        } elseif ($file === 'PHASE19_SUPPLIER_ACCOUNT_SETTINGS.sql') {
+            $required = ['accounts', 'account_settings'];
+            $stmt = $this->db->query("SELECT COUNT(DISTINCT account_code) FROM accounts WHERE account_code IN ('2111','1162','1171')");
+            if ((int)$stmt->fetchColumn() !== 3) {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 19: يجب وجود الحسابات 2111 و1162 و1171 أولًا.');
+            }
+        } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
+            $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries'];
+            $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
+            if ((int)$stmt->fetchColumn() !== 3) {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 20 قبل اكتمال ربط حسابات الموردين في المرحلة 19.');
+            }
+        }
+
+        foreach ($required as $table) {
+            $stmt = $this->db->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
+            $stmt->execute([$table]);
+            if ((int)$stmt->fetchColumn() !== 1) {
+                throw new RuntimeException('لا يمكن تنفيذ الترحيل؛ الجدول المطلوب غير موجود: ' . $table);
+            }
         }
     }
 
