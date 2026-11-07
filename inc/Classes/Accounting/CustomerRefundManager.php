@@ -87,7 +87,21 @@ final class CustomerRefundManager
                 WHERE order_id = ? AND status = 'POSTED'");
             $refundedStmt->execute([$orderId]);
             $alreadyRefunded = round((float)$refundedStmt->fetchColumn(), 2);
-            $available = max(0.0, round($returnCredit - $alreadyRefunded, 2));
+
+            // احتساب أي ردود قديمة سبق ترحيلها إلى GL عبر invoices/financial_transactions.
+            // هذه قراءة تاريخية فقط لمنع تكرار الصرف؛ كل الردود الجديدة تسجل في customer_refund_payments.
+            $legacyRefundStmt = $this->db->prepare("SELECT COALESCE(SUM(d.debit),0)
+                FROM journal_entries h
+                INNER JOIN financial_transactions ft ON h.reference_type = 'SALES_RETURN_PAYMENT'
+                    AND ft.id = h.reference_id
+                INNER JOIN invoices i ON i.INVO_ID = ft.invoice_id AND i.reference_id = ?
+                INNER JOIN journal_entry_details d ON d.journal_entry_id = h.id
+                    AND d.account_id = ? AND d.partner_type = 'CLIENT'
+                    AND d.partner_id = ? AND d.debit > 0
+                WHERE h.status = 'POSTED'");
+            $legacyRefundStmt->execute([$orderId, $customerAccountId, (int)$order['CLIENT_ID']]);
+            $legacyRefunded = round((float)$legacyRefundStmt->fetchColumn(), 2);
+            $available = max(0.0, round($returnCredit - $alreadyRefunded - $legacyRefunded, 2));
             if ($amount - $available > 0.009) {
                 throw new RuntimeException('مبلغ الرد أكبر من رصيد المرتجع المتاح. المتاح: ' . number_format($available, 2, '.', ''));
             }
