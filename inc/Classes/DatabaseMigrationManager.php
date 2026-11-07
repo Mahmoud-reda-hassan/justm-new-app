@@ -216,7 +216,7 @@ class DatabaseMigrationManager
                 $update = $this->db->prepare(
                     'UPDATE ' . self::LEDGER_TABLE . ' SET status = \'FAILED\', finished_at = NOW(), error_text = ?, statement_count = ? WHERE migration_key = ?'
                 );
-                $update->execute([mb_substr($e->getMessage(), 0, 4000, 'UTF-8'), count($statements), $file]);
+                $update->execute([substr($e->getMessage(), 0, 4000), count($statements), $file]);
                 throw new RuntimeException('فشل تنفيذ الترحيل: ' . $e->getMessage(), 0, $e);
             }
             return ['already_applied' => false, 'message' => 'تم تنفيذ الترحيل بنجاح.', 'statement_count' => count($statements)];
