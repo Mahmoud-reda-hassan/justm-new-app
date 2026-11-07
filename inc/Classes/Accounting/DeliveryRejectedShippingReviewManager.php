@@ -17,7 +17,11 @@ final class DeliveryRejectedShippingReviewManager
   $q=$this->db->prepare("SELECT sm.shipmov_id,sm.shipment_orders order_id,sm.delivery_id,o.ORDER_TYPE_ID,o.SHIPPING_VAL,s.BRANCH_ID order_branch_id,ud.PERCENT delivery_percent
    FROM shipping_movement sm JOIN orders o ON o.ORDER_ID=sm.shipment_orders
    LEFT JOIN stores s ON s.STO_ID=o.STO_ID LEFT JOIN users_delivery ud ON ud.USER_ID=sm.delivery_id
-   WHERE sm.UNIQUE_ID=? AND sm.movement_type=5 ORDER BY sm.shipmov_id FOR UPDATE");
+   WHERE sm.UNIQUE_ID=? AND sm.movement_type=5
+   AND sm.shipmov_id=(SELECT MIN(sm2.shipmov_id) FROM shipping_movement sm2
+    WHERE sm2.UNIQUE_ID=sm.UNIQUE_ID AND sm2.movement_type=sm.movement_type
+      AND sm2.shipment_orders=sm.shipment_orders AND sm2.delivery_id=sm.delivery_id)
+   ORDER BY sm.shipmov_id FOR UPDATE");
   $q->execute([$sessionId]); $rows=$q->fetchAll(PDO::FETCH_ASSOC);
   $ins=$this->db->prepare("INSERT INTO delivery_rejected_shipping_reviews
    (shipmov_id,order_id,delivery_user_id,branch_id,shipping_amount_snapshot,commission_percent_snapshot,estimated_compensation,status,created_by)
