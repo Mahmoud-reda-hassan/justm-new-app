@@ -83,8 +83,15 @@ try {
 
     $accountSettings = projectFile($root, 'inc/Classes/Accounting/AccountSettings.php');
     $commissionAccountsMigration = projectFile($root, 'inc/Databases/migrations/PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql');
+    $supplierAccountsMigration = projectFile($root, 'inc/Databases/migrations/PHASE19_SUPPLIER_ACCOUNT_SETTINGS.sql');
+    has($supplierAccountsMigration, "'2111'", 'Migration لا يربط حساب الموردين 2111.');
+    has($supplierAccountsMigration, "'1162'", 'Migration لا يربط المخزون بالطريق 1162.');
+    has($supplierAccountsMigration, "'1171'", 'Migration لا يربط مقدمات الموردين 1171.');
     has($accountSettings, "MARKETER_COMMISSION_PAYABLE", 'إعداد حساب مستحقات عمولات المسوقين وقادة الفرق غير موجود.');
     has($accountSettings, "MARKETER_COMMISSION_EXPENSE", 'إعداد حساب مصروف عمولات المسوقين وقادة الفرق غير موجود.');
+    has($accountSettings, "SUPPLIERS", 'إعداد حساب الموردين المستحق غير موجود.');
+    has($accountSettings, "INVENTORY_IN_TRANSIT", 'إعداد حساب المخزون بالطريق غير موجود.');
+    has($accountSettings, "SUPPLIER_ADVANCES", 'إعداد حساب مقدمات الموردين غير موجود.');
     has($collection, 'affiliate.COMMISSION_SALES', 'حساب عمولة المسوق لا يقرأ النسبة المعتمدة للمسوق.');
     has($collection, 'leader.TEAM_COMMISSION', 'حساب عمولة قائد الفريق لا يقرأ نسبة عمولة الفريق.');
     has($collection, "custody.CUST_STAT", 'احتساب عمولات التسويق لا يتحقق من حالة تجميد العهدة.');
