@@ -153,6 +153,9 @@ try {
     has($courierConfirmation, '$accountingEvents->directSale(', 'تأكيد تسليم المندوب لا يرحّل البيع إلى الأستاذ العام.');
     has($courierConfirmation, "cs.TYPE = 'SELSE'", 'ترحيل البيع لا يقتصر على أوامر التسليم الفعلية.');
     lacks($shipmentSql, 'CALL restClientDebtBatch', 'إجراء تأكيد التسليم ما زال يستدعي تحديث مديونية العميل القديمة.');
+    lacks($shipmentSql, 'CALL reduceClientCreditBatch', 'تأكيد المرتجع ما زال ينشئ رصيدًا دائنًا قديمًا قبل الاستلام المخزني.');
+    has($shipmentBackend, '$accounting->salesReturn($returnOrderId)', 'استلام المرتجع مخزنيًا لا يرحّل عكس البيع إلى GL.');
+    has($shipmentBackend, "processInventory('RETURN_SALES'", 'مسار المرتجع لا ينفذ حركة المخزون قبل قيد عكس البيع.');
     $directCustomerDelivery = methodBody($shipmentBackend, 'public function CustomerDeliveryOfProducts(');
     lacks($directCustomerDelivery, 'partners_balance', 'التسليم المباشر للعميل ما زال يكتب في دفتر الأرصدة القديم.');
     has($directCustomerDelivery, '$accounting->directSale($orderId)', 'التسليم المباشر للعميل لا يرحّل البيع إلى الأستاذ العام.');
