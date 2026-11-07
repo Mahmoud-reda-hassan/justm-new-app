@@ -2026,6 +2026,7 @@ CREATE TABLE IF NOT EXISTS `journal_entry_details` (
   `line_no` INT NOT NULL,
   `account_id` BIGINT UNSIGNED NOT NULL,
   `branch_id` INT DEFAULT NULL,
+  `cash_box_id` BIGINT UNSIGNED DEFAULT NULL,
   `store_id` BIGINT UNSIGNED DEFAULT NULL,
   `cost_center_id` BIGINT UNSIGNED DEFAULT NULL,
   `partner_type` VARCHAR(30) DEFAULT NULL,
@@ -2041,11 +2042,14 @@ CREATE TABLE IF NOT EXISTS `journal_entry_details` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_journal_line_no` (`journal_entry_id`,`line_no`),
   KEY `idx_journal_detail_account` (`account_id`,`branch_id`),
+  KEY `idx_journal_detail_cash_box` (`cash_box_id`),
   KEY `idx_journal_detail_partner` (`partner_type`,`partner_id`),
   KEY `idx_journal_detail_reference` (`reference_type`,`reference_id`),
   CONSTRAINT `fk_journal_detail_header` FOREIGN KEY (`journal_entry_id`) REFERENCES `journal_entries` (`id`)
     ON UPDATE CASCADE ON DELETE RESTRICT,
   CONSTRAINT `fk_journal_detail_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)
+    ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT `fk_journal_detail_cash_box` FOREIGN KEY (`cash_box_id`) REFERENCES `cash_boxes` (`id`)
     ON UPDATE CASCADE ON DELETE RESTRICT,
   CONSTRAINT `chk_journal_detail_nonnegative` CHECK (`debit` >= 0 AND `credit` >= 0),
   CONSTRAINT `chk_journal_detail_one_side` CHECK (`debit` = 0 OR `credit` = 0)
