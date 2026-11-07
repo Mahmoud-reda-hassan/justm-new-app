@@ -25,6 +25,7 @@ $assert(strpos($manager, 'PRO.REFERANC PURCHASE_ORDER_ID') !== false, 'Supplier 
 $assert(strpos($manager, "'reference_type'=>'PURCHASE_ORDER','reference_id'=>\$purchaseOrderId") !== false, 'Supplier return liability is not linked to the original purchase order.');
 $assert(strpos($manager, 'SUPPLIER_PAYMENT_POSTED') !== false, 'Supplier payment GL event is missing.');
 $assert(strpos($manager, 'supplierAdvances()') !== false, 'Supplier advance account is not used.');
+$assert(strpos($manager, "'partner_type'=>'SUPPLIER','partner_id'=>\$supplierId,'reference_type'=>'SUPPLIER_ADVANCE'") !== false, 'Supplier advances are not linked to their supplier partner.');
 $assert(strpos($dao, 'recordPurchaseOrder') !== false && strpos($dao, 'addSupplierDebt') === false, 'New purchase orders still write legacy supplier balances.');
 $assert(strpos($dao, 'addSupplierCredit') === false, 'New supplier returns still write legacy supplier balances.');
 $assert(strpos($inventory, 'recordReceiptByMovementUniqueId') !== false, 'Physical purchase receipts are not linked to GL.');
