@@ -17,8 +17,11 @@ $inventory = $read('inc/controller/BackEnd/inventory_BE.php');
 $finance = $read('inc/controller/BackEnd/finance_BE.php');
 $balance = $read('inc/controller/BackEnd/PaymentDisbursement_BE.php');
 $installer = $read('JUSTM_DATABASE_INSTALL.sql');
+$journal = $read('inc/Classes/Accounting/JournalManager.php');
 
 $assert(strpos($manager, 'PURCHASE_ORDER_RECOGNIZED') !== false, 'Purchase order GL event is missing.');
+$assert(strpos($journal, "['SUPPLIER_PAYMENT', 'SUPPLIER_ADVANCE_APPLICATION']") !== false, 'Generic journal reversal must block supplier payments and advance applications until coordinated operational reversal exists.');
+$assert(strpos($journal, 'أرصدة أوامر الشراء وسجلات التخصيص') !== false, 'Supplier reversal guard must explain the coordinated reversal requirement.');
 $assert(strpos($manager, 'PURCHASE_STOCK_RECEIVED') !== false, 'Purchase receipt GL reclassification is missing.');
 $assert(strpos($manager, 'PURCHASE_RETURN_RECOGNIZED') !== false, 'Supplier return GL event is missing.');
 $assert(strpos($manager, 'PRO.REFERANC PURCHASE_ORDER_ID') !== false, 'Supplier return does not resolve its original purchase order.');
