@@ -514,6 +514,7 @@ class inventory_BE {
 				SELECT PRO_CODE, PURCHASE_UNIT_PRICE, QTY_SUPPLIED
 				FROM purchases_products
 				WHERE ORDER_ID = ?
+				FOR UPDATE
 			");
 			$sourceProductsStmt->execute([(int)$reference]);
 			$sourceProducts = [];
