@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `branches` (
   `BR_MAIN` tinyint(1) NOT NULL,
   `BR_ADDRESS` varchar(200) DEFAULT NULL,
   PRIMARY KEY (`BR_ID`),
-  UNIQUE KEY `BR_NAME` (`BR_NAME`),
+  UNIQUE KEY `uq_branches_company_name` (`COMPANIE_ID`,`BR_NAME`),
   KEY `BRANCHES_COMPANIE_ID_COMPANIES_COM_ID` (`COMPANIE_ID`),
   KEY `BRANCHES_CITY_ID_CITY_CI_ID` (`CITY_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -1965,6 +1965,8 @@ CREATE TABLE IF NOT EXISTS `cash_boxes` (
   KEY `idx_cash_boxes_branch_active` (`branch_id`,`is_active`),
   KEY `idx_cash_boxes_account` (`account_id`),
   CONSTRAINT `fk_cash_boxes_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)
+    ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT `fk_cash_boxes_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`BR_ID`)
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2066,8 +2068,11 @@ CREATE TABLE IF NOT EXISTS `payment_method_accounts` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_payment_method_branch` (`payment_method_id`, `branch_id`),
     KEY `idx_pma_account` (`account_id`),
+    KEY `idx_pma_branch_fk` (`branch_id`),
     CONSTRAINT `fk_pma_method` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods` (`id`),
-    CONSTRAINT `fk_pma_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)
+    CONSTRAINT `fk_pma_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`),
+    CONSTRAINT `fk_pma_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`BR_ID`)
+        ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `accounting_line_allocations` (
