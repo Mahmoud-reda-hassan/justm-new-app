@@ -97,7 +97,7 @@ class accounts_BE {
 						AND d.partner_id = TEL.CLIENT_ID AND d.debit > 0
 					GROUP BY d.id, d.debit
 				),0)
-				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND CO.CUST_STAT <> 'FREEZE' THEN COALESCE((
+				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND COALESCE(CO.CUST_STAT,'') <> 'FREEZE' THEN COALESCE((
 					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
 					FROM accounting_events ev
 					INNER JOIN journal_entries j ON j.id = ev.journal_entry_id AND j.status = 'POSTED'
@@ -244,7 +244,7 @@ class accounts_BE {
 						AND d.partner_id = T.CLIENT_ID AND d.debit > 0
 					GROUP BY d.id, d.debit
 				),0)
-				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND CO.CUST_STAT <> 'FREEZE' THEN COALESCE((
+				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND COALESCE(CO.CUST_STAT,'') <> 'FREEZE' THEN COALESCE((
 					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
 					FROM accounting_events ev
 					INNER JOIN journal_entries j ON j.id = ev.journal_entry_id AND j.status = 'POSTED'
