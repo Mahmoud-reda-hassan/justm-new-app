@@ -1167,6 +1167,124 @@ final class DeliverySettlementManager
         }
     }
 
+    /**
+     * صرف مستحقات عمولات المسوق أو قائد الفريق من حساب المستحقات المستقل.
+     * لا يقرأ أو يكتب partners_balance أو financial_transactions.
+     */
+    public function payMarketerCommission(
+        int $marketerId,
+        int $branchId,
+        int $paymentMethodId,
+        float $amount,
+        string $note,
+        string $requestKey,
+        string $requestHash
+    ): array {
+        $this->validateIdempotencyRequest($requestKey, $requestHash);
+        if ($marketerId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || !is_finite($amount) || $amount <= 0) {
+            throw new InvalidArgumentException('المسوق أو الفرع أو طريقة الدفع أو مبلغ الصرف غير صالح.');
+        }
+        $amount = round($amount, 2);
+        $note = trim($note);
+        $actorId = $this->actorId();
+        $ownsTransaction = !$this->db->inTransaction();
+        if ($ownsTransaction) $this->db->beginTransaction();
+        try {
+            $payableAccountId = $this->accounts->marketerCommissionPayable();
+            $expenseAccountId = $this->accounts->marketerCommissionExpense();
+            $cashAccountId = $this->accounts->transactionAccount($paymentMethodId, $branchId);
+
+            $existingStmt = $this->db->prepare("SELECT id, payment_no, journal_id, amount
+                FROM marketer_commission_payments
+                WHERE request_key = ? AND request_hash = ? AND status = 'POSTED'
+                LIMIT 1 FOR UPDATE");
+            $existingStmt->execute([$requestKey, $requestHash]);
+            $existing = $existingStmt->fetch(PDO::FETCH_ASSOC);
+            if ($existing) {
+                if ($ownsTransaction) $this->db->commit();
+                return [
+                    'success' => true,
+                    'already_posted' => true,
+                    'payment_id' => (int)$existing['id'],
+                    'payment_no' => $existing['payment_no'],
+                    'journal_id' => (int)$existing['journal_id'],
+                    'amount' => (float)$existing['amount'],
+                ];
+            }
+
+            // اقفل كل سطور المستحقات لهذا الشريك لمنع صرف متزامن يتجاوز الرصيد.
+            $balanceStmt = $this->db->prepare("SELECT d.id, d.credit, d.debit
+                FROM journal_entry_details d
+                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                WHERE d.account_id = ? AND d.partner_type = 'MARKETER' AND d.partner_id = ?
+                ORDER BY d.id FOR UPDATE");
+            $balanceStmt->execute([$payableAccountId, $marketerId]);
+            $outstanding = 0.0;
+            foreach ($balanceStmt->fetchAll(PDO::FETCH_ASSOC) as $line) {
+                $outstanding += (float)$line['credit'] - (float)$line['debit'];
+            }
+            $outstanding = round($outstanding, 2);
+            if ($amount - $outstanding > 0.009) {
+                throw new RuntimeException('مبلغ الصرف أكبر من مستحقات المسوق أو قائد الفريق. المتاح: ' . number_format(max(0, $outstanding), 2, '.', ''));
+            }
+
+            $insert = $this->db->prepare("INSERT INTO marketer_commission_payments
+                (payment_no, marketer_user_id, branch_id, payment_method_id, payment_date,
+                 amount, status, note, created_by, request_key, request_hash)
+                VALUES (NULL, ?, ?, ?, NOW(), ?, 'DRAFT', ?, ?, ?, ?)");
+            $insert->execute([$marketerId, $branchId, $paymentMethodId, $amount, $note, $actorId, $requestKey, $requestHash]);
+            $paymentId = (int)$this->db->lastInsertId();
+            $paymentNo = 'MCP-' . date('Y') . '-' . str_pad((string)$paymentId, 7, '0', STR_PAD_LEFT);
+            $this->db->prepare('UPDATE marketer_commission_payments SET payment_no = ? WHERE id = ?')
+                ->execute([$paymentNo, $paymentId]);
+
+            $this->journal->reset()->create([
+                'branch_id' => $branchId,
+                'entry_date' => date('Y-m-d H:i:s'),
+                'reference_type' => 'MARKETER_COMMISSION_PAYMENT',
+                'reference_id' => $paymentId,
+                'description' => 'صرف مستحقات عمولات المسوق/قائد الفريق ' . $marketerId . ' — ' . $paymentNo,
+                'created_by' => $actorId,
+            ]);
+            $this->journal->addLine([
+                'account_id' => $payableAccountId,
+                'partner_type' => 'MARKETER',
+                'partner_id' => $marketerId,
+                'debit' => $amount,
+                'reference_type' => 'MARKETER_COMMISSION_PAYMENT',
+                'reference_id' => $paymentId,
+                'note' => 'تخفيض مستحقات عمولات المسوق أو قائد الفريق',
+            ]);
+            $this->journal->addLine([
+                'account_id' => $cashAccountId,
+                'credit' => $amount,
+                'reference_type' => 'MARKETER_COMMISSION_PAYMENT',
+                'reference_id' => $paymentId,
+                'note' => 'صرف عمولة فعليًا عبر طريقة الدفع المحددة',
+            ]);
+            $journalId = $this->journal->post();
+            $this->db->prepare("UPDATE marketer_commission_payments
+                SET journal_id = ?, status = 'POSTED', posted_at = NOW()
+                WHERE id = ? AND status = 'DRAFT'")->execute([$journalId, $paymentId]);
+            if ((int)$this->db->query('SELECT ROW_COUNT()')->fetchColumn() !== 1) {
+                throw new RuntimeException('تعذر اعتماد مستند صرف العمولة.');
+            }
+            if ($ownsTransaction) $this->db->commit();
+            return [
+                'success' => true,
+                'payment_id' => $paymentId,
+                'payment_no' => $paymentNo,
+                'journal_id' => $journalId,
+                'amount' => $amount,
+                'outstanding_before' => $outstanding,
+                'outstanding_after' => round($outstanding - $amount, 2),
+            ];
+        } catch (Throwable $e) {
+            if ($ownsTransaction && $this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
+    }
+
     /** @return array<int,array<string,mixed>> */
     private function getOpenAllocationRows(int $deliveryId, array $orderIds, bool $lock): array
     {
