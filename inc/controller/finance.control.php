@@ -6,10 +6,10 @@ include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliverySettlementManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php');
-$deliveryShippingReviews = new DeliveryRejectedShippingReviewManager($db);
 
 $DBconn        	= new dbconn();
 $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
+$deliveryShippingReviews = new DeliveryRejectedShippingReviewManager($db);
 $CBE 	= new finance_BE($db);
 $deliveryAccounting = new DeliverySettlementManager($db);
 $shippingConfiguration = new ShippingConfigurationManager($db);
