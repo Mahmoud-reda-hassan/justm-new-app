@@ -20,11 +20,11 @@ on:
 
 jobs:
   php-validation:
-    name: PHP ${{ matrix.php }} accounting validation
+    name: PHP ${{ matrix.php }} / MariaDB ${{ matrix.mariadb }} validation
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: mariadb:10.11
+        image: mariadb:${{ matrix.mariadb }}
         env:
           MARIADB_ROOT_PASSWORD: accounting_test
           MARIADB_DATABASE: accounting_test
@@ -39,6 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         php: ['8.0', '8.4']
+        mariadb: ['10.5.29', '10.11']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,6 +54,25 @@ jobs:
       - name: PHP syntax checks for all accounting classes and tests
         run: |
           find inc/Classes/Accounting tests/accounting -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Import both full database installers
+        env:
+          DB_PASSWORD: accounting_test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mariadb-client
+          mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" -e "CREATE DATABASE installer_root_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE installer_inc_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_root_test < JUSTM_DATABASE_INSTALL.sql
+          mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_inc_test < inc/Databases/JUSTM_DATABASE_INSTALL.sql
+          root_count=$(mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_root_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews','delivery_confirmation_requests','delivery_collection_requests','delivery_collection_request_collections')")
+          inc_count=$(mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_inc_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews','delivery_confirmation_requests','delivery_collection_requests','delivery_collection_request_collections')")
+          test "$root_count" -eq 6
+          test "$inc_count" -eq 6
+          root_orphans=$(mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --database=installer_root_test --batch --skip-column-names -e "SELECT (SELECT COUNT(*) FROM companies c LEFT JOIN city ci ON ci.CI_ID=c.CITY_ID WHERE ci.CI_ID IS NULL) + (SELECT COUNT(*) FROM branches b LEFT JOIN companies c ON c.COM_ID=b.COMPANIE_ID LEFT JOIN city ci ON ci.CI_ID=b.CITY_ID WHERE c.COM_ID IS NULL OR ci.CI_ID IS NULL) + (SELECT COUNT(*) FROM stores s LEFT JOIN branches b ON b.BR_ID=s.BRANCH_ID LEFT JOIN stores_type st ON st.STTY_ID=s.STTY_ID WHERE b.BR_ID IS NULL OR st.STTY_ID IS NULL) + (SELECT COUNT(*) FROM zones z LEFT JOIN stores s ON s.STO_ID=z.STORE_ID WHERE s.STO_ID IS NULL)")
+          inc_orphans=$(mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --database=installer_inc_test --batch --skip-column-names -e "SELECT (SELECT COUNT(*) FROM companies c LEFT JOIN city ci ON ci.CI_ID=c.CITY_ID WHERE ci.CI_ID IS NULL) + (SELECT COUNT(*) FROM branches b LEFT JOIN companies c ON c.COM_ID=b.COMPANIE_ID LEFT JOIN city ci ON ci.CI_ID=b.CITY_ID WHERE c.COM_ID IS NULL OR ci.CI_ID IS NULL) + (SELECT COUNT(*) FROM stores s LEFT JOIN branches b ON b.BR_ID=s.BRANCH_ID LEFT JOIN stores_type st ON st.STTY_ID=s.STTY_ID WHERE b.BR_ID IS NULL OR st.STTY_ID IS NULL) + (SELECT COUNT(*) FROM zones z LEFT JOIN stores s ON s.STO_ID=z.STORE_ID WHERE s.STO_ID IS NULL)")
+          test "$root_orphans" -eq 0
+          test "$inc_orphans" -eq 0
+          echo "PASS: both installers import, define all rejected-shipping tables and preserve seed references."
 
       - name: Accounting static regression checks
         run: php tests/accounting/direct_sale_static_test.php

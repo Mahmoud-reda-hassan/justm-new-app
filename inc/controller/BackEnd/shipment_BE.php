@@ -1639,24 +1639,27 @@ class shipment_BE {
 	        $call->closeCursor();
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
-                // ترحيل عمولة كل حركة رفض فعلية قبل اعتماد طلب التأكيد.
-                $attemptCommissionManager = new DeliveryAttemptCommissionManager($this->conn);
-                $attemptCommissionManager->accrueRejectedAttempts(
-                    $sessionId,
-                    (int)$this->branch_id,
-                    (int)$executedBy
-                );
-
-                // لا يتم إنشاء تحصيل شحن إلا بعد إثبات أن العميل دفع فعليًا.
-                // المدير يمنع تكرار التحصيل لنفس الطلب حتى مع وجود محاولة رفض لاحقة.
                 if ($customerPaidShipping === true) {
+                    // إثبات التحصيل أولًا حتى تُحتسب عمولة هذه المحاولة بعد نجاح التحصيل.
                     $shippingCollectionManager = new DeliveryRejectedShippingCollectionManager($this->conn);
                     $shippingCollectionManager->collectPaidRejectedShipping(
-                        $sessionId,
-                        (int)$this->branch_id,
-                        (int)$executedBy
+                        $sessionId, (int)$this->branch_id, (int)$executedBy
                     );
                 }
+
+                // العمولة التلقائية لا تُرحّل إلا إذا كان للطلب تحصيل شحن مثبت سابقًا،
+                // سواء في المحاولة الحالية أو في محاولة سابقة لنفس الطلب.
+                $attemptCommissionManager = new DeliveryAttemptCommissionManager($this->conn);
+                $attemptCommissionManager->accrueRejectedAttempts(
+                    $sessionId, (int)$this->branch_id, (int)$executedBy
+                );
+
+                // الطلبات التي لم يثبت تحصيل الشحن لها تظهر في قائمة التسوية الاختيارية فقط.
+                require_once ABSPATH . '/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php';
+                $shippingReviewManager = new DeliveryRejectedShippingReviewManager($this->conn);
+                $shippingReviewManager->recordUnpaidAttempts(
+                    $sessionId, (int)$this->branch_id, (int)$executedBy
+                );
 
                 $requestComplete = $this->conn->prepare(
                     "UPDATE delivery_confirmation_requests

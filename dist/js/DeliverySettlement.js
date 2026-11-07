@@ -282,6 +282,80 @@
         else if (window.confirm(confirmation)) execute();
     }
 
+    function ensureRejectedReviewPanel() {
+        if ($('#dsRejectedShippingReviews').length) return;
+        const $panel = $('<section>', { id: 'dsRejectedShippingReviews', class: 'card card-outline card-warning mt-3' });
+        $panel.append($('<div>', { class: 'card-header' }).append($('<h3>', { class: 'card-title', text: 'تسوية الشحن للمندوب — طلبات غير محصلة' })));
+        const $body = $('<div>', { class: 'card-body' });
+        $body.append($('<p>', { class: 'text-muted', text: 'هذه الطلبات لم يتم تحصيل رسوم الشحن فيها. العمولة المعروضة تقديرية ولا تُصرف إلا بعد اعتماد التعويض.' }));
+        const $table = $('<table>', { class: 'table table-bordered table-striped table-sm', id: 'dsRejectedReviewsTable' });
+        $table.append($('<thead>').append($('<tr>').append(
+            $('<th>', { text: 'الطلب' }), $('<th>', { text: 'المندوب' }),
+            $('<th>', { text: 'قيمة الشحن' }), $('<th>', { text: 'العمولة التقديرية' }),
+            $('<th>', { text: 'الإجراء' })
+        )));
+        $table.append($('<tbody>'));
+        $body.append($table); $panel.append($body);
+        $('#deliverySettlementPanel').after($panel);
+    }
+
+    function loadRejectedShippingReviews() {
+        if (!$('#deliverySettlementPanel').length) return;
+        ensureRejectedReviewPanel();
+        return request('GetRejectedShippingReviews').done(response => {
+            if (!response || !response.success) { showError(new Error((response && response[2]) || 'تعذر تحميل تسويات الشحن.')); return; }
+            const $tbody = $('#dsRejectedReviewsTable tbody').empty();
+            const rows = Array.isArray(response.reviews) ? response.reviews : [];
+            if (!rows.length) {
+                $tbody.append($('<tr>').append($('<td>', { colspan: 5, class: 'text-center text-muted', text: 'لا توجد طلبات تنتظر قرار التسوية.' })));
+                return;
+            }
+            rows.forEach(row => {
+                const $tr = $('<tr>');
+                $('<td>').text(row.SUB_ORDER_ID || row.order_id).appendTo($tr);
+                $('<td>').text(row.delivery_name || row.delivery_user_id).appendTo($tr);
+                $('<td>').text(money(row.shipping_amount_snapshot)).appendTo($tr);
+                $('<td>').text(money(row.estimated_compensation)).appendTo($tr);
+                const $actions = $('<td>');
+                $('<button>', { type: 'button', class: 'btn btn-sm btn-success mr-1 ds-review-approve', text: 'اعتماد تعويض' }).data('review', row).appendTo($actions);
+                $('<button>', { type: 'button', class: 'btn btn-sm btn-outline-danger ds-review-reject', text: 'رفض' }).data('review', row).appendTo($actions);
+                $tr.append($actions); $tbody.append($tr);
+            });
+        }).fail(showError);
+    }
+
+    function decideRejectedReview(row, approve) {
+        const submit = amount => {
+            const payload = {
+                review_id: row.id, decision: approve ? 'APPROVE' : 'REJECT',
+                amount: approve ? amount : 0,
+                note: approve ? 'اعتماد تعويض تسوية شحن غير محصل' : 'رفض تعويض تسوية شحن غير محصل'
+            };
+            request('DecideRejectedShippingReview', payload).done(response => {
+                if (!response || response.success !== true) { showError(new Error((response && response.message) || 'تعذر حفظ قرار التسوية.')); return; }
+                showSuccess(approve ? 'تم اعتماد التعويض وترحيل قيده.' : 'تم رفض التعويض دون إنشاء قيد مالي.');
+                loadRejectedShippingReviews();
+            }).fail(showError);
+        };
+        if (approve && window.Swal) {
+            Swal.fire({
+                icon: 'question', title: 'اعتماد تعويض المندوب',
+                text: 'الحد الأقصى: ' + money(row.estimated_compensation),
+                input: 'number', inputValue: Number(row.estimated_compensation || 0).toFixed(2),
+                inputAttributes: { min: '0.01', max: Number(row.estimated_compensation || 0).toFixed(2), step: '0.01' },
+                showCancelButton: true, confirmButtonText: 'اعتماد وترحيل', cancelButtonText: 'إلغاء',
+                inputValidator: value => (!Number.isFinite(Number(value)) || Number(value) <= 0 || Number(value) > Number(row.estimated_compensation) + 0.009)
+                    ? 'أدخل مبلغًا موجبًا لا يتجاوز العمولة التقديرية.' : undefined
+            }).then(result => { if (result.isConfirmed) submit(Number(result.value)); });
+        } else if (approve) {
+            const value = Number(window.prompt('قيمة التعويض (الحد الأقصى ' + money(row.estimated_compensation) + ')', row.estimated_compensation));
+            if (value > 0 && value <= Number(row.estimated_compensation) + 0.009) submit(value);
+        } else if (window.Swal) {
+            Swal.fire({ icon: 'warning', title: 'رفض التعويض؟', text: 'سيتم إغلاق الطلب دون أي قيد مالي.', showCancelButton: true, confirmButtonText: 'رفض التعويض', cancelButtonText: 'رجوع' })
+                .then(result => { if (result.isConfirmed) submit(0); });
+        } else if (window.confirm('رفض التعويض دون إنشاء قيد مالي؟')) submit(0);
+    }
+
     $(function () {
         if (!$('#deliverySettlementPanel').length) return;
         $('#dsDelivery').select2({ placeholder: 'اختر المندوب', allowClear: true, language: 'ar', dir: 'rtl', width: '100%' });
@@ -305,6 +379,14 @@
         $('#dsRefresh').on('click', loadOpenOrders);
         $('#dsPreview').on('click', preview);
         $('#dsSettle').on('click', settle);
+        ensureRejectedReviewPanel();
+        $('#dsRejectedReviewsTable').on('click', '.ds-review-approve', function () {
+            decideRejectedReview($(this).data('review'), true);
+        });
+        $('#dsRejectedReviewsTable').on('click', '.ds-review-reject', function () {
+            decideRejectedReview($(this).data('review'), false);
+        });
+        loadRejectedShippingReviews();
         $('#dsSavePolicy').on('click', function () {
             const mode = $('#dsPolicyMode').val();
             request('UpdateDeliveryCommissionMode', { mode }).done(response => {

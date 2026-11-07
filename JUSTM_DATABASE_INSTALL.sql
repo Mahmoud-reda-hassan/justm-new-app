@@ -702,7 +702,7 @@ CREATE TABLE IF NOT EXISTS `orders_log` (
   PRIMARY KEY (`LOG_ID`),
   KEY `ORDER_ID` (`ORDER_ID`),
   KEY `USER_ACTION` (`USER_ACTION`)
-) ENGINE=InnoDB DEFAULTCHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 -- --------------------------------------------------------
 
@@ -1567,27 +1567,17 @@ INSERT INTO `stores_type` (`STTY_ID`, `STTY_NAME`, `STTY_DESCRIPTION`) VALUES
 INSERT INTO `user_gruop` (`USER_GRUOP_ID`, `USER_GROUP_PARENT`, `USER_GRUOP_NAME`, `USER_SCRIPT`) VALUES
 (1, 0, 'Administrator', 'a:1:{s:5:\"Admin\";a:49:{s:9:\"dashboard\";a:5:{s:5:\"Admin\";s:4:\"true\";s:16:\"CustomerService1\";s:4:\"true\";s:16:\"CustomerService2\";s:4:\"true\";s:7:\"Storage\";s:4:\"true\";s:8:\"Delivery\";s:4:\"true\";}s:9:\"Countries\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:3:\"Gov\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:4:\"City\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:14:\"Local-Shipping\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:22:\"International-Shipping\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:10:\"Enterprise\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:24:\"Administrative-Structure\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:8:\"Branches\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:9:\"Warehouse\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:5:\"Users\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:7:\"Clients\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:9:\"Suppliers\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:23:\"UserSpecificPermissions\";a:3:{s:14:\"viewAllCompany\";s:5:\"false\";s:15:\"viewAllBranches\";s:5:\"false\";s:13:\"viewAllStores\";s:5:\"false\";}s:7:\"Reports\";a:1:{s:4:\"View\";s:4:\"true\";}s:18:\"Product-Categories\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:13:\"ProductOption\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:8:\"Products\";a:4:{s:4:\"View\";s:4:\"true\";s:6:\"Addnew\";s:4:\"true\";s:6:\"Update\";s:4:\"true\";s:6:\"Delete\";s:4:\"true\";}s:8:\"NewOrder\";a:1:{s:12:\"Create_Order\";s:4:\"true\";}s:13:\"orderlist_ex0\";a:2:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";}s:11:\"selseReport\";a:1:{s:4:\"View\";s:5:\"false\";}s:13:\"orderlist_ex1\";a:13:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:7:\"Nostore\";s:4:\"true\";s:19:\"pending sale orders\";s:4:\"true\";s:22:\"Advance booking orders\";s:4:\"true\";s:28:\"The client is not responding\";s:4:\"true\";s:12:\"Cancel order\";s:4:\"true\";s:10:\"Processing\";s:4:\"true\";s:8:\"Prepared\";s:5:\"false\";s:11:\"Direct sale\";s:5:\"false\";}s:13:\"orderlist_ex2\";a:13:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:7:\"Nostore\";s:5:\"false\";s:19:\"Confirm sale orders\";s:4:\"true\";s:22:\"Advance booking orders\";s:4:\"true\";s:28:\"The client is not responding\";s:4:\"true\";s:12:\"Cancel order\";s:4:\"true\";s:10:\"Processing\";s:4:\"true\";s:8:\"Prepared\";s:5:\"false\";s:11:\"Direct sale\";s:5:\"false\";}s:13:\"orderlist_ex3\";a:13:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:7:\"Nostore\";s:4:\"true\";s:19:\"Confirm sale orders\";s:4:\"true\";s:19:\"pending sale orders\";s:4:\"true\";s:28:\"The client is not responding\";s:4:\"true\";s:12:\"Cancel order\";s:4:\"true\";s:10:\"Processing\";s:4:\"true\";s:8:\"Prepared\";s:5:\"false\";s:11:\"Direct sale\";s:5:\"false\";}s:13:\"orderlist_ex4\";a:13:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:7:\"Nostore\";s:5:\"false\";s:19:\"Confirm sale orders\";s:4:\"true\";s:19:\"pending sale orders\";s:4:\"true\";s:22:\"Advance booking orders\";s:4:\"true\";s:12:\"Cancel order\";s:4:\"true\";s:10:\"Processing\";s:4:\"true\";s:8:\"Prepared\";s:5:\"false\";s:11:\"Direct sale\";s:5:\"false\";}s:13:\"orderlist_ex5\";a:13:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:7:\"Nostore\";s:4:\"true\";s:19:\"Confirm sale orders\";s:4:\"true\";s:19:\"pending sale orders\";s:4:\"true\";s:22:\"Advance booking orders\";s:4:\"true\";s:28:\"The client is not responding\";s:4:\"true\";s:10:\"Processing\";s:4:\"true\";s:8:\"Prepared\";s:5:\"false\";s:11:\"Direct sale\";s:5:\"false\";}s:17:\"SupportAfterSales\";a:2:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";}s:13:\"SupportOrders\";a:11:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:7:\"Nostore\";s:4:\"true\";s:19:\"pending sale orders\";s:4:\"true\";s:22:\"Advance booking orders\";s:4:\"true\";s:28:\"The client is not responding\";s:4:\"true\";s:12:\"Cancel order\";s:4:\"true\";s:10:\"Processing\";s:4:\"true\";s:8:\"Prepared\";s:4:\"true\";}s:13:\"orderlist_ex7\";a:14:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:4:\"true\";s:12:\"Invoce_Print\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:19:\"Confirm sale orders\";s:4:\"true\";s:19:\"pending sale orders\";s:4:\"true\";s:22:\"Advance booking orders\";s:4:\"true\";s:28:\"The client is not responding\";s:5:\"false\";s:12:\"Cancel order\";s:5:\"false\";s:8:\"Prepared\";s:4:\"true\";s:11:\"Direct sale\";s:5:\"false\";s:7:\"Nostore\";s:5:\"false\";}s:13:\"orderlist_ex8\";a:15:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:4:\"true\";s:8:\"Shipment\";s:4:\"true\";s:12:\"Shipmentdate\";s:4:\"true\";s:14:\"transformation\";s:4:\"true\";s:7:\"Nostore\";s:4:\"true\";s:22:\"Advance booking orders\";s:4:\"true\";s:12:\"Cancel order\";s:4:\"true\";s:10:\"Processing\";s:4:\"true\";s:19:\"Confirm sale orders\";s:4:\"true\";s:19:\"pending sale orders\";s:4:\"true\";s:28:\"The client is not responding\";s:4:\"true\";s:11:\"Direct sale\";s:5:\"false\";}s:13:\"orderlist_ex9\";a:11:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:18:\"DeliveredFromAdmin\";s:4:\"true\";s:14:\"RefundShipment\";s:4:\"true\";s:12:\"ChooseRefund\";s:4:\"true\";s:3:\"os2\";s:4:\"true\";s:3:\"os1\";s:4:\"true\";s:14:\"transformation\";s:5:\"false\";s:13:\"EditDelevered\";s:5:\"false\";s:10:\"Edit_order\";s:5:\"false\";s:12:\"Delete_order\";s:5:\"false\";}s:13:\"OrdersCustody\";a:6:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:13:\"EditDelevered\";s:4:\"true\";s:16:\"ShipmentApproved\";s:4:\"true\";s:14:\"RefundShipment\";s:4:\"true\";s:12:\"ChooseRefund\";s:4:\"true\";}s:12:\"StockReceipt\";a:2:{s:4:\"view\";s:4:\"true\";s:15:\"viewAllBranches\";s:5:\"false\";}s:10:\"StockIssue\";a:1:{s:4:\"view\";s:4:\"true\";}s:16:\"InternalTransfer\";a:1:{s:4:\"view\";s:4:\"true\";}s:10:\"StockAudit\";a:3:{s:4:\"view\";s:4:\"true\";s:15:\"viewAllBranches\";s:5:\"false\";s:12:\"viewStoreQty\";s:5:\"false\";}s:19:\"CriticalItemsReport\";a:1:{s:4:\"view\";s:4:\"true\";}s:23:\"DelegatesShipmentReport\";a:1:{s:4:\"view\";s:4:\"true\";}s:24:\"DelegatesInventoryReport\";a:1:{s:4:\"view\";s:4:\"true\";}s:18:\"suppliersQtyReport\";a:1:{s:4:\"view\";s:4:\"true\";}s:15:\"PaymentsReceipt\";a:1:{s:4:\"view\";s:4:\"true\";}s:19:\"PaymentDisbursement\";a:1:{s:4:\"view\";s:4:\"true\";}s:19:\"CashReceiptVouchers\";a:1:{s:4:\"view\";s:4:\"true\";}s:24:\"AccountStatementSupplier\";a:1:{s:4:\"view\";s:4:\"true\";}s:22:\"AccountStatementClient\";a:1:{s:4:\"view\";s:4:\"true\";}s:24:\"AccountStatementMarketer\";a:1:{s:4:\"view\";s:4:\"true\";}s:24:\"AccountStatementDelivery\";a:1:{s:4:\"view\";s:4:\"true\";}s:14:\"orderlist_ex10\";a:13:{s:15:\"View_order_list\";s:4:\"true\";s:10:\"View_order\";s:4:\"true\";s:10:\"Edit_order\";s:4:\"true\";s:12:\"Delete_order\";s:5:\"false\";s:14:\"transformation\";s:5:\"false\";s:8:\"Shipping\";s:5:\"false\";s:3:\"os2\";s:5:\"false\";s:19:\"Confirm sale orders\";s:5:\"false\";s:19:\"pending sale orders\";s:5:\"false\";s:22:\"Advance booking orders\";s:5:\"false\";s:28:\"The client is not responding\";s:5:\"false\";s:12:\"Cancel order\";s:5:\"false\";s:10:\"Processing\";s:5:\"false\";}s:14:\"orderlist_ex11\";a:7:{s:19:\"Confirm sale orders\";s:5:\"false\";s:19:\"pending sale orders\";s:5:\"false\";s:22:\"Advance booking orders\";s:5:\"false\";s:28:\"The client is not responding\";s:5:\"false\";s:12:\"Cancel order\";s:5:\"false\";s:10:\"Processing\";s:5:\"false\";s:8:\"Prepared\";s:5:\"false\";}}}');
 
---
--- 6. الشركات
---
-INSERT INTO `companies` (`COM_ID`, `COM_NAME`, `COM_TEL`, `COM_FAX`, `COM_MOBILE`, `COM_EMAIL`, `CITY_ID`, `COM_ADDRESS`, `LOGOBRAND`) VALUES
-(1, 'just-M', '0225502984', '0225502984', '012-25133341', 'm.r.01225133341@gmail.com', 38, '121', NULL);
 
---
--- 7. الفروع
---
-INSERT INTO `branches` (`BR_ID`, `COMPANIE_ID`, `CITY_ID`, `BR_NAME`, `BR_MAIN`, `BR_ADDRESS`) VALUES
-(1, 1, 30, 'المقر الرئيسى', 1, '30 كورنيش النيل الدور الاول');
 
---
--- 8. المخازن
---
-INSERT INTO `stores` (`STO_ID`, `BRANCH_ID`, `STO_NAME`, `STTY_ID`) VALUES
-(1, 1, 'المخزن الرئيسى', 2);
+
+
+
 
 --
 -- 9. المناطق
 --
+SET FOREIGN_KEY_CHECKS=0;
+
 INSERT INTO `zones` (`ZONE_ID`, `ZONE_NAME`, `ZONE_NAME_EN`, `SHIPPING_RATE`, `SHIPPING_LOWEST`, `SHIPPING_TIME_MAX`, `SHIPPING_TYPE`, `STORE_ID`) VALUES
 (12, 'مدينه نصر', 'Madenet Nasr', 50.00, 1.00, 1, 1, 1),
 (13, 'مصر الجديده', 'Misr Elgedida', 50.00, 1.00, 1, 1, 1),
@@ -1675,6 +1665,28 @@ INSERT INTO `city` (`CI_ID`, `GOV_ID`, `ZONE_ID`, `CI_NAME`, `CI_NAME_EN`) VALUE
 (59, 2, 20, 'الورديان', 'El Wardian'),
 (60, 2, 20, 'القباري', 'El Kabari'),
 (61, 2, 20, 'البيطاش', 'El Beitash');
+
+--
+-- 6. الشركات
+--
+INSERT INTO `companies` (`COM_ID`, `COM_NAME`, `COM_TEL`, `COM_FAX`, `COM_MOBILE`, `COM_EMAIL`, `CITY_ID`, `COM_ADDRESS`, `LOGOBRAND`) VALUES
+(1, 'just-M', '0225502984', '0225502984', '012-25133341', 'm.r.01225133341@gmail.com', 38, '121', NULL);
+
+--
+-- 7. الفروع
+--
+INSERT INTO `branches` (`BR_ID`, `COMPANIE_ID`, `CITY_ID`, `BR_NAME`, `BR_MAIN`, `BR_ADDRESS`) VALUES
+(1, 1, 30, 'المقر الرئيسى', 1, '30 كورنيش النيل الدور الاول');
+
+--
+-- 8. المخازن
+--
+INSERT INTO `stores` (`STO_ID`, `BRANCH_ID`, `STO_NAME`, `STTY_ID`) VALUES
+(1, 1, 'المخزن الرئيسى', 2);
+
+SET FOREIGN_KEY_CHECKS=1;
+
+
 
 --
 -- 11. فئات المنتجات
@@ -1789,7 +1801,7 @@ INSERT INTO `product_option` (`OPTION_ID`, `VALUE`) VALUES
 (2, '10'),
 (2, '12'),
 (2, '14'),
-(2, '16');
+(2, '16'),
 (2, '28'),
 (2, '30'),
 (2, '32'),
@@ -2050,7 +2062,8 @@ CREATE TABLE IF NOT EXISTS `delivery_customer_collections` (
     `delivery_user_id` BIGINT UNSIGNED NOT NULL,
     `customer_id` BIGINT UNSIGNED NOT NULL,
     `branch_id` BIGINT UNSIGNED NOT NULL,
-    `payment_method_id` BIGINT UNSIGNED NOT NULL,
+    `payment_method_id` BIGINT UNSIGNED NULL,
+    `collection_source` ENUM('ORDER_COLLECTION','REJECTED_SHIPPING') NOT NULL DEFAULT 'ORDER_COLLECTION',
     `collection_date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `customer_paid_amount` DECIMAL(15,2) NOT NULL,
     `commission_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
@@ -2105,11 +2118,14 @@ CREATE TABLE IF NOT EXISTS `delivery_company_settlements` (
     `status` ENUM('DRAFT','POSTED','REVERSED') NOT NULL DEFAULT 'DRAFT',
     `note` VARCHAR(500) NULL,
     `created_by` BIGINT UNSIGNED NOT NULL,
+    `request_key` VARCHAR(64) NULL,
+    `request_hash` CHAR(64) NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `posted_at` DATETIME NULL,
     `reversed_at` DATETIME NULL,
     `reversed_by` BIGINT UNSIGNED NULL,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_settlement_request_key` (`request_key`),
     UNIQUE KEY `uq_delivery_settlement_no` (`settlement_no`),
     KEY `idx_delivery_settlement_courier` (`delivery_user_id`,`status`,`settlement_date`),
     KEY `idx_delivery_settlement_journal` (`journal_id`),
@@ -2131,11 +2147,14 @@ CREATE TABLE IF NOT EXISTS `delivery_commission_payments` (
     `status` ENUM('DRAFT','POSTED','REVERSED') NOT NULL DEFAULT 'DRAFT',
     `note` VARCHAR(500) NULL,
     `created_by` BIGINT UNSIGNED NOT NULL,
+    `request_key` VARCHAR(64) NULL,
+    `request_hash` CHAR(64) NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `posted_at` DATETIME NULL,
     `reversed_at` DATETIME NULL,
     `reversed_by` BIGINT UNSIGNED NULL,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_commission_payment_request_key` (`request_key`),
     UNIQUE KEY `uq_delivery_commission_payment_no` (`payment_no`),
     KEY `idx_delivery_commission_payment_courier` (`delivery_user_id`,`status`,`payment_date`),
     KEY `idx_delivery_commission_payment_journal` (`journal_id`),
@@ -2274,3 +2293,151 @@ CREATE TABLE IF NOT EXISTS `reasons_for_product_rejection` (
   `REASON_ID` int(11) NOT NULL,
   `COMMENT` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+-- جداول تسوية رفض التوصيل ومحاولات العمولة.
+
+CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `shipmov_id` INT(11) NOT NULL,
+    `order_id` BIGINT(20) NOT NULL,
+    `delivery_user_id` BIGINT(20) NOT NULL,
+    `branch_id` INT(11) NOT NULL,
+    `shipping_amount_snapshot` DECIMAL(15,2) NOT NULL,
+    `commission_percent_snapshot` DECIMAL(9,4) NOT NULL,
+    `commission_amount` DECIMAL(15,2) NOT NULL,
+    `accounting_event_id` BIGINT UNSIGNED DEFAULT NULL,
+    `journal_entry_id` BIGINT UNSIGNED DEFAULT NULL,
+    `status` ENUM('POSTED','NO_COMMISSION') NOT NULL,
+    `created_by` BIGINT(20) NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_attempt_commission_shipmov` (`shipmov_id`),
+    UNIQUE KEY `uq_delivery_attempt_commission_event` (`accounting_event_id`),
+    UNIQUE KEY `uq_delivery_attempt_commission_journal` (`journal_entry_id`),
+    KEY `idx_delivery_attempt_commission_delivery` (`delivery_user_id`,`status`,`created_at`),
+    KEY `idx_delivery_attempt_commission_order` (`order_id`),
+    CONSTRAINT `chk_delivery_attempt_shipping_nonnegative` CHECK (`shipping_amount_snapshot` >= 0),
+    CONSTRAINT `chk_delivery_attempt_percent_range` CHECK (`commission_percent_snapshot` >= 0 AND `commission_percent_snapshot` <= 100),
+    CONSTRAINT `chk_delivery_attempt_commission_nonnegative` CHECK (`commission_amount` >= 0),
+    CONSTRAINT `chk_delivery_attempt_commission_journal` CHECK (
+        (`status` = 'POSTED' AND `commission_amount` > 0 AND `accounting_event_id` IS NOT NULL AND `journal_entry_id` IS NOT NULL)
+        OR
+        (`status` = 'NO_COMMISSION' AND `commission_amount` = 0 AND `accounting_event_id` IS NULL AND `journal_entry_id` IS NULL)
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `shipmov_id` INT(11) NOT NULL,
+    `delivery_user_id` BIGINT UNSIGNED NOT NULL,
+    `branch_id` INT(11) NOT NULL,
+    `shipping_amount_snapshot` DECIMAL(15,2) NOT NULL,
+    `accounting_event_id` BIGINT UNSIGNED NOT NULL,
+    `journal_entry_id` BIGINT UNSIGNED NOT NULL,
+    `delivery_collection_id` BIGINT UNSIGNED NULL,
+    `status` ENUM('POSTED') NOT NULL DEFAULT 'POSTED',
+    `created_by` BIGINT UNSIGNED NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_rejected_shipping_order` (`order_id`),
+    UNIQUE KEY `uq_rejected_shipping_attempt` (`shipmov_id`),
+    UNIQUE KEY `uq_rejected_shipping_event` (`accounting_event_id`),
+    UNIQUE KEY `uq_rejected_shipping_journal` (`journal_entry_id`),
+    UNIQUE KEY `uq_rejected_shipping_delivery_collection` (`delivery_collection_id`),
+    KEY `idx_rejected_shipping_delivery` (`delivery_user_id`, `created_at`),
+    KEY `idx_rejected_shipping_branch` (`branch_id`, `created_at`),
+    CONSTRAINT `chk_rejected_shipping_amount_positive` CHECK (`shipping_amount_snapshot` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews` (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+ shipmov_id INT(11) NOT NULL,
+ order_id BIGINT UNSIGNED NOT NULL,
+ delivery_user_id BIGINT UNSIGNED NOT NULL,
+ branch_id INT(11) NOT NULL,
+ shipping_amount_snapshot DECIMAL(15,2) NOT NULL,
+ commission_percent_snapshot DECIMAL(9,4) NOT NULL,
+ estimated_compensation DECIMAL(15,2) NOT NULL DEFAULT 0,
+ approved_compensation DECIMAL(15,2) NOT NULL DEFAULT 0,
+ status ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+ accounting_event_id BIGINT UNSIGNED NULL,
+ journal_entry_id BIGINT UNSIGNED NULL,
+ decision_note VARCHAR(500) NULL,
+ decided_by BIGINT UNSIGNED NULL,
+ decided_at DATETIME NULL,
+ created_by BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY (id),
+ UNIQUE KEY uq_rejected_shipping_review_attempt (shipmov_id),
+ UNIQUE KEY uq_rejected_shipping_review_event (accounting_event_id),
+ UNIQUE KEY uq_rejected_shipping_review_journal (journal_entry_id),
+ KEY idx_rejected_shipping_review_delivery (delivery_user_id,status,created_at),
+ KEY idx_rejected_shipping_review_branch (branch_id,status,created_at),
+ KEY idx_rejected_shipping_review_order (order_id),
+ CONSTRAINT chk_rejected_shipping_review_amounts CHECK (
+  shipping_amount_snapshot >= 0 AND commission_percent_snapshot >= 0
+  AND commission_percent_snapshot <= 100 AND estimated_compensation >= 0
+  AND approved_compensation >= 0
+ ),
+ CONSTRAINT chk_rejected_shipping_review_decision CHECK (
+  (status='PENDING' AND approved_compensation=0 AND accounting_event_id IS NULL AND journal_entry_id IS NULL AND decided_by IS NULL)
+  OR (status='REJECTED' AND approved_compensation=0 AND accounting_event_id IS NULL AND journal_entry_id IS NULL AND decided_by IS NOT NULL)
+  OR (status='APPROVED' AND approved_compensation>0 AND accounting_event_id IS NOT NULL AND journal_entry_id IS NOT NULL AND decided_by IS NOT NULL)
+ )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- جداول منع تكرار تأكيد الشحن والتحصيل.
+
+CREATE TABLE IF NOT EXISTS `delivery_confirmation_requests` (
+    `request_key` VARCHAR(64) NOT NULL,
+    `request_hash` CHAR(64) NOT NULL,
+    `session_id` VARCHAR(64) NOT NULL,
+    `actor_id` BIGINT UNSIGNED NOT NULL,
+    `branch_id` BIGINT UNSIGNED NOT NULL,
+    `status` ENUM('PROCESSING','COMPLETED') NOT NULL DEFAULT 'PROCESSING',
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `completed_at` DATETIME NULL,
+    PRIMARY KEY (`request_key`),
+    KEY `idx_delivery_confirmation_status_created` (`status`, `created_at`),
+    KEY `idx_delivery_confirmation_session` (`session_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `delivery_collection_requests` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `request_key` VARCHAR(64) NOT NULL,
+    `request_hash` CHAR(64) NOT NULL,
+    `delivery_user_id` BIGINT UNSIGNED NOT NULL,
+    `branch_id` BIGINT UNSIGNED NOT NULL,
+    `payment_method_id` BIGINT UNSIGNED NOT NULL,
+    `total_amount` DECIMAL(15,2) NOT NULL,
+    `order_count` INT UNSIGNED NOT NULL,
+    `note` VARCHAR(500) NULL,
+    `status` ENUM('PROCESSING','POSTED') NOT NULL DEFAULT 'PROCESSING',
+    `created_by` BIGINT UNSIGNED NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `completed_at` DATETIME NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_collection_request_key` (`request_key`),
+    KEY `idx_delivery_collection_request_delivery` (`delivery_user_id`,`created_at`),
+    CONSTRAINT `chk_delivery_collection_request_total` CHECK (`total_amount` > 0),
+    CONSTRAINT `chk_delivery_collection_request_orders` CHECK (`order_count` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `delivery_collection_request_collections` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `request_id` BIGINT UNSIGNED NOT NULL,
+    `collection_id` BIGINT UNSIGNED NOT NULL,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `customer_amount` DECIMAL(15,2) NOT NULL,
+    `commission_amount` DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_request_order` (`request_id`,`order_id`),
+    UNIQUE KEY `uq_delivery_request_collection` (`collection_id`),
+    KEY `idx_delivery_request_collection_request` (`request_id`),
+    CONSTRAINT `fk_delivery_request_collection_request` FOREIGN KEY (`request_id`) REFERENCES `delivery_collection_requests` (`id`),
+    CONSTRAINT `fk_delivery_request_collection_document` FOREIGN KEY (`collection_id`) REFERENCES `delivery_customer_collections` (`id`),
+    CONSTRAINT `chk_delivery_request_collection_amount` CHECK (`customer_amount` > 0),
+    CONSTRAINT `chk_delivery_request_collection_commission` CHECK (`commission_amount` >= 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

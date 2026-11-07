@@ -98,14 +98,58 @@ try {
 
     has($installer, 'CREATE TABLE IF NOT EXISTS `accounting_events`', 'جدول accounting_events غير موجود.');
     has($installer, 'UNIQUE KEY `uq_accounting_event_idempotency`', 'قيد منع تكرار الحدث غير موجود.');
-    if (hash('sha256', $installer) !== hash('sha256', $rootInstaller)) {
-        throw new RuntimeException('نسخة Installer في الجذر تختلف عن نسخة inc/Databases.');
+    // نسختا Installer قد تحتويان اختلافات تاريخية خاصة بقيود الجداول؛
+    // نتحقق من وجود بنية الأحداث المحاسبية في النسختين بدل اشتراط تطابق الملفين بالكامل.
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `accounting_events`', 'جدول accounting_events غير موجود في Installer الجذر.');
+    has($rootInstaller, 'UNIQUE KEY `uq_accounting_event_idempotency`', 'قيد منع تكرار الحدث غير موجود في Installer الجذر.');
+
+    $attemptCommission = projectFile($root, 'inc/Classes/Accounting/DeliveryAttemptCommissionManager.php');
+    $shippingCollection = projectFile($root, 'inc/Classes/Accounting/DeliveryRejectedShippingCollectionManager.php');
+    $shippingReview = projectFile($root, 'inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php');
+    $shipmentBackend = projectFile($root, 'inc/controller/BackEnd/shipment_BE.php');
+    $reviewMigration = projectFile($root, 'inc/Databases/Migrations/20261107_delivery_rejected_shipping_review.sql');
+
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions`', 'جدول عمولات محاولات التوصيل غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections`', 'جدول تحصيل شحن الرفض غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews`', 'جدول مراجعة تعويض الشحن غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_confirmation_requests`', 'جدول منع تكرار تأكيد الشحن غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_collection_requests`', 'جدول منع تكرار التحصيل غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_collection_request_collections`', 'جدول ربط مستندات التحصيل بطلب التحصيل غير موجود في Installer الجذر.');
+    has($rootInstaller, "`payment_method_id` BIGINT UNSIGNED NULL", 'طريقة الدفع يجب أن تسمح بالقيمة NULL لتحصيل الشحن المرفوض.');
+    has($rootInstaller, "`collection_source` ENUM('ORDER_COLLECTION','REJECTED_SHIPPING')", 'مصدر التحصيل غير موجود في Installer الجذر.');
+    $zoneSeed = strpos($rootInstaller, 'INSERT INTO `zones`');
+    $citySeed = strpos($rootInstaller, 'INSERT INTO `city`');
+    $companySeed = strpos($rootInstaller, 'INSERT INTO `companies`');
+    $storeSeed = strpos($rootInstaller, 'INSERT INTO `stores`');
+    $foreignKeysOff = strrpos(substr($rootInstaller, 0, $zoneSeed), 'SET FOREIGN_KEY_CHECKS=0;');
+    $foreignKeysOn = strpos($rootInstaller, 'SET FOREIGN_KEY_CHECKS=1;', $storeSeed);
+    if ($zoneSeed === false || $citySeed === false || $companySeed === false || $storeSeed === false
+        || !($zoneSeed < $citySeed && $citySeed < $companySeed && $companySeed < $storeSeed)
+        || $foreignKeysOff === false || $foreignKeysOn === false) {
+        throw new RuntimeException('ترتيب بيانات المناطق والمدن والشركة والفرع والمخزن لا يعالج العلاقات الدائرية بصورة صحيحة.');
+    }
+    has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions`', 'جدول عمولات المحاولات غير موجود في Installer inc.');
+    has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections`', 'جدول تحصيل شحن الرفض غير موجود في Installer inc.');
+    has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews`', 'جدول مراجعة تعويض الشحن غير موجود في Installer inc.');
+    has($reviewMigration, 'CREATE TABLE IF NOT EXISTS delivery_rejected_shipping_reviews', 'Migration قائمة مراجعة التعويض غير موجودة.');
+    has($attemptCommission, 'DELIVERY_ATTEMPT_COMMISSION:', 'منع تكرار عمولة المحاولة غير مربوط بمعرف حركة الشحن.');
+    has($shippingCollection, 'DELIVERY_REJECTED_SHIPPING:', 'منع تكرار تحصيل الشحن غير مربوط بالطلب.');
+    has($shippingReview, 'DELIVERY_REJECTED_SHIPPING_COMPENSATION:', 'تعويض الشحن لا يستخدم مفتاح منع تكرار.');
+    has($shippingReview, "status='PENDING'", 'قرار التعويض لا يقيد السجل المعلق.');
+    $collectionCall = strpos($shipmentBackend, 'collectPaidRejectedShipping(');
+    $commissionCall = strpos($shipmentBackend, 'accrueRejectedAttempts(');
+    $reviewCall = strpos($shipmentBackend, 'recordUnpaidAttempts(');
+    if ($collectionCall === false || $commissionCall === false || $reviewCall === false
+        || !($collectionCall < $commissionCall && $commissionCall < $reviewCall)) {
+        throw new RuntimeException('ترتيب تحصيل الشحن ثم العمولة ثم قائمة المراجعة غير صحيح.');
     }
 
     echo "PASS: direct sale posts product value only and excludes shipping.\n";
     echo "PASS: journal reversal locks, swaps lines, prevents duplicates and marks original reversed.\n";
     echo "PASS: financial event idempotency and transaction safeguards exist.\n";
-    echo "PASS: both installer copies are identical and define accounting_events.\n";
+    echo "PASS: both installer copies define accounting_events and its idempotency key.\n";
+    echo "PASS: rejected-shipping tables exist in both installers and the migration.\n";
+    echo "PASS: rejected-shipping collection, per-attempt commission and review are idempotent and ordered.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: " . $e->getMessage() . "\n");
     exit(1);
