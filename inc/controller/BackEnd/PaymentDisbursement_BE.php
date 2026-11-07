@@ -198,14 +198,6 @@ class PaymentDisbursement {
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
 		$partnerType = strtoupper((string)$partnerType);
 		if ($partnerType === 'SUPPLIER') {
-			$legacySql = "SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE -BALANCE END),0)
-				FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' AND PARTNER_ID=?";
-			$legacyParams = [(int)$partnerId];
-			if ($order_id) { $legacySql .= " AND REFERENCE_ID=?"; $legacyParams[] = (int)$order_id; }
-			$legacyStmt = $this->conn->prepare($legacySql);
-			$legacyStmt->execute($legacyParams);
-			$legacyBalance = (float)$legacyStmt->fetchColumn();
-
 			$accountKeys = $order_id ? "'SUPPLIERS'" : "'SUPPLIERS','SUPPLIER_ADVANCES'";
 			$glSql = "SELECT COALESCE(SUM(d.credit-d.debit),0)
 				FROM journal_entry_details d
@@ -216,13 +208,13 @@ class PaymentDisbursement {
 			$glParams = [(int)$partnerId];
 			if ($order_id) {
 				$glSql .= " AND (d.reference_id=? OR (h.reference_type IN ('PURCHASE_ORDER','PURCHASE_RETURN') AND h.reference_id=?))";
-				$glParams[] = (int)$order_id; $glParams[] = (int)$order_id;
+				$glParams[] = (int)$order_id;
+				$glParams[] = (int)$order_id;
 			}
 			$glStmt = $this->conn->prepare($glSql);
 			$glStmt->execute($glParams);
 			$glBalance = round((float)$glStmt->fetchColumn(), 2);
-			$totalBalance = round($legacyBalance + $glBalance, 2);
-			return [['total_balance' => $totalBalance, 'legacy_balance' => round($legacyBalance, 2), 'gl_balance' => $glBalance]];
+			return [['total_balance' => $glBalance, 'gl_balance' => $glBalance]];
 		}
 		if ($partnerType === 'DELIVERY') {
 			if ($order_id) return [['total_balance' => 0]];
