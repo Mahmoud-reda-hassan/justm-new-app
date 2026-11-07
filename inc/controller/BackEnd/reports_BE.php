@@ -511,7 +511,7 @@ class reports_BE {
 			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
 				AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
-			LEFT JOIN orders o ON h.reference_type = 'MARKETER_COMMISSION_ACCRUAL'
+			LEFT JOIN orders o ON h.reference_type IN ('MARKETER_COMMISSION_ACCRUAL','SALES_RETURN')
 				AND o.ORDER_ID = h.reference_id
 			LEFT JOIN marketer_commission_payments mcp ON h.reference_type = 'MARKETER_COMMISSION_PAYMENT'
 				AND mcp.id = h.reference_id
