@@ -276,17 +276,26 @@ function loadSupplierOrders(supplierId) {
                     data-order="${data.ORDER_ID}"
                     data-remain="${data.REMAIN}"
                     value="0" min="0" max="${data.REMAIN}" step="0.01">`
+            },
+            {
+                data: null,
+                render: data => `<input type="number" class="form-control advance-input" style="width:140px"
+                    data-order="${data.ORDER_ID}" data-remain="${data.REMAIN}"
+                    value="0" min="0" max="${data.REMAIN}" step="0.01">`
             }
         ],
         columnDefs: [
 	        {
-	            targets: [0,1,2,3,4,5,6,7], // أرقام الأعمدة
+	            targets: [0,1,2,3,4,5,6,7,8], // أرقام الأعمدة
 	            className: 'text-nowrap'
 	        }
 	    ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json' },
         drawCallback: () => autoDistributeSupplierPayment($('#amount-morad').val() || 0)
     });
+    request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
+        .then(data => $('#supplier-existing-advance').text(formatMoney(data?.available_advance ?? data?.data?.available_advance ?? 0)))
+        .catch(() => $('#supplier-existing-advance').text('تعذر التحميل'));
 }
 
 function calculateSupplierTotal() {
@@ -336,6 +345,34 @@ function autoDistributeSupplierPayment(amount) {
     $('#current-payment-total').text(formatMoney(allocated));
     $('#supplier-advance-total').text(formatMoney(Math.max(0, remaining)));
     calculateSupplierTotal();
+}
+
+async function applySupplierAdvances(mode) {
+    const supplierId = Number($('#select-morad').val() || 0);
+    if (!supplierId) return showAlert('warning', 'تنبيه', 'اختر المورد أولًا');
+    const orders = [];
+    if (mode === 'MANUAL') {
+        $('#supplierOrdersTable .advance-input').each(function () {
+            const amount = Math.round((parseFloat($(this).val()) || 0) * 100) / 100;
+            if (amount > 0) orders.push({ orderId: Number($(this).data('order')), amount });
+        });
+        if (!orders.length) return showAlert('warning', 'تنبيه', 'حدد مبالغ المقدم في الفواتير أولًا');
+    }
+    const requestKey = 'SADV-' + (window.crypto?.randomUUID ? window.crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    const payload = { CONTROL: 'ApplySupplierAdvances', supplier_id: supplierId, mode, request_key: requestKey };
+    orders.forEach((item, index) => { payload['orders[' + index + '][orderId]'] = item.orderId; payload['orders[' + index + '][amount]'] = item.amount.toFixed(2); });
+    showLoading('جارٍ تطبيق مقدم المورد...');
+    try {
+        const result = await request(API_FINANCE, payload, 'POST');
+        hideLoading();
+        showAlert(result[0] || 'error', result[1] || 'خطأ', result[2] || 'تعذر تطبيق المقدم');
+        if (result[0] === 'success') {
+            delete balanceCache['SUPPLIER_' + supplierId];
+            if (supplierOrdersTable) supplierOrdersTable.ajax.reload();
+            request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
+                .then(data => $('#supplier-existing-advance').text(formatMoney(data?.available_advance ?? 0)));
+        }
+    } catch (error) { hideLoading(); showAlert('error', 'خطأ', error.message); }
 }
 
 /*==================================================
