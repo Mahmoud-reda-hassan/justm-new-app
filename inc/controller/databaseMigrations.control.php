@@ -32,11 +32,17 @@ try {
     $db = $database->getConnection(DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_CHARSET);
     $manager = new DatabaseMigrationManager($db, ABSPATH);
     $action = (string)($_POST['action'] ?? '');
+    $host = strtolower((string)preg_replace('/:\\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? '')));
+    $localOrTestHost = in_array($host, ['testar.just-m.net', 'localhost', '127.0.0.1'], true);
+    $executionAllowed = $localOrTestHost || (defined('ALLOW_ADMIN_DB_MIGRATIONS') && ALLOW_ADMIN_DB_MIGRATIONS === true);
 
     if ($action === 'list') {
+        $environment = $manager->getEnvironment();
+        $environment['host'] = $host;
+        $environment['can_execute'] = $executionAllowed;
         $response([
             'success' => true,
-            'environment' => $manager->getEnvironment(),
+            'environment' => $environment,
             'migrations' => $manager->listMigrations(),
         ]);
     }
@@ -47,6 +53,9 @@ try {
     }
 
     if ($action === 'run') {
+        if (!$executionAllowed) {
+            $response(['success' => false, 'message' => 'تنفيذ ترحيلات قاعدة البيانات متاح فقط على testar.just-m.net أو بيئة localhost.'], 403);
+        }
         $result = $manager->run(
             $file,
             (string)($_POST['confirm_name'] ?? ''),
