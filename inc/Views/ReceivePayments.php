@@ -86,14 +86,6 @@
 					
         		</div>
     		</div>
-                <div class="form-row mt-3">
-                    <div class="form-group col-md-4">
-                        <label for="rcPaymentMethod">طريقة استلام التحصيل من المندوب</label>
-                        <select id="rcPaymentMethod" class="form-control">
-                            <option value="">اختر طريقة الدفع</option>
-                        </select>
-                    </div>
-                </div>
     	</div>
 
 <!-- المرحلة 14: تسوية عهدة التحصيلات الجديدة؛ لا تستبدل المسار القديم قبل الاختبار -->
