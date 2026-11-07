@@ -5,6 +5,8 @@ include_once(ABSPATH.'/inc/Databases/dbconn.php');
 include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliverySettlementManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php');
+$deliveryShippingReviews = new DeliveryRejectedShippingReviewManager($db);
 
 $DBconn        	= new dbconn();
 $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
@@ -95,6 +97,25 @@ try {
             $requireFinanceAdmin();
             $deliveryAccounting->updateCommissionSettlementMode((string)($_POST['mode'] ?? ''), (int)($_SESSION['USER_ID'] ?? 0));
             echo json_encode(['success' => true, 'mode' => $deliveryAccounting->getCommissionSettlementMode()], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'GetRejectedShippingReviews':
+            $requireFinanceAdmin();
+            echo json_encode(['success' => true, 'reviews' => $deliveryShippingReviews->listPending($branchId, (int)($_POST['delivery_id'] ?? 0) ?: null)], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'DecideRejectedShippingReview':
+            $requireFinanceAdmin();
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            $approve = (string)($_POST['decision'] ?? '') === 'APPROVE';
+            if (!in_array((string)($_POST['decision'] ?? ''), ['APPROVE', 'REJECT'], true)) {
+                throw new InvalidArgumentException('قرار التسوية غير صحيح.');
+            }
+            $result = $deliveryShippingReviews->decide(
+                (int)($_POST['review_id'] ?? 0), $branchId, (int)($_SESSION['USER_ID'] ?? 0),
+                $approve, (float)($_POST['amount'] ?? 0), (string)($_POST['note'] ?? '')
+            );
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
 
         case 'GetDeliveryOpenOrders':
