@@ -6,7 +6,7 @@ require_once __DIR__ . '/JournalManager.php';
 
 /**
  * صرف رصيد مردود المبيعات من الأستاذ العام فقط.
- * لا يعتمد على invoices أو financial_transactions أو partners_balance.
+ * كل الردود الجديدة تُرحّل إلى GL؛ تُقرأ سجلات الردود القديمة فقط لمنع الصرف المكرر.
  */
 final class CustomerRefundManager
 {
