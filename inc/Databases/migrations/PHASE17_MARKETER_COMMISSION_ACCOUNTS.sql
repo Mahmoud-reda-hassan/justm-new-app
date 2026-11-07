@@ -10,7 +10,8 @@ SELECT
     (SELECT id FROM accounts WHERE account_code = '2150' LIMIT 1),
     '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 3,
     1, 1, 1, 1, 'مستحقات مستقلة لعمولات المسوقين وقادة الفرق'
-WHERE NOT EXISTS (
+WHERE EXISTS (SELECT 1 FROM accounts WHERE account_code = '2150')
+  AND NOT EXISTS (
     SELECT 1 FROM accounts WHERE account_code = '2152'
 );
 
@@ -21,7 +22,8 @@ SELECT
     (SELECT id FROM accounts WHERE account_code = '5400' LIMIT 1),
     '5420', 'التسويق بالعمولة', 'EXPENSE', 'DEBIT', 3,
     1, 1, 1, 1, 'مصروف عمولات المسوقين وقادة الفرق'
-WHERE NOT EXISTS (
+WHERE EXISTS (SELECT 1 FROM accounts WHERE account_code = '5400')
+  AND NOT EXISTS (
     SELECT 1 FROM accounts WHERE account_code = '5420'
 );
 
