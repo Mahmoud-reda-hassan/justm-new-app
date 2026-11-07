@@ -3,6 +3,9 @@
 -- Target: MariaDB 10.5+
 -- Scope: one company now; schema remains compatible with multi-company
 --       operation later. This migration does not create financial data.
+-- Apply ONLY to databases created with the older installer (global BR_NAME
+-- index and missing branch foreign keys). Do NOT run on a fresh database
+-- created with the updated JUSTM_DATABASE_INSTALL.sql.
 --
 -- IMPORTANT:
 -- 1) Take a full database backup first.
