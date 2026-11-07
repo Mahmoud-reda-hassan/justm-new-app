@@ -32,7 +32,23 @@ $assert(stripos((string)$environment['database'], 'test') !== false, 'Migration 
 // Force the two first CREATE TABLE migrations through their real creation path.
 $pdo->exec('DROP TABLE IF EXISTS payment_method_accounts');
 $pdo->exec('DROP TABLE IF EXISTS accounting_line_allocations');
-// Phase 14 tables are left intact because other installer tables may reference them.\n$pdo->exec('DROP TABLE IF EXISTS supplier_payment_allocations');
+// Phase 14 tables are left intact because other installer tables may reference them.
+
+// Seed only the test database with the three chart-of-accounts prerequisites for phase 19.
+$seedAccount = $pdo->prepare(
+    "INSERT INTO accounts (account_code, account_name, account_type, normal_balance, account_level, is_active, allow_posting, system_account, is_system_created, description)
+     SELECT ?, ?, ?, ?, 1, 1, 1, 1, 1, 'Test prerequisite for migration runner'
+     WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = ?)"
+);
+foreach ([
+    ['2111', 'Test suppliers payable', 'LIABILITY', 'CREDIT'],
+    ['1162', 'Test inventory in transit', 'ASSET', 'DEBIT'],
+    ['1171', 'Test supplier advances', 'ASSET', 'DEBIT'],
+] as $account) {
+    $seedAccount->execute([$account[0], $account[1], $account[2], $account[3], $account[0]]);
+}
+
+$pdo->exec('DROP TABLE IF EXISTS supplier_payment_allocations');
 $pdo->exec('DROP TABLE IF EXISTS marketer_commission_payments');
 $pdo->exec('DROP TABLE IF EXISTS customer_refund_payments');
 $pdo->exec('DROP TABLE IF EXISTS supplier_gl_advance_applications');
