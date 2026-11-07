@@ -34,7 +34,11 @@ if($http_RQM === "POST") {
 		switch ($_POST['CONTROL']) {
 			
 		//------------- listOrders ----------------------
-			case 'GetSupplierOrderList':
+			case 'GetSupplierAdvanceBalance':
+                $supplierId = (int)($_POST['supplierId'] ?? 0);
+                ResponseData($BE->GetSupplierAdvanceBalance($supplierId));
+                break;
+            case 'GetSupplierOrderList':
 				$BE->Requst = $_POST;
 				$supplierId = $_POST['supplierId'];
 				ResponseData($BE->GetSupplierOrderList($supplierId));
