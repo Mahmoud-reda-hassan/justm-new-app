@@ -505,8 +505,6 @@ class inventory_BE {
 		    $resA = $this->purchase->returnPurchaseOrder($supplierId, $reference, $totalPrice, 0, 'DEFERRED', '', $products, $returnOrderID = true);
 		    
 		    if (!$resA) throw new Exception("لم يتم تأكيد حفظ  مرتجع أمر الشراء.");
-			//$resB1 = $this->finance->addSupplierCredit($this->conn,$supplierId, $resA, $totalPrice);
-		    //if (!$resB1)  throw new Exception("حدث خطاء اثناء تحديث ارصدة المورد.");
 		    $resB2 = $this->finance->Add_invoice($resA, 'PURCHASES', $totalPrice, 0, 0, 0);
 		    if (!$resB2)  throw new Exception("لم يتم تأكيد حفظ فاتورة الشراء.");
 		    
