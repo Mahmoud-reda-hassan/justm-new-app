@@ -2,7 +2,7 @@ name: Accounting PHP Validation
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/gl-only-accounting-cutover]
     paths:
       - 'inc/Classes/Accounting/**'
       - 'inc/Databases/JUSTM_DATABASE_INSTALL.sql'
