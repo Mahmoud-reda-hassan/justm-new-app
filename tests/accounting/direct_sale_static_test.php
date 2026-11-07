@@ -114,6 +114,17 @@ try {
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews`', 'جدول مراجعة تعويض الشحن غير موجود في Installer الجذر.');
     has($rootInstaller, "`payment_method_id` BIGINT UNSIGNED NULL", 'طريقة الدفع يجب أن تسمح بالقيمة NULL لتحصيل الشحن المرفوض.');
     has($rootInstaller, "`collection_source` ENUM('ORDER_COLLECTION','REJECTED_SHIPPING')", 'مصدر التحصيل غير موجود في Installer الجذر.');
+    $zoneSeed = strpos($rootInstaller, 'INSERT INTO `zones`');
+    $citySeed = strpos($rootInstaller, 'INSERT INTO `city`');
+    $companySeed = strpos($rootInstaller, 'INSERT INTO `companies`');
+    $storeSeed = strpos($rootInstaller, 'INSERT INTO `stores`');
+    $foreignKeysOff = strrpos(substr($rootInstaller, 0, $zoneSeed), 'SET FOREIGN_KEY_CHECKS=0;');
+    $foreignKeysOn = strpos($rootInstaller, 'SET FOREIGN_KEY_CHECKS=1;', $storeSeed);
+    if ($zoneSeed === false || $citySeed === false || $companySeed === false || $storeSeed === false
+        || !($zoneSeed < $citySeed && $citySeed < $companySeed && $companySeed < $storeSeed)
+        || $foreignKeysOff === false || $foreignKeysOn === false) {
+        throw new RuntimeException('ترتيب بيانات المناطق والمدن والشركة والفرع والمخزن لا يعالج العلاقات الدائرية بصورة صحيحة.');
+    }
     has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions`', 'جدول عمولات المحاولات غير موجود في Installer inc.');
     has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections`', 'جدول تحصيل شحن الرفض غير موجود في Installer inc.');
     has($installer, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews`', 'جدول مراجعة تعويض الشحن غير موجود في Installer inc.');
