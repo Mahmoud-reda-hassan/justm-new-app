@@ -1107,14 +1107,15 @@ final class DeliverySettlementManager
         int $deliveryId,
         int $branchId,
         int $paymentMethodId,
+        int $cashBoxId,
         float $amount,
         string $note = '',
         string $requestKey = '',
         string $requestHash = ''
     ): array {
         $this->validateIdempotencyRequest($requestKey, $requestHash);
-        if ($deliveryId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || !is_finite($amount) || $amount <= 0) {
-            throw new InvalidArgumentException('المندوب والفرع وطريقة الدفع ومبلغ العمولة بيانات إلزامية.');
+        if ($deliveryId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || $cashBoxId <= 0 || !is_finite($amount) || $amount <= 0) {
+            throw new InvalidArgumentException('المندوب والفرع وطريقة الدفع والخزينة ومبلغ العمولة بيانات إلزامية.');
         }
         $amount = round($amount, 2);
         $actorId = $this->actorId();
@@ -1129,6 +1130,20 @@ final class DeliverySettlementManager
             }
             $payableAccountId = (int)$settings['courier_commission_payable_account_id'];
             $cashAccountId = $this->accounts->transactionAccount($paymentMethodId, $branchId);
+            $cashBoxStmt = $this->db->prepare("SELECT cb.account_id
+                FROM cash_boxes cb
+                INNER JOIN payment_method_accounts pma
+                    ON pma.branch_id = cb.branch_id AND pma.account_id = cb.account_id
+                   AND pma.payment_method_id = ? AND pma.is_active = 1
+                INNER JOIN payment_methods pm ON pm.id = pma.payment_method_id AND pm.is_active = 1
+                INNER JOIN accounts a ON a.id = cb.account_id AND a.is_active = 1 AND a.allow_posting = 1
+                WHERE cb.id = ? AND cb.branch_id = ? AND cb.is_active = 1
+                LIMIT 1 FOR UPDATE");
+            $cashBoxStmt->execute([$paymentMethodId, $cashBoxId, $branchId]);
+            $cashBoxAccountId = $cashBoxStmt->fetchColumn();
+            if (!$cashBoxAccountId || (int)$cashBoxAccountId !== $cashAccountId) {
+                throw new RuntimeException('الخزينة المحددة غير نشطة أو لا تتبع الفرع أو لا تطابق حساب طريقة الدفع.');
+            }
 
             $balanceStmt = $this->db->prepare("SELECT ROUND(COALESCE(SUM(d.credit - d.debit),0),2)
                 FROM journal_entry_details d
@@ -1164,7 +1179,8 @@ final class DeliverySettlementManager
             ]);
             $this->journal->addLine([
                 'account_id' => $cashAccountId,
-                'credit' => $amount, 'note' => 'صرف عمولة فعليًا عبر طريقة الدفع المحددة',
+                'cash_box_id' => $cashBoxId,
+                'credit' => $amount, 'note' => 'صرف عمولة فعليًا من الخزينة المحددة',
             ]);
             $journalId = $this->journal->post();
             $this->db->prepare("UPDATE delivery_commission_payments
