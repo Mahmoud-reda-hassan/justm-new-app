@@ -133,6 +133,29 @@ try {
     has($installer, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer inc.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer الجذر.');
 
+    $refundManager = projectFile($root, 'inc/Classes/Accounting/CustomerRefundManager.php');
+    $refundMethod = methodBody($refundManager, 'public function refund(');
+    has($refundMethod, 'RETURN_ENTRY_ID', 'رد المبلغ لا يشترط ترحيل مردود البيع.');
+    has($refundMethod, 'customer_refund_payments', 'رد المبلغ لا يسجل مستند GL مستقلًا.');
+    has($refundMethod, 'transactionAccount($paymentMethodId', 'رد المبلغ لا يستخدم حساب طريقة الدفع الفعلية.');
+    lacks($refundMethod, 'partners_balance', 'رد المبلغ ما زال يعتمد على دفتر الأرصدة القديم.');
+    lacks($refundMethod, 'financial_transactions', 'رد المبلغ ما زال يعتمد على الحركات المالية القديمة.');
+    $refundController = projectFile($root, 'inc/controller/finance.control.php');
+    has($refundController, "case 'RefundCustomerReturn'", 'Endpoint رد المرتجع GL غير موجود.');
+    has($refundController, 'customerRefunds->refund(', 'Endpoint رد المرتجع لا يستدعي خدمة GL.');
+    has($refundController, "case 'PaymentOfCustomerDues':", 'لم يتم إغلاق endpoint رد المرتجع القديم.');
+    lacks($refundController, '$CBE->PaymentOfCustomerDues(', 'endpoint رد المرتجع القديم ما زال نشطًا.');
+    $refundBackend = projectFile($root, 'inc/controller/BackEnd/PaymentDisbursement_BE.php');
+    has($refundBackend, 'customer_refund_payments', 'قائمة أرصدة المرتجعات لا تقرأ مستندات GL.');
+    lacks(methodBody($refundBackend, 'public function GetRefundBalance('), 'partners_balance', 'رصيد المرتجع ما زال يعتمد على partners_balance.');
+    $refundView = projectFile($root, 'inc/Views/PaymentDisbursement.php');
+    has($refundView, 'refund-payment-method', 'واجهة رد المرتجع لا تطلب طريقة الدفع.');
+    $refundJs = projectFile($root, 'dist/js/PaymentDisbursement.js');
+    has($refundJs, "'RefundCustomerReturn'", 'واجهة رد المرتجع لا تستخدم endpoint GL.');
+    has($refundJs, 'refund-payment-method', 'واجهة رد المرتجع لا ترسل طريقة الدفع.');
+    has($installer, 'CREATE TABLE IF NOT EXISTS customer_refund_payments', 'جدول رد المرتجعات غير موجود في Installer inc.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS customer_refund_payments', 'جدول رد المرتجعات غير موجود في Installer الجذر.');
+
     $accountingEvents = projectFile($root, 'inc/Classes/Accounting/AccountingEvents.php');
     $salesReturn = methodBody($accountingEvents, 'private function salesReturnInternal(');
     has($salesReturn, 'MARKETER_COMMISSION_REVERSAL', 'مرتجع البيع لا يعكس عمولة المسوق أو قائد الفريق في GL.');
