@@ -46,7 +46,10 @@
             APPLIED: '<span class="badge badge-success">تم التنفيذ</span>',
             FAILED: '<span class="badge badge-danger">فشل التنفيذ</span>',
             CHANGED: '<span class="badge badge-danger">الملف تغير بعد التنفيذ</span>',
-            MISSING: '<span class="badge badge-dark">الملف غير موجود</span>'
+            MISSING: '<span class="badge badge-dark">الملف غير موجود</span>',
+            SCHEMA_PRESENT: '<span class="badge badge-success">المخطط موجود بالفعل</span>',
+            SCHEMA_DRIFT: '<span class="badge badge-danger">المخطط غير مكتمل — يلزم فحص</span>',
+            BLOCKED: '<span class="badge badge-warning">متطلبات سابقة غير مستوفاة</span>'
         };
         return labels[status] || '<span class="badge badge-light">' + escapeHtml(status) + '</span>';
     }
@@ -80,6 +83,12 @@
                             escapeHtml(item.file) + '"><i class="fas fa-play"></i> تنفيذ</button>';
                     } else if (item.enabled && item.status !== 'APPLIED' && !executionAllowed) {
                         actions += '<span class="text-muted small">المراجعة فقط — التنفيذ غير متاح على هذا النطاق</span>';
+                    } else if (item.status === 'SCHEMA_PRESENT') {
+                        actions += '<span class="text-success small">المخطط موجود بالفعل — لا يلزم التنفيذ</span>';
+                    } else if (item.status === 'SCHEMA_DRIFT') {
+                        actions += '<span class="text-danger small">أوقف التنفيذ وافحص المخطط</span>';
+                    } else if (item.status === 'BLOCKED') {
+                        actions += '<span class="text-warning small">استوفِ المتطلبات السابقة أولًا</span>';
                     } else if (!item.enabled && item.status !== 'APPLIED') {
                         actions += '<span class="text-muted small">التنفيذ موقوف للمراجعة</span>';
                     } else {
