@@ -702,7 +702,7 @@ CREATE TABLE IF NOT EXISTS `orders_log` (
   PRIMARY KEY (`LOG_ID`),
   KEY `ORDER_ID` (`ORDER_ID`),
   KEY `USER_ACTION` (`USER_ACTION`)
-) ENGINE=InnoDB DEFAULTCHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 -- --------------------------------------------------------
 
