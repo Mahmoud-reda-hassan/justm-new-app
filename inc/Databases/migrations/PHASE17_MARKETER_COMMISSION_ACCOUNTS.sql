@@ -8,7 +8,7 @@ INSERT INTO accounts
      is_active, allow_posting, system_account, is_system_created, description)
 SELECT
     (SELECT id FROM accounts WHERE account_code = '2150' LIMIT 1),
-    '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 3,
+    '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 4,
     1, 1, 1, 1, 'مستحقات مستقلة لعمولات المسوقين وقادة الفرق'
 WHERE EXISTS (SELECT 1 FROM accounts WHERE account_code = '2150')
   AND NOT EXISTS (
