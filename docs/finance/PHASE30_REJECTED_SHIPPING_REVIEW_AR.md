@@ -7,17 +7,20 @@
 - الاعتماد فقط ينشئ قيدًا: مدين مصروف عمولة المندوب، دائن عمولة مستحقة للمندوب.
 - البيع المباشر ORDER_TYPE_ID=5 مستثنى.
 - shipmov_id هو مفتاح المحاولة ويمنع تكرارها.
-- يحتوي ملفا التثبيت على جداول عمولات المحاولات وتحصيل شحن الرفض وقائمة مراجعة التعويض، كما يحتويان على حقلي collection_source وpayment_method_id القابل لـ NULL.
+- ملفا التثبيت يحتويان على جداول منع تكرار تأكيد الشحن والتحصيل، وعمولات المحاولات، وتحصيل شحن الرفض، ومراجعة التعويض.
+- تعريف جدول التحصيل موحد: payment_method_id يقبل NULL وcollection_source يميز REJECTED_SHIPPING.
 
 ## قاعدة جديدة
 استخدم أحد ملفي التثبيت المحدثين، ولا تستورد الملف الكامل فوق قاعدة تحتوي بيانات.
 
 ## قاعدة موجودة
 بعد أخذ نسخة احتياطية، راجع حالة الجداول أولًا ثم نفّذ migrations التالية بالترتيب إذا لم تكن مطبقة:
-1. `20261105_delivery_attempt_commission.sql`
-2. `20261105_delivery_rejected_shipping_collection.sql`
-3. `20261105_delivery_rejected_shipping_settlement_integration.sql`
-4. `20261107_delivery_rejected_shipping_review.sql`
+1. `20261105_delivery_confirmation_request_idempotency.sql`
+2. `20261105_delivery_collection_request_idempotency.sql`
+3. `20261105_delivery_attempt_commission.sql`
+4. `20261105_delivery_rejected_shipping_collection.sql`
+5. `20261105_delivery_rejected_shipping_settlement_integration.sql`
+6. `20261107_delivery_rejected_shipping_review.sql`
 
 المسارات داخل `inc/Databases/Migrations/`. لا تعِد تنفيذ أي ALTER يدويًا قبل التأكد من عدم تطبيقه سابقًا.
 
