@@ -1,7 +1,7 @@
 <?php
 final class ShippingConfigurationManager {
-    private PDO $db;
-    public function __construct(PDO $db) { $this->db = $db; }
+    private PDO|TrimmedPDO $db;
+    public function __construct(PDO|TrimmedPDO $db) { $this->db = $db; }
     public function isShippingAmountEditAllowed(): bool {
         $stmt = $this->db->prepare('SELECT SETTING_VALUE FROM system_settings WHERE SETTING_KEY = ? LIMIT 1');
         $stmt->execute(['ALLOW_SHIPPING_AMOUNT_EDIT_DURING_CONFIRMATION']);
