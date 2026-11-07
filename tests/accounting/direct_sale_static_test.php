@@ -100,11 +100,15 @@ try {
     has($collection, 'marketerCommissionExpense()', 'مصروف عمولات التسويق لا يستخدم الحساب المستقل.');
     has($collection, 'marketerCommissionPayable()', 'مستحقات عمولات التسويق لا تستخدم الحساب المستقل.');
     has($commissionAccountsMigration, "'2152'", 'Migration لا ينشئ حساب مستحقات عمولات التسويق 2152.');
-    has($commissionAccountsMigration, "'5230'", 'Migration لا ينشئ حساب مصروف عمولات التسويق 5230.');
-    has($rootInstaller, "'MARKETER_COMMISSION_PAYABLE'", 'Installer الجذر لا يربط حساب مستحقات عمولات التسويق.');
-    has($rootInstaller, "'MARKETER_COMMISSION_EXPENSE'", 'Installer الجذر لا يربط حساب مصروف عمولات التسويق.');
-    has($installer, "'MARKETER_COMMISSION_PAYABLE'", 'Installer inc لا يربط حساب مستحقات عمولات التسويق.');
-    has($installer, "'MARKETER_COMMISSION_EXPENSE'", 'Installer inc لا يربط حساب مصروف عمولات التسويق.');
+    has($commissionAccountsMigration, "'5420'", 'Migration لا ينشئ حساب مصروف عمولات التسويق 5420.');
+    has($commissionAccountsMigration, "FROM accounts WHERE account_code = '5420'", 'Migration لا يربط مصروف عمولات التسويق بالحساب 5420.');
+    $chartSeed = projectFile($root, 'inc/Databases/seeds/CHART_OF_ACCOUNTS_SEED.sql');
+    has($chartSeed, "('2152','مستحقات عمولات المسوقين وقادة الفرق'", 'شجرة الحسابات لا تحتوي على حساب مستحقات المسوقين 2152.');
+    has($chartSeed, "('5420','التسويق بالعمولة'", 'شجرة الحسابات لا تحتوي على حساب التسويق بالعمولة 5420.');
+    lacks($rootInstaller, "'5230', 'مصروف عمولات المسوقين وقادة الفرق'", 'Installer الجذر يخلط حساب رسوم المرتجعات 5230 مع عمولات التسويق.');
+    lacks($installer, "'5230', 'مصروف عمولات المسوقين وقادة الفرق'", 'Installer inc يخلط حساب رسوم المرتجعات 5230 مع عمولات التسويق.');
+    lacks($rootInstaller, "'MARKETER_COMMISSION_EXPENSE'", 'Installer الجذر يربط عمولات التسويق قبل تحميل شجرة الحسابات والمرحلة 17.');
+    lacks($installer, "'MARKETER_COMMISSION_EXPENSE'", 'Installer inc يربط عمولات التسويق قبل تحميل شجرة الحسابات والمرحلة 17.');
 
     $marketerPayout = methodBody($deliveryManager, 'public function payMarketerCommission(');
     has($marketerPayout, 'marketer_commission_payments', 'صرف عمولة المسوق لا ينشئ مستند صرف GL.');
