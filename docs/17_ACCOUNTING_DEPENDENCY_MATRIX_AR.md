@@ -21,7 +21,7 @@
 | `journal_entry_details` | نعم | نعم | `JournalManager.php`, `PartnerLedger.php`, `AccountingEvents.php`, `DeliverySettlementManager.php` | مستهدف | تفاصيل المدين/الدائن والأبعاد والطرف. |
 | `accounting_line_allocations` | نعم | نعم | `AccountingEvents.php`, `PartnerLedger.php`, `DeliverySettlementManager.php` | مستهدف | تخصيص التحصيلات على المديونيات. |
 | `cash_boxes` | غير محسوم | نعم | `AccountSettings.php` | مستهدف | اختيار صندوق الفرع الافتراضي عند غياب طريقة الدفع؛ يلزم تتبع شاشة إدارة الصناديق. |
-| `banks` | لم يثبت | لم يثبت | Installer فقط في البحث الحالي | جدول قديم محفوظ في Installer؛ قاعدة testar تحتاج Migration | تم إصلاح Installer الجذر والداخلي ليحافظا على PK وAUTO_INCREMENT وFK، مع `account_id BIGINT UNSIGNED` المطابق لـ`accounts.id`. لم تُطبق Migration على قاعدة testar. لا توجد سجلات بنوك في التصديرين المرفقين. التفاصيل في `docs/finance/PHASE23_BANK_ACCOUNT_DESIGN_AR.md`. |
+| `banks` | لا | لا | Installer فقط؛ `Bank.php` فارغ | أثر قديم غير مستخدم حسب تأكيد المستخدم | لا يُنقل ولا تُبنى عليه وظيفة جديدة أو Migration. إذا طُلبت إدارة بنكية لاحقًا تُصمم من الصفر حسب دورة العمل الفعلية. |
 | `bank_accounts` (مقترح) | — | — | لم يُنشأ بعد | تصميم مستهدف | كيان جديد لحسابات البنوك مرتبط بالفرع وحساب GL، منفصل عن `cash_boxes`. |
 | `delivery_accounting_settings` | نعم | نعم | `DeliverySettlementManager.php` | مستهدف | إعداد طريقة تسوية عهدة المندوب. |
 | `purchases_payments` | نعم | لم يثبت في العينة المحددة | `finance_BE.php` | قديم/انتقالي | تفاصيل دفعات المورد لكل أمر شراء. |
