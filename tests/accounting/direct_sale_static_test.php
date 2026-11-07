@@ -144,6 +144,16 @@ try {
         throw new RuntimeException('ترتيب تحصيل الشحن ثم العمولة ثم قائمة المراجعة غير صحيح.');
     }
 
+    $orderClass = projectFile($root, 'inc/Classes/Order_tbl.php');
+    $shipmentSql = projectFile($root, 'inc/Databases/setDeliveryConfirmationOptimized.sql');
+    $orderCreation = methodBody($orderClass, 'addOrders');
+    $courierConfirmation = methodBody($shipmentBackend, 'private function confirmShipmentDelivery()');
+    lacks($orderCreation, 'addClientDebt(', 'إنشاء الطلب ما زال ينشئ مديونية قديمة قبل التسليم.');
+    lacks($orderCreation, 'partners_balance', 'إنشاء الطلب ما زال يكتب في دفتر الأرصدة القديم.');
+    has($courierConfirmation, '$accountingEvents->directSale(', 'تأكيد تسليم المندوب لا يرحّل البيع إلى الأستاذ العام.');
+    has($courierConfirmation, "cs.TYPE = 'SELSE'", 'ترحيل البيع لا يقتصر على أوامر التسليم الفعلية.');
+    lacks($shipmentSql, 'CALL restClientDebtBatch', 'إجراء تأكيد التسليم ما زال يستدعي تحديث مديونية العميل القديمة.');
+
     echo "PASS: direct sale posts product value only and excludes shipping.\n";
     echo "PASS: journal reversal locks, swaps lines, prevents duplicates and marks original reversed.\n";
     echo "PASS: financial event idempotency and transaction safeguards exist.\n";
