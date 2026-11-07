@@ -43,6 +43,36 @@ class AccountSettings
     public function cogs(): int { return $this->configuredAccount('COGS'); }
     public function inventory(): int { return $this->configuredAccount('INVENTORY'); }
 
+    /** حساب مصروف عمولات المسوقين وقادة الفرق، مستقل عن عمولات المندوبين. */
+    public function marketerCommissionExpense(): int
+    {
+        return $this->configuredAccount('MARKETER_COMMISSION_EXPENSE');
+    }
+
+    /** حساب مستحقات عمولات المسوقين وقادة الفرق، مستقل عن مستحقات المندوبين. */
+    public function marketerCommissionPayable(): int
+    {
+        return $this->configuredAccount('MARKETER_COMMISSION_PAYABLE');
+    }
+
+    /** حساب الموردين الدائنين وفق دليل الحسابات المعتمد (2111). */
+    public function suppliers(): int
+    {
+        return $this->configuredAccount('SUPPLIERS');
+    }
+
+    /** حساب المخزون بالطريق للمشتريات التي لم تستلم مخزنيًا بعد (1162). */
+    public function inventoryInTransit(): int
+    {
+        return $this->configuredAccount('INVENTORY_IN_TRANSIT');
+    }
+
+    /** حساب الدفعات المقدمة للموردين (1171). */
+    public function supplierAdvances(): int
+    {
+        return $this->configuredAccount('SUPPLIER_ADVANCES');
+    }
+
     public function salesReturns(): int
     {
         $returns = $this->configuredAccount('SALES_RETURNS');

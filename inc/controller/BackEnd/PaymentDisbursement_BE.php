@@ -91,118 +91,153 @@ class PaymentDisbursement {
 	}
 	
 	public function GetClientData(){
-	
-	    $search = trim($this->Requst['search'] ?? '');
-	
-	    $query = "SELECT A.PARTNER_ID AS id,
-			  C.CLIENT_NAME AS name,
-		      T.TEL_NUMBER AS phone
-			FROM partners_balance A
-			LEFT JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
-		 	LEFT JOIN client C ON C.CLIENT_ID = A.PARTNER_ID
-			LEFT JOIN telephones T ON C.CLIENT_ID = T.CLIENT_ID 
-			LEFT JOIN partners_balance B
-			  ON B.REFERENCE_ID = A.REFERENCE_ID
-			  AND B.PARTNER_ID = A.PARTNER_ID
-			  AND B.PARTNER_TYPE = 'CLIENT'
-			  AND B.TRANSACTION_CATEGORY_ID = 18
-			WHERE A.PARTNER_TYPE = 'CLIENT'
-			  AND A.TRANSACTION_CATEGORY_ID = 14 
-			  AND B.TRANSACTION_CATEGORY_ID IS NULL ";
-	
-	    $params = [];
-	
-	    if ($search !== "") {
-	        $query .= " AND (C.CLIENT_NAME LIKE :search OR T.TEL_NUMBER LIKE :search) ";
-	        $params['search'] = "$search%";
-	    }
-	
-	    $query .= "GROUP BY A.PARTNER_ID,C.CLIENT_NAME LIMIT 100";
-	
-	    $stmt = $this->conn->prepare($query);
-	    $stmt->execute($params);
-	
-	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$search = trim($this->Requst['search'] ?? '');
+		$query = "SELECT C.CLIENT_ID AS id, C.CLIENT_NAME AS name, MAX(T.TEL_NUMBER) AS phone
+			FROM orders O
+			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
+			INNER JOIN client C ON C.CLIENT_ID = T.CLIENT_ID
+			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
+			INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
+			INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
+				AND ASET.setting_key = 'CUSTOMERS'
+			LEFT JOIN (
+				SELECT order_id, SUM(amount) AS refunded
+				FROM customer_refund_payments WHERE status = 'POSTED' GROUP BY order_id
+			) R ON R.order_id = O.ORDER_ID
+			LEFT JOIN (
+				SELECT I.reference_id AS order_id, SUM(D.debit) AS refunded
+				FROM journal_entries H
+				INNER JOIN financial_transactions FT ON H.reference_type = 'SALES_RETURN_PAYMENT' AND FT.id = H.reference_id
+				INNER JOIN invoices I ON I.INVO_ID = FT.invoice_id
+				INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id AND D.partner_type = 'CLIENT' AND D.debit > 0
+				INNER JOIN account_settings A ON A.account_id = D.account_id AND A.setting_key = 'CUSTOMERS'
+				WHERE H.status = 'POSTED'
+				GROUP BY I.reference_id
+			) LR ON LR.order_id = O.ORDER_ID
+			WHERE D.partner_type = 'CLIENT' AND D.partner_id = C.CLIENT_ID AND D.credit > 0
+				AND D.credit > COALESCE(R.refunded,0) + COALESCE(LR.refunded,0)";
+		$params = [];
+		if ($search !== '') {
+			$query .= " AND (C.CLIENT_NAME LIKE :search OR T.TEL_NUMBER LIKE :search)";
+			$params['search'] = $search . '%';
+		}
+		$query .= " GROUP BY C.CLIENT_ID, C.CLIENT_NAME ORDER BY C.CLIENT_NAME LIMIT 100";
+		$stmt = $this->conn->prepare($query);
+		$stmt->execute($params);
+		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	
+
 	public function GetClientRetrnOrder(){
-	    $search = trim($this->Requst['search'] ?? '');
-		$Client_id = trim($this->Requst['cid'] ?? '');
-	    $query = "SELECT A.REFERENCE_ID AS id,
-			 O.SUB_ORDER_ID AS name
-			FROM partners_balance A
-			 LEFT JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
-			 LEFT JOIN partners_balance B
-			 ON B.REFERENCE_ID = A.REFERENCE_ID
-			 AND B.PARTNER_ID = A.PARTNER_ID
-			 AND B.PARTNER_TYPE = 'CLIENT'
-			 AND B.TRANSACTION_CATEGORY_ID = 18
-			WHERE A.PARTNER_TYPE = 'CLIENT'
-			 AND A.TRANSACTION_CATEGORY_ID = 14
-			 AND B.TRANSACTION_CATEGORY_ID IS NULL
-			 AND A.PARTNER_ID = :CID ";
-	
-	    $params = [];
-		$params['CID'] = $Client_id;
-	    if ($search !== "") {
-	        $query .= " AND (O.SUB_ORDER_ID LIKE :search) ";
-	        
-	        $params['search'] = "%$search%";
-	    }
-	    
-	    $query .= " LIMIT 1000";
-	
-	    $stmt = $this->conn->prepare($query);
-	    $stmt->execute($params);
-	
-	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$search = trim($this->Requst['search'] ?? '');
+		$clientId = (int)($this->Requst['cid'] ?? 0);
+		$query = "SELECT O.ORDER_ID AS id, O.SUB_ORDER_ID AS name
+			FROM orders O
+			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
+			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
+			INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
+			INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
+				AND ASET.setting_key = 'CUSTOMERS'
+			LEFT JOIN (
+				SELECT order_id, SUM(amount) AS refunded
+				FROM customer_refund_payments WHERE status = 'POSTED' GROUP BY order_id
+			) R ON R.order_id = O.ORDER_ID
+			LEFT JOIN (
+				SELECT I.reference_id AS order_id, SUM(D.debit) AS refunded
+				FROM journal_entries H
+				INNER JOIN financial_transactions FT ON H.reference_type = 'SALES_RETURN_PAYMENT' AND FT.id = H.reference_id
+				INNER JOIN invoices I ON I.INVO_ID = FT.invoice_id
+				INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id AND D.partner_type = 'CLIENT' AND D.debit > 0
+				INNER JOIN account_settings A ON A.account_id = D.account_id AND A.setting_key = 'CUSTOMERS'
+				WHERE H.status = 'POSTED'
+				GROUP BY I.reference_id
+			) LR ON LR.order_id = O.ORDER_ID
+			WHERE T.CLIENT_ID = :client_id AND D.partner_type = 'CLIENT'
+				AND D.partner_id = T.CLIENT_ID AND D.credit > COALESCE(R.refunded,0) + COALESCE(LR.refunded,0)";
+		$params = ['client_id' => $clientId];
+		if ($search !== '') {
+			$query .= " AND O.SUB_ORDER_ID LIKE :search";
+			$params['search'] = '%' . $search . '%';
+		}
+		$query .= " GROUP BY O.ORDER_ID, O.SUB_ORDER_ID ORDER BY O.ORDER_ID DESC LIMIT 1000";
+		$stmt = $this->conn->prepare($query);
+		$stmt->execute($params);
+		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	
+
 	public function GetRefundBalance($orderId){
-		$query = "
-			SELECT COALESCE(BALANCE,0) AS total_balance
-			 FROM  (
-			 	SELECT 
-				 REFERENCE_ID,
-				 CASE WHEN TRANSACTION_CATEGORY_ID = 14 THEN 1 ELSE 0 END AS DEFERRED_PAYMENT,
-				 CASE WHEN TRANSACTION_CATEGORY_ID = 18 THEN 1 ELSE 0 END AS PAID,
-				 BALANCE
-				FROM  partners_balance
-				WHERE PARTNER_TYPE ='CLIENT' AND TRANSACTION_CATEGORY_ID IN(14,18) 
-				GROUP BY REFERENCE_ID,PARTNER_ID
-			) PB
-			WHERE DEFERRED_PAYMENT = 1 AND PAID = 0 AND REFERENCE_ID = :oid";
-				 
-		if(!$orderId) return [['total_balance'=>0]];
-		
+		if (!$orderId) return [['total_balance' => 0]];
+		$query = "SELECT GREATEST(
+				COALESCE((SELECT SUM(D.credit)
+					FROM journal_entry_details D
+					INNER JOIN journal_entries H ON H.id = D.journal_entry_id AND H.status = 'POSTED'
+					INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
+						AND ASET.setting_key = 'CUSTOMERS'
+					WHERE H.id = O.RETURN_ENTRY_ID AND D.partner_type = 'CLIENT'
+						AND D.partner_id = T.CLIENT_ID AND D.credit > 0),0)
+				- COALESCE((SELECT SUM(R.amount) FROM customer_refund_payments R
+					WHERE R.order_id = O.ORDER_ID AND R.status = 'POSTED'),0)
+				- COALESCE((SELECT SUM(D.debit)
+					FROM journal_entries H
+					INNER JOIN financial_transactions FT ON H.reference_type = 'SALES_RETURN_PAYMENT' AND FT.id = H.reference_id
+					INNER JOIN invoices I ON I.INVO_ID = FT.invoice_id AND I.reference_id = O.ORDER_ID
+					INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
+					INNER JOIN account_settings ASET ON ASET.account_id = D.account_id AND ASET.setting_key = 'CUSTOMERS'
+					WHERE H.status = 'POSTED' AND D.partner_type = 'CLIENT'
+						AND D.partner_id = T.CLIENT_ID AND D.debit > 0),0), 0
+			) AS total_balance
+			FROM orders O
+			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
+			WHERE O.ORDER_ID = ? AND O.RETURN_ENTRY_ID IS NOT NULL
+				AND O.ORDER_STATUS IN (6,7) LIMIT 1";
 		$stmt = $this->conn->prepare($query);
-	    $stmt->execute(['oid'=>$orderId]);
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$stmt->execute([(int)$orderId]);
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+		return [$row ?: ['total_balance' => 0]];
 	}
-	
+
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
-		$query = "SELECT COALESCE(Sum(CASE
-				    WHEN TRANSACTION_TYPE = 'CREDIT'
-				    THEN BALANCE
-				    ELSE 0
-				   END) - Sum(CASE
-				   WHEN TRANSACTION_TYPE = 'DEBIT'
-				   THEN BALANCE
-				   ELSE 0
-				     END),0) AS total_balance
-				FROM  partners_balance pb 
-				WHERE PARTNER_TYPE = :ptype
-				 AND PARTNER_ID = :pid ";
-				 $parms = ['ptype' =>$partnerType, 'pid' => $partnerId];
-				 if($order_id) {
-				 	$query .= " AND pb.REFERENCE_ID =:oid";
-				 	$parms['oid']=$order_id;
-				 }
-		$stmt = $this->conn->prepare($query);
-	    $stmt->execute($parms);
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$partnerType = strtoupper((string)$partnerType);
+		if ($partnerType === 'SUPPLIER') {
+			$accountKeys = $order_id ? "'SUPPLIERS'" : "'SUPPLIERS','SUPPLIER_ADVANCES'";
+			$glSql = "SELECT COALESCE(SUM(d.credit-d.debit),0)
+				FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN account_settings aset ON aset.account_id=d.account_id
+					AND aset.setting_key IN ($accountKeys)
+				WHERE d.partner_type='SUPPLIER' AND d.partner_id=?";
+			$glParams = [(int)$partnerId];
+			if ($order_id) {
+				$glSql .= " AND (d.reference_id=? OR (h.reference_type IN ('PURCHASE_ORDER','PURCHASE_RETURN') AND h.reference_id=?))";
+				$glParams[] = (int)$order_id;
+				$glParams[] = (int)$order_id;
+			}
+			$glStmt = $this->conn->prepare($glSql);
+			$glStmt->execute($glParams);
+			$glBalance = round((float)$glStmt->fetchColumn(), 2);
+			return [['total_balance' => $glBalance, 'gl_balance' => $glBalance]];
+		}
+		if ($partnerType === 'DELIVERY') {
+			if ($order_id) return [['total_balance' => 0]];
+			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0) FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN delivery_accounting_settings das ON das.courier_commission_payable_account_id=d.account_id
+				WHERE das.id=1 AND d.partner_type='DELIVERY' AND d.partner_id=?");
+			$stmt->execute([(int)$partnerId]); return [['total_balance'=>round((float)$stmt->fetchColumn(),2)]];
+		}
+		if ($partnerType === 'MARKETER') {
+			if ($order_id) return [['total_balance' => 0]];
+			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0) FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN account_settings aset ON aset.account_id=d.account_id AND aset.setting_key='MARKETER_COMMISSION_PAYABLE'
+				WHERE d.partner_type='MARKETER' AND d.partner_id=?");
+			$stmt->execute([(int)$partnerId]); return [['total_balance'=>round((float)$stmt->fetchColumn(),2)]];
+		}
+		$query = "SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE 0 END)-SUM(CASE WHEN TRANSACTION_TYPE='DEBIT' THEN BALANCE ELSE 0 END),0) AS total_balance
+			FROM partners_balance pb WHERE PARTNER_TYPE=:ptype AND PARTNER_ID=:pid";
+		$params=['ptype'=>$partnerType,'pid'=>$partnerId];
+		if($order_id){$query.=" AND pb.REFERENCE_ID=:oid";$params['oid']=$order_id;}
+		$stmt=$this->conn->prepare($query);$stmt->execute($params);return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	
 	public function GetSupplierOrderList($supplierId){
 
     $records = [];
@@ -221,9 +256,11 @@ class PaymentDisbursement {
             SELECT
                 REFERANC,
                 SUM(TOTAL_PRICE - TOTAL_PAYMENTS) AS RETURN_TOTAL
-            FROM purchases_return_orders
-            WHERE STATUSE = 'DEFERRED'
-            GROUP BY REFERANC
+            FROM purchases_return_orders PR
+            WHERE PR.STATUSE = 'DEFERRED'
+              AND EXISTS (SELECT 1 FROM inventory_movement IM
+                  WHERE IM.REFERENCE = PR.ORDER_ID AND LOWER(IM.IM_MOVE_TYPE) = 'refundpurchises')
+            GROUP BY PR.REFERANC
         ) PRO ON PO.ORDER_ID = PRO.REFERANC
         WHERE
             PO.SUPPLIER_ID = ?
@@ -260,4 +297,22 @@ class PaymentDisbursement {
 
     
     
+
+    public function GetSupplierAdvanceBalance($supplierId): array
+    {
+        $stmt = $this->conn->prepare("SELECT ROUND(COALESCE(SUM(A.amount),0)-COALESCE((
+                SELECT SUM(X.amount) FROM supplier_gl_advance_applications X
+                INNER JOIN journal_entries J ON J.id=X.journal_entry_id AND J.status='POSTED'
+                WHERE X.supplier_id=A.supplier_id
+            ),0),2) AS AVAILABLE
+            FROM supplier_gl_payment_allocations A
+            INNER JOIN supplier_gl_payments P ON P.id=A.payment_id AND P.reversal_journal_entry_id IS NULL
+            WHERE A.supplier_id=? AND A.allocation_type='ADVANCE'
+            GROUP BY A.supplier_id");
+        $stmt->execute([(int)$supplierId]);
+        $amount = $stmt->fetchColumn();
+        return ['supplier_id'=>(int)$supplierId,'available_advance'=>round((float)($amount ?: 0),2)];
+    }
+
+
 }

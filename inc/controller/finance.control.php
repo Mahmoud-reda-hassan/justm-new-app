@@ -6,12 +6,14 @@ include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliverySettlementManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/CustomerRefundManager.php');
 
 $DBconn        	= new dbconn();
 $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
 $deliveryShippingReviews = new DeliveryRejectedShippingReviewManager($db);
 $CBE 	= new finance_BE($db);
 $deliveryAccounting = new DeliverySettlementManager($db);
+$customerRefunds = new CustomerRefundManager($db);
 $shippingConfiguration = new ShippingConfigurationManager($db);
 $http_RQM = $_SERVER['REQUEST_METHOD'];
 /*===================================================
@@ -68,6 +70,62 @@ try {
                 'allow_shipping_amount_edit' => $shippingConfiguration->isShippingAmountEditAllowed(),
             ], JSON_UNESCAPED_UNICODE);
             break;
+        case 'RefundCustomerReturn':
+            $requireFinanceAdmin();
+            $orderId = (int)($_POST['oid'] ?? 0);
+            $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $amount = round((float)($_POST['amount'] ?? 0), 2);
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+            if ($actorId <= 0) throw new RuntimeException('تعذر تحديد المستخدم المنفذ للعملية.');
+            $requestHash = hash('sha256', json_encode([
+                'actor_id' => $actorId,
+                'order_id' => $orderId,
+                'payment_method_id' => $paymentMethodId,
+                'amount' => number_format($amount, 2, '.', ''),
+                'branch_id' => $branchId,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $result = $customerRefunds->refund($orderId, $paymentMethodId, $amount, $requestKey, $requestHash);
+            echo json_encode([
+                'success',
+                'ناجح',
+                !empty($result['already_posted']) ? 'تم تسجيل نفس رد المبلغ سابقًا دون تكرار القيد.' : 'تم رد مبلغ المرتجع بنجاح.',
+                'refund' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'PayMarketerCommission':
+            $requireFinanceAdmin();
+            $marketerId = (int)($_POST['partner_id'] ?? 0);
+            $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $amount = (float)($_POST['amount'] ?? 0);
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $note = trim((string)($_POST['note'] ?? ''));
+            $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            if ($actorId <= 0) throw new RuntimeException('تعذر تحديد المستخدم المنفذ للعملية.');
+            if (!preg_match('/^[A-Za-z0-9._:-]{8,64}$/D', $requestKey)) {
+                throw new InvalidArgumentException('مفتاح طلب الصرف مطلوب.');
+            }
+            $requestHash = hash('sha256', json_encode([
+                'actor_id' => $actorId,
+                'marketer_id' => $marketerId,
+                'branch_id' => $branchId,
+                'payment_method_id' => $paymentMethodId,
+                'amount' => number_format(round($amount, 2), 2, '.', ''),
+                'note' => $note,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $result = $deliveryAccounting->payMarketerCommission(
+                $marketerId, $branchId, $paymentMethodId, $amount, $note, $requestKey, $requestHash
+            );
+            echo json_encode([
+                'success',
+                'ناجح',
+                !empty($result['already_posted']) ? 'تم تسجيل نفس عملية الصرف سابقًا دون تكرار القيد.' : 'تم صرف مستحقات المسوق بنجاح.',
+                'payment' => $result,
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'GetDeliverySettlementPaymentMethods':
             $requireFinanceAdmin();
             if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
@@ -158,7 +216,11 @@ try {
                 (int)($_POST['payment_method_id'] ?? 0), $orderAmounts,
                 $requestKey, (string)($_POST['note'] ?? '')
             );
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            echo json_encode(array_merge([
+                'success',
+                'ناجح',
+                !empty($result['already_posted']) ? 'تم تسجيل نفس التحصيل سابقًا دون تكرار القيد.' : 'تم تسجيل تحصيل العميل وإضافته إلى عهدة المندوب.',
+            ], $result), JSON_UNESCAPED_UNICODE);
             break;
 
         case 'SettleDeliveryCollections':
@@ -214,33 +276,55 @@ try {
             break;
 
 		case 'CollectingFinancialPledge':
-			$CBE->transaction_user_id = $_SESSION['USER_ID'];
-			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];
-			echo json_encode($CBE->registerCollection($_POST['delivery_id'], $_POST['orderObj'], $_POST['totalAmount']));
-		    break;
+			throw new RuntimeException('تم إيقاف مسار التحصيل القديم. استخدم تسجيل تحصيل العميل ثم تسوية عهدة المندوب من الأستاذ العام.');
 		case 'PaymentOfCustomerDues':
-		    $CBE->transaction_user_id = $_SESSION['USER_ID'];
-			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];
-		    echo json_encode($CBE->PaymentOfCustomerDues($_POST['oid']));
-			break;
+			throw new RuntimeException('تم إيقاف مسار رد المرتجع القديم. استخدم مسار رد المبلغ المعتمد في الأستاذ العام.');
 		case 'SaveSupplierPayment':
-			$supplier_id= $_POST['supplier_id'];
-			$total_amount = $_POST['total_amount'];
-			$orders = isset($_POST['orders']) ? $_POST['orders']: [];
-			echo json_encode($CBE->PaymentOfSupplierDues($supplier_id, $total_amount, $orders));
+			$requireFinanceAdmin();
+			if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+			$requestKey = trim((string)($_POST['request_key'] ?? ''));
+			$supplierId = (int)($_POST['supplier_id'] ?? 0);
+			$totalAmount = (string)($_POST['total_amount'] ?? '0');
+			$paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+			$orders = $readArray($_POST['orders'] ?? [], 'orders');
+			$result = $CBE->PaymentOfSupplierDues($supplierId, $totalAmount, $orders, $paymentMethodId, $requestKey);
+			echo json_encode(array_merge([
+				'success', 'ناجح', !empty($result['already_posted'])
+					? 'تم تسجيل نفس دفعة المورد سابقًا دون تكرار القيد.'
+					: 'تم تسجيل دفعة المورد وترحيلها إلى الأستاذ العام.'
+			], $result), JSON_UNESCAPED_UNICODE);
 			break;
+        case 'ApplySupplierAdvances':
+            $requireFinanceAdmin();
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            $supplierId = (int)($_POST['supplier_id'] ?? 0);
+            $mode = strtoupper(trim((string)($_POST['mode'] ?? 'MANUAL')));
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $orders = $readArray($_POST['orders'] ?? [], 'orders');
+            $result = $CBE->ApplySupplierAdvances($supplierId, $orders, $mode, $requestKey);
+            echo json_encode(array_merge([
+                'success', 'ناجح', !empty($result['already_posted'])
+                    ? 'تم تسجيل تطبيق المقدم سابقًا دون تكرار القيد.'
+                    : 'تم تطبيق مقدم المورد على أوامر الشراء.'
+            ], $result), JSON_UNESCAPED_UNICODE);
+            break;
+        case 'ReverseSupplierPayment':
+            $requireFinanceAdmin();
+            $paymentId = (int)($_POST['payment_id'] ?? 0);
+            $reason = trim((string)($_POST['reason'] ?? ''));
+            $result = $CBE->ReverseSupplierPayment($paymentId, $reason);
+            echo json_encode(['success'=>true,'message'=>'تم عكس دفعة المورد وإعادة مستحقات أوامر الشراء.'] + $result, JSON_UNESCAPED_UNICODE);
+            break;
+        case 'ReverseSupplierAdvanceApplication':
+            $requireFinanceAdmin();
+            $journalId = (int)($_POST['journal_id'] ?? 0);
+            $reason = trim((string)($_POST['reason'] ?? ''));
+            $result = $CBE->ReverseSupplierAdvanceApplication($journalId, $reason);
+            echo json_encode(['success'=>true,'message'=>'تم عكس تطبيق المقدم وإعادة فتح مستحقات أوامر الشراء.'] + $result, JSON_UNESCAPED_UNICODE);
+            break;
 		case 'PaymentOfMarketerDues':
-			$marketerId= $_POST['partner_id'];
-			$total_amount = $_POST['amount'];
-			$total_balance = isset($_POST['balance']) ? $_POST['balance']: 0;
-			echo json_encode($CBE->PaymentOfMarketerDues($marketerId, $total_balance, $total_amount));
-			break;
 		case 'PaymentOfDeliveryDues':
-			$deliveryid= $_POST['partner_id'];
-			$total_amount = $_POST['amount'];
-			$total_balance = isset($_POST['balance']) ? $_POST['balance']: 0;
-			echo json_encode($CBE->PaymentOfDeliveryDues($deliveryid, $total_balance, $total_amount));
-			break;
+			throw new RuntimeException('تم إيقاف مسار الصرف القديم. استخدم مسار الصرف المحاسبي المعتمد في الأستاذ العام.');
 
 		default:
 		    echo json_encode(array('error', 'Error', 'Your request is not available', []));

@@ -78,15 +78,22 @@ class AccountingEvents {
 			 SUM(op.COST_PRICE * op.RETURNED_QTY) AS RETURN_COST_AMOUNT,
 			 
 			 o.ORDER_TYPE_ID AS ORDER_TYPE,
+			 o.ORDER_BY,
 			 o.ORDER_STATUS,
 			 o.SHIPPING_VAL,
-			 
+			 MAX(UA.USER_ID) AS MARKETER_ID,
+			 MAX(UA.AFFILIATEED_WITH) AS LEADER_ID,
+			 MAX(UA.COMMISSION_SALES) AS MARKETER_COMMISSION_RATE,
+			 MAX(UB.TEAM_COMMISSION) AS LEADER_COMMISSION_RATE,
+			 SUM(op.RETURNED_QTY) AS RETURNED_QTY,
 			 o.SALE_ENTRY_ID,
 			 o.RETURN_ENTRY_ID
 			FROM  orders o
 			 LEFT JOIN order_product op ON o.ORDER_ID = op.ORDER_ID
 			 LEFT JOIN stores st ON o.STO_ID = st.STO_ID
 			 LEFT JOIN telephones te ON te.TEL_ID = o.TEL_ID
+			 LEFT JOIN users_affiliate UA ON UA.USER_ID = o.ORDER_BY
+			 LEFT JOIN users_affiliate UB ON UB.USER_ID = UA.AFFILIATEED_WITH
 			WHERE o.ORDER_ID = ?
 			GROUP BY o.ORDER_ID
 			LIMIT 1
@@ -689,7 +696,82 @@ class AccountingEvents {
 	        'account_id' => $this->settings->cogs(),
 	        'credit'     => $costAmount
 	    ]);
-	
+
+        // عكس عمولة المسوق وقائد الفريق عن الكميات المرتجعة بعد استلامها مخزنيًا.
+        // لا يتجاوز العكس ما سبق إثباته فعليًا في حساب المستحقات لنفس الطلب.
+        if ((int)$order['ORDER_TYPE'] === 2 && (int)($order['MARKETER_ID'] ?? 0) > 0) {
+            $payableAccountId = $this->settings->marketerCommissionPayable();
+            $expenseAccountId = $this->settings->marketerCommissionExpense();
+            $returnedQty = max(0.0, (float)($order['RETURNED_QTY'] ?? 0));
+            $marketerId = (int)$order['MARKETER_ID'];
+            $leaderId = (int)($order['LEADER_ID'] ?? 0);
+            $marketerExpected = round($returnedQty * (float)$order['MARKETER_COMMISSION_RATE'], 2);
+            $leaderExpected = ($leaderId > 0)
+                ? round($returnedQty * (float)$order['LEADER_COMMISSION_RATE'], 2)
+                : 0.0;
+
+            $accruedStmt = $this->db->prepare("SELECT COALESCE(SUM(d.credit - d.debit),0)
+                FROM journal_entry_details d
+                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                WHERE d.account_id = ? AND d.partner_type = 'MARKETER' AND d.partner_id = ?
+                  AND d.reference_type = 'MARKETER_COMMISSION_ACCRUAL'
+                  AND d.reference_id = ?");
+            $accruedStmt->execute([$payableAccountId, $marketerId, $orderId]);
+            $marketerAccrued = max(0.0, round((float)$accruedStmt->fetchColumn(), 2));
+            $marketerReverse = min($marketerExpected, $marketerAccrued);
+
+            if ($leaderId === $marketerId && $leaderId > 0) {
+                $leaderExpected += $marketerExpected;
+                $marketerExpected = $leaderExpected;
+                $marketerReverse = min($marketerExpected, $marketerAccrued);
+                $leaderReverse = 0.0;
+            } else {
+                $leaderReverse = 0.0;
+                if ($leaderId > 0 && $leaderExpected > 0) {
+                    $accruedStmt->execute([$payableAccountId, $leaderId, $orderId]);
+                    $leaderAccrued = max(0.0, round((float)$accruedStmt->fetchColumn(), 2));
+                    $leaderReverse = min($leaderExpected, $leaderAccrued);
+                }
+            }
+
+            if ($marketerReverse > 0) {
+                $this->journal->addLine([
+                    'account_id' => $payableAccountId,
+                    'partner_type' => 'MARKETER',
+                    'partner_id' => $marketerId,
+                    'debit' => $marketerReverse,
+                    'reference_type' => 'MARKETER_COMMISSION_REVERSAL',
+                    'reference_id' => $orderId,
+                    'note' => 'عكس عمولة المسوق عن الكميات المرتجعة',
+                ]);
+                $this->journal->addLine([
+                    'account_id' => $expenseAccountId,
+                    'credit' => $marketerReverse,
+                    'reference_type' => 'MARKETER_COMMISSION_REVERSAL',
+                    'reference_id' => $orderId,
+                    'note' => 'عكس مصروف عمولة المسوق عن المرتجع',
+                ]);
+            }
+            if ($leaderReverse > 0) {
+                $this->journal->addLine([
+                    'account_id' => $payableAccountId,
+                    'partner_type' => 'MARKETER',
+                    'partner_id' => $leaderId,
+                    'debit' => $leaderReverse,
+                    'reference_type' => 'MARKETER_COMMISSION_REVERSAL',
+                    'reference_id' => $orderId,
+                    'note' => 'عكس عمولة قائد الفريق عن الكميات المرتجعة',
+                ]);
+                $this->journal->addLine([
+                    'account_id' => $expenseAccountId,
+                    'credit' => $leaderReverse,
+                    'reference_type' => 'MARKETER_COMMISSION_REVERSAL',
+                    'reference_id' => $orderId,
+                    'note' => 'عكس مصروف عمولة قائد الفريق عن المرتجع',
+                ]);
+            }
+        }
+    
 	    // ترحيل القيد
 	    $journalId = $this->journal->post();
 	

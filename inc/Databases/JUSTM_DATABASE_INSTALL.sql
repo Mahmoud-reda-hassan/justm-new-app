@@ -1160,6 +1160,8 @@ CREATE TABLE IF NOT EXISTS `purchases_payments` (
   `PAYMENT_METHOD` int(11) NOT NULL,
   `NOTE` text DEFAULT NULL,
   `CREATED_BY` bigint(20) NOT NULL,
+  `SUPPLIER_GL_PAYMENT_ID` bigint(20) DEFAULT NULL,
+  `REVERSAL_JOURNAL_ENTRY_ID` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`PAYMENT_ID`),
   KEY `ORDER_ID` (`ORDER_ID`),
   KEY `CREATED_BY` (`CREATED_BY`)
@@ -1919,6 +1921,37 @@ CREATE TABLE IF NOT EXISTS `account_settings` (
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- PHASE17: حسابات مستقلة لعمولات المسوقين وقادة الفرق.
+INSERT INTO accounts
+    (account_code, account_name, account_type, normal_balance, account_level,
+     is_active, allow_posting, system_account, is_system_created, description)
+SELECT
+    '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 1,
+    1, 1, 1, 1, 'مستحقات مستقلة لعمولات المسوقين وقادة الفرق'
+WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = '2152');
+
+INSERT INTO accounts
+    (account_code, account_name, account_type, normal_balance, account_level,
+     is_active, allow_posting, system_account, is_system_created, description)
+SELECT
+    '5230', 'مصروف عمولات المسوقين وقادة الفرق', 'EXPENSE', 'DEBIT', 1,
+    1, 1, 1, 1, 'مصروف مستقل لعمولات المسوقين وقادة الفرق'
+WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = '5230');
+
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'MARKETER_COMMISSION_PAYABLE', id,
+       'حساب مستحقات عمولات المسوقين وقادة الفرق - 2152'
+FROM accounts WHERE account_code = '2152'
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
+                        description = VALUES(description);
+
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'MARKETER_COMMISSION_EXPENSE', id,
+       'حساب مصروف عمولات المسوقين وقادة الفرق - 5230'
+FROM accounts WHERE account_code = '5230'
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
+                        description = VALUES(description);
+
 CREATE TABLE IF NOT EXISTS `cash_boxes` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `branch_id` INT NOT NULL,
@@ -2449,3 +2482,138 @@ CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews` (
   OR (status='APPROVED' AND approved_compensation>0 AND accounting_event_id IS NOT NULL AND journal_entry_id IS NOT NULL AND decided_by IS NOT NULL)
  )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- PHASE17: مستندات صرف مستحقات المسوقين وقادة الفرق عبر الأستاذ العام.
+CREATE TABLE IF NOT EXISTS marketer_commission_payments (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    payment_no VARCHAR(40) NULL,
+    marketer_user_id BIGINT UNSIGNED NOT NULL,
+    branch_id BIGINT UNSIGNED NOT NULL,
+    payment_method_id BIGINT UNSIGNED NOT NULL,
+    payment_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    amount DECIMAL(15,2) NOT NULL,
+    journal_id BIGINT UNSIGNED NULL,
+    status ENUM('DRAFT','POSTED','REVERSED') NOT NULL DEFAULT 'DRAFT',
+    note VARCHAR(500) NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    request_key VARCHAR(64) NULL,
+    request_hash CHAR(64) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    posted_at DATETIME NULL,
+    reversed_at DATETIME NULL,
+    reversed_by BIGINT UNSIGNED NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_marketer_commission_payment_request_key (request_key),
+    UNIQUE KEY uq_marketer_commission_payment_no (payment_no),
+    KEY idx_marketer_commission_payment_partner (marketer_user_id,status,payment_date),
+    KEY idx_marketer_commission_payment_journal (journal_id),
+    CONSTRAINT chk_marketer_commission_payment_positive CHECK (amount > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- PHASE18: مستندات رد مبالغ مرتجعات العملاء من الأستاذ العام فقط.
+CREATE TABLE IF NOT EXISTS customer_refund_payments (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    refund_no VARCHAR(40) NULL,
+    order_id BIGINT UNSIGNED NOT NULL,
+    customer_id BIGINT UNSIGNED NOT NULL,
+    branch_id BIGINT UNSIGNED NOT NULL,
+    payment_method_id BIGINT UNSIGNED NOT NULL,
+    refund_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    amount DECIMAL(15,2) NOT NULL,
+    journal_id BIGINT UNSIGNED NULL,
+    status ENUM('DRAFT','POSTED','REVERSED') NOT NULL DEFAULT 'DRAFT',
+    created_by BIGINT UNSIGNED NOT NULL,
+    request_key VARCHAR(64) NULL,
+    request_hash CHAR(64) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    posted_at DATETIME NULL,
+    reversed_at DATETIME NULL,
+    reversed_by BIGINT UNSIGNED NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_customer_refund_request_key (request_key),
+    UNIQUE KEY uq_customer_refund_no (refund_no),
+    KEY idx_customer_refund_order (order_id,status,refund_date),
+    KEY idx_customer_refund_customer (customer_id,status,refund_date),
+    KEY idx_customer_refund_journal (journal_id),
+    CONSTRAINT chk_customer_refund_positive CHECK (amount > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PHASE19: ربط حسابات دورة الموردين وفق دليل الحسابات المعتمد.
+-- لا ينشئ حسابات بديلة؛ يجب استيراد دليل الحسابات أولاً.
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'SUPPLIERS', id, 'حسابات الموردين الدائنة - 2111'
+FROM accounts WHERE account_code = '2111'
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id), description = VALUES(description);
+
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'INVENTORY_IN_TRANSIT', id, 'مخزون بالطريق للمشتريات - 1162'
+FROM accounts WHERE account_code = '1162'
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id), description = VALUES(description);
+
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'SUPPLIER_ADVANCES', id, 'دفعات مقدمة للموردين - 1171'
+FROM accounts WHERE account_code = '1171'
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id), description = VALUES(description);
+
+SELECT aset.setting_key, a.account_code, a.account_name
+FROM account_settings aset
+INNER JOIN accounts a ON a.id = aset.account_id
+WHERE aset.setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')
+ORDER BY aset.setting_key;
+
+
+-- PHASE20: supplier GL payment records and allocations.
+-- PHASE20: supplier purchases and payments use the General Ledger for new events.
+-- أرصدة الموردين التاريخية في partners_balance لا يتم نقلها أو تعديلها في هذه المرحلة.
+CREATE TABLE IF NOT EXISTS supplier_gl_payments (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    request_key VARCHAR(64) NOT NULL,
+    supplier_id BIGINT UNSIGNED NOT NULL,
+    branch_id BIGINT UNSIGNED NOT NULL,
+    payment_method_id INT NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    journal_entry_id BIGINT UNSIGNED NOT NULL,
+    reversal_journal_entry_id BIGINT UNSIGNED DEFAULT NULL,
+    note TEXT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_supplier_gl_payment_request (request_key),
+    UNIQUE KEY uq_supplier_gl_payment_journal (journal_entry_id),
+    KEY idx_supplier_gl_payment_supplier (supplier_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS supplier_gl_payment_allocations (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    payment_id BIGINT UNSIGNED NOT NULL,
+    supplier_id BIGINT UNSIGNED NOT NULL,
+    purchase_order_id BIGINT UNSIGNED DEFAULT NULL,
+    allocation_type ENUM('INVOICE','ADVANCE') NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_supplier_gl_payment_allocation (payment_id, purchase_order_id, allocation_type),
+    KEY idx_supplier_gl_allocation_supplier (supplier_id, created_at),
+    KEY idx_supplier_gl_allocation_order (purchase_order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+
+-- ربط كل جزء من المقدم الأصلي بأمر الشراء الذي تمت تسويته به.
+CREATE TABLE IF NOT EXISTS supplier_gl_advance_applications (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    supplier_id BIGINT UNSIGNED NOT NULL,
+    source_advance_allocation_id BIGINT UNSIGNED NOT NULL,
+    purchase_order_id BIGINT UNSIGNED NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    journal_entry_id BIGINT UNSIGNED NOT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_supplier_advance_source (source_advance_allocation_id),
+    KEY idx_supplier_advance_order (purchase_order_id),
+    KEY idx_supplier_advance_journal (journal_entry_id),
+    KEY idx_supplier_advance_supplier (supplier_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;

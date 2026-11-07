@@ -310,7 +310,8 @@ class JournalManager{
 	 *****************************************************/
 	public function reverse(
 	    int $journalId,
-	    string $reason = ''): int {
+	    string $reason = '',
+	    ?string $coordinatedSupplierReference = null): int {
 	    if ($journalId <= 0) {
 	        throw new InvalidArgumentException("Journal ID is required.");
 	    }
@@ -323,7 +324,7 @@ class JournalManager{
 
 	    try {
 	        $lock = $this->db->prepare("
-	            SELECT id, branch_id, created_by, status
+	            SELECT id, branch_id, created_by, status, reference_type
 	            FROM journal_entries
 	            WHERE id = ?
 	            LIMIT 1
@@ -336,6 +337,10 @@ class JournalManager{
 	        }
 	        if ($original['status'] !== 'POSTED') {
 	            throw new Exception("Only a posted journal entry can be reversed.");
+	        }
+	        if (in_array((string)$original['reference_type'], ['SUPPLIER_PAYMENT', 'SUPPLIER_ADVANCE_APPLICATION'], true)
+                && $coordinatedSupplierReference !== (string)$original['reference_type']) {
+	            throw new RuntimeException('لا يمكن عكس دفعات المورد أو تطبيق مقدماته بالعكس العام؛ يجب استخدام مسار عكس مخصص يحدّث الأستاذ العام وأرصدة أوامر الشراء وسجلات التخصيص معًا.');
 	        }
 
 	        $existing = $this->db->prepare("

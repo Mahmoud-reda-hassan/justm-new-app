@@ -1,0 +1,63 @@
+-- PHASE20: supplier purchases and payments use the General Ledger for new events.
+-- أرصدة الموردين التاريخية في partners_balance لا يتم نقلها أو تعديلها في هذه المرحلة.
+CREATE TABLE IF NOT EXISTS supplier_gl_payments (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    request_key VARCHAR(64) NOT NULL,
+    supplier_id BIGINT UNSIGNED NOT NULL,
+    branch_id BIGINT UNSIGNED NOT NULL,
+    payment_method_id INT NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    journal_entry_id BIGINT UNSIGNED NOT NULL,
+    note TEXT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_supplier_gl_payment_request (request_key),
+    UNIQUE KEY uq_supplier_gl_payment_journal (journal_entry_id),
+    KEY idx_supplier_gl_payment_supplier (supplier_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+CREATE TABLE IF NOT EXISTS supplier_gl_payment_allocations (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    payment_id BIGINT UNSIGNED NOT NULL,
+    supplier_id BIGINT UNSIGNED NOT NULL,
+    purchase_order_id BIGINT UNSIGNED DEFAULT NULL,
+    allocation_type ENUM('INVOICE','ADVANCE') NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_supplier_gl_payment_allocation (payment_id, purchase_order_id, allocation_type),
+    KEY idx_supplier_gl_allocation_supplier (supplier_id, created_at),
+    KEY idx_supplier_gl_allocation_order (purchase_order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+
+-- ربط كل جزء من المقدم الأصلي بأمر الشراء الذي تمت تسويته به.
+CREATE TABLE IF NOT EXISTS supplier_gl_advance_applications (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    supplier_id BIGINT UNSIGNED NOT NULL,
+    source_advance_allocation_id BIGINT UNSIGNED NOT NULL,
+    purchase_order_id BIGINT UNSIGNED NOT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    journal_entry_id BIGINT UNSIGNED NOT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_supplier_advance_source (source_advance_allocation_id),
+    KEY idx_supplier_advance_order (purchase_order_id),
+    KEY idx_supplier_advance_journal (journal_entry_id),
+    KEY idx_supplier_advance_supplier (supplier_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+
+-- حقول العكس المنسق: لا نحذف سجل الدفعة أو التخصيص، بل نربطه بقيد العكس.
+ALTER TABLE supplier_gl_payments
+    ADD COLUMN IF NOT EXISTS reversal_journal_entry_id BIGINT UNSIGNED DEFAULT NULL;
+
+ALTER TABLE purchases_payments
+    ADD COLUMN IF NOT EXISTS supplier_gl_payment_id BIGINT UNSIGNED DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS reversal_journal_entry_id BIGINT UNSIGNED DEFAULT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_purchases_payments_supplier_gl
+    ON purchases_payments (SUPPLIER_GL_PAYMENT_ID);

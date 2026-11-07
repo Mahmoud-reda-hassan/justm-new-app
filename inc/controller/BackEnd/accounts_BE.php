@@ -86,10 +86,31 @@ class accounts_BE {
 			   
 			   Round(if(CO.CUST_STAT = 'FREEZE' ,0,O.SHIPPING_VAL), 2) AS SHIPPING_VAL,
 			   
-			   Round(Sum(if(CO.RETURNS = 0 ,CP.QTY ,CP.DELIVERED_QTY) * ( CP.PRICE - CP.DISCOUNT )) + if(CO.CUST_STAT = 'FREEZE',0,O.SHIPPING_VAL), 2) AS REQUIRED_PAYMENT,
-			   
-			   Round(PB.BALANCE,2) AS BP_REQUIRED_PAYMENT,
-			   
+			   Round(
+				COALESCE((
+					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
+					FROM journal_entry_details d
+					INNER JOIN journal_entries j ON j.id = d.journal_entry_id AND j.status = 'POSTED'
+					INNER JOIN account_settings aset ON aset.account_id = d.account_id AND aset.setting_key = 'CUSTOMERS'
+					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
+					WHERE d.journal_entry_id = O.SALE_ENTRY_ID AND d.partner_type = 'CLIENT'
+						AND d.partner_id = TEL.CLIENT_ID AND d.debit > 0
+					GROUP BY d.id, d.debit
+				),0)
+				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND COALESCE(CO.CUST_STAT,'') <> 'FREEZE' THEN COALESCE((
+					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
+					FROM accounting_events ev
+					INNER JOIN journal_entries j ON j.id = ev.journal_entry_id AND j.status = 'POSTED'
+					INNER JOIN journal_entry_details d ON d.journal_entry_id = j.id
+					INNER JOIN account_settings aset ON aset.account_id = d.account_id AND aset.setting_key = 'CUSTOMERS'
+					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
+					WHERE ev.idempotency_key = CONCAT('ORDER_SHIPPING:ORDER:', O.ORDER_ID, ':SHIPPING_REVENUE')
+						AND ev.event_type = 'SHIPPING_REVENUE_RECOGNIZED'
+						AND d.partner_type = 'CLIENT' AND d.partner_id = TEL.CLIENT_ID AND d.debit > 0
+					GROUP BY d.id, d.debit
+				),0) ELSE 0 END
+			   ,2) AS REQUIRED_PAYMENT,
+
 			   Json_arrayagg(
 			   	Json_object(
 			   		'PRODUCT_CODE', 		VOP.PRO_CODE, 
@@ -112,9 +133,9 @@ class accounts_BE {
 			   LEFT JOIN USERS 				AS UC ON O.ORDER_BY = UC.USER_ID
 			   LEFT JOIN ADDRESSES 			AS G ON O.ADDRESS_ID = G.ADDRESS_ID
 			   LEFT JOIN CLIENT 			AS H ON G.CLIENT_ID = H.CLIENT_ID
+			   LEFT JOIN telephones 		AS TEL ON TEL.TEL_ID = O.TEL_ID
 			   LEFT JOIN CITY 				AS K ON O.CITY_ID = K.CI_ID
 			   LEFT JOIN ZONES 				AS L ON K.ZONE_ID = L.ZONE_ID
-			   LEFT JOIN PARTNERS_BALANCE 	AS PB ON CO.ORDER_ID = PB.REFERENCE_ID AND PARTNER_TYPE = 'CLIENT' AND TRANSACTION_CATEGORY_ID = 8
 			   LEFT JOIN (SELECT  CP.ORDER_ID,
 			       CP.USER_ID,
 			       CP.PRO_CODE,
@@ -135,6 +156,7 @@ class accounts_BE {
 			   O.SUB_ORDER_ID,
 			   Concat(UC.FORENAME, ' ', UC.LASTNAME),
 			   Concat(UD.FORENAME, ' ', UD.LASTNAME),
+			   TEL.CLIENT_ID,
 			   O.DELIVERY_DATE,
 			   O.ORDER_SUCCESS,
 			   O.LAST_UPDATE,
@@ -173,6 +195,7 @@ class accounts_BE {
         );
     }
     private function custodyTotal  (){
+    	$branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
     	$wh ='';
     	$userID = null;
     	if(isset($this->rq_parm['did']) && (int) $this->rq_parm['did'] > 0){
@@ -185,9 +208,21 @@ class accounts_BE {
 			  SUM(IF(ORDER_STATUSE < 3 ,REQUIRED_PAYMENT,0)) AS underDeli,
 			  SUM(IF(INVENT_STAT = 0 AND ORDER_STATUSE >= 3 ,REQUIRED_PAYMENT,0))   AS invTotal,
 			  SUM(IF(INVENT_STAT = 1 AND ORDER_STATUSE >= 3,REQUIRED_PAYMENT,0))   AS finTotal,
-			  (SELECT sum(CASE WHEN TC.TRANSACTION_TYPE = 'CASH_IN' THEN amount ELSE 0 END) FROM financial_transactions FT LEFT JOIN transaction_categories TC ON FT.category_id = TC.ID WHERE branch_id = ".$_SESSION['BRANCH_ID'].") AS CASH_IN ,
-			  (SELECT sum(CASE WHEN TC.TRANSACTION_TYPE = 'CASH_OUT' THEN amount ELSE 0 END) FROM financial_transactions FT LEFT JOIN transaction_categories TC ON FT.category_id = TC.ID WHERE branch_id = ".$_SESSION['BRANCH_ID'].") AS CASH_OUT , 
-			  (SELECT sum(CASE WHEN TC.TRANSACTION_TYPE = 'CASH_IN' THEN amount WHEN TC.TRANSACTION_TYPE = 'CASH_OUT' THEN -amount ELSE 0 END) FROM financial_transactions FT LEFT JOIN transaction_categories TC ON FT.category_id = TC.ID WHERE branch_id = ".$_SESSION['BRANCH_ID'].") AS cashBalance 
+			  (SELECT COALESCE(SUM(d.debit),0) FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+				WHERE h.branch_id = ".$branchId."
+				AND d.account_id IN (SELECT account_id FROM cash_boxes WHERE branch_id = ".$branchId." AND is_active = 1
+					UNION SELECT account_id FROM payment_method_accounts WHERE branch_id = ".$branchId." AND is_active = 1)) AS CASH_IN ,
+			  (SELECT COALESCE(SUM(d.credit),0) FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+				WHERE h.branch_id = ".$branchId."
+				AND d.account_id IN (SELECT account_id FROM cash_boxes WHERE branch_id = ".$branchId." AND is_active = 1
+					UNION SELECT account_id FROM payment_method_accounts WHERE branch_id = ".$branchId." AND is_active = 1)) AS CASH_OUT ,
+			  (SELECT COALESCE(SUM(d.debit - d.credit),0) FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+				WHERE h.branch_id = ".$branchId."
+				AND d.account_id IN (SELECT account_id FROM cash_boxes WHERE branch_id = ".$branchId." AND is_active = 1
+					UNION SELECT account_id FROM payment_method_accounts WHERE branch_id = ".$branchId." AND is_active = 1)) AS cashBalance 
 
 			FROM  (SELECT   
 			   CO.ORDER_ID,   
@@ -198,13 +233,38 @@ class accounts_BE {
 			   CO.ORDER_STATUSE               AS ORDER_STATUSE_ID,
 			   CO.RETURNS,
 			   Round(If(CO.CUST_STAT = 'FREEZE' ,0,O.SHIPPING_VAL), 2) AS SHIPPING_VAL,
-			   Round(Sum(If(CO.RETURNS = 0 ,CP.QTY ,CP.DELIVERED_QTY) * ( CP.PRICE - CP.DISCOUNT )) + If(CO.CUST_STAT = 'FREEZE',0,O.SHIPPING_VAL), 2) AS REQUIRED_PAYMENT
+			   Round(
+				COALESCE((
+					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
+					FROM journal_entry_details d
+					INNER JOIN journal_entries j ON j.id = d.journal_entry_id AND j.status = 'POSTED'
+					INNER JOIN account_settings aset ON aset.account_id = d.account_id AND aset.setting_key = 'CUSTOMERS'
+					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
+					WHERE d.journal_entry_id = O.SALE_ENTRY_ID AND d.partner_type = 'CLIENT'
+						AND d.partner_id = T.CLIENT_ID AND d.debit > 0
+					GROUP BY d.id, d.debit
+				),0)
+				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND COALESCE(CO.CUST_STAT,'') <> 'FREEZE' THEN COALESCE((
+					SELECT GREATEST(0, d.debit - COALESCE(SUM(a.amount),0))
+					FROM accounting_events ev
+					INNER JOIN journal_entries j ON j.id = ev.journal_entry_id AND j.status = 'POSTED'
+					INNER JOIN journal_entry_details d ON d.journal_entry_id = j.id
+					INNER JOIN account_settings aset ON aset.account_id = d.account_id AND aset.setting_key = 'CUSTOMERS'
+					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
+					WHERE ev.idempotency_key = CONCAT('ORDER_SHIPPING:ORDER:', O.ORDER_ID, ':SHIPPING_REVENUE')
+						AND ev.event_type = 'SHIPPING_REVENUE_RECOGNIZED'
+						AND d.partner_type = 'CLIENT' AND d.partner_id = T.CLIENT_ID AND d.debit > 0
+					GROUP BY d.id, d.debit
+				),0) ELSE 0 END
+			   ,2) AS REQUIRED_PAYMENT
 			 FROM   custody_orders AS CO
 			   LEFT JOIN custody_product AS CP ON CO.ORDER_ID = CP.ORDER_ID AND CO.USER_ID = CP.USER_ID
 			   LEFT JOIN ORDERS AS O ON O.ORDER_ID = CO.ORDER_ID
+			   LEFT JOIN telephones AS T ON T.TEL_ID = O.TEL_ID
 			 WHERE ".$wh." (( O.ORDER_STATUS = 5 AND CO.RETURNS = 0 ) OR O.ORDER_STATUS < 5)
 			 GROUP BY CO.ORDER_ID,
 			   CO.USER_ID,
+			   T.CLIENT_ID,
 			   CO.CUST_STAT,
 			   CO.ORDER_STATUSE,
 			   CASE WHEN CO.ORDER_STATUSE = 3 THEN 1 ELSE CO.RETURNS END,

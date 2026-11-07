@@ -19,6 +19,7 @@ $('#SelectUserDelivery').select2({
 const urlVORP	= `../../inc/controller/accounts.control.php?CONTROL=ReceivePayments&ptype=${ptype}&st=${ost}&url=${wls}`,
 urlfinance		= `../../inc/controller/finance.control.php`,
 orderPayArr		= {};
+pendingCustomerCollectionRequest = null;
 vieworder		= (row) => {
 	if (!$('.DOL').is(':visible')) {
 		$('.btn-app-pade .btnhead').remove();
@@ -345,8 +346,23 @@ custodyTotal	= ()  => {
 /*=========================================================
 	 عرض بيانات اوامر البيع بالجدول
 	=========================================================*/$(document).ready(function() {
+    $.ajax({
+        url: urlfinance,
+        type: 'POST',
+        dataType: 'json',
+        data: { CONTROL: 'GetDeliverySettlementPaymentMethods' }
+    }).done(function(response) {
+        const $method = $('#rcPaymentMethod').empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع' }));
+        if (response && response.success === true) {
+            (response.methods || []).forEach(method => $method.append($('<option>', { value: method.id, text: method.name })));
+        } else {
+            $method.append($('<option>', { value: '', text: 'لا توجد طريقة دفع مرتبطة بحساب' }));
+        }
+    }).fail(function() {
+        $('#rcPaymentMethod').empty().append($('<option>', { value: '', text: 'تعذر تحميل طرق الدفع' }));
+    });
 	// زر السداد
-	$('.btn-app-pade').append('<button id="btnPay" class="btn btn-app-tools btnh text-dark btnPay" data-id="new" ><i class="fas fa-shopping-cart"></i><span class="btnname">سداد</span><span class="badge badge-danger navbar-badge onumBtnPay mr-2" ></span></button>');
+	$('.btn-app-pade').append('<button id="btnPay" class="btn btn-app-tools btnh text-dark btnPay" data-id="new" ><i class="fas fa-shopping-cart"></i><span class="btnname">تسجيل التحصيل</span><span class="badge badge-danger navbar-badge onumBtnPay mr-2" ></span></button>');
 	table = $('#tbl').DataTable({
 		//scrollY: '70vh',
 		//scrollX: false,
@@ -378,7 +394,7 @@ custodyTotal	= ()  => {
             {
                 orderable: false,
                 render: function(data, type, row, meta) {
-                    return `<button id="btnPayment" type="button" data-id="${row[0]}" class="btn btn-app-row btn-xs bg-secondary btnPayment h-80 f-5 m-1"><i class="fas fa-hand-holding-usd"></i></button>
+                    return `<button id="btnPayment" type="button" data-id="${row[0]}" ${Number(row[28]) > 0 ? '' : 'disabled'} class="btn btn-app-row btn-xs bg-secondary btnPayment h-80 f-5 m-1"><i class="fas fa-hand-holding-usd"></i></button>
                     	<button id="btnCancelPayment" type="button" data-id="${row[0]}" class="btn btn-app-row btn-xs bg-danger btnCancelPayment h-80 f-5 m-1" style="display:none;"><i class="fas fa-xmark"></i></button>`;
                 }
             }
@@ -503,6 +519,10 @@ custodyTotal	= ()  => {
 			let tr = e.target.closest('tr');
 			let row = table.row(tr);
 			let rowData = row.data();
+			if (!(Number(rowData[28]) > 0)) {
+				Toast_fire(['i', 'لا توجد مديونية مفتوحة على هذا الأمر في الأستاذ العام.']);
+				return;
+			}
 		
 			orderPayArr[rowData[0]] = row.data();
 			console.log(orderPayArr)
@@ -555,80 +575,91 @@ custodyTotal	= ()  => {
 		table.ajax.url(new_urlov).load();
 	});
 	$(document).on("click", "#btnPay", function () {
-		
-		if(Object.keys(orderPayArr).length){
-			
-			let totalprice = 0.00,
-				totaldelivered = 0,
-				totalshipping = 0,
-				orderIds = {} ;
-			console.log(orderPayArr)
-			Object.keys(orderPayArr).forEach((total) => {
-				totalprice += Number(orderPayArr[total][28]);
-				totaldelivered += Number(orderPayArr[total][26]);
-				totalshipping += Number(orderPayArr[total][27]);
-				orderIds[total] = {6 : orderPayArr[total][6]};
-			});
-			let msg =`<h4 class="text-info">المطلوب<span class="text-danger"> ${totalprice.toLocaleString('en-us')}</span> جنيه </h4>
-			
-			<h6 class="fw-light fs-6 mt-5 mb-0 pb-0">
-				مقسمه الى:
-			<br>
-			 قيمة مبيعات المنتجات ${totaldelivered.toFixed(2).toLocaleString()}
-			<br>
-			 قيمـة خـدمـات الشحـن ${totalshipping.toFixed(2).toLocaleString()}
-			</h>`;
-			let rqArray = {
-				'CONTROL':'CollectingFinancialPledge',
-				'delivery_id':$('#SelectUserDelivery').val(),
-				'orderObj': orderIds,//orderPayArr,
-				'totalAmount':totalprice
-			};
-			
-			Swal.fire({
-				title:"تأكيد سداد ",
-				html:  msg,
-				icon : '',
-				showDenyButton: true,
-				showCancelButton: true,
-				confirmButtonText:'تأكيد',
-				denyButtonText: 'الغاء قائمة الاوامر',
-				cancelButtonText:'إلغاء',
-				customClass: {
-					actions: 'my-actions',
-			    	confirmButton: 'order-1',
-			    	denyButton: 'order-2',
-			    	cancelButton: 'order-3 right-gap',
-				},
+        const deliveryId = Number($('#SelectUserDelivery').val() || 0);
+        const paymentMethodId = Number($('#rcPaymentMethod').val() || 0);
+        if (!deliveryId) {
+            Swal.fire({ title: "تنبيه", text: "اختر المندوب أولاً.", icon: "warning" });
+            return;
+        }
+        if (!paymentMethodId) {
+            Swal.fire({ title: "تنبيه", text: "اختر طريقة تحصيل المندوب من العميل.", icon: "warning" });
+            return;
+        }
+        if (!Object.keys(orderPayArr).length) {
+            Swal.fire({ title: "عفوا!", text: "من فضلك اختر أوامر البيع التي تم تحصيلها من العملاء.", icon: "warning" });
+            return;
+        }
 
-			}).then((result) => {
-				
-				console.log(rqArray)
-				if(result.isConfirmed){
-					
-					let res = sendRequest(urlfinance,rqArray, false);
-					Object.keys(orderPayArr).forEach(key => delete orderPayArr[key]);
-					$('.onumBtnPay').html('');
-					$('.btnPayment').attr('disabled',false).removeClass('bg-secondary').addClass('bg-info');
-					responseMsg(res);
-					table.ajax.reload();
-				}else if(result.isDenied){
-					Object.keys(orderPayArr).forEach(key => delete orderPayArr[key]);
-					$('.onumBtnPay').html('');
-					$('.btnPayment').attr('disabled',false).removeClass('bg-secondary').addClass('bg-info');
-					$("#btnCancelAllPayment").click();
+        const orderAmounts = {};
+        let totalprice = 0, totaldelivered = 0, totalshipping = 0;
+        Object.keys(orderPayArr).forEach(orderId => {
+            const row = orderPayArr[orderId];
+            const amount = Math.round((Number(row[28]) || 0) * 100) / 100;
+            if (amount > 0) {
+                orderAmounts[orderId] = amount.toFixed(2);
+                totalprice += amount;
+                totaldelivered += Number(row[26]) || 0;
+                totalshipping += Number(row[27]) || 0;
+            }
+        });
+        totalprice = Math.round(totalprice * 100) / 100;
+        if (!Object.keys(orderAmounts).length || totalprice <= 0) {
+            Swal.fire({ title: "تنبيه", text: "لا توجد مديونية مفتوحة على الأوامر المحددة.", icon: "warning" });
+            return;
+        }
 
-				}
-			});
-		} else {
-			Swal.fire({
-			  title: "عفوا!",
-			  text:  "لايمكن تنفيذ الاجراء ... من فضلك قم بإختيار اوامر البيع اولا!",
-			  icon: "warning"
-			});
-		}
-		
-	});
+        const fingerprint = JSON.stringify({ deliveryId, paymentMethodId, orderAmounts });
+        if (!pendingCustomerCollectionRequest || pendingCustomerCollectionRequest.fingerprint !== fingerprint) {
+            const requestKey = 'DCC-' + (window.crypto?.randomUUID
+                ? window.crypto.randomUUID().replace(/-/g, '')
+                : Date.now().toString(36) + Math.random().toString(36).slice(2));
+            pendingCustomerCollectionRequest = { fingerprint, requestKey };
+        }
+        const rqArray = {
+            CONTROL: 'RegisterDeliveryCustomerCollection',
+            delivery_id: deliveryId,
+            payment_method_id: paymentMethodId,
+            order_amounts: JSON.stringify(orderAmounts),
+            request_key: pendingCustomerCollectionRequest.requestKey
+        };
+        const msg = `<h4 class="text-info">المبلغ المحصل <span class="text-danger">${totalprice.toLocaleString('en-us')}</span> جنيه</h4>
+            <h6 class="fw-light fs-6 mt-3 mb-0">قيمة المنتجات ${totaldelivered.toFixed(2)}<br>قيمة الشحن ${totalshipping.toFixed(2)}</h6>
+            <p class="small text-muted mt-2">سيُثبت المبلغ في عهدة المندوب، ولا يعتبر استلامًا من الشركة.</p>`;
+        Swal.fire({
+            title: "تأكيد تسجيل تحصيل العميل",
+            html: msg,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'تأكيد التحصيل',
+            cancelButtonText: 'إلغاء'
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            $('.btnPay').prop('disabled', true);
+            Swal.fire({ title: 'جارٍ تسجيل التحصيل...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            $.ajax({
+                url: urlfinance,
+                type: 'POST',
+                dataType: 'json',
+                data: rqArray
+            }).done(response => {
+                Swal.close();
+                if (!response || response.success !== true) {
+                    responseMsg(response || ['error', 'خطأ', 'تعذر تسجيل التحصيل.']);
+                    return;
+                }
+                pendingCustomerCollectionRequest = null;
+                Object.keys(orderPayArr).forEach(key => delete orderPayArr[key]);
+                $('.onumBtnPay').html('');
+                $('.btnPayment').attr('disabled', false).removeClass('bg-secondary').addClass('bg-info');
+                responseMsg(response);
+                table.ajax.reload();
+                custodyTotal();
+            }).fail(xhr => {
+                Swal.close();
+                responseMsg(xhr.responseJSON || ['error', 'خطأ', 'تعذر الاتصال بالخادم؛ أعد المحاولة بنفس الطلب.']);
+            }).always(() => $('.btnPay').prop('disabled', false));
+        });
+    });
 	$(document).on("change", "#SelectUserDelivery", function() {
 		const val = $(this).val(), new_urlov = urlVORP+'&did='+val+'&cofi='+$('#Olhbtn li a.active.show').attr('id');
 		Object.keys(orderPayArr).forEach(key => delete orderPayArr[key]);
@@ -640,8 +671,10 @@ custodyTotal	= ()  => {
 			if (val) {
 				$("#btnSelectAllPayment").prop('disabled', false);
 			    $('.btnPayment').each(function() {
-			        $(this).prop('disabled', false);
-			        $(this).removeClass('bg-secondary').addClass('bg-info');
+					const rowData = table.row($(this).closest('tr')).data();
+					const hasOpenBalance = rowData && Number(rowData[28]) > 0;
+			        $(this).prop('disabled', !hasOpenBalance);
+			        $(this).removeClass(hasOpenBalance ? 'bg-secondary' : 'bg-info').addClass(hasOpenBalance ? 'bg-info' : 'bg-secondary');
 			    });
 			} else {
 				//$("#btnCancelAllPayment").click();

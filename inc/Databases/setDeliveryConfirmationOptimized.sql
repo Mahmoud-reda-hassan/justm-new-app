@@ -19,9 +19,9 @@
  *   3 - تحديث orders بناءً على مجاميع order_product للأوامر المتأثرة.
  *   4 - تحديث custody_product و custody_order للسجلات من نوع SELSE.
  *   5 - تحديث custody_return_product و custody_return_order للسجلات من نوع REFUND.
- *   6 - تحديث أرصدة العملاء دفعة واحدة عبر:
- *         - restClientDebtBatch → مديونية العملاء.
- *         - reduceClientCreditBatch → الرصيد الدائن للمرتجعات.
+ *   6 - لا ينفذ هذا الإجراء أي تحديث للأرصدة المالية القديمة.
+ *       ترحيل البيع يتم إلى GL بعد نجاح تأكيد التسليم،
+ *       وترحيل مردود البيع يتم فقط بعد الاستلام المخزني للمرتجع.
  *   7 - اضافة  حركات الشحن دفعه واحده:
  *         - shipping_movement → اضافة حركات الشحن لكل اوامر البيع 
  *   8 - النتيجة النهائية.
@@ -246,24 +246,12 @@ proc_exit: BEGIN
     END IF;
     
     -- --------------------------------------------------------------
-    -- 6. تحديث أرصدة العملاء دفعة واحدة
+    -- 6. القيود المحاسبية
     -- --------------------------------------------------------------
-    IF v_total_orders_selse > 0 THEN
-        CALL restClientDebtBatch(p_session_id, @error_code, @status, @message);
-        
-        IF @status = 'error' THEN
-            SELECT @status AS status, @message AS message, @error_code AS error_code;
-            LEAVE proc_exit;
-        END IF;
-    END IF;
-    
-    IF v_total_orders_refund > 0 THEN
-        CALL reduceClientCreditBatch(p_session_id, @error_code, @status, @message);
-        IF @status = 'error' THEN
-            SELECT @status AS status, @message AS message, @error_code AS error_code;
-            LEAVE proc_exit;
-        END IF;
-    END IF;
+    -- لا تُحدّث هذه العملية partners_balance أو أي رصيد مالي قديم.
+    -- البيع يُرحّل إلى GL بعد نجاح تأكيد التسليم في shipment_BE.
+    -- مردود البيع يُرحّل إلى GL فقط بعد استلام المرتجع مخزنيًا،
+    -- داخل مسار RETURN_SALES؛ لذلك لا يُنشأ رصيد دائن عند مجرد تأكيد المرتجع.
 	
     -- --------------------------------------------------------------
     -- 7. اضافة حركة الشحن دفعه واحده

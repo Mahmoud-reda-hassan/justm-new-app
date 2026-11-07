@@ -39,6 +39,7 @@ include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryAttemptCommissionManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingCollectionManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
 
 class shipment_BE {
 	private $orders_log_Tbl = 'ORDERS_LOG';
@@ -1639,6 +1640,22 @@ class shipment_BE {
 	        $call->closeCursor();
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
+                // ترحيل البيع إلى الأستاذ العام بعد نجاح تأكيد التسليم الفعلي.
+                // لا نُرحّل الطلبات المرفوضة أو التي لم تصل لحالة تسليم.
+                $deliveredOrders = $this->conn->prepare(
+                    "SELECT DISTINCT o.ORDER_ID
+                     FROM confirm_staging cs
+                     INNER JOIN orders o ON o.ORDER_ID = cs.ORDER_ID
+                     WHERE cs.SESSION_ID = ? AND cs.TYPE = 'SELSE'
+                       AND o.ORDER_STATUS IN (3, 4)
+                     ORDER BY o.ORDER_ID"
+                );
+                $deliveredOrders->execute([$sessionId]);
+                $accountingEvents = new AccountingEvents($this->conn);
+                foreach ($deliveredOrders->fetchAll(PDO::FETCH_COLUMN) as $deliveredOrderId) {
+                    $accountingEvents->directSale((int)$deliveredOrderId);
+                }
+
                 if ($customerPaidShipping === true) {
                     // إثبات التحصيل أولًا حتى تُحتسب عمولة هذه المحاولة بعد نجاح التحصيل.
                     $shippingCollectionManager = new DeliveryRejectedShippingCollectionManager($this->conn);
@@ -4920,109 +4937,9 @@ class DirectSale_BE {
 	            throw new Exception("❌ خطاء اثناء تحديث بيانات منتجات امر البيع");
 	        }
 			
-			// ================== تحديث ارصدة العملاء =====================
+			// لا يتم تحديث partners_balance؛ قيد البيع يُرحّل إلى الأستاذ العام أدناه.
 			
-			$stmtClientBalance_UP = $this->conn->prepare("
-							UPDATE partners_balance pb
-							INNER JOIN
-							(
-								SELECT o.ORDER_ID, c.CLIENT_ID, o.ORDER_SUCCESS, o.ORDER_STATUS,
-									SUM((op.PRICE - op.DISCOUNT) * op.QTY)           AS SUM_ORDER,
-									SUM((op.PRICE - op.DISCOUNT) * op.DELIVERED_QTY) AS SUM_DELIVERED,
-									SUM((op.PRICE - op.DISCOUNT) * op.RETURNED_QTY)  AS SUM_RETURNED
-								FROM orders o
-								LEFT JOIN addresses a ON a.ADDRESS_ID = o.ADDRESS_ID
-								LEFT JOIN client c ON c.CLIENT_ID = a.CLIENT_ID
-								LEFT JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
-								WHERE o.ORDER_ID IN ($placeholders)
-								GROUP BY o.ORDER_ID, c.CLIENT_ID, o.ORDER_SUCCESS, o.ORDER_STATUS
-							) src 
-							ON pb.PARTNER_ID = src.CLIENT_ID AND pb.REFERENCE_ID = src.ORDER_ID AND pb.PARTNER_TYPE = 'CLIENT' 
-							AND pb.TRANSACTION_TYPE = CASE WHEN src.ORDER_SUCCESS > 0 AND src.SUM_RETURNED > 0 AND src.ORDER_STATUS IN (6,7) THEN 'CREDIT' WHEN src.ORDER_SUCCESS <= 0 AND src.SUM_RETURNED = 0 AND src.ORDER_STATUS IN (0,1,2,3,4) THEN 'DEBIT' ELSE NULL END
-							AND pb.TRANSACTION_CATEGORY_ID = CASE WHEN src.ORDER_SUCCESS > 0 AND src.SUM_RETURNED > 0 AND src.ORDER_STATUS IN (6,7) THEN 14 WHEN src.ORDER_SUCCESS <= 0 AND src.SUM_RETURNED = 0 AND src.ORDER_STATUS IN (0,1,2,3,4) THEN 8 ELSE NULL END
-							SET
-							pb.BALANCE = CASE WHEN src.ORDER_SUCCESS <= 0 AND src.SUM_RETURNED = 0 AND src.ORDER_STATUS IN (0,1,2) THEN src.SUM_ORDER WHEN src.ORDER_SUCCESS <= 0 AND src.SUM_RETURNED = 0 AND src.ORDER_STATUS IN (3,4) THEN src.SUM_DELIVERED WHEN src.ORDER_SUCCESS > 0 AND src.SUM_RETURNED > 0 AND src.ORDER_STATUS IN (6,7) THEN src.SUM_RETURNED ELSE 0 END,
-							pb.LAST_UPDATE = NOW(6);
-							");
-			
-			if (!$stmtClientBalance_UP->execute($orderIds)){
-				throw new Exception("خطاء اثناء تحديث ارصدة العميل");
-			}
-			
-			if($stmtClientBalance_UP->rowCount() == 0) {
-				$stmtClientBalance_IN = $this->conn->prepare("
-								INSERT INTO partners_balance ( PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE, TRANSACTION_CATEGORY_ID, USE_OF_CREDIT, LAST_UPDATE)
-								SELECT
-									'CLIENT'   		AS PARTNER_TYPE,
-									src.CLIENT_ID   AS PARTNER_ID,
-									src.ORDER_ID    AS REFERENCE_ID,
-									CASE 
-										WHEN src.ORDER_SUCCESS > 0 AND src.ORDER_STATUS IN (6,7) AND src.SUM_RETURNED > 0 THEN 'CREDIT'
-										WHEN src.ORDER_SUCCESS <= 0 AND src.ORDER_STATUS IN (0,1,2,3,4) AND src.SUM_RETURNED = 0 THEN 'DEBIT'
-										ELSE NULL
-									END   			AS TRANSACTION_TYPE,
-									CASE
-										WHEN src.ORDER_SUCCESS <= 0 AND src.ORDER_STATUS IN (0,1,2) AND src.SUM_RETURNED = 0 THEN src.SUM_ORDER
-										WHEN src.ORDER_SUCCESS <= 0 AND src.ORDER_STATUS IN (3,4) AND src.SUM_RETURNED = 0 THEN src.SUM_DELIVERED
-										WHEN src.ORDER_SUCCESS > 0 AND src.ORDER_STATUS IN (6,7) AND src.SUM_RETURNED > 0 THEN src.SUM_RETURNED
-										ELSE 0
-									END    			AS BALANCE,
-									CASE
-										WHEN src.ORDER_SUCCESS > 0 AND src.ORDER_STATUS IN (6,7) AND src.SUM_RETURNED > 0 THEN 'رصيد دائن نتيجة ارجاع منتجات'
-										WHEN src.ORDER_SUCCESS <= 0 AND src.ORDER_STATUS IN (0,1,2,3,4) AND src.SUM_RETURNED = 0 THEN 'مديونية عميل ناتجة عن أمر بيع' 
-										ELSE NULL
-									END    			AS NOTE,
-									CASE
-										WHEN src.ORDER_SUCCESS > 0 AND src.ORDER_STATUS IN (6,7) AND src.SUM_RETURNED > 0 THEN 14
-										WHEN src.ORDER_SUCCESS <= 0 AND src.ORDER_STATUS IN (0,1,2,3,4) AND src.SUM_RETURNED = 0 THEN 8
-										ELSE NULL
-									END   			AS TRANSACTION_CATEGORY_ID,
-									0      			AS USE_OF_CREDIT,
-									NOW(6) 			AS LAST_UPDATE
-
-								FROM
-								(
-									SELECT
-										o.ORDER_ID,
-										c.CLIENT_ID,
-										o.ORDER_SUCCESS,
-										o.ORDER_STATUS,
-										SUM((op.PRICE - op.DISCOUNT) * op.QTY)              AS SUM_ORDER,
-										SUM((op.PRICE - op.DISCOUNT) * op.DELIVERED_QTY)    AS SUM_DELIVERED,
-										SUM((op.PRICE - op.DISCOUNT) * op.RETURNED_QTY)     AS SUM_RETURNED
-									FROM orders o
-									LEFT JOIN addresses a ON a.ADDRESS_ID = o.ADDRESS_ID
-									LEFT JOIN client c ON c.CLIENT_ID = a.CLIENT_ID
-									LEFT JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
-									WHERE o.ORDER_ID IN ($placeholders)
-									GROUP BY o.ORDER_ID, c.CLIENT_ID, o.ORDER_SUCCESS, o.ORDER_STATUS
-								) src
-								WHERE NOT EXISTS
-								(
-									SELECT 1
-									FROM partners_balance pb
-									WHERE pb.PARTNER_TYPE = 'CLIENT'
-									  AND pb.PARTNER_ID = src.CLIENT_ID
-									  AND pb.REFERENCE_ID = src.ORDER_ID
-									  AND pb.TRANSACTION_TYPE =
-											CASE
-												WHEN src.ORDER_SUCCESS > 0 AND src.ORDER_STATUS IN (6,7) AND src.SUM_RETURNED > 0 THEN 'CREDIT'
-												WHEN src.ORDER_SUCCESS <= 0 AND src.ORDER_STATUS IN (0,1,2,3,4) AND src.SUM_RETURNED = 0 THEN 'DEBIT'
-												ELSE NULL
-											END
-									  AND pb.TRANSACTION_CATEGORY_ID =
-											CASE
-												WHEN src.ORDER_SUCCESS > 0 AND src.ORDER_STATUS IN (6,7) AND src.SUM_RETURNED > 0 THEN 14
-												WHEN src.ORDER_SUCCESS <= 0 AND src.ORDER_STATUS IN (0,1,2,3,4) AND src.SUM_RETURNED = 0 THEN 8
-												ELSE NULL
-											END
-								);");
-				if (!$stmtClientBalance_IN->execute($orderIds) || $stmtClientBalance_IN->rowCount() == 0) {
-					throw new Exception("خطاء اثناء اضافة ارصدة العملاء");
-				}
-	        }
-	        
-	        // ================== تسجيل حركة الشحن ==================
+			// ================== تسجيل حركة الشحن ==================
 	        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
 	        $stmtShip = $this->conn->prepare("
 	            INSERT INTO shipping_movement

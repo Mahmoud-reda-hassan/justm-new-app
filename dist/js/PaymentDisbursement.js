@@ -2,6 +2,9 @@
 =            GLOBAL VARIABLES
 ==================================================*/
 let supplierOrdersTable = null;
+let supplierPaymentRequestKey = null;
+let supplierAdvanceRequestKey = null;
+let supplierAdvanceRequestFingerprint = null;
 let currentLoading = null;
 const balanceCache = {};        // لتخزين أرصدة الشركاء
 const searchCache = {           // لتخزين نتائج البحث (اختياري للـ Select2)
@@ -200,13 +203,26 @@ async function loadPartnerBalance(partnerId, type, targetId, amountFieldId = nul
             pt: type
         });
         if (data && data[0]) {
-            balance = parseFloat(data[0].total_balance) || 0;
+            if (type === 'SUPPLIER' && Object.prototype.hasOwnProperty.call(data[0], 'gl_balance')) {
+                balance = {
+                    legacy: parseFloat(data[0].legacy_balance) || 0,
+                    gl: parseFloat(data[0].gl_balance) || 0
+                };
+            } else {
+                balance = parseFloat(data[0].total_balance) || 0;
+            }
             balanceCache[cacheKey] = balance;
         } else {
             balance = 0;
         }
     }
-    
+
+    // لا نخلط رصيد المورد التاريخي مع حركات GL قبل اعتماد رصيد افتتاحي.
+    if (type === 'SUPPLIER' && balance && typeof balance === 'object') {
+        $(targetId).text('قديم: ' + formatMoney(balance.legacy) + ' | GL: ' + formatMoney(balance.gl));
+        return;
+    }
+
     // تحديث الواجهة
     $(targetId).text(formatMoney(balance));
     if (amountFieldId) {
@@ -262,17 +278,26 @@ function loadSupplierOrders(supplierId) {
                     data-order="${data.ORDER_ID}"
                     data-remain="${data.REMAIN}"
                     value="0" min="0" max="${data.REMAIN}" step="0.01">`
+            },
+            {
+                data: null,
+                render: data => `<input type="number" class="form-control advance-input" style="width:140px"
+                    data-order="${data.ORDER_ID}" data-remain="${data.REMAIN}"
+                    value="0" min="0" max="${data.REMAIN}" step="0.01">`
             }
         ],
         columnDefs: [
 	        {
-	            targets: [0,1,2,3,4,5,6,7], // أرقام الأعمدة
+	            targets: [0,1,2,3,4,5,6,7,8], // أرقام الأعمدة
 	            className: 'text-nowrap'
 	        }
 	    ],
         language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json' },
         drawCallback: () => autoDistributeSupplierPayment($('#amount-morad').val() || 0)
     });
+    request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
+        .then(data => $('#supplier-existing-advance').text(formatMoney(data?.available_advance ?? data?.data?.available_advance ?? 0)))
+        .catch(() => $('#supplier-existing-advance').text('تعذر التحميل'));
 }
 
 function calculateSupplierTotal() {
@@ -322,6 +347,72 @@ function autoDistributeSupplierPayment(amount) {
     $('#current-payment-total').text(formatMoney(allocated));
     $('#supplier-advance-total').text(formatMoney(Math.max(0, remaining)));
     calculateSupplierTotal();
+}
+
+async function offerSupplierReversal(control, payload, title, supplierId) {
+    const choice = await Swal.fire({
+        icon: 'warning',
+        title,
+        text: 'تأكيد العكس سيعيد المبلغ إلى مستحقات المورد ويُنشئ قيدًا عكسيًا محفوظًا.',
+        showCancelButton: true,
+        confirmButtonText: 'عكس العملية',
+        cancelButtonText: 'إغلاق',
+        reverseButtons: true
+    });
+    if (!choice.isConfirmed) return;
+    showLoading('جارٍ عكس العملية وتحديث أرصدة المورد...');
+    try {
+        const result = await request(API_FINANCE, { CONTROL: control, ...payload }, 'POST');
+        hideLoading();
+        if (!result || result.success !== true) {
+            return showAlert('error', 'تعذر العكس', result?.message || result?.[2] || 'حدث خطأ أثناء عكس العملية');
+        }
+        delete balanceCache['SUPPLIER_' + supplierId];
+        if (supplierOrdersTable) supplierOrdersTable.ajax.reload();
+        showAlert('success', 'تم العكس', result.message || 'تم عكس العملية بنجاح');
+        request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
+            .then(data => $('#supplier-existing-advance').text(formatMoney(data?.available_advance ?? 0)));
+    } catch (error) {
+        hideLoading();
+        showAlert('error', 'خطأ', error.message);
+    }
+}
+
+async function applySupplierAdvances(mode) {
+    const supplierId = Number($('#select-morad').val() || 0);
+    if (!supplierId) return showAlert('warning', 'تنبيه', 'اختر المورد أولًا');
+    const orders = [];
+    if (mode === 'MANUAL') {
+        $('#supplierOrdersTable .advance-input').each(function () {
+            const amount = Math.round((parseFloat($(this).val()) || 0) * 100) / 100;
+            if (amount > 0) orders.push({ orderId: Number($(this).data('order')), amount });
+        });
+        if (!orders.length) return showAlert('warning', 'تنبيه', 'حدد مبالغ المقدم في الفواتير أولًا');
+    }
+    const requestFingerprint = JSON.stringify([supplierId, mode, orders]);
+    if (!supplierAdvanceRequestKey || supplierAdvanceRequestFingerprint !== requestFingerprint) {
+        supplierAdvanceRequestKey = 'SADV-' + (window.crypto?.randomUUID ? window.crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2));
+        supplierAdvanceRequestFingerprint = requestFingerprint;
+    }
+    const payload = { CONTROL: 'ApplySupplierAdvances', supplier_id: supplierId, mode, request_key: supplierAdvanceRequestKey };
+    orders.forEach((item, index) => { payload['orders[' + index + '][orderId]'] = item.orderId; payload['orders[' + index + '][amount]'] = item.amount.toFixed(2); });
+    showLoading('جارٍ تطبيق مقدم المورد...');
+    try {
+        const result = await request(API_FINANCE, payload, 'POST');
+        hideLoading();
+        if (result[0] === 'success') {
+            supplierAdvanceRequestKey = null;
+            supplierAdvanceRequestFingerprint = null;
+            delete balanceCache['SUPPLIER_' + supplierId];
+            if (supplierOrdersTable) supplierOrdersTable.ajax.reload();
+            request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
+                .then(data => $('#supplier-existing-advance').text(formatMoney(data?.available_advance ?? 0)));
+            await offerSupplierReversal('ReverseSupplierAdvanceApplication',
+                { journal_id: Number(result.journal_entry_id) }, 'هل تريد عكس تطبيق المقدم؟', supplierId);
+        } else {
+            showAlert(result[0] || 'error', result[1] || 'خطأ', result[2] || 'تعذر تطبيق المقدم');
+        }
+    } catch (error) { hideLoading(); showAlert('error', 'خطأ', error.message); }
 }
 
 /*==================================================
@@ -396,31 +487,47 @@ function initCustomerReturnSection() {
 =            SAVE CUSTOMER RETURN
 ==================================================*/
 async function saveFinancialReturn(orderId) {
-    if (!orderId || orderId <= 0) {
-        showAlert('warning', 'نأسف', 'لم تقم بإختيار أمر البيع أولاً');
+    const paymentMethodId = Number($('#refund-payment-method').val() || 0);
+    const amount = Number($('#return-amount').text() || 0);
+    if (!orderId || Number(orderId) <= 0) {
+        showAlert('warning', 'تنبيه', 'لم تقم بإختيار أمر البيع أولاً');
         return;
     }
+    if (!paymentMethodId) {
+        showAlert('warning', 'تنبيه', 'اختر طريقة رد المبلغ');
+        return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+        showAlert('warning', 'تنبيه', 'لا يوجد رصيد مرتجع متاح للصرف');
+        return;
+    }
+
+    const requestKey = 'CRF-' + (window.crypto?.randomUUID
+        ? window.crypto.randomUUID().replace(/-/g, '')
+        : Date.now().toString(36) + Math.random().toString(36).slice(2));
     showLoading('جارى الحفظ...');
     try {
         const data = await request(API_FINANCE, {
-            CONTROL: 'PaymentOfCustomerDues',
-            oid: orderId
+            CONTROL: 'RefundCustomerReturn',
+            oid: orderId,
+            payment_method_id: paymentMethodId,
+            amount: amount.toFixed(2),
+            request_key: requestKey
         }, 'POST');
+        hideLoading();
         if (!data) return;
+        showAlert(data[0] || 'error', data[1] || 'خطأ', data[2] || 'لم يتم تأكيد رد المبلغ');
         if (data[0] === 'success') {
-        	const cacheKey = `${'CLIENT'}_${$('#select-order').val()}`;
+            const cacheKey = `CLIENT_${$('#select-client').val()}`;
             delete balanceCache[cacheKey];
             $('#select-order').val(null).trigger('change').html('<option value=""></option>');
             $('#select-client').val(null).trigger('change').html('<option value=""></option>');
+            $('#refund-payment-method').val('');
             $('#return-amount').text('0.00');
-            
         }
-       
-        showAlert(data[0], data[1], data[2]);
-    } catch (err) {
-        showAlert('error', 'خطأ', err.message);
-    } finally {
+    } catch (error) {
         hideLoading();
+        showAlert('error', 'خطأ', error.message);
     }
 }
 
@@ -431,304 +538,200 @@ async function saveFinancialReturn(orderId) {
 async function saveSupplierPayment(){
 
     const supplierId = $('#select-morad').val();
+    const paymentMethodId = Number($('#supplier-payment-method').val() || 0);
     const totalAmount = parseFloat($('#amount-morad').val()) || 0;
+    const note = $('#morad-note').val() || '';
 
     if(!supplierId){
-		showAlert('warning','تنبيه','قم بإختيار المورد');
+        showAlert('warning','تنبيه','قم بإختيار المورد');
         return;
     }
-    if(totalAmount <= 0){
+    if(!paymentMethodId){
+        showAlert('warning','تنبيه','اختر طريقة الدفع');
+        return;
+    }
+    if(!Number.isFinite(totalAmount) || totalAmount <= 0){
         showAlert('warning','تنبيه','قم بإدخال مبلغ صحيح');
         return;
     }
 
-    let payload = {
-        CONTROL : 'SaveSupplierPayment',
-        supplier_id : supplierId,
-        total_amount : totalAmount,
-        note : $('#morad-note').val() || ''
+    const paymentOrders = [];
+    $('#supplierOrdersTable .payment-input').each(function(){
+        const orderId = Number($(this).data('order') || 0);
+        const amount = Number($(this).val() || 0);
+        if(orderId > 0 && Number.isFinite(amount) && amount > 0){
+            paymentOrders.push({orderId, amount: amount.toFixed(2)});
+        }
+    });
+    paymentOrders.sort((a, b) => a.orderId - b.orderId);
+
+    const requestFingerprint = JSON.stringify({
+        supplierId: Number(supplierId),
+        paymentMethodId,
+        totalAmount: totalAmount.toFixed(2),
+        note,
+        orders: paymentOrders
+    });
+    if (!supplierPaymentRequestKey || supplierPaymentRequestFingerprint !== requestFingerprint) {
+        supplierPaymentRequestKey = 'SUP-' + (window.crypto?.randomUUID
+            ? window.crypto.randomUUID().replace(/-/g, '')
+            : Date.now().toString(36) + Math.random().toString(36).slice(2));
+        supplierPaymentRequestFingerprint = requestFingerprint;
+    }
+
+    const payload = {
+        CONTROL: 'SaveSupplierPayment',
+        supplier_id: supplierId,
+        total_amount: totalAmount.toFixed(2),
+        payment_method_id: paymentMethodId,
+        request_key: supplierPaymentRequestKey,
+        note
     };
-
-    let index = 0;
-
-	$('#supplierOrdersTable .payment-input').each(function(){
-	
-	    let orderId = $(this).data('order');
-	
-	    let amount = parseFloat($(this).val()) || 0;
-	
-	    if(amount <= 0) return;
-	
-	    payload[`orders[${index}][orderId]`] = orderId;
-	
-	    payload[`orders[${index}][amount]`] = amount;
-	
-	    index++;
-	
-	});
-	
-   /* if(index === 0){
-        showAlert('warning','تنبيه','لا يوجد أوامر للصرف');
-        return;
-    }*/
+    paymentOrders.forEach((item, index) => {
+        payload[`orders[${index}][orderId]`] = item.orderId;
+        payload[`orders[${index}][amount]`] = item.amount;
+    });
 
     showLoading('جارى حفظ الصرف...');
-
     try{
-		const data = await request(API_FINANCE, payload, 'POST');
+        const data = await request(API_FINANCE, payload, 'POST');
         hideLoading();
-        showAlert(data[0],data[1],data[2]);
-       
-        const cacheKey = `${'SUPPLIER'}_${$('#select-morad').val()}`;
-        delete balanceCache[cacheKey];
-        $('#select-morad').val(null).trigger('change').html('<option value=""></option>');
-                
-            
+        if (data[0] === 'success') {
+            supplierPaymentRequestKey = null;
+            supplierPaymentRequestFingerprint = null;
+            $('#supplier-payment-method').val('');
+            const cacheKey = `SUPPLIER_${supplierId}`;
+            delete balanceCache[cacheKey];
+            $('#select-morad').val(null).trigger('change').html('<option value=""></option>');
+            await offerSupplierReversal('ReverseSupplierPayment',
+                { payment_id: Number(data.payment_id) }, 'هل تريد عكس دفعة المورد؟', supplierId);
+        } else {
+            showAlert(data?.[0] || 'error', data?.[1] || 'خطأ', data?.[2] || 'تعذر حفظ الصرف');
+        }
     }catch(error){
         hideLoading();
         showAlert('error','خطأ',error.message);
     }
-
 }
 
+/*==================================================
+=            MARKETER GL PAYMENT METHODS
+==================================================*/
+async function loadMarketerPaymentMethods() {
+    const response = await request(API_FINANCE, {
+        CONTROL: 'GetDeliverySettlementPaymentMethods'
+    }, 'POST');
+    const selects = ['#marketer-payment-method', '#delivery-payment-method', '#refund-payment-method', '#supplier-payment-method'];
+    selects.forEach(selector => {
+        const $select = $(selector);
+        $select.empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع' }));
+        if (!response || response.success !== true) {
+            $select.append($('<option>', { value: '', text: 'تعذر تحميل طرق الدفع' }));
+            return;
+        }
+        (response.methods || []).forEach(method => {
+            $select.append($('<option>', { value: method.id, text: method.name }));
+        });
+        if (!(response.methods || []).length) {
+            $select.append($('<option>', { value: '', text: 'لا توجد طريقة دفع مرتبطة بحساب' }));
+        }
+    });
+}
 /*==================================================
 =            SAVE MARKETER PAYMENT
 ==================================================*/
 
-async function saveMarketerPayment(){
+async function saveMarketerPayment() {
+    const marketerId = Number($('#select-masouq').val() || 0);
+    const paymentMethodId = Number($('#marketer-payment-method').val() || 0);
+    const amount = Number($('#amount-masouq').val() || 0);
+    const available = Number($('#total-masouq').text() || 0);
 
-    const marketerId = $('#select-masouq').val();
-	const totalbalance = $("#total-masouq").text();
-    const amount = parseFloat(
-        $('#amount-masouq').val()
-    ) || 0;
-
-    /*==============================
-    =            validation
-    ==============================*/
-
-    if(!marketerId){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإختيار المسوق'
-        );
-
-        return;
-
+    if (!marketerId) return showAlert('warning', 'تنبيه', 'قم بإختيار المسوق');
+    if (!paymentMethodId) return showAlert('warning', 'تنبيه', 'اختر طريقة صرف العمولة');
+    if (!Number.isFinite(amount) || amount <= 0) return showAlert('warning', 'تنبيه', 'قم بإدخال مبلغ صحيح');
+    if (amount - available > 0.009) {
+        $('#amount-masouq').val(formatMoney(available));
+        return showAlert('warning', 'تنبيه', 'المبلغ أكبر من مستحقات المسوق المتاحة في دفتر الأستاذ العام');
     }
 
-    if(amount <= 0){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإدخال مبلغ صحيح'
-        );
-
-        return;
-
-    }
-    if(amount > totalbalance){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'المبلغ الذى ادخلته اكبر من مستحقات المسوق'
-        );
-		$('#amount-masouq').val(totalbalance);
-        return;
-
-    }
-
-    /*==============================
-    =            payload
-    ==============================*/
-
+    const requestKey = 'MCP-' + (window.crypto?.randomUUID
+        ? window.crypto.randomUUID().replace(/-/g, '')
+        : Date.now().toString(36) + Math.random().toString(36).slice(2));
     const payload = {
-
-        CONTROL : 'PaymentOfMarketerDues',
-        partner_id : marketerId,
-        balance : totalbalance,
-        amount : amount
-
+        CONTROL: 'PayMarketerCommission',
+        partner_id: marketerId,
+        payment_method_id: paymentMethodId,
+        amount: amount.toFixed(2),
+        request_key: requestKey
     };
 
     showLoading('جارى حفظ عملية الصرف...');
-
-    try{
-
-        const data = await request(
-            API_FINANCE,
-            payload,
-            'POST'
-        );
-
+    try {
+        const data = await request(API_FINANCE, payload, 'POST');
         hideLoading();
-
-        if(!data)
-            return;
-
-        showAlert(
-            data[0],
-            data[1],
-            data[2]
-        );
-
-        /*==============================
-        =            success
-        ==============================*/
-
-        if(data[0] === 'success'){
-			$('#select-masouq').val(null).trigger('change').html('<option value=""></option>');
+        if (!data) return;
+        showAlert(data[0] || 'error', data[1] || 'خطأ', data[2] || 'لم يتم تأكيد عملية الصرف');
+        if (data[0] === 'success') {
+            $('#select-masouq').val(null).trigger('change').html('<option value="">اختر المسوق</option>');
+            $('#marketer-payment-method').val('');
             $('#amount-masouq').val('');
-			
-            delete balanceCache[
-                `MARKETER_${marketerId}`
-            ];
-
-            /*loadPartnerBalance(
-                marketerId,
-                'MARKETER',
-                '#total-masouq',
-                '#amount-masouq'
-            );*/
-
+            $('#total-masouq').text('0.00');
+            delete balanceCache[`MARKETER_${marketerId}`];
         }
-
-    }catch(error){
-
+    } catch (error) {
         hideLoading();
-
-        showAlert(
-            'error',
-            'خطأ',
-            error.message
-        );
-
+        showAlert('error', 'خطأ', error.message);
     }
-
 }
 
 /*==================================================
 =            SAVE DELIVERY PAYMENT
 ==================================================*/
 
-async function saveDeliveryPayment(){
+async function saveDeliveryPayment() {
+    const deliveryId = Number($('#select-mandob').val() || 0);
+    const paymentMethodId = Number($('#delivery-payment-method').val() || 0);
+    const amount = Number($('#amount-mandob').val() || 0);
+    const available = Number($('#total-mandob').text() || 0);
 
-    const deliveryId = $('#select-mandob').val();
-    const totalbalance = $("#total-mandob").text();
-    const amount = parseFloat(
-        $('#amount-mandob').val()
-    ) || 0;
-
-    /*==============================
-    =            validation
-    ==============================*/
-
-    if(!deliveryId){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإختيار المندوب'
-        );
-
-        return;
-
+    if (!deliveryId) return showAlert('warning', 'تنبيه', 'قم بإختيار المندوب');
+    if (!paymentMethodId) return showAlert('warning', 'تنبيه', 'اختر طريقة صرف العمولة');
+    if (!Number.isFinite(amount) || amount <= 0) return showAlert('warning', 'تنبيه', 'قم بإدخال مبلغ صحيح');
+    if (amount - available > 0.009) {
+        $('#amount-mandob').val(formatMoney(available));
+        return showAlert('warning', 'تنبيه', 'المبلغ أكبر من عمولة المندوب المستحقة في دفتر الأستاذ العام');
     }
 
-    if(amount <= 0){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإدخال مبلغ صحيح'
-        );
-
-        return;
-
-    }
-    if(amount > totalbalance){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'المبلغ المراد صرفه اكبر من مستحقات المندوب'
-        );
-		$('#amount-mandob').val(totalbalance);
-        return;
-
-    }
-
-    /*==============================
-    =            payload
-    ==============================*/
-
-    const payload = {
-
-        CONTROL : 'PaymentOfDeliveryDues',
-        partner_id : deliveryId,
-		balance :totalbalance,
-        amount : amount
-
-    };
-
+    const requestKey = 'DCP-' + (window.crypto?.randomUUID
+        ? window.crypto.randomUUID().replace(/-/g, '')
+        : Date.now().toString(36) + Math.random().toString(36).slice(2));
     showLoading('جارى حفظ عملية الصرف...');
-
-    try{
-
-        const data = await request(
-            API_FINANCE,
-            payload,
-            'POST'
-        );
-
+    try {
+        const data = await request(API_FINANCE, {
+            CONTROL: 'PayDeliveryCommission',
+            delivery_id: deliveryId,
+            payment_method_id: paymentMethodId,
+            amount: amount.toFixed(2),
+            request_key: requestKey
+        }, 'POST');
         hideLoading();
-
-        if(!data)
-            return;
-
-        showAlert(
-            data[0],
-            data[1],
-            data[2]
-        );
-
-        /*==============================
-        =            success
-        ==============================*/
-
-        if(data[0] === 'success'){
-			$('#select-mandob').val(null).trigger('change').html('<option value=""></option>');
-            $('#amount-mandob').val('');
-
-            delete balanceCache[
-                `DELIVERY_${deliveryId}`
-            ];
-            
-            /*loadPartnerBalance(
-                deliveryId,
-                'DELIVERY',
-                '#total-mandob',
-                '#amount-mandob'
-            );*/
-
+        if (!data) return;
+        if (data.success !== true) {
+            return showAlert('error', 'خطأ', data.message || data[2] || 'لم يتم تأكيد صرف العمولة');
         }
-
-    }catch(error){
-
+        showAlert('success', 'ناجح', data.already_posted
+            ? 'تم التعرف على نفس عملية الصرف السابقة دون تكرار القيد.'
+            : 'تم صرف عمولة المندوب بنجاح.');
+        $('#select-mandob').val(null).trigger('change').html('<option value="">اختر المندوب</option>');
+        $('#delivery-payment-method').val('');
+        $('#amount-mandob').val('');
+        $('#total-mandob').text('0.00');
+        delete balanceCache[`DELIVERY_${deliveryId}`];
+    } catch (error) {
         hideLoading();
-
-        showAlert(
-            'error',
-            'خطأ',
-            error.message
-        );
-
+        showAlert('error', 'خطأ', error.message);
     }
-
 }
 
 /*==================================================
@@ -738,6 +741,7 @@ $(function() {
     initBackButton();
 
     // تهيئة المندوب والمسوق والمورد
+    loadMarketerPaymentMethods();
     initPartnerSelect2('#select-mandob', 'GetDeliveryData', 'اختر المندوب');
     initPartnerSelect2('#select-masouq', 'GetMasouqData', 'اختر المسوق');
     initPartnerSelect2('#select-morad', 'GetMoradData', 'اختر المورد');

@@ -1,4 +1,5 @@
 <?php
+require_once ABSPATH . '/inc/Classes/Accounting/SupplierAccountingManager.php';
 include_once(ABSPATH.'/inc/configDateTimeFN.php');
 include_once(ABSPATH.'/inc/Databases/DBSchema.php');
 include_once(ABSPATH.'/inc/Databases/DataProcessor.php');
@@ -221,34 +222,60 @@ class PurchaseOrderDAO {
 	}
 	// دالة لإدخال أمر الشراء في جدول `purchases_orders`
 	public function insertOrder($supplierId, $reference, $total_price, $total_payments, $status, $note, $products) {
-		$tbln = $this->DBTables->getTableName('purchases_orders');
-		$fields = $this->DBTables->getTableFieldsName('purchases_orders');
+		// إيقاف تسجيل الدفعة الأولية مؤقتًا حتى يُعتمد مسارها المحاسبي في GL.
+		if ((float)$total_payments > 0) {
+			throw new Exception('لا يمكن تسجيل دفعة أولية مع أمر الشراء حاليًا. سجّل أمر الشراء بدون دفعة، ثم سجّل الصرف من شاشة صرف مستحقات المورد.');
+		}
 
-		$data = [
-			$fields['SUPPLIER_ID'] => $supplierId,
-			$fields['REFERENCE'] => $reference,
-			$fields['TOTAL_PRICE'] => $total_price,
-			$fields['TOTAL_PAYMENTS'] => $total_payments,
-			$fields['STATUSE'] => $status, // enum('DEFERRED', 'COMPLETED')
-			$fields['NOTE'] => $note
-		];
-		$stmt = $this->DBInsert->insert($tbln, $data);
-		if (!$stmt['result']) {
-			throw new Exception("Purchase order is not confirmed");
+		// يجب أن يُحفظ رأس الأمر والمنتجات وقيد GL كوحدة واحدة؛ لا نترك أمرًا
+		// تشغيليًا محفوظًا إذا فشل أي جزء من الترحيل المحاسبي.
+		$ownsTransaction = !$this->pdo->inTransaction();
+		if ($ownsTransaction) {
+			$this->pdo->beginTransaction();
 		}
-		
-		// إرجاع آخر ID تم إدخاله
-		$orderId  = $stmt['insertedId'];
-		$response = $this->insertProducts($orderId, $products);
-		if (!$orderId || !$response) {
-			throw new Exception("purchases products not confirmed");
+
+		try {
+			$tbln = $this->DBTables->getTableName('purchases_orders');
+			$fields = $this->DBTables->getTableFieldsName('purchases_orders');
+
+			$data = [
+				$fields['SUPPLIER_ID'] => $supplierId,
+				$fields['REFERENCE'] => $reference,
+				$fields['TOTAL_PRICE'] => $total_price,
+				$fields['TOTAL_PAYMENTS'] => $total_payments,
+				$fields['STATUSE'] => $status,
+				$fields['NOTE'] => $note
+			];
+			$stmt = $this->DBInsert->insert($tbln, $data);
+			if (!$stmt['result']) {
+				throw new Exception("Purchase order is not confirmed");
+			}
+
+			$orderId = (int)$stmt['insertedId'];
+			if ($orderId <= 0) {
+				throw new Exception("Purchase order ID was not returned");
+			}
+			$response = $this->insertProducts($orderId, $products);
+			if (!$response) {
+				throw new Exception("purchases products not confirmed");
+			}
+
+			$branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+			$userId = (int)($_SESSION['USER_ID'] ?? 0);
+			(new SupplierAccountingManager($this->pdo))->recordPurchaseOrder(
+				$orderId, (int)$supplierId, $branchId, $userId
+			);
+
+			if ($ownsTransaction && $this->pdo->inTransaction()) {
+				$this->pdo->commit();
+			}
+			return $orderId;
+		} catch (Throwable $e) {
+			if ($ownsTransaction && $this->pdo->inTransaction()) {
+				$this->pdo->rollBack();
+			}
+			throw $e;
 		}
-		$response1 = $this->finance->addSupplierDebt($this->pdo,$supplierId, $orderId, $total_price);
-		if (!$response1) {
-			throw new Exception("partner balanceis not confirmed");
-		}
-		
-		return $orderId;
 	}
 	// دالة لإدخال أمر الشراء في جدول `purchases_return_orders`
 	public function insertReturnOrder($supplierId, $reference, $total_price, $total_payments, $status, $note, $products) {
@@ -276,10 +303,7 @@ class PurchaseOrderDAO {
 			throw new Exception("Return Purchase product is not confirmed");
 		}
 		
-		$response1 = $this->finance->addSupplierCredit($this->pdo,$supplierId, $orderId, $total_price);
-		if (!$response1) {
-			throw new Exception("partner balanceis not confirmed");
-		}
+		// يُسجل تخفيض مستحق المورد بعد اعتماد حركة الصرف المخزني للمرتجع فقط.
 		return $orderId;
 	}
 	// داله لتحديث بينات امر الشراء فى جدول purchases_orders
@@ -344,11 +368,13 @@ class PurchaseOrderDAO {
 			foreach ($data as $row) {
 				$orderId = $row['ORDER_ID'] ?? null;
 				$productCode = $row['PRO_CODE'] ?? null;
-				$qtySupplied = intval($row['QTY_SUPPLIED']) ?? null;
+				$qtySupplied = isset($row['QTY_SUPPLIED']) && is_numeric($row['QTY_SUPPLIED'])
+					? (float)$row['QTY_SUPPLIED']
+					: 0.0;
 
-				// التحقق من القيم
-				if (!$orderId || !$productCode || !$qtySupplied) {
-					throw new Exception("Error: Missing required fields (ORDER_ID, PRO_CODE, QTY_SUPPLIED)");
+				// التحقق من القيم مع الحفاظ على الكسور العشرية للكميات.
+				if (!$orderId || !$productCode || !is_finite($qtySupplied) || $qtySupplied <= 0) {
+					throw new Exception("بيانات الاستلام الجزئي غير مكتملة أو الكمية غير صالحة.");
 				}
 
 				// بيانات التحديث
@@ -369,8 +395,8 @@ class PurchaseOrderDAO {
 				$result = $this->DBupdate->update($tblName, $updateData, $where);
 
 				// التحقق من النتيجة
-				if (!$result['result']) {
-					throw new Exception("Failed to update product (ORDER_ID: $orderId, PRO_CODE: $productCode): " . $result['message']);
+				if (!$result['result'] || (int)($result['affectedRows'] ?? 0) !== 1) {
+					throw new Exception("تعذر تسجيل الاستلام الجزئي للمنتج $productCode في أمر الشراء $orderId؛ قد تكون الكمية أكبر من المتبقي أو المنتج غير موجود.");
 				}
 			}
 

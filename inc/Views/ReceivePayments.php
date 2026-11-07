@@ -80,13 +80,25 @@
 					<div class="col-sm-3 col-6 bg-info">
 						<div class="description-block border-right text-light">
 							<h5 class="description-header sup">0</h5>
-							<span class="description-text">المطلوب سداده</span>
+							<span class="description-text">المديونية المفتوحة</span>
 						</div>
 					</div>
 					
         		</div>
     		</div>
     	</div>
+
+<div class="card card-outline card-secondary mb-3" id="customerCollectionMethodPanel">
+  <div class="card-body py-2">
+    <div class="form-row align-items-end">
+      <div class="form-group col-md-4 mb-1">
+        <label for="rcPaymentMethod">طريقة تحصيل المندوب من العميل</label>
+        <select id="rcPaymentMethod" class="form-control"><option value="">اختر طريقة الدفع</option></select>
+      </div>
+      <div class="col-md-8 small text-muted mb-2">تسجيل التحصيل يثبت المبلغ في عهدة المندوب. استلام الشركة للمبلغ يتم من لوحة التسوية الجديدة أدناه.</div>
+    </div>
+  </div>
+</div>
 
 <!-- المرحلة 14: تسوية عهدة التحصيلات الجديدة؛ لا تستبدل المسار القديم قبل الاختبار -->
 <div class="card card-outline card-primary" id="deliverySettlementPanel">
@@ -164,7 +176,7 @@
 					            <th>بيانات المندوب</th>
 					            <th>تاريخ الخروج</th>
 					            <th>إجمالي المبلغ</th>
-					            <th>سداد</th>
+					            <th>تسجيل تحصيل العميل</th>
 					        </tr>
 					        <tr>
 					            <th></th>

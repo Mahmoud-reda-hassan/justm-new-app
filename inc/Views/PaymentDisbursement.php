@@ -59,6 +59,12 @@
                
             </div>
             <div class="mt-3">
+                <label for="delivery-payment-method" class="fw-bold">طريقة صرف العمولة</label>
+                <select class="form-control form-control-lg mt-1" id="delivery-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
+                </select>
+            </div>
+            <div class="mt-3">
                 <label for="amount-mandob" class="fw-bold">المبلغ المراد صرفه:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-mandob" min="0" step="0.01">
             </div>
@@ -90,6 +96,13 @@
             </div>
             
             <div class="mt-3">
+                <label for="marketer-payment-method" class="fw-bold">طريقة صرف العمولة</label>
+                <select class="form-control form-control-lg mt-1" id="marketer-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
+                </select>
+            </div>
+
+            <div class="mt-3">
                 <label for="amount-masouq" class="fw-bold">المبلغ المراد صرفه:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-masouq" min="0" step="0.01">
             </div>
@@ -115,7 +128,7 @@
             <div class="row g-3 mt-2">
                 <div class="col-12">
                     <div class="alert bg-dark py-2 mb-0 text-center">
-                        <small>إجمالي المديونية</small>
+                        <small>رصيد المورد المستحق (GL)</small>
                         <h5 class="mt-1 mb-0" id="total-morad">0.00</h5>
                     </div>
                 </div>
@@ -126,6 +139,14 @@
                 <label for="amount-morad" class="fw-bold">المبلغ المراد صرفه:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-morad" min="0" step="0.01">
                 <small class="text-muted">يتم توزيع المبلغ تلقائيًا على الفواتير الأقدم أولًا، وأي مبلغ زائد يُسجل مقدمًا للمورد.</small>
+            </div>
+
+            <!-- طريقة الدفع المعتمدة في دفتر الأستاذ العام -->
+            <div class="mt-4">
+                <label for="supplier-payment-method" class="fw-bold">طريقة الدفع:</label>
+                <select class="form-control mt-1" id="supplier-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
+                </select>
             </div>
 
             <!-- ملاحظات -->
@@ -141,8 +162,16 @@
             </div>
 
             <div class="row mt-3">
-                <div class="col-md-6"><div class="alert alert-info mb-2">الموزع على الفواتير: <strong id="current-payment-total">0.00</strong></div></div>
-                <div class="col-md-6"><div class="alert alert-warning mb-2">مقدم المورد: <strong id="supplier-advance-total">0.00</strong></div></div>
+                <div class="col-md-4"><div class="alert alert-info mb-2">الموزع من الدفعة الحالية: <strong id="current-payment-total">0.00</strong></div></div>
+                <div class="col-md-4"><div class="alert alert-warning mb-2">مقدم جديد من الدفعة: <strong id="supplier-advance-total">0.00</strong></div></div>
+                <div class="col-md-4"><div class="alert alert-success mb-2">مقدم سابق متاح: <strong id="supplier-existing-advance">0.00</strong></div></div>
+            </div>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                <small class="text-muted">يمكن تطبيق المقدم السابق تلقائيًا على أقدم الفواتير، أو تحديد مبلغ لكل فاتورة يدويًا.</small>
+                <button type="button" class="btn btn-outline-success" onclick="applySupplierAdvances('AUTO')">تطبيق المقدم تلقائيًا</button>
+            </div>
+            <div class="mt-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applySupplierAdvances('MANUAL')">تطبيق المبالغ المحددة يدويًا</button>
             </div>
             <!-- توزيع دفعة المورد على الفواتير -->
             <div class="table-responsive mt-4">
@@ -156,7 +185,8 @@
                             <th>المرتجع</th>
                             <th>المسدّد</th>
                             <th>المتبقي</th>
-                            <th width="140">المبلغ الحالي</th>
+                            <th width="140">من الدفعة الحالية</th>
+                            <th width="140">من المقدم السابق</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -177,6 +207,12 @@
                 <label class="form-label fw-bold">أختر أمر البيع</label>
                 <select class="form-control" id="select-order">
                     <option value="">اختر أمر البيع</option>
+                </select>
+            </div>
+            <div class="mb-3 mt-3">
+                <label for="refund-payment-method" class="form-label fw-bold">طريقة رد المبلغ</label>
+                <select class="form-control" id="refund-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
                 </select>
             </div>
             <!-- عرض الإجماليات -->

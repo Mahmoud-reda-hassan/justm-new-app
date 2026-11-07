@@ -6,6 +6,7 @@
 */
 include_once(__dir__.'/../../configDateTimeFN.php');
 include_once(__dir__.'/../../Classes/Accounting/AccountingEvents.php');
+include_once(__dir__.'/../../Classes/Accounting/SupplierAccountingManager.php');
 class finance_BE {
 
 	public $transaction_date;
@@ -1011,113 +1012,36 @@ class finance_BE {
         }
 	}
 
-	// صرف مستحقات مورد
-	public function PaymentOfSupplierDues(int $supplier_id, string $total_amount, array $orders = []): array {
-        $amount = round((float)$total_amount, 2);
-        if ($supplier_id <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار المورد اولا");
-        if (!is_finite($amount) || $amount <= 0) throw new Exception("لم يتم الحفظ - من فضلك ادخل مبلغ صحيح لحفظ اذن الصرف");
+	// صرف مستحقات المورد: الترحيل الجديد في الأستاذ العام دون تعديل الأرصدة التاريخية.
+	public function PaymentOfSupplierDues(int $supplier_id, string $total_amount, array $orders = [], int $payment_method_id = 1, string $request_key = ''): array {
+		$branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+		$userId = (int)($_SESSION['USER_ID'] ?? 0);
+		$note = trim((string)($_POST['note'] ?? ''));
+		return (new SupplierAccountingManager($this->conn))->pay(
+			$supplier_id, (float)$total_amount, $orders, $payment_method_id,
+			$branchId, $userId, $request_key, $note
+		);
+	}
 
-        $ownsTransaction = !$this->conn->inTransaction();
-        $lockAcquired = false;
-        try {
-            if ($ownsTransaction) $this->conn->beginTransaction();
-            $this->acquireGlobalFinanceLock();
-            $lockAcquired = true;
 
-            $supplierCheck = $this->conn->prepare('SELECT SUP_ID FROM suppliers WHERE SUP_ID = ? FOR UPDATE');
-            $supplierCheck->execute([$supplier_id]);
-            if (!$supplierCheck->fetchColumn()) throw new RuntimeException('المورد المحدد غير موجود أو تم إيقافه.');
+    public function ApplySupplierAdvances(int $supplier_id, array $orders, string $mode, string $request_key): array {
+        $branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+        $userId = (int)($_SESSION['USER_ID'] ?? 0);
+        return (new SupplierAccountingManager($this->conn))->applyAdvances(
+            $supplier_id, $orders, $mode, $branchId, $userId, $request_key
+        );
+    }
 
-            // تطبيع التوزيعات القادمة من واجهة المستخدم والتحقق من عدم التكرار.
-            $allocations = [];
-            $allocatedTotal = 0.0;
-            foreach ($orders as $item) {
-                $orderId = (int)($item['orderId'] ?? $item['order_id'] ?? $item['ORDER_ID'] ?? 0);
-                $value = round((float)($item['amount'] ?? $item['paid_amount'] ?? $item['AMOUNT'] ?? 0), 2);
-                if ($orderId <= 0 || $value <= 0) {
-                    throw new RuntimeException('بيانات توزيع دفعة المورد غير صحيحة.');
-                }
-                if (isset($allocations[$orderId])) {
-                    throw new RuntimeException('تم إرسال أمر الشراء أكثر من مرة ضمن نفس الدفعة.');
-                }
-                $allocations[$orderId] = $value;
-                $allocatedTotal = round($allocatedTotal + $value, 2);
-            }
-            if ($allocatedTotal - $amount > 0.009) {
-                throw new RuntimeException('إجمالي التوزيع على الفواتير أكبر من مبلغ الدفعة.');
-            }
+    public function ReverseSupplierPayment(int $payment_id, string $reason = ''): array {
+        return (new SupplierAccountingManager($this->conn))->reversePayment(
+            $payment_id, (int)($_SESSION['USER_ID'] ?? 0), $reason
+        );
+    }
 
-            // قفل الفواتير والتحقق من المورد والرصيد المتبقي بعد المرتجعات.
-            $orderRows = [];
-            $orderStmt = $this->conn->prepare("SELECT PO.ORDER_ID, PO.SUPPLIER_ID, PO.TOTAL_PRICE, PO.TOTAL_PAYMENTS,
-                    COALESCE((SELECT SUM(PR.TOTAL_PRICE - PR.TOTAL_PAYMENTS)
-                              FROM purchases_return_orders PR
-                              WHERE PR.REFERANC = PO.ORDER_ID AND PR.STATUSE = 'DEFERRED'), 0) AS RETURN_TOTAL
-                FROM purchases_orders PO WHERE PO.ORDER_ID = ? FOR UPDATE");
-            foreach ($allocations as $orderId => $value) {
-                $orderStmt->execute([$orderId]);
-                $row = $orderStmt->fetch(PDO::FETCH_ASSOC);
-                if (!$row || (int)$row['SUPPLIER_ID'] !== $supplier_id) {
-                    throw new RuntimeException('أمر الشراء رقم ' . $orderId . ' لا يتبع المورد المحدد.');
-                }
-                $remaining = round((float)$row['TOTAL_PRICE'] - (float)$row['RETURN_TOTAL'] - (float)$row['TOTAL_PAYMENTS'], 2);
-                if ($remaining <= 0 || $value - $remaining > 0.009) {
-                    throw new RuntimeException('المبلغ المخصص لأمر الشراء رقم ' . $orderId . ' يتجاوز المتبقي المستحق (' . number_format(max(0, $remaining), 2, '.', '') . ').');
-                }
-                $orderRows[$orderId] = $row;
-            }
-
-            // نسجل حركة مالية واحدة بكامل المبلغ؛ كل تفاصيل التوزيع ترتبط بها.
-            $transactionId = $this->Add_transaction(null, 'SUPPLIER', $supplier_id, $amount, 1, '11', 'COMPLETED', 'دفعة مورد - توزيع فواتير ومقدم');
-            if (!$transactionId) throw new RuntimeException('غير قادر على تسجيل الحركة المالية للمورد.');
-
-            $paymentInsert = $this->conn->prepare("INSERT INTO purchases_payments (ORDER_ID, AMOUNT, PAYMENT_METHOD, NOTE, CREATED_BY)
-                VALUES (?, ?, 1, ?, ?)");
-            $updateOrder = $this->conn->prepare("UPDATE purchases_orders
-                SET TOTAL_PAYMENTS = ?,
-                    STATUSE = CASE WHEN ? >= ? THEN 'COMPLETED' ELSE 'DEFERRED' END
-                WHERE ORDER_ID = ? AND SUPPLIER_ID = ?");
-            $balanceInsert = $this->conn->prepare("INSERT INTO partners_balance
-                (PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE, TRANSACTION_CATEGORY_ID, USE_OF_CREDIT)
-                VALUES ('SUPPLIER', ?, ?, 'CREDIT', ?, ?, 11, 1)");
-            $auditInsert = $this->conn->prepare("INSERT INTO supplier_payment_allocations
-                (financial_transaction_id, supplier_id, purchase_order_id, allocation_type, amount, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)");
-
-            $note = trim((string)($_POST['note'] ?? ''));
-            foreach ($allocations as $orderId => $value) {
-                $paymentInsert->execute([$orderId, $value, $note !== '' ? $note : 'سداد من دفعة المورد رقم ' . $transactionId, (int)$this->transaction_user_id]);
-                $newPaid = round((float)$orderRows[$orderId]['TOTAL_PAYMENTS'] + $value, 2);
-                $netTotal = round((float)$orderRows[$orderId]['TOTAL_PRICE'] - (float)$orderRows[$orderId]['RETURN_TOTAL'], 2);
-                $updateOrder->execute([$newPaid, $newPaid, $netTotal, $orderId, $supplier_id]);
-                if ($updateOrder->rowCount() !== 1) throw new RuntimeException('تعذر تحديث أمر الشراء رقم ' . $orderId . '.');
-                $balanceInsert->execute([$supplier_id, $orderId, $value, 'سداد فاتورة مشتريات من الحركة المالية رقم ' . $transactionId]);
-                $auditInsert->execute([$transactionId, $supplier_id, $orderId, 'INVOICE', $value, (int)$this->transaction_user_id]);
-            }
-
-            $advance = round($amount - $allocatedTotal, 2);
-            if ($advance > 0) {
-                // المرجع صفر يميز رصيد المقدم غير المخصص عن سداد فاتورة محددة.
-                $balanceInsert->execute([$supplier_id, 0, $advance, 'مقدم للمورد - رصيد غير مخصص من الحركة المالية رقم ' . $transactionId]);
-                $auditInsert->execute([$transactionId, $supplier_id, null, 'ADVANCE', $advance, (int)$this->transaction_user_id]);
-            }
-
-            if ($ownsTransaction) $this->conn->commit();
-            return [
-                'success', 'ناجح', 'تم تسجيل دفعة المورد وتوزيعها بنجاح',
-                'supplier_id' => $supplier_id,
-                'transaction_id' => (int)$transactionId,
-                'total_amount' => $amount,
-                'allocated_amount' => $allocatedTotal,
-                'advance_amount' => $advance,
-                'orders_count' => count($allocations)
-            ];
-        } catch (Throwable $e) {
-            if ($ownsTransaction && $this->conn->inTransaction()) $this->conn->rollBack();
-            throw $e;
-        } finally {
-            if ($lockAcquired) $this->releaseGlobalFinanceLock();
-        }
+    public function ReverseSupplierAdvanceApplication(int $journal_id, string $reason = ''): array {
+        return (new SupplierAccountingManager($this->conn))->reverseAdvanceApplication(
+            $journal_id, (int)($_SESSION['USER_ID'] ?? 0), $reason
+        );
     }
 
 	// صرف مستحقات عميل (مرتجع مبيعات)
