@@ -80,7 +80,9 @@ class DatabaseMigrationManager
 
     public function getEnvironment(): array
     {
-        $row = $this->db->query('SELECT DATABASE() AS database_name, VERSION() AS database_version')->fetch(PDO::FETCH_ASSOC);
+        $environmentStatement = $this->db->query('SELECT DATABASE() AS database_name, VERSION() AS database_version');
+        $row = $environmentStatement->fetch(PDO::FETCH_ASSOC);
+        $environmentStatement->closeCursor();
         return [
             'database' => (string)($row['database_name'] ?? ''),
             'version' => (string)($row['database_version'] ?? ''),
@@ -179,7 +181,9 @@ class DatabaseMigrationManager
             throw new RuntimeException('ملف الترحيل لا يحتوي على أوامر SQL قابلة للتنفيذ.');
         }
 
-        $lock = $this->db->query("SELECT GET_LOCK('justm_database_migrations', 10)")->fetchColumn();
+        $lockStatement = $this->db->query("SELECT GET_LOCK('justm_database_migrations', 10)");
+        $lock = $lockStatement->fetchColumn();
+        $lockStatement->closeCursor();
         if ((string)$lock !== '1') {
             throw new RuntimeException('هناك عملية ترحيل أخرى قيد التنفيذ. حاول بعد قليل.');
         }
@@ -222,7 +226,9 @@ class DatabaseMigrationManager
             }
             return ['already_applied' => false, 'message' => 'تم تنفيذ الترحيل بنجاح.', 'statement_count' => count($statements)];
         } finally {
-            $this->db->query("SELECT RELEASE_LOCK('justm_database_migrations')");
+            $releaseStatement = $this->db->query("SELECT RELEASE_LOCK('justm_database_migrations')");
+            $releaseStatement->fetchColumn();
+            $releaseStatement->closeCursor();
         }
     }
 
@@ -242,13 +248,17 @@ class DatabaseMigrationManager
         } elseif ($file === 'PHASE19_SUPPLIER_ACCOUNT_SETTINGS.sql') {
             $required = ['accounts', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT account_code) FROM accounts WHERE account_code IN ('2111','1162','1171')");
-            if ((int)$stmt->fetchColumn() !== 3) {
+            $count = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($count !== 3) {
                 throw new RuntimeException('لا يمكن تنفيذ المرحلة 19: يجب وجود الحسابات 2111 و1162 و1171 أولًا.');
             }
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
-            if ((int)$stmt->fetchColumn() !== 3) {
+            $count = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($count !== 3) {
                 throw new RuntimeException('لا يمكن تنفيذ المرحلة 20 قبل اكتمال ربط حسابات الموردين في المرحلة 19.');
             }
         }
@@ -256,7 +266,9 @@ class DatabaseMigrationManager
         foreach ($required as $table) {
             $stmt = $this->db->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
             $stmt->execute([$table]);
-            if ((int)$stmt->fetchColumn() !== 1) {
+            $exists = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($exists !== 1) {
                 throw new RuntimeException('لا يمكن تنفيذ الترحيل؛ الجدول المطلوب غير موجود: ' . $table);
             }
         }
@@ -288,7 +300,9 @@ class DatabaseMigrationManager
     {
         $stmt = $this->db->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
         $stmt->execute([self::LEDGER_TABLE]);
-        return (int)$stmt->fetchColumn() > 0;
+        $exists = (int)$stmt->fetchColumn() > 0;
+        $stmt->closeCursor();
+        return $exists;
     }
 
     private function ensureLedger(): void
@@ -313,6 +327,7 @@ class DatabaseMigrationManager
         $stmt = $this->db->prepare('SELECT * FROM ' . self::LEDGER_TABLE . ' WHERE migration_key = ? LIMIT 1');
         $stmt->execute([$file]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
         return $row ?: null;
     }
 
