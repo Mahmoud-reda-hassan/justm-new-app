@@ -145,6 +145,7 @@ try {
     has($receiveView, 'rcPaymentMethod', 'شاشة تسجيل تحصيل العميل لا تطلب طريقة الدفع.');
     $receiveJs = projectFile($root, 'dist/js/ReceivePayments.js');
     has($receiveJs, "'RegisterDeliveryCustomerCollection'", 'شاشة تحصيل العميل لا تستخدم حدث GL الجديد.');
+    lacks($receiveJs, "'CollectingFinancialPledge'", 'شاشة تحصيل العميل ما زالت تستدعي المسار القديم.');
     has($receiveJs, 'request_key', 'شاشة تحصيل العميل لا ترسل مفتاح منع التكرار.');
     $financeController = projectFile($root, 'inc/controller/finance.control.php');
     has($financeController, "case 'CollectingFinancialPledge':", 'لم يتم إغلاق endpoint التحصيل القديم.');
