@@ -49,7 +49,7 @@ $assert(strpos($inventory, 'recordReturnByMovementUniqueId($movementUniqueId)') 
 $assert(strpos($inventory, 'addSupplierCredit') === false, 'New supplier return path still references the legacy balance helper.');
 $assert(strpos($dao, "'affectedRows'] ?? 0) !== 1") !== false, 'Partial supplier receipt must stop when the guarded purchase quantity update affects no row.');
 $assert(strpos($dao, '? (float)$row[\'QTY_SUPPLIED\']') !== false, 'Partial supplier receipt must preserve decimal quantities.');
-$assert(strpos($inventory, 'WHERE STO_ID = ? AND PRO_CODE IN ($placeholders) FOR UPDATE') !== false, 'Supplier return must lock stock rows for the selected store, not compare STO_QTY to the store ID.');
+$assert(strpos($inventory, 'WHERE STO_ID = ? AND BRANCH_ID = ? FOR UPDATE') !== false, 'Supplier return must verify the selected store belongs to the active branch.');
 $assert(strpos($inventoryManager, '$colQty       = $type === \'refundpurchises\' ? \'op.QTY_RETURN\' : \'op.QTY_SUPPLIED\'') !== false, 'Purchase receipt and return movements must use their respective operational quantities.');
 $assert(strpos($manager, 'PURCHASE_UNIT_PRICE*IPM.IPM_QTY') !== false, 'Supplier GL receipt and return valuation must use the database purchase unit price.');
 $assert(strpos($inventoryProcedure, 'STP.STO_QTY = STP.STO_QTY + MOV.NET_QTY') !== false, 'Inventory balance procedure no longer applies the movement net quantity.');
