@@ -21,8 +21,8 @@
 | `journal_entry_details` | نعم | نعم | `JournalManager.php`, `PartnerLedger.php`, `AccountingEvents.php`, `DeliverySettlementManager.php` | مستهدف | تفاصيل المدين/الدائن والأبعاد والطرف. |
 | `accounting_line_allocations` | نعم | نعم | `AccountingEvents.php`, `PartnerLedger.php`, `DeliverySettlementManager.php` | مستهدف | تخصيص التحصيلات على المديونيات. |
 | `cash_boxes` | غير محسوم | نعم | `AccountSettings.php` | مستهدف | اختيار صندوق الفرع الافتراضي عند غياب طريقة الدفع؛ يلزم تتبع شاشة إدارة الصناديق. |
-| `banks` | لا | لا | Installer فقط؛ `Bank.php` فارغ | أثر قديم غير مستخدم حسب تأكيد المستخدم | لا يُنقل ولا تُبنى عليه وظيفة جديدة أو Migration. إذا طُلبت إدارة بنكية لاحقًا تُصمم من الصفر حسب دورة العمل الفعلية. |
-| `bank_accounts` (مقترح) | — | — | لم يُنشأ بعد | تصميم مستهدف | كيان جديد لحسابات البنوك مرتبط بالفرع وحساب GL، منفصل عن `cash_boxes`. |
+| `banks` | لا | لا | Installer فقط؛ `Bank.php` فارغ | جدول قديم غير مستخدم ومستبعد من النظام الجديد | لا يُنقل ولا يُصلح ولا يُبنى عليه أي كود. إدارة البنوك الجديدة تكون بكيان مستقل من الصفر إذا اعتمد نطاقها. |
+| `bank_accounts` (مقترح) | — | — | لم يُنشأ بعد | توصية للنظام المحاسبي الجديد بانتظار اعتماد التفاصيل | كيان جديد لحسابات البنوك الفعلية، مستقل عن جدول `banks` القديم وعن `cash_boxes`، ويرتبط بحساب GL. |
 | `delivery_accounting_settings` | نعم | نعم | `DeliverySettlementManager.php` | مستهدف | إعداد طريقة تسوية عهدة المندوب. |
 | `purchases_payments` | نعم | لم يثبت في العينة المحددة | `finance_BE.php` | قديم/انتقالي | تفاصيل دفعات المورد لكل أمر شراء. |
 | `supplier_payment_allocations` | نعم | غير محسوم | `finance_BE.php` | انتقالي | ربط دفعة المورد بالفواتير أو المقدم. |
@@ -219,7 +219,7 @@ dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_bal
 | journal_entries.reference_type/reference_id | فهرس غير فريد | يمكن نظريًا تكرار قيد نفس المصدر | اعتماد unique event/source key بعد فحص القيود التاريخية |
 | accounting_line_allocations | لا يوجد unique لزوج debit_line_id/credit_line_id | احتمال تكرار تخصيص الزوج نفسه | منع التكرار والتحقق من المتبقي تحت قفل داخل الخدمة، مع قيد مناسب بعد معالجة التاريخ |
 | cash_boxes | أكثر من صندوق لكل فرع ممكن | AccountSettings::cash يختار أول صندوق فقط | اختيار صندوق صريح في مستند القبض/الصرف وربطه بالفرع والحساب |
-| banks | لا PK/FK/unique ظاهر، account_id INT | ضعف التكامل وتعارض النوع مع accounts.id BIGINT UNSIGNED | مطابقة Backup ثم إصلاح المفتاح والنوع والعلاقة |
+| banks (قديم) | جدول غير مستخدم حسب تأكيد المستخدم | لا يمثل جزءًا من النظام المحاسبي المستهدف | استبعاده من التصميم والترحيل؛ بناء كيان بنكي جديد عند اعتماد الحاجة |
 | cost_centers | id وparent_id من نوع INT | journal_entry_details.cost_center_id من نوع BIGINT UNSIGNED | توحيد النوع وإضافة العلاقات المناسبة بعد فحص البيانات |
 | financial_transactions | accounting_posted وaccounting_entry_id | المحرك الحالي يربط ترحيل GL بسجل قديم | بناء مرجع حدث جديد ثم نقل كل المستهلكين قبل إيقاف الجدول |
 | supplier_payment_allocations | financial_transaction_id يشير منطقيًا للحركة القديمة | لا يمكن حذف الحركة القديمة مع بقاء التخصيص | نقل رأس الدفعة والتخصيصات إلى مستندات الدفع الجديدة |
