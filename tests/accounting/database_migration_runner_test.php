@@ -32,13 +32,7 @@ $assert(stripos((string)$environment['database'], 'test') !== false, 'Migration 
 // Force the two first CREATE TABLE migrations through their real creation path.
 $pdo->exec('DROP TABLE IF EXISTS payment_method_accounts');
 $pdo->exec('DROP TABLE IF EXISTS accounting_line_allocations');
-$pdo->exec('DROP TABLE IF EXISTS delivery_settlement_collection_links');
-$pdo->exec('DROP TABLE IF EXISTS delivery_collection_order_allocations');
-$pdo->exec('DROP TABLE IF EXISTS delivery_customer_collections');
-$pdo->exec('DROP TABLE IF EXISTS delivery_company_settlements');
-$pdo->exec('DROP TABLE IF EXISTS delivery_commission_payments');
-$pdo->exec('DROP TABLE IF EXISTS delivery_accounting_settings');
-$pdo->exec('DROP TABLE IF EXISTS supplier_payment_allocations');
+// Phase 14 tables are left intact because other installer tables may reference them.\n$pdo->exec('DROP TABLE IF EXISTS supplier_payment_allocations');
 $pdo->exec('DROP TABLE IF EXISTS marketer_commission_payments');
 $pdo->exec('DROP TABLE IF EXISTS customer_refund_payments');
 $pdo->exec('DROP TABLE IF EXISTS supplier_gl_advance_applications');
