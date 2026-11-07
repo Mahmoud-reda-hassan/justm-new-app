@@ -128,7 +128,7 @@
             <div class="row g-3 mt-2">
                 <div class="col-12">
                     <div class="alert bg-dark py-2 mb-0 text-center">
-                        <small>الرصيد التاريخي / رصيد GL بعد التحويل</small>
+                        <small>رصيد المورد المستحق (GL)</small>
                         <h5 class="mt-1 mb-0" id="total-morad">0.00</h5>
                     </div>
                 </div>
