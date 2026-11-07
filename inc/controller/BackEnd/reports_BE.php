@@ -470,6 +470,81 @@ class reports_BE {
 			];
 		}
 
+		if (strtoupper((string)$partnerType) === 'SUPPLIER') {
+			$startTime = $start . ' 00:00:00';
+			$endOfDay = substr((string)$end, 0, 10) . ' 23:59:59';
+			$openingStmt = $this->conn->prepare("SELECT
+				COALESCE((SELECT SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE -BALANCE END)
+					FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' AND PARTNER_ID=? AND CREATE_AT < ?),0)
+				+ COALESCE((SELECT SUM(d.credit-d.debit) FROM journal_entry_details d
+					INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+					INNER JOIN account_settings aset ON aset.account_id=d.account_id
+						AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
+					WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date < ?),0) AS opening_balance");
+			$openingStmt->execute([(int)$partnerId, $startTime, (int)$partnerId, $startTime]);
+			$opening = (float)$openingStmt->fetchColumn();
+
+			$detailsSql = "SELECT note,id,ORDER_ID,QTY_ORDER,QTY_SUPPLIED,QTY_RETURN,
+				DATE(transaction_date) AS transaction_date,TRANSACTION_TYPE,BALANCE,debit,credit,
+				? + SUM(CASE WHEN TRANSACTION_TYPE='DEBIT' THEN -BALANCE ELSE BALANCE END)
+				OVER (ORDER BY transaction_date,id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance
+			FROM (
+				SELECT pb.NOTE AS note,pb.id,CAST(pb.REFERENCE_ID AS CHAR) AS ORDER_ID,
+					CASE WHEN pb.TRANSACTION_CATEGORY_ID=10 THEN PP.QTY ELSE NULL END AS QTY_ORDER,
+					CASE WHEN pb.TRANSACTION_CATEGORY_ID=10 THEN PP.QTY_SUPPLIED ELSE NULL END AS QTY_SUPPLIED,
+					CASE WHEN pb.TRANSACTION_CATEGORY_ID=15 THEN PRP.QTY_RETURN ELSE NULL END AS QTY_RETURN,
+					pb.CREATE_AT AS transaction_date,pb.TRANSACTION_TYPE,pb.BALANCE,
+					CASE WHEN pb.TRANSACTION_TYPE='DEBIT' THEN pb.BALANCE ELSE NULL END AS debit,
+					CASE WHEN pb.TRANSACTION_TYPE='CREDIT' THEN pb.BALANCE ELSE NULL END AS credit
+				FROM partners_balance pb
+				LEFT JOIN (SELECT ORDER_ID,SUM(QTY) QTY,SUM(QTY_SUPPLIED) QTY_SUPPLIED FROM purchases_products GROUP BY ORDER_ID) PP
+					ON PP.ORDER_ID=pb.REFERENCE_ID
+				LEFT JOIN (SELECT ORDER_ID,SUM(QTY_RETURN) QTY_RETURN FROM purchases_return_products GROUP BY ORDER_ID) PRP
+					ON PRP.ORDER_ID=pb.REFERENCE_ID
+				WHERE pb.PARTNER_TYPE='SUPPLIER' AND pb.PARTNER_ID=? AND pb.CREATE_AT BETWEEN ? AND ?
+				UNION ALL
+				SELECT COALESCE(NULLIF(d.note,''),h.description) AS note,d.id+1000000000000 AS id,
+					CAST(COALESCE(d.reference_id,h.reference_id) AS CHAR) AS ORDER_ID,
+					NULL AS QTY_ORDER,NULL AS QTY_SUPPLIED,NULL AS QTY_RETURN,
+					h.entry_date AS transaction_date,
+					CASE WHEN d.debit>0 THEN 'DEBIT' ELSE 'CREDIT' END AS TRANSACTION_TYPE,
+					CASE WHEN d.debit>0 THEN d.debit ELSE d.credit END AS BALANCE,
+					CASE WHEN d.debit>0 THEN d.debit ELSE NULL END AS debit,
+					CASE WHEN d.credit>0 THEN d.credit ELSE NULL END AS credit
+				FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN account_settings aset ON aset.account_id=d.account_id
+					AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
+				WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date BETWEEN ? AND ?
+			) supplier_transactions
+			ORDER BY transaction_date,id";
+			$detailsStmt = $this->conn->prepare($detailsSql);
+			$detailsStmt->execute([$opening, (int)$partnerId, $startTime, $endOfDay, (int)$partnerId, $startTime, $endOfDay]);
+			$details = $detailsStmt->fetchAll(PDO::FETCH_ASSOC);
+			$rows = array_merge([[
+				'note'=>'رصيد سابق','id'=>null,'ORDER_ID'=>null,'QTY_ORDER'=>null,'QTY_SUPPLIED'=>null,
+				'QTY_RETURN'=>null,'transaction_date'=>null,'TRANSACTION_TYPE'=>null,'BALANCE'=>null,
+				'debit'=>null,'credit'=>null,'running_balance'=>$opening,
+			]], $details);
+
+			$currentStmt = $this->conn->prepare("SELECT
+				COALESCE((SELECT SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE -BALANCE END)
+					FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' AND PARTNER_ID=? AND CREATE_AT <= ?),0)
+				+ COALESCE((SELECT SUM(d.credit-d.debit) FROM journal_entry_details d
+					INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+					INNER JOIN account_settings aset ON aset.account_id=d.account_id
+						AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
+					WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date <= ?),0) AS current_balance");
+			$currentStmt->execute([(int)$partnerId, $endOfDay, (int)$partnerId, $endOfDay]);
+			$rows[] = [
+				'note'=>'رصيد حالي','id'=>null,'ORDER_ID'=>null,'QTY_ORDER'=>null,'QTY_SUPPLIED'=>null,
+				'QTY_RETURN'=>null,'transaction_date'=>null,'TRANSACTION_TYPE'=>null,'BALANCE'=>null,
+				'debit'=>null,'credit'=>null,'running_balance'=>(float)$currentStmt->fetchColumn(),
+			];
+			return ['draw'=>(int)($_POST['draw']??0),'iTotalRecords'=>count($rows),
+				'iTotalDisplayRecords'=>count($rows),'data'=>$rows];
+		}
+
 		if (strtoupper((string)$partnerType) === 'MARKETER') {
 			$sql = "SELECT
 				'رصيد سابق' AS note, NULL AS id, NULL AS ORDER_ID,
