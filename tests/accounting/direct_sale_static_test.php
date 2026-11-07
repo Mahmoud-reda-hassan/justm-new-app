@@ -112,6 +112,9 @@ try {
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions`', 'جدول عمولات محاولات التوصيل غير موجود في Installer الجذر.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections`', 'جدول تحصيل شحن الرفض غير موجود في Installer الجذر.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews`', 'جدول مراجعة تعويض الشحن غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_confirmation_requests`', 'جدول منع تكرار تأكيد الشحن غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_collection_requests`', 'جدول منع تكرار التحصيل غير موجود في Installer الجذر.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS `delivery_collection_request_collections`', 'جدول ربط مستندات التحصيل بطلب التحصيل غير موجود في Installer الجذر.');
     has($rootInstaller, "`payment_method_id` BIGINT UNSIGNED NULL", 'طريقة الدفع يجب أن تسمح بالقيمة NULL لتحصيل الشحن المرفوض.');
     has($rootInstaller, "`collection_source` ENUM('ORDER_COLLECTION','REJECTED_SHIPPING')", 'مصدر التحصيل غير موجود في Installer الجذر.');
     $zoneSeed = strpos($rootInstaller, 'INSERT INTO `zones`');
