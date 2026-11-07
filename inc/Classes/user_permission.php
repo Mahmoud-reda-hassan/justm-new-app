@@ -279,7 +279,11 @@ public function app_request($loginType = 0,$pageType = 0){
 	    			
 	    			$usc = unserialize($_SESSION['USER_SCRIPT']);
 	    			
-	    			if(isset($_GET["Go"]) && isset($usc['Admin'])){
+	    			if (isset($_GET["Go"]) && $_GET["Go"] === "DatabaseMigrations" && (int)($_SESSION["ADMIN_TYPE"] ?? 0) === 1){
+    $this->Pagelink = "DatabaseMigrations";
+    $this->title = "إدارة تحديثات قاعدة البيانات";
+    array_push($this->js_footer,"DatabaseMigrations.js");
+} else if(isset($_GET["Go"]) && isset($usc['Admin'])){
 	    		    	if ($usc['Admin']['Countries']['View'] == "true" && $_GET["Go"] === "Countries"){
 	        				    $this->Pagelink = "Countries";
 	            				$this->title= "إعدادات الدول";		
@@ -503,10 +507,6 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->Pagelink = "ShippingSettings";
 	            				$this->title = "إعدادات الشحن والتوصيل";
 	            				array_push($this->js_footer,"ShippingSettings.js");
-	            		} else if ($_GET["Go"] === "DatabaseMigrations" && (int)($_SESSION["ADMIN_TYPE"] ?? 0) === 1){
-	            				$this->Pagelink = "DatabaseMigrations";
-	            				$this->title = "إدارة تحديثات قاعدة البيانات";
-	            				array_push($this->js_footer,"DatabaseMigrations.js");
 	            		} else if ($_GET["Go"] === "EditOrder"  && $_GET["ty"]==1){
 	            				$this->Pagelink = "Neworder";
 	            				$this->title= "تحرير امر البيع";
