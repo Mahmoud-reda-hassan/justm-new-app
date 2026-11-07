@@ -938,7 +938,7 @@ final class DeliverySettlementManager
     ): array {
         $this->validateIdempotencyRequest($requestKey, $requestHash);
         if ($deliveryId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || $cashBoxId <= 0) {
-            throw new InvalidArgumentException('المندوب والفرع وطريقة الدفع بيانات إلزامية.');
+            throw new InvalidArgumentException('المندوب والفرع وطريقة الدفع والخزينة بيانات إلزامية.');
         }
         if (!is_finite($amount) || $amount <= 0) {
             throw new InvalidArgumentException('مبلغ الاستلام يجب أن يكون أكبر من صفر.');
