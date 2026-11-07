@@ -497,9 +497,14 @@ class inventory_BE {
 		        throw new Exception("لا يمكن حفظ أمر الشراء بدون سعر الشراء.");
 		    }
 		
-		    $placeholders = implode(',', array_fill(0, count($products), '?'));
-		    $stmtStopUpdate = $this->conn->prepare("SELECT * FROM stores_product WHERE STO_QTY = ? AND PRO_CODE IN ($placeholders) FOR UPDATE;");
-		    $params = array_merge([$store_id], array_column($products, 'PRO_CODE'));
+		    $productCodes = array_values(array_unique(array_column($products, 'PRO_CODE')));
+		    if (!$productCodes) {
+		        throw new Exception("لا توجد منتجات محددة في مرتجع المورد.");
+		    }
+		    $placeholders = implode(',', array_fill(0, count($productCodes), '?'));
+		    // قفل أرصدة المنتجات في المخزن الصحيح قبل إنشاء حركة الصرف.
+		    $stmtStopUpdate = $this->conn->prepare("SELECT STO_ID, PRO_CODE, STO_QTY FROM stores_product WHERE STO_ID = ? AND PRO_CODE IN ($placeholders) FOR UPDATE");
+		    $params = array_merge([$store_id], $productCodes);
 		    $stmtStopUpdate->execute($params);
 		
 		    $resA = $this->purchase->returnPurchaseOrder($supplierId, $reference, $totalPrice, 0, 'DEFERRED', '', $products, $returnOrderID = true);
