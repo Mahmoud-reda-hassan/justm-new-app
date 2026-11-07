@@ -308,6 +308,20 @@ try {
                     : 'تم تطبيق مقدم المورد على أوامر الشراء.'
             ], $result), JSON_UNESCAPED_UNICODE);
             break;
+        case 'ReverseSupplierPayment':
+            $requireFinanceAdmin();
+            $paymentId = (int)($_POST['payment_id'] ?? 0);
+            $reason = trim((string)($_POST['reason'] ?? ''));
+            $result = $CBE->ReverseSupplierPayment($paymentId, $reason);
+            echo json_encode(['success'=>true,'message'=>'تم عكس دفعة المورد وإعادة مستحقات أوامر الشراء.'] + $result, JSON_UNESCAPED_UNICODE);
+            break;
+        case 'ReverseSupplierAdvanceApplication':
+            $requireFinanceAdmin();
+            $journalId = (int)($_POST['journal_id'] ?? 0);
+            $reason = trim((string)($_POST['reason'] ?? ''));
+            $result = $CBE->ReverseSupplierAdvanceApplication($journalId, $reason);
+            echo json_encode(['success'=>true,'message'=>'تم عكس تطبيق المقدم وإعادة فتح مستحقات أوامر الشراء.'] + $result, JSON_UNESCAPED_UNICODE);
+            break;
 		case 'PaymentOfMarketerDues':
 		case 'PaymentOfDeliveryDues':
 			throw new RuntimeException('تم إيقاف مسار الصرف القديم. استخدم مسار الصرف المحاسبي المعتمد في الأستاذ العام.');
