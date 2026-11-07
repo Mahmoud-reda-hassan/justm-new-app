@@ -4,6 +4,7 @@ include_once(__dir__.'/../../config.php');
 include_once(ABSPATH.'/inc/Databases/dbconn.php');
 include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliverySettlementManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/CashBox.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/CustomerRefundManager.php');
@@ -13,6 +14,7 @@ $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_
 $deliveryShippingReviews = new DeliveryRejectedShippingReviewManager($db);
 $CBE 	= new finance_BE($db);
 $deliveryAccounting = new DeliverySettlementManager($db);
+$cashBoxes = new CashBox($db);
 $customerRefunds = new CustomerRefundManager($db);
 $shippingConfiguration = new ShippingConfigurationManager($db);
 $http_RQM = $_SERVER['REQUEST_METHOD'];
@@ -146,6 +148,16 @@ try {
             echo json_encode(['success' => true, 'methods' => $methodsStmt->fetchAll(PDO::FETCH_ASSOC)], JSON_UNESCAPED_UNICODE);
             break;
 
+        case 'GetDeliverySettlementCashBoxes':
+            $requireFinanceAdmin();
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            echo json_encode([
+                'success' => true,
+                'cash_boxes' => $cashBoxes->listForPaymentMethod($branchId, $paymentMethodId),
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'GetDeliveryCommissionMode':
             $requireFinanceAdmin();
             echo json_encode(['success' => true, 'mode' => $deliveryAccounting->getCommissionSettlementMode()], JSON_UNESCAPED_UNICODE);
@@ -228,6 +240,7 @@ try {
             if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
             $deliveryId = (int)($_POST['delivery_id'] ?? 0);
             $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $cashBoxId = (int)($_POST['cash_box_id'] ?? 0);
             $orderIds = array_map('intval', $readArray($_POST['order_ids'] ?? [], 'order_ids'));
             $amount = (float)($_POST['amount'] ?? 0);
             $mode = isset($_POST['commission_mode']) && $_POST['commission_mode'] !== '' ? (string)$_POST['commission_mode'] : null;
@@ -239,6 +252,7 @@ try {
                 'delivery_id' => $deliveryId,
                 'branch_id' => $branchId,
                 'payment_method_id' => $paymentMethodId,
+                'cash_box_id' => $cashBoxId,
                 'order_ids' => $canonicalOrderIds,
                 'amount' => round($amount, 2),
                 'commission_mode' => $mode,
@@ -246,10 +260,10 @@ try {
             ], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
             if ($orderIds && $amount <= 0) {
                 $result = $deliveryAccounting->settleSelectedOrders($deliveryId, $branchId, $paymentMethodId,
-                    $orderIds, $mode, $note, $requestKey, $requestHash);
+                    $cashBoxId, $orderIds, $mode, $note, $requestKey, $requestHash);
             } else {
                 $result = $deliveryAccounting->settle($deliveryId, $branchId, $paymentMethodId,
-                    $amount, $orderIds, $mode, $note, $requestKey, $requestHash);
+                    $cashBoxId, $amount, $orderIds, $mode, $note, $requestKey, $requestHash);
             }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
