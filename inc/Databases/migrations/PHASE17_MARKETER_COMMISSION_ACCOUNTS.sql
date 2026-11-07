@@ -44,3 +44,31 @@ SELECT account_code, account_name, account_type, normal_balance,
 FROM accounts
 WHERE account_code IN ('2152', '5230')
 ORDER BY account_code;
+
+
+-- مستندات صرف مستحقات المسوقين وقادة الفرق؛ القيود المالية في دفتر الأستاذ فقط.
+CREATE TABLE IF NOT EXISTS marketer_commission_payments (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    payment_no VARCHAR(40) NULL,
+    marketer_user_id BIGINT UNSIGNED NOT NULL,
+    branch_id BIGINT UNSIGNED NOT NULL,
+    payment_method_id BIGINT UNSIGNED NOT NULL,
+    payment_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    amount DECIMAL(15,2) NOT NULL,
+    journal_id BIGINT UNSIGNED NULL,
+    status ENUM('DRAFT','POSTED','REVERSED') NOT NULL DEFAULT 'DRAFT',
+    note VARCHAR(500) NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    request_key VARCHAR(64) NULL,
+    request_hash CHAR(64) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    posted_at DATETIME NULL,
+    reversed_at DATETIME NULL,
+    reversed_by BIGINT UNSIGNED NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_marketer_commission_payment_request_key (request_key),
+    UNIQUE KEY uq_marketer_commission_payment_no (payment_no),
+    KEY idx_marketer_commission_payment_partner (marketer_user_id,status,payment_date),
+    KEY idx_marketer_commission_payment_journal (journal_id),
+    CONSTRAINT chk_marketer_commission_payment_positive CHECK (amount > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
