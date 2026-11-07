@@ -18,6 +18,8 @@ $finance = $read('inc/controller/BackEnd/finance_BE.php');
 $balance = $read('inc/controller/BackEnd/PaymentDisbursement_BE.php');
 $installer = $read('JUSTM_DATABASE_INSTALL.sql');
 $journal = $read('inc/Classes/Accounting/JournalManager.php');
+$inventoryManager = $read('inc/Classes/InventoryManager.php');
+$inventoryProcedure = $read('inc/Databases/procedure_inventory.sql');
 
 $assert(strpos($manager, 'PURCHASE_ORDER_RECOGNIZED') !== false, 'Purchase order GL event is missing.');
 $assert(strpos($journal, "['SUPPLIER_PAYMENT', 'SUPPLIER_ADVANCE_APPLICATION']") !== false, 'Generic journal reversal must block supplier payments and advance applications until coordinated operational reversal exists.');
@@ -36,6 +38,12 @@ $assert(strpos($inventory, 'recordReceiptByMovementUniqueId') !== false, 'Physic
 $assert(strpos($inventory, 'recordReturnByMovementUniqueId') !== false, 'Physical supplier returns are not linked to GL.');
 $assert(strpos($inventory, 'recordReturnByMovementUniqueId($movementUniqueId)') !== false, 'Supplier return GL posting must follow the physical stock movement.');
 $assert(strpos($inventory, 'addSupplierCredit') === false, 'New supplier return path still references the legacy balance helper.');
+$assert(strpos($dao, "'affectedRows'] ?? 0) !== 1") !== false, 'Partial supplier receipt must stop when the guarded purchase quantity update affects no row.');
+$assert(strpos($dao, '? (float)$row[\'QTY_SUPPLIED\']') !== false, 'Partial supplier receipt must preserve decimal quantities.');
+$assert(strpos($inventory, 'WHERE STO_ID = ? AND PRO_CODE IN ($placeholders) FOR UPDATE') !== false, 'Supplier return must lock stock rows for the selected store, not compare STO_QTY to the store ID.');
+$assert(strpos($inventoryManager, '$colQty       = $type === \'refundpurchises\' ? \'op.QTY_RETURN\' : \'op.QTY_SUPPLIED\'') !== false, 'Purchase receipt and return movements must use their respective operational quantities.');
+$assert(strpos($manager, 'PURCHASE_UNIT_PRICE*IPM.IPM_QTY') !== false, 'Supplier GL receipt and return valuation must use the database purchase unit price.');
+$assert(strpos($inventoryProcedure, 'STP.STO_QTY = STP.STO_QTY + MOV.NET_QTY') !== false, 'Inventory balance procedure no longer applies the movement net quantity.');
 $paymentStart = strpos($finance, 'public function PaymentOfSupplierDues');
 $paymentEnd = strpos($finance, '// صرف مستحقات عميل', $paymentStart);
 $paymentMethod = substr($finance, $paymentStart, $paymentEnd - $paymentStart);
