@@ -453,10 +453,6 @@ class inventory_BE {
 		    if (!$resA) {
 		        throw new Exception("لم يتم تأكيد حفظ أمر الشراء.");
 		    }
-		    // إثبات كامل مديونية أمر الشراء في GL قبل إعادة تصنيف الجزء المستلم للمخزون.
-		    (new SupplierAccountingManager($this->conn))->recordPurchaseOrder(
-		        (int)$resA, (int)$supplierId, (int)$branch_id, (int)$userActionId
-		    );
 		    $movementUniqueId = 'PURCHASE_RECEIPT_' . bin2hex(random_bytes(16));
 		    $this->InventoryManager->processInventory('receiving', [$resA], $userActionId, $branch_id, $movementUniqueId, $store_id);
 		    (new SupplierAccountingManager($this->conn))->recordReceiptByMovementUniqueId($movementUniqueId);
