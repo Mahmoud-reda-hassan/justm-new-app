@@ -292,6 +292,89 @@ class reports_BE {
 		$start = isset($dates[0]) ? trim($dates[0]) : null;
 		$end = isset($dates[1]) ? trim($dates[1].' 23:59:59') : null;
 
+		if (strtoupper((string)$partnerType) === 'MARKETER') {
+			$sql = "SELECT
+				'رصيد سابق' AS note, NULL AS id, NULL AS ORDER_ID,
+				NULL AS QTY_ORDER, NULL AS QTY_SUPPLIED, NULL AS QTY_RETURN,
+				NULL AS transaction_date, NULL AS TRANSACTION_TYPE, NULL AS BALANCE,
+				NULL AS debit, NULL AS credit,
+				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
+			FROM journal_entry_details d
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN account_settings aset ON aset.account_id = d.account_id
+				AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
+			WHERE d.partner_type = 'MARKETER' AND d.partner_id = ? AND h.entry_date < ?
+			UNION ALL
+			SELECT
+				COALESCE(NULLIF(d.note,''), h.description) AS note,
+				d.id,
+				COALESCE(o.SUB_ORDER_ID, mcp.payment_no, h.entry_no) AS ORDER_ID,
+				CASE WHEN h.reference_type = 'MARKETER_COMMISSION_ACCRUAL' THEN oq.QTY ELSE NULL END AS QTY_ORDER,
+				CASE WHEN h.reference_type = 'MARKETER_COMMISSION_ACCRUAL' THEN oq.DELIVERED_QTY ELSE NULL END AS QTY_SUPPLIED,
+				CASE WHEN h.reference_type = 'MARKETER_COMMISSION_ACCRUAL' THEN oq.RETURNED_QTY ELSE NULL END AS QTY_RETURN,
+				DATE(h.entry_date) AS transaction_date,
+				CASE WHEN d.debit > 0 THEN 'DEBIT' ELSE 'CREDIT' END AS TRANSACTION_TYPE,
+				CASE WHEN d.debit > 0 THEN d.debit ELSE d.credit END AS BALANCE,
+				CASE WHEN d.debit > 0 THEN d.debit ELSE NULL END AS debit,
+				CASE WHEN d.credit > 0 THEN d.credit ELSE NULL END AS credit,
+				(
+					SELECT COALESCE(SUM(opening.credit - opening.debit),0.00)
+					FROM journal_entry_details opening
+					INNER JOIN journal_entries oh ON oh.id = opening.journal_entry_id AND oh.status = 'POSTED'
+					INNER JOIN account_settings oa ON oa.account_id = opening.account_id
+						AND oa.setting_key = 'MARKETER_COMMISSION_PAYABLE'
+					WHERE opening.partner_type = 'MARKETER' AND opening.partner_id = ?
+					AND oh.entry_date < ?
+				) + SUM(d.credit - d.debit) OVER (
+					ORDER BY h.entry_date, h.id, d.line_no, d.id
+					ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+				) AS running_balance
+			FROM journal_entry_details d
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN account_settings aset ON aset.account_id = d.account_id
+				AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
+			LEFT JOIN orders o ON h.reference_type = 'MARKETER_COMMISSION_ACCRUAL'
+				AND o.ORDER_ID = h.reference_id
+			LEFT JOIN marketer_commission_payments mcp ON h.reference_type = 'MARKETER_COMMISSION_PAYMENT'
+				AND mcp.id = h.reference_id
+			LEFT JOIN (
+				SELECT ORDER_ID, SUM(QTY) AS QTY, SUM(DELIVERED_QTY) AS DELIVERED_QTY,
+					SUM(RETURNED_QTY) AS RETURNED_QTY
+				FROM order_product GROUP BY ORDER_ID
+			) oq ON oq.ORDER_ID = o.ORDER_ID
+			WHERE d.partner_type = 'MARKETER' AND d.partner_id = ?
+				AND h.entry_date BETWEEN ? AND ?
+		UNION ALL
+			SELECT
+				'رصيد حالي' AS note, NULL AS id, NULL AS ORDER_ID,
+				NULL AS QTY_ORDER, NULL AS QTY_SUPPLIED, NULL AS QTY_RETURN,
+				NULL AS transaction_date, NULL AS TRANSACTION_TYPE, NULL AS BALANCE,
+				COALESCE(SUM(d.debit),0.00) AS debit,
+				COALESCE(SUM(d.credit),0.00) AS credit,
+				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
+			FROM journal_entry_details d
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN account_settings aset ON aset.account_id = d.account_id
+				AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
+			WHERE d.partner_type = 'MARKETER' AND d.partner_id = ? AND h.entry_date <= ?";
+
+			$stmt = $this->conn->prepare($sql);
+			$endOfDay = substr((string)$end, 0, 10) . ' 23:59:59';
+			$stmt->execute([
+				(int)$partnerId, $start . ' 00:00:00',
+				(int)$partnerId, $start . ' 00:00:00',
+				(int)$partnerId, $start . ' 00:00:00', $endOfDay,
+				(int)$partnerId, $endOfDay,
+			]);
+			$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			return [
+				'draw' => (int)($_POST['draw'] ?? 0),
+				'iTotalRecords' => count($rows),
+				'iTotalDisplayRecords' => count($rows),
+				'data' => $rows,
+			];
+		}
+
 		$where = "";
 		$limit = "";
 		$sql = "SELECT 
