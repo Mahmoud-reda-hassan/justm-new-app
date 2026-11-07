@@ -2313,14 +2313,17 @@ CREATE TABLE IF NOT EXISTS `supplier_payment_allocations` (
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS `banks` (
-  `id` int(11) NOT NULL,
-  `account_id` int(11) NOT NULL,
-  `bank_name` varchar(150) DEFAULT NULL,
-  `account_number` varchar(100) DEFAULT NULL,
-  `iban` varchar(100) DEFAULT NULL,
-  `swift_code` varchar(50) DEFAULT NULL,
-  `is_active` tinyint(1) DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `account_id` BIGINT UNSIGNED NOT NULL,
+  `bank_name` VARCHAR(150) DEFAULT NULL,
+  `account_number` VARCHAR(100) DEFAULT NULL,
+  `iban` VARCHAR(100) DEFAULT NULL,
+  `swift_code` VARCHAR(50) DEFAULT NULL,
+  `is_active` TINYINT(1) DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `fk_bank_account` (`account_id`),
+  CONSTRAINT `fk_bank_account` FOREIGN KEY (`account_id`) REFERENCES `accounts` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `cost_centers` (
   `id` int(11) NOT NULL,
