@@ -210,18 +210,20 @@ class DatabaseMigrationManager
             $stmt->execute([$file, $checksum, $userId]);
 
             try {
+                $executedCount = 0;
                 foreach ($statements as $statement) {
-                    $this->db->exec($statement);
+                    $this->executeStatement($statement);
+                    $executedCount++;
                 }
                 $update = $this->db->prepare(
                     'UPDATE ' . self::LEDGER_TABLE . ' SET status = \'APPLIED\', finished_at = NOW(), error_text = NULL, statement_count = ? WHERE migration_key = ?'
                 );
-                $update->execute([count($statements), $file]);
+                $update->execute([$executedCount, $file]);
             } catch (Throwable $e) {
                 $update = $this->db->prepare(
                     'UPDATE ' . self::LEDGER_TABLE . ' SET status = \'FAILED\', finished_at = NOW(), error_text = ?, statement_count = ? WHERE migration_key = ?'
                 );
-                $update->execute([substr($e->getMessage(), 0, 4000), count($statements), $file]);
+                $update->execute([substr($e->getMessage(), 0, 4000), $executedCount ?? 0, $file]);
                 throw new RuntimeException('فشل تنفيذ الترحيل: ' . $e->getMessage(), 0, $e);
             }
             return ['already_applied' => false, 'message' => 'تم تنفيذ الترحيل بنجاح.', 'statement_count' => count($statements)];
@@ -230,6 +232,19 @@ class DatabaseMigrationManager
             $releaseStatement->fetchColumn();
             $releaseStatement->closeCursor();
         }
+    }
+
+    private function executeStatement(string $sql): void
+    {
+        if (preg_match('/^(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\\b/i', ltrim($sql))) {
+            $statement = $this->db->query($sql);
+            if ($statement) {
+                $statement->fetchAll(PDO::FETCH_ASSOC);
+                $statement->closeCursor();
+            }
+            return;
+        }
+        $this->db->exec($sql);
     }
 
     private function assertPrerequisites(string $file): void
