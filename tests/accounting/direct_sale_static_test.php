@@ -168,6 +168,9 @@ try {
     $accountStatement = methodBody($reportsBackend, 'public function AccountStatement(');
     has($accountStatement, "if (strtoupper((string)\$partnerType) === 'MARKETER')", 'كشف حساب المسوق لا يقرأ الأستاذ العام.');
     has($accountStatement, 'MARKETER_COMMISSION_PAYABLE', 'كشف حساب المسوق لا يحدد حساب المستحقات.');
+    has($accountStatement, "strtoupper((string)\$partnerType) === 'DELIVERY'", 'كشف حساب المندوب لا يقرأ الأستاذ العام.');
+    has($accountStatement, 'courier_custody_account_id', 'كشف حساب المندوب لا يضم حساب العهدة.');
+    has($accountStatement, 'courier_commission_payable_account_id', 'كشف حساب المندوب لا يضم مستحقات العمولة.');
     has($accountStatement, "strtoupper((string)\$partnerType) === 'CLIENT'", 'كشف حساب العميل لا يقرأ الأستاذ العام.');
     has($accountStatement, "aset.setting_key = 'CUSTOMERS'", 'كشف حساب العميل لا يستخدم حساب العملاء المعتمد.');
     lacks(substr($accountStatement, strpos($accountStatement, "if (strtoupper((string)\$partnerType) === 'CLIENT')"), strpos($accountStatement, "if (strtoupper((string)\$partnerType) === 'MARKETER')") - strpos($accountStatement, "if (strtoupper((string)\$partnerType) === 'CLIENT')")), 'partners_balance', 'فرع كشف حساب العميل ما زال يعتمد على دفتر الأرصدة القديم.');
