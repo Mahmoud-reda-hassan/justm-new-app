@@ -2,6 +2,7 @@
 =            GLOBAL VARIABLES
 ==================================================*/
 let supplierOrdersTable = null;
+let supplierPaymentRequestKey = null;
 let currentLoading = null;
 const balanceCache = {};        // لتخزين أرصدة الشركاء
 const searchCache = {           // لتخزين نتائج البحث (اختياري للـ Select2)
@@ -458,10 +459,17 @@ async function saveSupplierPayment(){
         return;
     }
 
+    if (!supplierPaymentRequestKey) {
+        supplierPaymentRequestKey = 'SUP-' + (window.crypto?.randomUUID
+            ? window.crypto.randomUUID().replace(/-/g, '')
+            : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    }
     let payload = {
         CONTROL : 'SaveSupplierPayment',
         supplier_id : supplierId,
         total_amount : totalAmount,
+        payment_method_id : 1,
+        request_key : supplierPaymentRequestKey,
         note : $('#morad-note').val() || ''
     };
 
@@ -494,10 +502,12 @@ async function saveSupplierPayment(){
 		const data = await request(API_FINANCE, payload, 'POST');
         hideLoading();
         showAlert(data[0],data[1],data[2]);
-       
-        const cacheKey = `${'SUPPLIER'}_${$('#select-morad').val()}`;
-        delete balanceCache[cacheKey];
-        $('#select-morad').val(null).trigger('change').html('<option value=""></option>');
+        if (data[0] === 'success') {
+            supplierPaymentRequestKey = null;
+            const cacheKey = `${'SUPPLIER'}_${$('#select-morad').val()}`;
+            delete balanceCache[cacheKey];
+            $('#select-morad').val(null).trigger('change').html('<option value=""></option>');
+        }
                 
             
     }catch(error){

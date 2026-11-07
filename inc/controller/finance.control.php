@@ -280,10 +280,19 @@ try {
 		case 'PaymentOfCustomerDues':
 			throw new RuntimeException('تم إيقاف مسار رد المرتجع القديم. استخدم مسار رد المبلغ المعتمد في الأستاذ العام.');
 		case 'SaveSupplierPayment':
-			$supplier_id= $_POST['supplier_id'];
-			$total_amount = $_POST['total_amount'];
-			$orders = isset($_POST['orders']) ? $_POST['orders']: [];
-			echo json_encode($CBE->PaymentOfSupplierDues($supplier_id, $total_amount, $orders));
+			$requireFinanceAdmin();
+			if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+			$requestKey = trim((string)($_POST['request_key'] ?? ''));
+			$supplierId = (int)($_POST['supplier_id'] ?? 0);
+			$totalAmount = (string)($_POST['total_amount'] ?? '0');
+			$paymentMethodId = (int)($_POST['payment_method_id'] ?? 1);
+			$orders = $readArray($_POST['orders'] ?? [], 'orders');
+			$result = $CBE->PaymentOfSupplierDues($supplierId, $totalAmount, $orders, $paymentMethodId, $requestKey);
+			echo json_encode(array_merge([
+				'success', 'ناجح', !empty($result['already_posted'])
+					? 'تم تسجيل نفس دفعة المورد سابقًا دون تكرار القيد.'
+					: 'تم تسجيل دفعة المورد وترحيلها إلى الأستاذ العام.'
+			], $result), JSON_UNESCAPED_UNICODE);
 			break;
 		case 'PaymentOfMarketerDues':
 		case 'PaymentOfDeliveryDues':

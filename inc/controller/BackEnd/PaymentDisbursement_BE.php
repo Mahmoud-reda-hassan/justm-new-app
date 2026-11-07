@@ -196,52 +196,53 @@ class PaymentDisbursement {
 	}
 
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
-		// مستحقات المندوبين مصدرها حساب مستحقات العمولة في الأستاذ العام فقط.
-		if (strtoupper((string)$partnerType) === 'DELIVERY') {
-			if ($order_id) return [['total_balance' => 0]];
-			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit - d.debit),0) AS total_balance
-				FROM journal_entry_details d
-				INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
-				INNER JOIN delivery_accounting_settings das ON das.courier_commission_payable_account_id = d.account_id
-				WHERE das.id = 1 AND d.partner_type = 'DELIVERY' AND d.partner_id = ?");
-			$stmt->execute([(int)$partnerId]);
-			return [['total_balance' => round((float)$stmt->fetchColumn(), 2)]];
-		}
+		$partnerType = strtoupper((string)$partnerType);
+		if ($partnerType === 'SUPPLIER') {
+			$legacySql = "SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE -BALANCE END),0)
+				FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' AND PARTNER_ID=?";
+			$legacyParams = [(int)$partnerId];
+			if ($order_id) { $legacySql .= " AND REFERENCE_ID=?"; $legacyParams[] = (int)$order_id; }
+			$legacyStmt = $this->conn->prepare($legacySql);
+			$legacyStmt->execute($legacyParams);
+			$legacyBalance = (float)$legacyStmt->fetchColumn();
 
-		// مستحقات المسوقين وقادة الفرق مصدرها حساب المستحقات في الأستاذ العام فقط.
-		if (strtoupper((string)$partnerType) === 'MARKETER') {
-			if ($order_id) return [['total_balance' => 0]];
-			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit - d.debit),0) AS total_balance
+			$glSql = "SELECT COALESCE(SUM(d.credit-d.debit),0)
 				FROM journal_entry_details d
-				INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
-				INNER JOIN account_settings aset ON aset.account_id = d.account_id
-					AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
-				WHERE d.partner_type = 'MARKETER' AND d.partner_id = ?");
-			$stmt->execute([(int)$partnerId]);
-			return [['total_balance' => round((float)$stmt->fetchColumn(), 2)]];
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN account_settings aset ON aset.account_id=d.account_id
+					AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
+				WHERE d.partner_type='SUPPLIER' AND d.partner_id=?";
+			$glParams = [(int)$partnerId];
+			if ($order_id) {
+				$glSql .= " AND (d.reference_id=? OR (h.reference_type IN ('PURCHASE_ORDER','PURCHASE_RETURN') AND h.reference_id=?))";
+				$glParams[] = (int)$order_id; $glParams[] = (int)$order_id;
+			}
+			$glStmt = $this->conn->prepare($glSql);
+			$glStmt->execute($glParams);
+			return [['total_balance' => round($legacyBalance + (float)$glStmt->fetchColumn(), 2)]];
 		}
-
-		$query = "SELECT COALESCE(Sum(CASE
-				    WHEN TRANSACTION_TYPE = 'CREDIT'
-				    THEN BALANCE
-				    ELSE 0
-				   END) - Sum(CASE
-				   WHEN TRANSACTION_TYPE = 'DEBIT'
-				   THEN BALANCE
-				   ELSE 0
-				     END),0) AS total_balance
-				FROM partners_balance pb
-				WHERE PARTNER_TYPE = :ptype AND PARTNER_ID = :pid ";
-		$parms = ['ptype' => $partnerType, 'pid' => $partnerId];
-		if ($order_id) {
-			$query .= " AND pb.REFERENCE_ID = :oid";
-			$parms['oid'] = $order_id;
+		if ($partnerType === 'DELIVERY') {
+			if ($order_id) return [['total_balance' => 0]];
+			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0) FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN delivery_accounting_settings das ON das.courier_commission_payable_account_id=d.account_id
+				WHERE das.id=1 AND d.partner_type='DELIVERY' AND d.partner_id=?");
+			$stmt->execute([(int)$partnerId]); return [['total_balance'=>round((float)$stmt->fetchColumn(),2)]];
 		}
-		$stmt = $this->conn->prepare($query);
-		$stmt->execute($parms);
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if ($partnerType === 'MARKETER') {
+			if ($order_id) return [['total_balance' => 0]];
+			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0) FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN account_settings aset ON aset.account_id=d.account_id AND aset.setting_key='MARKETER_COMMISSION_PAYABLE'
+				WHERE d.partner_type='MARKETER' AND d.partner_id=?");
+			$stmt->execute([(int)$partnerId]); return [['total_balance'=>round((float)$stmt->fetchColumn(),2)]];
+		}
+		$query = "SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE 0 END)-SUM(CASE WHEN TRANSACTION_TYPE='DEBIT' THEN BALANCE ELSE 0 END),0) AS total_balance
+			FROM partners_balance pb WHERE PARTNER_TYPE=:ptype AND PARTNER_ID=:pid";
+		$params=['ptype'=>$partnerType,'pid'=>$partnerId];
+		if($order_id){$query.=" AND pb.REFERENCE_ID=:oid";$params['oid']=$order_id;}
+		$stmt=$this->conn->prepare($query);$stmt->execute($params);return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-
 	public function GetSupplierOrderList($supplierId){
 
     $records = [];
