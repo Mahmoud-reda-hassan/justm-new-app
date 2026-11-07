@@ -192,6 +192,12 @@
                     <option value="">اختر أمر البيع</option>
                 </select>
             </div>
+            <div class="mb-3 mt-3">
+                <label for="refund-payment-method" class="form-label fw-bold">طريقة رد المبلغ</label>
+                <select class="form-control" id="refund-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
+                </select>
+            </div>
             <!-- عرض الإجماليات -->
             <div class="row g-3 mt-2">
                 <div class="col-12">
