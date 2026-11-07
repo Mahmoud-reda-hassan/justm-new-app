@@ -118,15 +118,36 @@ class DatabaseMigrationManager
             $checksum = hash_file('sha256', $path);
             $row = $applied[$file] ?? null;
             $status = !$row ? 'PENDING' : (string)$row['status'];
+            $warning = $meta['warning'];
+
             if ($row && $row['status'] === 'APPLIED' && !hash_equals((string)$row['checksum'], $checksum)) {
                 $status = 'CHANGED';
             }
+
+            if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
+                $schemaState = $this->cashBoxReferenceSchemaState();
+                if ($schemaState === 'COMPLETE' && !$row) {
+                    $status = 'SCHEMA_PRESENT';
+                    $warning = 'العمود والفهرس والعلاقة موجودة بالفعل في قاعدة التثبيت الحالية؛ لا حاجة لإعادة تنفيذ الترحيل.';
+                } elseif ($schemaState === 'PARTIAL') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'مخطط الخزينة غير مكتمل (عمود أو فهرس أو علاقة ناقصة). أوقف التنفيذ وافحص القاعدة قبل أي تعديل.';
+                } elseif ($schemaState === 'BLOCKED') {
+                    $status = 'BLOCKED';
+                    $warning = 'يلزم وجود علاقة cash_boxes.branch_id مع branches.BR_ID (المرحلة 21 أو ما يعادلها) قبل تنفيذ المرحلة 22.';
+                } elseif ($schemaState === 'MISSING' && $row && $row['status'] === 'APPLIED') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'المرحلة مسجلة كمطبقة لكن مراجع الخزينة غير موجودة. لا تعِد تنفيذها تلقائيًا؛ افحص القاعدة.';
+                }
+            }
+
             $result[] = [
                 'file' => $file,
                 'title' => $meta['title'],
                 'description' => $meta['description'],
-                'enabled' => (bool)$meta['enabled'] && $status !== 'CHANGED' && $status !== 'MISSING',
-                'warning' => $meta['warning'],
+                'enabled' => (bool)$meta['enabled']
+                    && !in_array($status, ['CHANGED', 'MISSING', 'SCHEMA_PRESENT', 'SCHEMA_DRIFT', 'BLOCKED'], true),
+                'warning' => $warning,
                 'status' => $status,
                 'checksum' => $checksum,
                 'applied_at' => $row['finished_at'] ?? null,
@@ -203,8 +224,21 @@ class DatabaseMigrationManager
                 }
                 return ['already_applied' => true, 'message' => 'هذا الترحيل منفذ بالفعل بنفس نسخة الملف.'];
             }
-            if ($existing && $existing['status'] === 'APPLIED' && !hash_equals((string)$existing['checksum'], $checksum)) {
-                throw new RuntimeException('بصمة ملف الترحيل لا تطابق النسخة المسجلة.');
+
+            if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql'
+                && $this->cashBoxReferenceSchemaState() === 'COMPLETE') {
+                $record = $this->db->prepare(
+                    'INSERT INTO ' . self::LEDGER_TABLE . ' (migration_key, checksum, status, applied_by, started_at, finished_at, error_text, statement_count)
+                     VALUES (?, ?, \'APPLIED\', ?, NOW(), NOW(), NULL, 0)
+                     ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), status = \'APPLIED\',
+                        applied_by = VALUES(applied_by), finished_at = NOW(), error_text = NULL, statement_count = 0'
+                );
+                $record->execute([$file, $checksum, $userId]);
+                return [
+                    'already_applied' => true,
+                    'message' => 'مراجع الخزينة موجودة بالفعل في مخطط قاعدة البيانات؛ تم تسجيل المرحلة دون إعادة تنفيذ DDL.',
+                    'statement_count' => 0,
+                ];
             }
 
             $stmt = $this->db->prepare(
@@ -275,7 +309,7 @@ class DatabaseMigrationManager
                 throw new RuntimeException('لا يمكن تنفيذ المرحلة 19: يجب وجود الحسابات 2111 و1162 و1171 أولًا.');
             }
         } elseif ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
-            $required = ['journal_entry_details', 'cash_boxes'];
+            $required = ['journal_entry_details', 'cash_boxes', 'branches'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
@@ -295,6 +329,80 @@ class DatabaseMigrationManager
                 throw new RuntimeException('لا يمكن تنفيذ الترحيل؛ الجدول المطلوب غير موجود: ' . $table);
             }
         }
+
+        if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
+            $schemaState = $this->cashBoxReferenceSchemaState();
+            if ($schemaState === 'BLOCKED') {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 22 قبل وجود علاقة cash_boxes.branch_id مع branches.BR_ID (المرحلة 21 أو ما يعادلها).');
+            }
+            if ($schemaState === 'PARTIAL') {
+                throw new RuntimeException('مخطط الخزينة جزئي؛ أوقف الترحيل وافحص العمود والفهرس والعلاقة قبل التنفيذ.');
+            }
+        }
+    }
+
+    /**
+     * COMPLETE: العمود والفهرس وFK موجودة.
+     * MISSING: لا يوجد أي جزء من إضافة المرحلة 22 ويمكن تنفيذها.
+     * PARTIAL: بعض العناصر موجودة وبعضها مفقود؛ التنفيذ التلقائي غير آمن.
+     * BLOCKED: الجداول أو علاقة ملكية الفرع المطلوبة غير موجودة.
+     */
+    private function cashBoxReferenceSchemaState(): string
+    {
+        $tables = $this->db->prepare(
+            'SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (?, ?)'
+        );
+        $tables->execute(['cash_boxes', 'journal_entry_details']);
+        $tablesExist = (int)$tables->fetchColumn() === 2;
+        $tables->closeCursor();
+        if (!$tablesExist) {
+            return 'BLOCKED';
+        }
+
+        $branchRelation = $this->db->prepare(
+            'SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = \'cash_boxes\'
+               AND COLUMN_NAME = \'branch_id\' AND REFERENCED_TABLE_NAME = \'branches\'
+               AND REFERENCED_COLUMN_NAME = \'BR_ID\''
+        );
+        $branchRelation->execute();
+        $branchRelationExists = (int)$branchRelation->fetchColumn() > 0;
+        $branchRelation->closeCursor();
+        if (!$branchRelationExists) {
+            return 'BLOCKED';
+        }
+
+        $column = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details'
+               AND COLUMN_NAME = 'cash_box_id'"
+        );
+        $columnExists = (int)$column->fetchColumn() > 0;
+        $column->closeCursor();
+
+        $index = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details'
+               AND INDEX_NAME = 'idx_journal_detail_cash_box'"
+        );
+        $indexExists = (int)$index->fetchColumn() > 0;
+        $index->closeCursor();
+
+        $foreignKey = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details'
+               AND COLUMN_NAME = 'cash_box_id' AND REFERENCED_TABLE_NAME = 'cash_boxes'
+               AND REFERENCED_COLUMN_NAME = 'id'"
+        );
+        $foreignKeyExists = (int)$foreignKey->fetchColumn() > 0;
+        $foreignKey->closeCursor();
+
+        $presentCount = (int)$columnExists + (int)$indexExists + (int)$foreignKeyExists;
+        if ($presentCount === 3) {
+            return 'COMPLETE';
+        }
+        return $presentCount === 0 ? 'MISSING' : 'PARTIAL';
     }
 
     private function getMigration(string $file): array
