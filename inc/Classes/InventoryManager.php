@@ -402,6 +402,43 @@ class InventoryManager {
 	
 	    $placeholders = implode(',', array_fill(0, count($ordersIds), '?'));
 	
+	    // بعد الحصول على القفل العالمي، افحص رصيد المخزن تحت قفل الصفوف لتجنب تعارض الحركات المتزامنة.
+	    if ($type === 'refundpurchises') {
+	        $returnProductsStmt = $this->conn->prepare("
+	            SELECT PRO_CODE, QTY_RETURN
+	            FROM purchases_return_products
+	            WHERE ORDER_ID IN ($placeholders)
+	        ");
+	        $returnProductsStmt->execute($ordersIds);
+	        $returnProducts = $returnProductsStmt->fetchAll(PDO::FETCH_ASSOC);
+	        if (!$returnProducts) throw new Exception("لا توجد منتجات صالحة لصرف مرتجع المورد.");
+
+	        $returnCodes = array_values(array_unique(array_map(
+	            static function ($row): string { return (string)$row['PRO_CODE']; },
+	            $returnProducts
+	        )));
+	        $stockPlaceholders = implode(',', array_fill(0, count($returnCodes), '?'));
+	        $stockStmt = $this->conn->prepare("
+	            SELECT PRO_CODE, STO_QTY
+	            FROM stores_product
+	            WHERE STO_ID = ? AND PRO_CODE IN ($stockPlaceholders)
+	            FOR UPDATE
+	        ");
+	        $stockStmt->execute(array_merge([$storeId], $returnCodes));
+	        $stockRows = [];
+	        foreach ($stockStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+	            $stockRows[(string)$row['PRO_CODE']] = (float)$row['STO_QTY'];
+	        }
+	        foreach ($returnProducts as $product) {
+	            $code = (string)$product['PRO_CODE'];
+	            $returnQty = (float)$product['QTY_RETURN'];
+	            $availableQty = (float)($stockRows[$code] ?? 0);
+	            if (!is_finite($returnQty) || $returnQty <= 0 || $returnQty - $availableQty > 0.00001) {
+	                throw new Exception("رصيد المنتج $code في المخزن لا يكفي لتنفيذ المرتجع.");
+	            }
+	        }
+	    }
+
 	    // ================= Insert inventory_movement =================
 	    $stmt = $this->conn->prepare("
 	        INSERT INTO inventory_movement
