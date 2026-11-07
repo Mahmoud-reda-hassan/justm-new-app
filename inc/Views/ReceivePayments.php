@@ -80,7 +80,7 @@
 					<div class="col-sm-3 col-6 bg-info">
 						<div class="description-block border-right text-light">
 							<h5 class="description-header sup">0</h5>
-							<span class="description-text">المطلوب سداده</span>
+							<span class="description-text">المديونية المفتوحة</span>
 						</div>
 					</div>
 					
@@ -176,7 +176,7 @@
 					            <th>بيانات المندوب</th>
 					            <th>تاريخ الخروج</th>
 					            <th>إجمالي المبلغ</th>
-					            <th>سداد</th>
+					            <th>تسجيل تحصيل العميل</th>
 					        </tr>
 					        <tr>
 					            <th></th>
