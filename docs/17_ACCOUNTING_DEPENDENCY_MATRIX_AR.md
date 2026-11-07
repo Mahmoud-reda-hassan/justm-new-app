@@ -291,7 +291,7 @@ dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_bal
 |---|---|---|
 | `CollectingFinancialPledge` / `finance_BE::registerCollection()` | تم تعطيل endpoint القديم؛ شاشة الأوامر تسجل الآن `RegisterDeliveryCustomerCollection` وتضيف التحصيل إلى عهدة المندوب، ولوحة التسوية تستقبل العهدة لاحقًا | يلزم اختبار دورة كاملة على بيانات اختبار والتأكد من تحديث حالة الطلب/العهدة التشغيلية دون الاعتماد على `ORDER_SUCCESS` القديم |
 | `PaymentOfSupplierDues()` و`SaveSupplierPayment` | تم تحويل الدفعات الجديدة إلى GL مع الاحتفاظ بـ`purchases_payments` و`TOTAL_PAYMENTS` كبيانات تشغيلية، دون كتابة `financial_transactions` أو `partners_balance` | اختبار دورة كاملة ومراجعة كشف الحساب على قاعدة اختبار |
-| كشف حساب المورد | يجمع أرصدة `partners_balance` التاريخية مع قيود حساب الموردين والمقدمات في GL | مراجعة مطابقة الرصيد المرحلي ثم اعتماد ميزان افتتاحي قبل القطع النهائي |
+| كشف حساب المورد | يعرض رصيد `partners_balance` التاريخي وحركات حساب الموردين/المقدمات في GL كلًا على حدة | مطابقة الرصيدين بشكل مستقل ثم اعتماد ميزان افتتاحي قبل القطع النهائي |
 | `directSalePayment()` و`salesReturnPayment()` التاريخيان | ما زالا يقرآن مستندات `invoices/financial_transactions` لإعادة بناء قيد تاريخي | نقل مصدر البيانات إلى أحداث/مستندات GL-native ثم إيقاف إنشاء المستندات القديمة |
 | `partners_balance` في إجراءات SQL وقوائم الطلبات | توجد قراءات/كتابات أخرى خارج الشاشات التي تم تحويلها | استكمال الحصر على كل Procedures وDAO وواجهات، ثم إزالة كل كتابة قديمة بعد ضمان البديل |
 
