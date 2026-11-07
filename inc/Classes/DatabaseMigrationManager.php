@@ -50,7 +50,7 @@ class DatabaseMigrationManager
             'title' => 'حسابات عمولات المسوقين',
             'description' => 'إنشاء وربط حسابات مستحقات ومصروف عمولات المسوقين.',
             'enabled' => true,
-            'warning' => 'يراجع الحسابان 2152 و5230 قبل استخدام دورة صرف العمولات.'
+            'warning' => 'يتطلب استيراد شجرة الحسابات المعتمدة أولًا؛ الحسابان المستهدفان 2152 و5420.'
         ],
         'PHASE18_CUSTOMER_RETURN_REFUNDS.sql' => [
             'title' => 'مستندات رد مبالغ مرتجعات العملاء',
@@ -327,6 +327,21 @@ class DatabaseMigrationManager
             $stmt->closeCursor();
             if ($exists !== 1) {
                 throw new RuntimeException('لا يمكن تنفيذ الترحيل؛ الجدول المطلوب غير موجود: ' . $table);
+            }
+        }
+
+        if ($file === 'PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql') {
+            $stmt = $this->db->query(
+                "SELECT COUNT(*) FROM accounts
+                 WHERE (account_code = '2150' AND account_type = 'LIABILITY' AND is_active = 1 AND allow_posting = 0)
+                    OR (account_code = '5400' AND account_type = 'EXPENSE' AND is_active = 1 AND allow_posting = 0)"
+            );
+            $parentCount = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($parentCount !== 2) {
+                throw new RuntimeException(
+                    'لا يمكن تنفيذ المرحلة 17: استورد شجرة الحسابات المعتمدة أولًا، وتأكد من وجود الحسابين الرئيسيين 2150 و5400 غير القابلين للترحيل.'
+                );
             }
         }
 
