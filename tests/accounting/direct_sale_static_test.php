@@ -129,7 +129,7 @@ try {
     has($salesReturn, "d.reference_type = 'MARKETER_COMMISSION_ACCRUAL'", 'عكس عمولة المسوق لا يحد العكس بما سبق استحقاقه.');
     $reportsBackend = projectFile($root, 'inc/controller/BackEnd/reports_BE.php');
     $accountStatement = methodBody($reportsBackend, 'public function AccountStatement(');
-    has($accountStatement, "if (strtoupper((string)$partnerType) === 'MARKETER')", 'كشف حساب المسوق لا يقرأ الأستاذ العام.');
+    has($accountStatement, "if (strtoupper((string)\$partnerType) === 'MARKETER')", 'كشف حساب المسوق لا يقرأ الأستاذ العام.');
     has($accountStatement, 'MARKETER_COMMISSION_PAYABLE', 'كشف حساب المسوق لا يحدد حساب المستحقات.');
     $marketerDailyReport = methodBody($reportsBackend, 'public function marketerDailyReport(');
     $marketerDailyDetails = methodBody($reportsBackend, 'public function marketerDailyDetails(');
