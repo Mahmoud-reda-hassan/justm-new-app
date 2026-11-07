@@ -2121,23 +2121,17 @@ ORDER BY report_date
 			   FROM   order_product
 			   GROUP BY ORDER_ID) op
 			 ON o.ORDER_ID = op.ORDER_ID
-			 LEFT JOIN (SELECT  PARTNER_ID,
-			     REFERENCE_ID,
-			     Sum(CASE
-			     WHEN TRANSACTION_CATEGORY_ID = 12
-			     THEN BALANCE
-			     ELSE 0
-			    END) AS CREDIT,
-			     Sum(CASE
-			     WHEN TRANSACTION_CATEGORY_ID = 16
-			     THEN BALANCE
-			     ELSE 0
-			    END) AS DEBIT
-			   FROM   partners_balance
-			   WHERE  TRANSACTION_CATEGORY_ID IN (12,16)
-			     AND PARTNER_TYPE = 'MARKETER'
-			   GROUP BY PARTNER_ID,
-			     REFERENCE_ID) pb
+			 LEFT JOIN (SELECT d.partner_id AS PARTNER_ID,
+			     h.reference_id AS REFERENCE_ID,
+			     SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_ACCRUAL' THEN d.credit ELSE 0 END) AS CREDIT,
+			     SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_REVERSAL' THEN d.debit ELSE 0 END) AS DEBIT
+			   FROM journal_entry_details d
+			   INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			   INNER JOIN account_settings aset ON aset.account_id = d.account_id
+			     AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
+			   WHERE d.reference_type IN ('MARKETER_COMMISSION_ACCRUAL','MARKETER_COMMISSION_REVERSAL')
+			     AND d.partner_type = 'MARKETER'
+			   GROUP BY d.partner_id, h.reference_id) pb
 			 ON o.ORDER_ID = pb.REFERENCE_ID
 			  AND o.ORDER_BY = pb.PARTNER_ID 
 			 ) tbl  WHERE ORDER_BY = :partner_id AND date(LAST_UPDATE) BETWEEN :dateFrom AND :dateTo
@@ -2187,23 +2181,17 @@ ORDER BY report_date
 			      FROM   order_product
 			      GROUP BY ORDER_ID) op
 			   ON o.ORDER_ID = op.ORDER_ID
-			   LEFT JOIN (SELECT  PARTNER_ID,
-			       REFERENCE_ID,
-			       Sum(CASE
-			       WHEN TRANSACTION_CATEGORY_ID = 12
-			       THEN BALANCE
-			       ELSE 0
-			      END) AS CREDIT,
-			       Sum(CASE
-			       WHEN TRANSACTION_CATEGORY_ID = 16
-			       THEN BALANCE
-			       ELSE 0
-			      END) AS DEBIT
-			      FROM   partners_balance
-			      WHERE  TRANSACTION_CATEGORY_ID IN (12,16)
-			       AND PARTNER_TYPE = 'MARKETER'
-			      GROUP BY PARTNER_ID,
-			       REFERENCE_ID) pb
+			   LEFT JOIN (SELECT d.partner_id AS PARTNER_ID,
+			       h.reference_id AS REFERENCE_ID,
+			       SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_ACCRUAL' THEN d.credit ELSE 0 END) AS CREDIT,
+			       SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_REVERSAL' THEN d.debit ELSE 0 END) AS DEBIT
+			      FROM journal_entry_details d
+			      INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			      INNER JOIN account_settings aset ON aset.account_id = d.account_id
+			        AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
+			      WHERE d.reference_type IN ('MARKETER_COMMISSION_ACCRUAL','MARKETER_COMMISSION_REVERSAL')
+			        AND d.partner_type = 'MARKETER'
+			      GROUP BY d.partner_id, h.reference_id) pb
 			   ON o.ORDER_ID = pb.REFERENCE_ID
 			     AND o.ORDER_BY = pb.PARTNER_ID
 			     GROUP BY ORDER_ID
