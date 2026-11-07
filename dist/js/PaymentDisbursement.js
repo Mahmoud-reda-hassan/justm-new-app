@@ -508,77 +508,75 @@ async function saveSupplierPayment(){
     const supplierId = $('#select-morad').val();
     const paymentMethodId = Number($('#supplier-payment-method').val() || 0);
     const totalAmount = parseFloat($('#amount-morad').val()) || 0;
+    const note = $('#morad-note').val() || '';
 
     if(!supplierId){
-		showAlert('warning','تنبيه','قم بإختيار المورد');
+        showAlert('warning','تنبيه','قم بإختيار المورد');
         return;
     }
     if(!paymentMethodId){
         showAlert('warning','تنبيه','اختر طريقة الدفع');
         return;
     }
-    if(totalAmount <= 0){
+    if(!Number.isFinite(totalAmount) || totalAmount <= 0){
         showAlert('warning','تنبيه','قم بإدخال مبلغ صحيح');
         return;
     }
 
-    if (!supplierPaymentRequestKey) {
+    const paymentOrders = [];
+    $('#supplierOrdersTable .payment-input').each(function(){
+        const orderId = Number($(this).data('order') || 0);
+        const amount = Number($(this).val() || 0);
+        if(orderId > 0 && Number.isFinite(amount) && amount > 0){
+            paymentOrders.push({orderId, amount: amount.toFixed(2)});
+        }
+    });
+    paymentOrders.sort((a, b) => a.orderId - b.orderId);
+
+    const requestFingerprint = JSON.stringify({
+        supplierId: Number(supplierId),
+        paymentMethodId,
+        totalAmount: totalAmount.toFixed(2),
+        note,
+        orders: paymentOrders
+    });
+    if (!supplierPaymentRequestKey || supplierPaymentRequestFingerprint !== requestFingerprint) {
         supplierPaymentRequestKey = 'SUP-' + (window.crypto?.randomUUID
             ? window.crypto.randomUUID().replace(/-/g, '')
             : Date.now().toString(36) + Math.random().toString(36).slice(2));
+        supplierPaymentRequestFingerprint = requestFingerprint;
     }
-    let payload = {
-        CONTROL : 'SaveSupplierPayment',
-        supplier_id : supplierId,
-        total_amount : totalAmount,
-        payment_method_id : paymentMethodId,
-        request_key : supplierPaymentRequestKey,
-        note : $('#morad-note').val() || ''
+
+    const payload = {
+        CONTROL: 'SaveSupplierPayment',
+        supplier_id: supplierId,
+        total_amount: totalAmount.toFixed(2),
+        payment_method_id: paymentMethodId,
+        request_key: supplierPaymentRequestKey,
+        note
     };
-
-    let index = 0;
-
-	$('#supplierOrdersTable .payment-input').each(function(){
-	
-	    let orderId = $(this).data('order');
-	
-	    let amount = parseFloat($(this).val()) || 0;
-	
-	    if(amount <= 0) return;
-	
-	    payload[`orders[${index}][orderId]`] = orderId;
-	
-	    payload[`orders[${index}][amount]`] = amount;
-	
-	    index++;
-	
-	});
-	
-   /* if(index === 0){
-        showAlert('warning','تنبيه','لا يوجد أوامر للصرف');
-        return;
-    }*/
+    paymentOrders.forEach((item, index) => {
+        payload[`orders[${index}][orderId]`] = item.orderId;
+        payload[`orders[${index}][amount]`] = item.amount;
+    });
 
     showLoading('جارى حفظ الصرف...');
-
     try{
-		const data = await request(API_FINANCE, payload, 'POST');
+        const data = await request(API_FINANCE, payload, 'POST');
         hideLoading();
         showAlert(data[0],data[1],data[2]);
         if (data[0] === 'success') {
             supplierPaymentRequestKey = null;
+            supplierPaymentRequestFingerprint = null;
             $('#supplier-payment-method').val('');
-            const cacheKey = `${'SUPPLIER'}_${$('#select-morad').val()}`;
+            const cacheKey = `SUPPLIER_${supplierId}`;
             delete balanceCache[cacheKey];
             $('#select-morad').val(null).trigger('change').html('<option value=""></option>');
         }
-                
-            
     }catch(error){
         hideLoading();
         showAlert('error','خطأ',error.message);
     }
-
 }
 
 /*==================================================
