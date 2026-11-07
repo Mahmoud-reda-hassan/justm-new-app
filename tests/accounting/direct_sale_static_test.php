@@ -176,8 +176,10 @@ try {
     has($shipmentBackend, "processInventory('RETURN_SALES'", 'مسار المرتجع لا ينفذ حركة المخزون قبل قيد عكس البيع.');
     $directCustomerDelivery = methodBody($shipmentBackend, 'public function CustomerDeliveryOfProducts(');
     $directCustomerSaleConfirmation = methodBody($shipmentBackend, 'public function confirmOrderSales(');
-    lacks($directCustomerDelivery, 'partners_balance', 'التسليم المباشر للعميل ما زال يكتب في دفتر الأرصدة القديم.');
-    lacks($directCustomerSaleConfirmation, 'partners_balance', 'تأكيد التسليم المباشر للعميل ما زال يكتب في دفتر الأرصدة القديم.');
+    lacks($directCustomerDelivery, 'INSERT INTO partners_balance', 'التسليم المباشر للعميل ما زال يضيف قيودًا إلى دفتر الأرصدة القديم.');
+    lacks($directCustomerDelivery, 'UPDATE partners_balance', 'التسليم المباشر للعميل ما زال يعدل دفتر الأرصدة القديم.');
+    lacks($directCustomerSaleConfirmation, 'INSERT INTO partners_balance', 'تأكيد التسليم المباشر للعميل ما زال يضيف قيودًا إلى دفتر الأرصدة القديم.');
+    lacks($directCustomerSaleConfirmation, 'UPDATE partners_balance', 'تأكيد التسليم المباشر للعميل ما زال يعدل دفتر الأرصدة القديم.');
     has($directCustomerSaleConfirmation, '$accounting->directSale($orderId)', 'تأكيد التسليم المباشر للعميل لا يرحّل البيع إلى الأستاذ العام.');
 
     echo "PASS: direct sale posts product value only and excludes shipping.\n";
