@@ -2274,3 +2274,96 @@ CREATE TABLE IF NOT EXISTS `reasons_for_product_rejection` (
   `REASON_ID` int(11) NOT NULL,
   `COMMENT` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+-- جداول تسوية رفض التوصيل ومحاولات العمولة.
+
+CREATE TABLE IF NOT EXISTS `delivery_attempt_commissions` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `shipmov_id` INT(11) NOT NULL,
+    `order_id` BIGINT(20) NOT NULL,
+    `delivery_user_id` BIGINT(20) NOT NULL,
+    `branch_id` INT(11) NOT NULL,
+    `shipping_amount_snapshot` DECIMAL(15,2) NOT NULL,
+    `commission_percent_snapshot` DECIMAL(9,4) NOT NULL,
+    `commission_amount` DECIMAL(15,2) NOT NULL,
+    `accounting_event_id` BIGINT UNSIGNED DEFAULT NULL,
+    `journal_entry_id` BIGINT UNSIGNED DEFAULT NULL,
+    `status` ENUM('POSTED','NO_COMMISSION') NOT NULL,
+    `created_by` BIGINT(20) NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_delivery_attempt_commission_shipmov` (`shipmov_id`),
+    UNIQUE KEY `uq_delivery_attempt_commission_event` (`accounting_event_id`),
+    UNIQUE KEY `uq_delivery_attempt_commission_journal` (`journal_entry_id`),
+    KEY `idx_delivery_attempt_commission_delivery` (`delivery_user_id`,`status`,`created_at`),
+    KEY `idx_delivery_attempt_commission_order` (`order_id`),
+    CONSTRAINT `chk_delivery_attempt_shipping_nonnegative` CHECK (`shipping_amount_snapshot` >= 0),
+    CONSTRAINT `chk_delivery_attempt_percent_range` CHECK (`commission_percent_snapshot` >= 0 AND `commission_percent_snapshot` <= 100),
+    CONSTRAINT `chk_delivery_attempt_commission_nonnegative` CHECK (`commission_amount` >= 0),
+    CONSTRAINT `chk_delivery_attempt_commission_journal` CHECK (
+        (`status` = 'POSTED' AND `commission_amount` > 0 AND `accounting_event_id` IS NOT NULL AND `journal_entry_id` IS NOT NULL)
+        OR
+        (`status` = 'NO_COMMISSION' AND `commission_amount` = 0 AND `accounting_event_id` IS NULL AND `journal_entry_id` IS NULL)
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_collections` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `order_id` BIGINT UNSIGNED NOT NULL,
+    `shipmov_id` INT(11) NOT NULL,
+    `delivery_user_id` BIGINT UNSIGNED NOT NULL,
+    `branch_id` INT(11) NOT NULL,
+    `shipping_amount_snapshot` DECIMAL(15,2) NOT NULL,
+    `accounting_event_id` BIGINT UNSIGNED NOT NULL,
+    `journal_entry_id` BIGINT UNSIGNED NOT NULL,
+    `delivery_collection_id` BIGINT UNSIGNED NULL,
+    `status` ENUM('POSTED') NOT NULL DEFAULT 'POSTED',
+    `created_by` BIGINT UNSIGNED NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_rejected_shipping_order` (`order_id`),
+    UNIQUE KEY `uq_rejected_shipping_attempt` (`shipmov_id`),
+    UNIQUE KEY `uq_rejected_shipping_event` (`accounting_event_id`),
+    UNIQUE KEY `uq_rejected_shipping_journal` (`journal_entry_id`),
+    UNIQUE KEY `uq_rejected_shipping_delivery_collection` (`delivery_collection_id`),
+    KEY `idx_rejected_shipping_delivery` (`delivery_user_id`, `created_at`),
+    KEY `idx_rejected_shipping_branch` (`branch_id`, `created_at`),
+    CONSTRAINT `chk_rejected_shipping_amount_positive` CHECK (`shipping_amount_snapshot` > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `delivery_rejected_shipping_reviews` (
+ id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+ shipmov_id INT(11) NOT NULL,
+ order_id BIGINT UNSIGNED NOT NULL,
+ delivery_user_id BIGINT UNSIGNED NOT NULL,
+ branch_id INT(11) NOT NULL,
+ shipping_amount_snapshot DECIMAL(15,2) NOT NULL,
+ commission_percent_snapshot DECIMAL(9,4) NOT NULL,
+ estimated_compensation DECIMAL(15,2) NOT NULL DEFAULT 0,
+ approved_compensation DECIMAL(15,2) NOT NULL DEFAULT 0,
+ status ENUM('PENDING','APPROVED','REJECTED') NOT NULL DEFAULT 'PENDING',
+ accounting_event_id BIGINT UNSIGNED NULL,
+ journal_entry_id BIGINT UNSIGNED NULL,
+ decision_note VARCHAR(500) NULL,
+ decided_by BIGINT UNSIGNED NULL,
+ decided_at DATETIME NULL,
+ created_by BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY (id),
+ UNIQUE KEY uq_rejected_shipping_review_attempt (shipmov_id),
+ UNIQUE KEY uq_rejected_shipping_review_event (accounting_event_id),
+ UNIQUE KEY uq_rejected_shipping_review_journal (journal_entry_id),
+ KEY idx_rejected_shipping_review_delivery (delivery_user_id,status,created_at),
+ KEY idx_rejected_shipping_review_branch (branch_id,status,created_at),
+ KEY idx_rejected_shipping_review_order (order_id),
+ CONSTRAINT chk_rejected_shipping_review_amounts CHECK (
+  shipping_amount_snapshot >= 0 AND commission_percent_snapshot >= 0
+  AND commission_percent_snapshot <= 100 AND estimated_compensation >= 0
+  AND approved_compensation >= 0
+ ),
+ CONSTRAINT chk_rejected_shipping_review_decision CHECK (
+  (status='PENDING' AND approved_compensation=0 AND accounting_event_id IS NULL AND journal_entry_id IS NULL AND decided_by IS NULL)
+  OR (status='REJECTED' AND approved_compensation=0 AND accounting_event_id IS NULL AND journal_entry_id IS NULL AND decided_by IS NOT NULL)
+  OR (status='APPROVED' AND approved_compensation>0 AND accounting_event_id IS NOT NULL AND journal_entry_id IS NOT NULL AND decided_by IS NOT NULL)
+ )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
