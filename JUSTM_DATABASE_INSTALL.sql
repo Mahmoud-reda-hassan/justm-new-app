@@ -1576,6 +1576,8 @@ INSERT INTO `user_gruop` (`USER_GRUOP_ID`, `USER_GROUP_PARENT`, `USER_GRUOP_NAME
 --
 -- 9. المناطق
 --
+SET FOREIGN_KEY_CHECKS=0;
+
 INSERT INTO `zones` (`ZONE_ID`, `ZONE_NAME`, `ZONE_NAME_EN`, `SHIPPING_RATE`, `SHIPPING_LOWEST`, `SHIPPING_TIME_MAX`, `SHIPPING_TYPE`, `STORE_ID`) VALUES
 (12, 'مدينه نصر', 'Madenet Nasr', 50.00, 1.00, 1, 1, 1),
 (13, 'مصر الجديده', 'Misr Elgedida', 50.00, 1.00, 1, 1, 1),
@@ -1681,6 +1683,8 @@ INSERT INTO `branches` (`BR_ID`, `COMPANIE_ID`, `CITY_ID`, `BR_NAME`, `BR_MAIN`,
 --
 INSERT INTO `stores` (`STO_ID`, `BRANCH_ID`, `STO_NAME`, `STTY_ID`) VALUES
 (1, 1, 'المخزن الرئيسى', 2);
+
+SET FOREIGN_KEY_CHECKS=1;
 
 
 
