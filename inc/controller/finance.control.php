@@ -294,6 +294,20 @@ try {
 					: 'تم تسجيل دفعة المورد وترحيلها إلى الأستاذ العام.'
 			], $result), JSON_UNESCAPED_UNICODE);
 			break;
+        case 'ApplySupplierAdvances':
+            $requireFinanceAdmin();
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            $supplierId = (int)($_POST['supplier_id'] ?? 0);
+            $mode = strtoupper(trim((string)($_POST['mode'] ?? 'MANUAL')));
+            $requestKey = trim((string)($_POST['request_key'] ?? ''));
+            $orders = $readArray($_POST['orders'] ?? [], 'orders');
+            $result = $CBE->ApplySupplierAdvances($supplierId, $orders, $mode, $requestKey);
+            echo json_encode(array_merge([
+                'success', 'ناجح', !empty($result['already_posted'])
+                    ? 'تم تسجيل تطبيق المقدم سابقًا دون تكرار القيد.'
+                    : 'تم تطبيق مقدم المورد على أوامر الشراء.'
+            ], $result), JSON_UNESCAPED_UNICODE);
+            break;
 		case 'PaymentOfMarketerDues':
 		case 'PaymentOfDeliveryDues':
 			throw new RuntimeException('تم إيقاف مسار الصرف القديم. استخدم مسار الصرف المحاسبي المعتمد في الأستاذ العام.');
