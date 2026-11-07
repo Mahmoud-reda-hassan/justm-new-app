@@ -155,6 +155,7 @@ class accounts_BE {
 			   O.SUB_ORDER_ID,
 			   Concat(UC.FORENAME, ' ', UC.LASTNAME),
 			   Concat(UD.FORENAME, ' ', UD.LASTNAME),
+			   H.CLIENT_ID,
 			   O.DELIVERY_DATE,
 			   O.ORDER_SUCCESS,
 			   O.LAST_UPDATE,
@@ -262,6 +263,7 @@ class accounts_BE {
 			 WHERE ".$wh." (( O.ORDER_STATUS = 5 AND CO.RETURNS = 0 ) OR O.ORDER_STATUS < 5)
 			 GROUP BY CO.ORDER_ID,
 			   CO.USER_ID,
+			   T.CLIENT_ID,
 			   CO.CUST_STAT,
 			   CO.ORDER_STATUSE,
 			   CASE WHEN CO.ORDER_STATUSE = 3 THEN 1 ELSE CO.RETURNS END,
