@@ -11,9 +11,9 @@ require_once __DIR__ . '/JournalManager.php';
  */
 final class FinancialEventManager
 {
-    private PDO $db;
+    private PDO|TrimmedPDO $db;
 
-    public function __construct(PDO $db)
+    public function __construct(PDO|TrimmedPDO $db)
     {
         $this->db = $db;
     }
