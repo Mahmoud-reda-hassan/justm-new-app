@@ -422,7 +422,8 @@ final class DeliverySettlementManager
                 $leaderId = (int)($order['LEADER_ID'] ?? 0);
                 $marketingEligible = (int)$order['ORDER_TYPE_ID'] === 2
                     && $marketerId > 0
-                    && (string)($order['CUST_STAT'] ?? '') !== 'FREEZE';
+                    && !empty($order['CUST_STAT'])
+                    && (string)$order['CUST_STAT'] !== 'FREEZE';
                 if ($marketingEligible && (float)$order['DELIVERED_QTY'] > 0) {
                     $marketerExpected = round((float)$order['DELIVERED_QTY'] * (float)$order['MARKETER_COMMISSION_RATE'], 2);
                     $leaderExpected = ($leaderId > 0)
