@@ -59,6 +59,12 @@
                
             </div>
             <div class="mt-3">
+                <label for="delivery-payment-method" class="fw-bold">طريقة صرف العمولة</label>
+                <select class="form-control form-control-lg mt-1" id="delivery-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
+                </select>
+            </div>
+            <div class="mt-3">
                 <label for="amount-mandob" class="fw-bold">المبلغ المراد صرفه:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-mandob" min="0" step="0.01">
             </div>
