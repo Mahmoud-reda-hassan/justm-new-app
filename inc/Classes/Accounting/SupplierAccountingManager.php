@@ -73,6 +73,11 @@ final class SupplierAccountingManager
         if(!$m) throw new RuntimeException('تعذر العثور على حركة استلام المشتريات.');
         $amount=round((float)$m['AMOUNT'],2); if($amount<=0) return null;
         $mid=(int)$m['IM_ID']; $oid=(int)$m['ORDER_ID']; $branch=(int)$m['IM_BRANCH'];
+        // أوامر الشراء القديمة لم تُرحّل إلى المخزون بالطريق في GL؛ لا ننشئ لها قيد إعادة تصنيف بلا أصل مقابل.
+        $purchaseEvent = $this->db->prepare("SELECT id FROM accounting_events
+            WHERE idempotency_key=? AND event_type='PURCHASE_ORDER_RECOGNIZED' AND status='POSTED' LIMIT 1");
+        $purchaseEvent->execute(['PURCHASE_ORDER:' . $oid]);
+        if (!$purchaseEvent->fetchColumn()) return null;
         $store=(int)$m['STO_ID']; $user=(int)$m['IM_USER'];
         return $this->postEvent('PURCHASE_RECEIPT_MOVEMENT:'.$mid,'PURCHASE_STOCK_RECEIVED',
             'INVENTORY_MOVEMENT',$mid,$branch,$user,
