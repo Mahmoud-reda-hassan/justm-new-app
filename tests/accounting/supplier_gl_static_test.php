@@ -36,6 +36,7 @@ $assert(strpos($dao, 'if ((float)$total_payments > 0)') !== false && strpos($dao
 $assert(strpos($dao, 'addSupplierCredit') === false, 'New supplier returns still write legacy supplier balances.');
 
 $assert(strpos($inventory, 'WHERE ORDER_ID = ? AND SUPPLIER_ID = ?') !== false, 'Supplier return must verify the source purchase order belongs to the selected supplier.');
+$assert(strpos($inventory, 'WHERE STO_ID = ? AND BRANCH_ID = ? FOR UPDATE') !== false, 'Supplier return must use a store assigned to the active branch.');
 $assert(strpos($inventory, 'FROM purchases_products') !== false && strpos($inventory, 'QTY_SUPPLIED') !== false, 'Supplier return quantities must be based on quantities actually received.');
 $assert(strpos($inventory, "LOWER(IM.IM_MOVE_TYPE) = 'refundpurchises'") !== false && strpos($inventory, 'SUM(IPM.IPM_QTY)') !== false, 'Previously returned quantities must include only completed physical return movements.');
 $assert(strpos($inventory, 'كمية مرتجع المنتج') !== false && strpos($inventory, 'المتبقية للمرتجع') !== false, 'Supplier return must reject quantities exceeding the remaining received quantity.');
