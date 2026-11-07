@@ -52,6 +52,22 @@ $insertOrderEnd = strpos($dao, 'public function insertReturnOrder(', $insertOrde
 $insertOrderMethod = substr($dao, $insertOrderStart, $insertOrderEnd - $insertOrderStart);
 $assert(strpos($insertOrderMethod, 'recordPurchaseOrder(') !== false,
     'Every new supplier purchase order must be recognized in GL when it is created.');
+$transactionStart = strpos($insertOrderMethod, '$ownsTransaction = !$this->pdo->inTransaction();');
+$transactionBegin = strpos($insertOrderMethod, '$this->pdo->beginTransaction();');
+$orderInsertPosition = strpos($insertOrderMethod, '$this->DBInsert->insert($tbln, $data)');
+$glPostingPosition = strpos($insertOrderMethod, 'recordPurchaseOrder(');
+$transactionCommit = strpos($insertOrderMethod, '$this->pdo->commit();');
+$transactionRollback = strpos($insertOrderMethod, '$this->pdo->rollBack();');
+$assert($transactionStart !== false && $transactionBegin !== false
+    && $orderInsertPosition !== false && $glPostingPosition !== false
+    && $transactionCommit !== false && $transactionRollback !== false
+    && $transactionBegin < $orderInsertPosition
+    && $orderInsertPosition < $glPostingPosition
+    && $glPostingPosition < $transactionCommit,
+    'Purchase order, product rows and GL recognition must share one transaction.');
+$assert(strpos($insertOrderMethod, 'catch (Throwable $e)') !== false
+    && strpos($insertOrderMethod, '$this->pdo->rollBack();') !== false,
+    'Any purchase order or GL failure must roll back the entire new purchase operation.');
 $addStockStart = strpos($inventory, 'public function AddStock(');
 $addStockEnd = strpos($inventory, 'public function returnPurchisesFormStock(', $addStockStart);
 $addStockMethod = substr($inventory, $addStockStart, $addStockEnd - $addStockStart);
