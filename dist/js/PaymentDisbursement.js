@@ -3,6 +3,7 @@
 ==================================================*/
 let supplierOrdersTable = null;
 let supplierPaymentRequestKey = null;
+let supplierAdvanceRequestKey = null;
 let currentLoading = null;
 const balanceCache = {};        // لتخزين أرصدة الشركاء
 const searchCache = {           // لتخزين نتائج البحث (اختياري للـ Select2)
@@ -358,8 +359,10 @@ async function applySupplierAdvances(mode) {
         });
         if (!orders.length) return showAlert('warning', 'تنبيه', 'حدد مبالغ المقدم في الفواتير أولًا');
     }
-    const requestKey = 'SADV-' + (window.crypto?.randomUUID ? window.crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2));
-    const payload = { CONTROL: 'ApplySupplierAdvances', supplier_id: supplierId, mode, request_key: requestKey };
+    if (!supplierAdvanceRequestKey) {
+        supplierAdvanceRequestKey = 'SADV-' + (window.crypto?.randomUUID ? window.crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    }
+    const payload = { CONTROL: 'ApplySupplierAdvances', supplier_id: supplierId, mode, request_key: supplierAdvanceRequestKey };
     orders.forEach((item, index) => { payload['orders[' + index + '][orderId]'] = item.orderId; payload['orders[' + index + '][amount]'] = item.amount.toFixed(2); });
     showLoading('جارٍ تطبيق مقدم المورد...');
     try {
@@ -367,6 +370,7 @@ async function applySupplierAdvances(mode) {
         hideLoading();
         showAlert(result[0] || 'error', result[1] || 'خطأ', result[2] || 'تعذر تطبيق المقدم');
         if (result[0] === 'success') {
+            supplierAdvanceRequestKey = null;
             delete balanceCache['SUPPLIER_' + supplierId];
             if (supplierOrdersTable) supplierOrdersTable.ajax.reload();
             request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
