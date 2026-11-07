@@ -6,6 +6,8 @@ on:
     paths:
       - 'inc/Classes/Accounting/**'
       - 'inc/Classes/DatabaseMigrationManager.php'
+      - 'inc/Classes/user_permission.php'
+      - 'inc/template/SidebarMenu.php'
       - 'inc/controller/databaseMigrations.control.php'
       - 'inc/Views/DatabaseMigrations.php'
       - 'dist/js/DatabaseMigrations.js'
@@ -72,6 +74,8 @@ jobs:
           php -l inc/controller/BackEnd/reports_BE.php
           php -l inc/controller/finance.control.php
           php -l inc/Classes/DatabaseMigrationManager.php
+          php -l inc/Classes/user_permission.php
+          php -l inc/template/SidebarMenu.php
           php -l inc/controller/databaseMigrations.control.php
           php -l inc/Views/DatabaseMigrations.php
           php -l tests/accounting/database_migration_runner_test.php
