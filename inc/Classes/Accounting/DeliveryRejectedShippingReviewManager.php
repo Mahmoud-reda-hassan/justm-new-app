@@ -43,10 +43,9 @@ final class DeliveryRejectedShippingReviewManager
  {
   if($branchId<=0) throw new InvalidArgumentException('الفرع الحالي غير محدد.');
   $sql="SELECT r.id,r.shipmov_id,r.order_id,o.SUB_ORDER_ID,r.delivery_user_id,
-    CONCAT_WS(' ',u.FIRST_NAME,u.LAST_NAME) delivery_name,r.shipping_amount_snapshot,
+    r.shipping_amount_snapshot,
     r.commission_percent_snapshot,r.estimated_compensation,r.status,r.created_at
    FROM delivery_rejected_shipping_reviews r JOIN orders o ON o.ORDER_ID=r.order_id
-   LEFT JOIN users u ON u.USER_ID=r.delivery_user_id
    WHERE r.branch_id=? AND r.status='PENDING'";
   $p=[$branchId]; if($deliveryId!==null&&$deliveryId>0){$sql.=" AND r.delivery_user_id=?";$p[]=$deliveryId;}
   $sql.=" ORDER BY r.created_at,r.id"; $s=$this->db->prepare($sql);$s->execute($p);return $s->fetchAll(PDO::FETCH_ASSOC);
