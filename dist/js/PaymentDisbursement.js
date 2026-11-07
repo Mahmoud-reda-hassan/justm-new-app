@@ -201,13 +201,26 @@ async function loadPartnerBalance(partnerId, type, targetId, amountFieldId = nul
             pt: type
         });
         if (data && data[0]) {
-            balance = parseFloat(data[0].total_balance) || 0;
+            if (type === 'SUPPLIER' && Object.prototype.hasOwnProperty.call(data[0], 'gl_balance')) {
+                balance = {
+                    legacy: parseFloat(data[0].legacy_balance) || 0,
+                    gl: parseFloat(data[0].gl_balance) || 0
+                };
+            } else {
+                balance = parseFloat(data[0].total_balance) || 0;
+            }
             balanceCache[cacheKey] = balance;
         } else {
             balance = 0;
         }
     }
-    
+
+    // لا نخلط رصيد المورد التاريخي مع حركات GL قبل اعتماد رصيد افتتاحي.
+    if (type === 'SUPPLIER' && balance && typeof balance === 'object') {
+        $(targetId).text('قديم: ' + formatMoney(balance.legacy) + ' | GL: ' + formatMoney(balance.gl));
+        return;
+    }
+
     // تحديث الواجهة
     $(targetId).text(formatMoney(balance));
     if (amountFieldId) {
