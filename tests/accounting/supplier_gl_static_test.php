@@ -38,6 +38,7 @@ $assert(strpos($dao, 'addSupplierCredit') === false, 'New supplier returns still
 $assert(strpos($inventory, 'WHERE ORDER_ID = ? AND SUPPLIER_ID = ?') !== false, 'Supplier return must verify the source purchase order belongs to the selected supplier.');
 $assert(strpos($inventory, 'WHERE STO_ID = ? AND BRANCH_ID = ? FOR UPDATE') !== false, 'Supplier return must use a store assigned to the active branch.');
 $assert(strpos($inventory, 'FROM purchases_products') !== false && strpos($inventory, 'QTY_SUPPLIED') !== false, 'Supplier return quantities must be based on quantities actually received.');
+$assert(strpos($inventory, 'WHERE ORDER_ID = ?' . "\n\t\t\t\tFOR UPDATE") !== false, 'Supplier return must lock received purchase-product rows against concurrent partial receipts.');
 $assert(strpos($inventory, "LOWER(IM.IM_MOVE_TYPE) = 'refundpurchises'") !== false && strpos($inventory, 'SUM(IPM.IPM_QTY)') !== false, 'Previously returned quantities must include only completed physical return movements.');
 $assert(strpos($inventory, 'كمية مرتجع المنتج') !== false && strpos($inventory, 'المتبقية للمرتجع') !== false, 'Supplier return must reject quantities exceeding the remaining received quantity.');
 $assert(strpos($inventoryManager, 'WHERE STO_ID = ? AND PRO_CODE IN ($stockPlaceholders)') !== false && strpos($inventoryManager, 'FOR UPDATE') !== false && strpos($inventoryManager, 'لا يكفي لتنفيذ المرتجع') !== false, 'Supplier return must reject insufficient stock while holding the global inventory lock.');
