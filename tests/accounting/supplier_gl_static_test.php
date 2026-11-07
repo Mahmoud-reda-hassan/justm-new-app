@@ -41,6 +41,15 @@ $assert(strpos($balance, "'SUPPLIER_ADVANCES'") !== false, 'Supplier balance omi
 $assert(strpos($balance, "'legacy_balance'") !== false && strpos($balance, "'gl_balance'") !== false, 'Historical and GL supplier balances must remain separate.');
 $assert(strpos($balance, '$totalBalance = round($legacyBalance + $glBalance, 2)') !== false, 'Supplier total balance must include both historical and GL balances.');
 $assert(strpos($installer, 'supplier_gl_payments') !== false, 'Supplier GL payment tables are missing from installer.');
+$assert(strpos($manager, "INSERT INTO purchases_payments") !== false && strpos($manager, "UPDATE purchases_orders SET TOTAL_PAYMENTS") !== false, 'Supplier GL payments must keep the legacy operational payment totals synchronized.');
+$assert(strpos($manager, "supplier_gl_payment_allocations") !== false, 'Supplier payment allocations are not persisted.');
+$assert(strpos($balance, "public function GetSupplierOrderList") !== false && strpos($balance, "PO.TOTAL_PAYMENTS") !== false, 'Supplier order list no longer reads synchronized operational payment totals.');
+$report = $read('inc/controller/BackEnd/reports_BE.php');
+$supplierStatementStart = strpos($report, "if (strtoupper((string)$partnerType) === 'SUPPLIER')");
+$supplierStatementEnd = strpos($report, "if (strtoupper((string)$partnerType) === 'MARKETER')", $supplierStatementStart);
+$supplierStatement = substr($report, $supplierStatementStart, $supplierStatementEnd - $supplierStatementStart);
+$assert(strpos($supplierStatement, "'رصيد سابق (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد سابق (GL)'") !== false, 'Supplier statement must show historical and GL opening balances separately.');
+$assert(strpos($supplierStatement, "'رصيد حالي (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد حالي (GL)'") !== false, 'Supplier statement must show historical and GL closing balances separately.');
 
 echo "PASS: supplier purchase, receipt, return and payment paths use GL for new events.\n";
 echo "PASS: historical supplier balances remain untouched and are combined in transitional balance reads.\n";
