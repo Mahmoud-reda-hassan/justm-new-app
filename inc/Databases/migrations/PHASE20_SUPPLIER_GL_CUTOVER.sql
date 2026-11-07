@@ -49,3 +49,15 @@ CREATE TABLE IF NOT EXISTS supplier_gl_advance_applications (
     KEY idx_supplier_advance_journal (journal_entry_id),
     KEY idx_supplier_advance_supplier (supplier_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+
+-- حقول العكس المنسق: لا نحذف سجل الدفعة أو التخصيص، بل نربطه بقيد العكس.
+ALTER TABLE supplier_gl_payments
+    ADD COLUMN IF NOT EXISTS reversal_journal_entry_id BIGINT UNSIGNED DEFAULT NULL;
+
+ALTER TABLE purchases_payments
+    ADD COLUMN IF NOT EXISTS supplier_gl_payment_id BIGINT UNSIGNED DEFAULT NULL,
+    ADD COLUMN IF NOT EXISTS reversal_journal_entry_id BIGINT UNSIGNED DEFAULT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_purchases_payments_supplier_gl
+    ON purchases_payments (SUPPLIER_GL_PAYMENT_ID);
