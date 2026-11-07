@@ -117,10 +117,12 @@
 ### ج. مقارنة ذلك بالـ Installer الحالي
 
 - `accounts.id` في Installer هو `BIGINT UNSIGNED`، مع PK وunique على كود الحساب.
-- تعريف `banks` في Installer ما زال بلا PK/FK/AUTO_INCREMENT، و`account_id INT` لا يطابق `accounts.id BIGINT UNSIGNED`.
-- إذن يوجد نقص مؤكد في تعريف `banks` داخل Installer مقارنة ببنية القديم، واختلاف نوع مؤكد بين `banks.account_id` و`accounts.id` في Installer ونسخة testar.
+- كان تعريف `banks` في Installer بلا PK/FK/AUTO_INCREMENT، و`account_id INT` لا يطابق `accounts.id BIGINT UNSIGNED`.
+- تم إصلاح تعريف `banks` في ملفي Installer الجذر والداخلي: `id INT AUTO_INCREMENT PRIMARY KEY`، و`account_id BIGINT UNSIGNED`، وفهرس وعلاقة FK إلى `accounts(id)`.
+- ملفا Installer متطابقان بعد التعديل (نفس Content SHA).
+- لم تُنشأ Migration لتعديل قاعدة testar الحالية، ولم يُشغّل أي SQL عليها؛ تحديث Installer يؤثر على التثبيت الجديد فقط.
 - لا توجد بيانات بنوك في الملفين المرفقين يمكن ترحيلها أو مطابقتها؛ لا ننشئ mappings أو أرصدة أو حسابات بنكية افتراضية.
 
 ### القرار
 
-يجب الحفاظ على جدول `banks` القديم كجدول توافق وعدم إسقاطه، وإصلاح تعريفه في Installer ليتوافق مع نوع `accounts.id` الجديد ويحافظ على PK وFK. أما إنشاء `bank_accounts` وربطه بالفرع وإضافة `bank_account_id` إلى تفاصيل القيود فيظل مرحلة تنفيذ مستقلة؛ لا تُنفذ على قاعدة testar قبل Migration ذات preflight واختبارات MariaDB.
+تم الحفاظ على جدول `banks` القديم في Installer وإصلاح تعريفه للتوافق مع `accounts.id` الجديد. أما إنشاء `bank_accounts` وربطه بالفرع وإضافة `bank_account_id` إلى تفاصيل القيود فيظل مرحلة تنفيذ مستقلة. وقاعدة testar الحالية تحتاج Migration منفصلة بعد فحص مخططها الكامل؛ لم يتم تطبيق أي تغيير عليها.
