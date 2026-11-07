@@ -349,6 +349,35 @@ function autoDistributeSupplierPayment(amount) {
     calculateSupplierTotal();
 }
 
+async function offerSupplierReversal(control, payload, title, supplierId) {
+    const choice = await Swal.fire({
+        icon: 'warning',
+        title,
+        text: 'تأكيد العكس سيعيد المبلغ إلى مستحقات المورد ويُنشئ قيدًا عكسيًا محفوظًا.',
+        showCancelButton: true,
+        confirmButtonText: 'عكس العملية',
+        cancelButtonText: 'إغلاق',
+        reverseButtons: true
+    });
+    if (!choice.isConfirmed) return;
+    showLoading('جارٍ عكس العملية وتحديث أرصدة المورد...');
+    try {
+        const result = await request(API_FINANCE, { CONTROL: control, ...payload }, 'POST');
+        hideLoading();
+        if (!result || result.success !== true) {
+            return showAlert('error', 'تعذر العكس', result?.message || result?.[2] || 'حدث خطأ أثناء عكس العملية');
+        }
+        delete balanceCache['SUPPLIER_' + supplierId];
+        if (supplierOrdersTable) supplierOrdersTable.ajax.reload();
+        showAlert('success', 'تم العكس', result.message || 'تم عكس العملية بنجاح');
+        request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
+            .then(data => $('#supplier-existing-advance').text(formatMoney(data?.available_advance ?? 0)));
+    } catch (error) {
+        hideLoading();
+        showAlert('error', 'خطأ', error.message);
+    }
+}
+
 async function applySupplierAdvances(mode) {
     const supplierId = Number($('#select-morad').val() || 0);
     if (!supplierId) return showAlert('warning', 'تنبيه', 'اختر المورد أولًا');
@@ -371,7 +400,6 @@ async function applySupplierAdvances(mode) {
     try {
         const result = await request(API_FINANCE, payload, 'POST');
         hideLoading();
-        showAlert(result[0] || 'error', result[1] || 'خطأ', result[2] || 'تعذر تطبيق المقدم');
         if (result[0] === 'success') {
             supplierAdvanceRequestKey = null;
             supplierAdvanceRequestFingerprint = null;
@@ -379,6 +407,10 @@ async function applySupplierAdvances(mode) {
             if (supplierOrdersTable) supplierOrdersTable.ajax.reload();
             request(API, { CONTROL: 'GetSupplierAdvanceBalance', supplierId }, 'POST')
                 .then(data => $('#supplier-existing-advance').text(formatMoney(data?.available_advance ?? 0)));
+            await offerSupplierReversal('ReverseSupplierAdvanceApplication',
+                { journal_id: Number(result.journal_entry_id) }, 'هل تريد عكس تطبيق المقدم؟', supplierId);
+        } else {
+            showAlert(result[0] || 'error', result[1] || 'خطأ', result[2] || 'تعذر تطبيق المقدم');
         }
     } catch (error) { hideLoading(); showAlert('error', 'خطأ', error.message); }
 }
@@ -564,7 +596,6 @@ async function saveSupplierPayment(){
     try{
         const data = await request(API_FINANCE, payload, 'POST');
         hideLoading();
-        showAlert(data[0],data[1],data[2]);
         if (data[0] === 'success') {
             supplierPaymentRequestKey = null;
             supplierPaymentRequestFingerprint = null;
@@ -572,6 +603,10 @@ async function saveSupplierPayment(){
             const cacheKey = `SUPPLIER_${supplierId}`;
             delete balanceCache[cacheKey];
             $('#select-morad').val(null).trigger('change').html('<option value=""></option>');
+            await offerSupplierReversal('ReverseSupplierPayment',
+                { payment_id: Number(data.payment_id) }, 'هل تريد عكس دفعة المورد؟', supplierId);
+        } else {
+            showAlert(data?.[0] || 'error', data?.[1] || 'خطأ', data?.[2] || 'تعذر حفظ الصرف');
         }
     }catch(error){
         hideLoading();
