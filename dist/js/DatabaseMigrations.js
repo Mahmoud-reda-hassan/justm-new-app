@@ -62,18 +62,24 @@
 
                 var env = response.environment || {};
                 currentDatabase = env.database || '';
-                $('#migrationDatabaseName').text(currentDatabase || 'غير معروف');
+                var executionAllowed = !!env.can_execute;
+                $('#migrationDatabaseName').text((currentDatabase || 'غير معروف') + ' — ' + (env.host || ''));
                 $('#migrationDatabaseVersion').text(env.version || 'غير معروف');
                 $('#migrationLedgerStatus').text(env.ledger_exists ? 'موجود' : 'سيُنشأ عند أول تنفيذ');
+                if (!executionAllowed) {
+                    $('#migrationLedgerStatus').append(' — التنفيذ مقفول خارج بيئة الاختبار');
+                }
 
                 var rows = '';
                 (response.migrations || []).forEach(function (item) {
                     var actions = '<button type="button" class="btn btn-sm btn-outline-info migration-preview" data-file="' +
                         escapeHtml(item.file) + '"><i class="fas fa-eye"></i> مراجعة SQL</button> ';
 
-                    if (item.enabled && item.status !== 'APPLIED') {
+                    if (item.enabled && item.status !== 'APPLIED' && executionAllowed) {
                         actions += '<button type="button" class="btn btn-sm btn-danger migration-run" data-file="' +
                             escapeHtml(item.file) + '"><i class="fas fa-play"></i> تنفيذ</button>';
+                    } else if (item.enabled && item.status !== 'APPLIED' && !executionAllowed) {
+                        actions += '<span class="text-muted small">المراجعة فقط — التنفيذ غير متاح على هذا النطاق</span>';
                     } else if (!item.enabled && item.status !== 'APPLIED') {
                         actions += '<span class="text-muted small">التنفيذ موقوف للمراجعة</span>';
                     } else {
