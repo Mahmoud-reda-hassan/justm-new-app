@@ -61,11 +61,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y mariadb-client
-          mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" -e "CREATE DATABASE installer_root_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE installer_inc_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_root_test < JUSTM_DATABASE_INSTALL.sql
-          mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_inc_test < inc/Databases/JUSTM_DATABASE_INSTALL.sql
-          root_count=$(mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_root_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews')")
-          inc_count=$(mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_inc_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews')")
+          mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" -e "CREATE DATABASE installer_root_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE installer_inc_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_root_test < JUSTM_DATABASE_INSTALL.sql
+          mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_inc_test < inc/Databases/JUSTM_DATABASE_INSTALL.sql
+          root_count=$(mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_root_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews')")
+          inc_count=$(mariadb --skip-ssl --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_inc_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews')")
           test "$root_count" -eq 3
           test "$inc_count" -eq 3
           echo "PASS: both installers import and define all rejected-shipping tables on MariaDB."
