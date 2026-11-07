@@ -248,15 +248,9 @@ proc_exit: BEGIN
     -- --------------------------------------------------------------
     -- 6. تحديث أرصدة العملاء دفعة واحدة
     -- --------------------------------------------------------------
-    IF v_total_orders_selse > 0 THEN
-        CALL restClientDebtBatch(p_session_id, @error_code, @status, @message);
-        
-        IF @status = 'error' THEN
-            SELECT @status AS status, @message AS message, @error_code AS error_code;
-            LEAVE proc_exit;
-        END IF;
-    END IF;
-    
+    -- مديونية البيع تُرحّل إلى الأستاذ العام من shipment_BE بعد نجاح التسليم.
+    -- تبقى معالجة المرتجعات منفصلة حتى اكتمال نقلها إلى GL.
+
     IF v_total_orders_refund > 0 THEN
         CALL reduceClientCreditBatch(p_session_id, @error_code, @status, @message);
         IF @status = 'error' THEN
