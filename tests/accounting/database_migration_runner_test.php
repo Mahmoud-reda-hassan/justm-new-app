@@ -57,6 +57,18 @@ foreach ([
     $seedAccount->execute([$account[0], $account[1], $account[2], $account[3], $account[0]]);
 }
 
+$seedParentAccount = $pdo->prepare(
+    "INSERT INTO accounts (account_code, account_name, account_type, normal_balance, account_level, is_active, allow_posting, system_account, is_system_created, description)
+     SELECT ?, ?, ?, ?, ?, 1, 0, 1, 1, 'Test parent account for approved chart seed'
+     WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = ?)"
+);
+foreach ([
+    ['2150', 'Test other liabilities', 'LIABILITY', 'CREDIT', 3],
+    ['5400', 'Test marketing and sales expenses', 'EXPENSE', 'DEBIT', 2],
+] as $account) {
+    $seedParentAccount->execute([$account[0], $account[1], $account[2], $account[3], $account[4], $account[0]]);
+}
+
 $pdo->exec('DROP TABLE IF EXISTS supplier_payment_allocations');
 $pdo->exec('DROP TABLE IF EXISTS marketer_commission_payments');
 $pdo->exec('DROP TABLE IF EXISTS customer_refund_payments');
@@ -103,6 +115,13 @@ $assert(strtolower((string)$allocationDebitType) === 'bigint(20) unsigned', 'Pha
 $cashBoxColumnType = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details' AND COLUMN_NAME = 'cash_box_id'")->fetchColumn();
 $cashBoxIndex = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details' AND INDEX_NAME = 'idx_journal_detail_cash_box'")->fetchColumn();
 $cashBoxForeignKey = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details' AND COLUMN_NAME = 'cash_box_id' AND REFERENCED_TABLE_NAME = 'cash_boxes' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
+$marketerParents = $pdo->query("SELECT account_code, id FROM accounts WHERE account_code IN ('2150','5400')")->fetchAll(PDO::FETCH_KEY_PAIR);
+$marketerAccounts = $pdo->query("SELECT account_code, parent_id FROM accounts WHERE account_code IN ('2152','5420')")->fetchAll(PDO::FETCH_KEY_PAIR);
+$assert(isset($marketerParents['2150'], $marketerParents['5400']), 'Phase 17 test parent accounts were not seeded.');
+$assert(($marketerAccounts['2152'] ?? 0) == $marketerParents['2150'], 'Phase 17 must create/link marketer payable 2152 under 2150.');
+$assert(($marketerAccounts['5420'] ?? 0) == $marketerParents['5400'], 'Phase 17 must create/link marketer commission expense 5420 under 5400.');
+$marketerMappings = $pdo->query("SELECT COUNT(DISTINCT s.setting_key) FROM account_settings s INNER JOIN accounts a ON a.id = s.account_id WHERE (s.setting_key = 'MARKETER_COMMISSION_PAYABLE' AND a.account_code = '2152') OR (s.setting_key = 'MARKETER_COMMISSION_EXPENSE' AND a.account_code = '5420')")->fetchColumn();
+$assert((int)$marketerMappings === 2, 'Phase 17 must map both marketer commission accounts to GL settings.');
 $assert(strtolower((string)$cashBoxColumnType) === 'bigint(20) unsigned', 'Phase 22 cash_box_id must be BIGINT UNSIGNED.');
 $assert($cashBoxIndex === 1, 'Phase 22 must create the cash-box lookup index.');
 $assert($cashBoxForeignKey === 1, 'Phase 22 must create the cash-box foreign key.');
