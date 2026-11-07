@@ -133,6 +133,23 @@ try {
     has($installer, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer inc.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer الجذر.');
 
+    $accountsBackend = projectFile($root, 'inc/controller/BackEnd/accounts_BE.php');
+    $accountsMainQuery = methodBody($accountsBackend, 'private function main_query(');
+    $custodyTotals = methodBody($accountsBackend, 'private function custodyTotal');
+    has($accountsMainQuery, 'accounting_line_allocations', 'قائمة تحصيل المندوب لا تحسب المديونية المفتوحة من تخصيصات GL.');
+    has($accountsMainQuery, 'SHIPPING_REVENUE_RECOGNIZED', 'قائمة التحصيل لا تضم مديونية الشحن المرحّلة.');
+    lacks($accountsMainQuery, 'partners_balance', 'قائمة تحصيل المندوب ما زالت تقرأ partners_balance.');
+    has($custodyTotals, 'payment_method_accounts', 'ملخص النقدية لا يقرأ حسابات طرق الدفع من GL.');
+    lacks($custodyTotals, 'financial_transactions', 'ملخص النقدية ما زال يعتمد على financial_transactions.');
+    $receiveView = projectFile($root, 'inc/Views/ReceivePayments.php');
+    has($receiveView, 'rcPaymentMethod', 'شاشة تسجيل تحصيل العميل لا تطلب طريقة الدفع.');
+    $receiveJs = projectFile($root, 'dist/js/ReceivePayments.js');
+    has($receiveJs, "'RegisterDeliveryCustomerCollection'", 'شاشة تحصيل العميل لا تستخدم حدث GL الجديد.');
+    has($receiveJs, 'request_key', 'شاشة تحصيل العميل لا ترسل مفتاح منع التكرار.');
+    $financeController = projectFile($root, 'inc/controller/finance.control.php');
+    has($financeController, "case 'CollectingFinancialPledge':", 'لم يتم إغلاق endpoint التحصيل القديم.');
+    lacks($financeController, '$CBE->registerCollection(', 'endpoint التحصيل القديم ما زال نشطًا.');
+
     $refundManager = projectFile($root, 'inc/Classes/Accounting/CustomerRefundManager.php');
     $refundMethod = methodBody($refundManager, 'public function refund(');
     has($refundMethod, 'RETURN_ENTRY_ID', 'رد المبلغ لا يشترط ترحيل مردود البيع.');
