@@ -686,17 +686,45 @@ async function saveMarketerPayment() {
 }
 
 /*==================================================
+=            DELIVERY COMMISSION CASH BOX
+==================================================*/
+async function loadDeliveryCommissionCashBoxes() {
+    const paymentMethodId = Number($('#delivery-payment-method').val() || 0);
+    const $select = $('#delivery-cash-box').empty();
+    if (!paymentMethodId) {
+        $select.append($('<option>', { value: '', text: 'اختر طريقة الدفع أولًا' })).prop('disabled', true);
+        return;
+    }
+    $select.append($('<option>', { value: '', text: 'جارٍ تحميل الخزائن...' })).prop('disabled', true);
+    try {
+        const response = await request(API_FINANCE, { CONTROL: 'GetDeliverySettlementCashBoxes', payment_method_id: paymentMethodId }, 'POST');
+        $select.empty().append($('<option>', { value: '', text: 'اختر الخزينة' }));
+        if (!response || response.success !== true || !(response.cash_boxes || []).length) {
+            $select.append($('<option>', { value: '', text: 'لا توجد خزينة نشطة مرتبطة بطريقة الدفع' })).prop('disabled', true);
+            return;
+        }
+        response.cash_boxes.forEach(box => $select.append($('<option>', { value: box.id, text: box.name })));
+        $select.prop('disabled', false);
+    } catch (error) {
+        $select.empty().append($('<option>', { value: '', text: 'تعذر تحميل الخزائن' })).prop('disabled', true);
+        showAlert('error', 'خطأ', error.message);
+    }
+}
+
+/*==================================================
 =            SAVE DELIVERY PAYMENT
 ==================================================*/
 
 async function saveDeliveryPayment() {
     const deliveryId = Number($('#select-mandob').val() || 0);
     const paymentMethodId = Number($('#delivery-payment-method').val() || 0);
+    const cashBoxId = Number($('#delivery-cash-box').val() || 0);
     const amount = Number($('#amount-mandob').val() || 0);
     const available = Number($('#total-mandob').text() || 0);
 
     if (!deliveryId) return showAlert('warning', 'تنبيه', 'قم بإختيار المندوب');
     if (!paymentMethodId) return showAlert('warning', 'تنبيه', 'اختر طريقة صرف العمولة');
+    if (!cashBoxId) return showAlert('warning', 'تنبيه', 'اختر الخزينة التي سيتم الصرف منها');
     if (!Number.isFinite(amount) || amount <= 0) return showAlert('warning', 'تنبيه', 'قم بإدخال مبلغ صحيح');
     if (amount - available > 0.009) {
         $('#amount-mandob').val(formatMoney(available));
@@ -712,6 +740,7 @@ async function saveDeliveryPayment() {
             CONTROL: 'PayDeliveryCommission',
             delivery_id: deliveryId,
             payment_method_id: paymentMethodId,
+            cash_box_id: cashBoxId,
             amount: amount.toFixed(2),
             request_key: requestKey
         }, 'POST');
@@ -725,6 +754,7 @@ async function saveDeliveryPayment() {
             : 'تم صرف عمولة المندوب بنجاح.');
         $('#select-mandob').val(null).trigger('change').html('<option value="">اختر المندوب</option>');
         $('#delivery-payment-method').val('');
+        $('#delivery-cash-box').empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع أولًا' })).prop('disabled', true);
         $('#amount-mandob').val('');
         $('#total-mandob').text('0.00');
         delete balanceCache[`DELIVERY_${deliveryId}`];
@@ -742,6 +772,7 @@ $(function() {
 
     // تهيئة المندوب والمسوق والمورد
     loadMarketerPaymentMethods();
+    $('#delivery-payment-method').on('change', loadDeliveryCommissionCashBoxes);
     initPartnerSelect2('#select-mandob', 'GetDeliveryData', 'اختر المندوب');
     initPartnerSelect2('#select-masouq', 'GetMasouqData', 'اختر المسوق');
     initPartnerSelect2('#select-morad', 'GetMoradData', 'اختر المورد');
