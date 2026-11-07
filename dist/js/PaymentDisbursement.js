@@ -396,31 +396,47 @@ function initCustomerReturnSection() {
 =            SAVE CUSTOMER RETURN
 ==================================================*/
 async function saveFinancialReturn(orderId) {
-    if (!orderId || orderId <= 0) {
-        showAlert('warning', 'نأسف', 'لم تقم بإختيار أمر البيع أولاً');
+    const paymentMethodId = Number($('#refund-payment-method').val() || 0);
+    const amount = Number($('#return-amount').text() || 0);
+    if (!orderId || Number(orderId) <= 0) {
+        showAlert('warning', 'تنبيه', 'لم تقم بإختيار أمر البيع أولاً');
         return;
     }
+    if (!paymentMethodId) {
+        showAlert('warning', 'تنبيه', 'اختر طريقة رد المبلغ');
+        return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+        showAlert('warning', 'تنبيه', 'لا يوجد رصيد مرتجع متاح للصرف');
+        return;
+    }
+
+    const requestKey = 'CRF-' + (window.crypto?.randomUUID
+        ? window.crypto.randomUUID().replace(/-/g, '')
+        : Date.now().toString(36) + Math.random().toString(36).slice(2));
     showLoading('جارى الحفظ...');
     try {
         const data = await request(API_FINANCE, {
-            CONTROL: 'PaymentOfCustomerDues',
-            oid: orderId
+            CONTROL: 'RefundCustomerReturn',
+            oid: orderId,
+            payment_method_id: paymentMethodId,
+            amount: amount.toFixed(2),
+            request_key: requestKey
         }, 'POST');
+        hideLoading();
         if (!data) return;
+        showAlert(data[0] || 'error', data[1] || 'خطأ', data[2] || 'لم يتم تأكيد رد المبلغ');
         if (data[0] === 'success') {
-        	const cacheKey = `${'CLIENT'}_${$('#select-order').val()}`;
+            const cacheKey = `CLIENT_${$('#select-client').val()}`;
             delete balanceCache[cacheKey];
             $('#select-order').val(null).trigger('change').html('<option value=""></option>');
             $('#select-client').val(null).trigger('change').html('<option value=""></option>');
+            $('#refund-payment-method').val('');
             $('#return-amount').text('0.00');
-            
         }
-       
-        showAlert(data[0], data[1], data[2]);
-    } catch (err) {
-        showAlert('error', 'خطأ', err.message);
-    } finally {
+    } catch (error) {
         hideLoading();
+        showAlert('error', 'خطأ', error.message);
     }
 }
 
@@ -498,7 +514,7 @@ async function loadMarketerPaymentMethods() {
     const response = await request(API_FINANCE, {
         CONTROL: 'GetDeliverySettlementPaymentMethods'
     }, 'POST');
-    const selects = ['#marketer-payment-method', '#delivery-payment-method'];
+    const selects = ['#marketer-payment-method', '#delivery-payment-method', '#refund-payment-method'];
     selects.forEach(selector => {
         const $select = $(selector);
         $select.empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع' }));
