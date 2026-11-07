@@ -345,11 +345,13 @@ class PurchaseOrderDAO {
 			foreach ($data as $row) {
 				$orderId = $row['ORDER_ID'] ?? null;
 				$productCode = $row['PRO_CODE'] ?? null;
-				$qtySupplied = intval($row['QTY_SUPPLIED']) ?? null;
+				$qtySupplied = isset($row['QTY_SUPPLIED']) && is_numeric($row['QTY_SUPPLIED'])
+					? (float)$row['QTY_SUPPLIED']
+					: 0.0;
 
-				// التحقق من القيم
-				if (!$orderId || !$productCode || !$qtySupplied) {
-					throw new Exception("Error: Missing required fields (ORDER_ID, PRO_CODE, QTY_SUPPLIED)");
+				// التحقق من القيم مع الحفاظ على الكسور العشرية للكميات.
+				if (!$orderId || !$productCode || !is_finite($qtySupplied) || $qtySupplied <= 0) {
+					throw new Exception("بيانات الاستلام الجزئي غير مكتملة أو الكمية غير صالحة.");
 				}
 
 				// بيانات التحديث
@@ -370,8 +372,8 @@ class PurchaseOrderDAO {
 				$result = $this->DBupdate->update($tblName, $updateData, $where);
 
 				// التحقق من النتيجة
-				if (!$result['result']) {
-					throw new Exception("Failed to update product (ORDER_ID: $orderId, PRO_CODE: $productCode): " . $result['message']);
+				if (!$result['result'] || (int)($result['affectedRows'] ?? 0) !== 1) {
+					throw new Exception("تعذر تسجيل الاستلام الجزئي للمنتج $productCode في أمر الشراء $orderId؛ قد تكون الكمية أكبر من المتبقي أو المنتج غير موجود.");
 				}
 			}
 
