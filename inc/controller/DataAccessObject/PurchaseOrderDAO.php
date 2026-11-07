@@ -226,33 +226,56 @@ class PurchaseOrderDAO {
 		if ((float)$total_payments > 0) {
 			throw new Exception('لا يمكن تسجيل دفعة أولية مع أمر الشراء حاليًا. سجّل أمر الشراء بدون دفعة، ثم سجّل الصرف من شاشة صرف مستحقات المورد.');
 		}
-		$tbln = $this->DBTables->getTableName('purchases_orders');
-		$fields = $this->DBTables->getTableFieldsName('purchases_orders');
 
-		$data = [
-			$fields['SUPPLIER_ID'] => $supplierId,
-			$fields['REFERENCE'] => $reference,
-			$fields['TOTAL_PRICE'] => $total_price,
-			$fields['TOTAL_PAYMENTS'] => $total_payments,
-			$fields['STATUSE'] => $status, // enum('DEFERRED', 'COMPLETED')
-			$fields['NOTE'] => $note
-		];
-		$stmt = $this->DBInsert->insert($tbln, $data);
-		if (!$stmt['result']) {
-			throw new Exception("Purchase order is not confirmed");
+		// يجب أن يُحفظ رأس الأمر والمنتجات وقيد GL كوحدة واحدة؛ لا نترك أمرًا
+		// تشغيليًا محفوظًا إذا فشل أي جزء من الترحيل المحاسبي.
+		$ownsTransaction = !$this->pdo->inTransaction();
+		if ($ownsTransaction) {
+			$this->pdo->beginTransaction();
 		}
-		
-		// إرجاع آخر ID تم إدخاله
-		$orderId  = $stmt['insertedId'];
-		$response = $this->insertProducts($orderId, $products);
-		if (!$orderId || !$response) {
-			throw new Exception("purchases products not confirmed");
+
+		try {
+			$tbln = $this->DBTables->getTableName('purchases_orders');
+			$fields = $this->DBTables->getTableFieldsName('purchases_orders');
+
+			$data = [
+				$fields['SUPPLIER_ID'] => $supplierId,
+				$fields['REFERENCE'] => $reference,
+				$fields['TOTAL_PRICE'] => $total_price,
+				$fields['TOTAL_PAYMENTS'] => $total_payments,
+				$fields['STATUSE'] => $status,
+				$fields['NOTE'] => $note
+			];
+			$stmt = $this->DBInsert->insert($tbln, $data);
+			if (!$stmt['result']) {
+				throw new Exception("Purchase order is not confirmed");
+			}
+
+			$orderId = (int)$stmt['insertedId'];
+			if ($orderId <= 0) {
+				throw new Exception("Purchase order ID was not returned");
+			}
+			$response = $this->insertProducts($orderId, $products);
+			if (!$response) {
+				throw new Exception("purchases products not confirmed");
+			}
+
+			$branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+			$userId = (int)($_SESSION['USER_ID'] ?? 0);
+			(new SupplierAccountingManager($this->pdo))->recordPurchaseOrder(
+				$orderId, (int)$supplierId, $branchId, $userId
+			);
+
+			if ($ownsTransaction && $this->pdo->inTransaction()) {
+				$this->pdo->commit();
+			}
+			return $orderId;
+		} catch (Throwable $e) {
+			if ($ownsTransaction && $this->pdo->inTransaction()) {
+				$this->pdo->rollBack();
+			}
+			throw $e;
 		}
-		$branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
-		$userId = (int)($_SESSION['USER_ID'] ?? 0);
-		(new SupplierAccountingManager($this->pdo))->recordPurchaseOrder((int)$orderId, (int)$supplierId, $branchId, $userId);
-		
-		return $orderId;
 	}
 	// دالة لإدخال أمر الشراء في جدول `purchases_return_orders`
 	public function insertReturnOrder($supplierId, $reference, $total_price, $total_payments, $status, $note, $products) {
