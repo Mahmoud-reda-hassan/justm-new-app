@@ -15,12 +15,13 @@
 
 ## قاعدة موجودة
 بعد أخذ نسخة احتياطية، راجع حالة الجداول أولًا ثم نفّذ migrations التالية بالترتيب إذا لم تكن مطبقة:
-1. `20261105_delivery_confirmation_request_idempotency.sql`
-2. `20261105_delivery_collection_request_idempotency.sql`
-3. `20261105_delivery_attempt_commission.sql`
-4. `20261105_delivery_rejected_shipping_collection.sql`
-5. `20261105_delivery_rejected_shipping_settlement_integration.sql`
-6. `20261107_delivery_rejected_shipping_review.sql`
+1. `20261105_delivery_settlement_idempotency.sql`
+2. `20261105_delivery_confirmation_request_idempotency.sql`
+3. `20261105_delivery_collection_request_idempotency.sql`
+4. `20261105_delivery_attempt_commission.sql`
+5. `20261105_delivery_rejected_shipping_collection.sql`
+6. `20261105_delivery_rejected_shipping_settlement_integration.sql`
+7. `20261107_delivery_rejected_shipping_review.sql`
 
 المسارات داخل `inc/Databases/Migrations/`. لا تعِد تنفيذ أي ALTER يدويًا قبل التأكد من عدم تطبيقه سابقًا.
 
