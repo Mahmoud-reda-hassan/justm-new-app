@@ -17,6 +17,7 @@ $inventory = $read('inc/controller/BackEnd/inventory_BE.php');
 $finance = $read('inc/controller/BackEnd/finance_BE.php');
 $balance = $read('inc/controller/BackEnd/PaymentDisbursement_BE.php');
 $installer = $read('JUSTM_DATABASE_INSTALL.sql');
+$runtimeInstaller = $read('inc/Databases/JUSTM_DATABASE_INSTALL.sql');
 $journal = $read('inc/Classes/Accounting/JournalManager.php');
 $inventoryManager = $read('inc/Classes/InventoryManager.php');
 $inventoryProcedure = $read('inc/Databases/procedure_inventory.sql');
@@ -100,6 +101,7 @@ $assert(strpos($supplierView, "applySupplierAdvances('AUTO')") !== false
     && strpos($supplierView, "applySupplierAdvances('MANUAL')") !== false,
     'Supplier advance UI must support both automatic and manual allocation.');
 $assert(strpos($installer, 'supplier_gl_advance_applications') !== false, 'Supplier advance application table is missing from installer.');
+$assert(strpos($runtimeInstaller, 'CREATE TABLE IF NOT EXISTS supplier_gl_advance_applications') !== false, 'Runtime database installer is missing the supplier advance application table.');
 
 $assert(strpos($balance, "public function GetSupplierOrderList") !== false && strpos($balance, "PO.TOTAL_PAYMENTS") !== false, 'Supplier order list no longer reads synchronized operational payment totals.');
 $report = $read('inc/controller/BackEnd/reports_BE.php');
