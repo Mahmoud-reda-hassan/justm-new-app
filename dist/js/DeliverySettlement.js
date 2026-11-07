@@ -123,7 +123,7 @@
         const totals = selectedTotals();
         $('#dsSelectedTotal').text(money(totals.amount));
         $('#dsSelectedCommission').text(money(totals.commission));
-        $('#dsSettle').prop('disabled', !$('#dsDelivery').val() || !$('#dsPaymentMethod').val() || !openOrders.length);
+        $('#dsSettle').prop('disabled', !$('#dsDelivery').val() || !$('#dsPaymentMethod').val() || !$('#dsCashBox').val() || !openOrders.length);
         refreshCashPreview();
     }
 
@@ -190,6 +190,35 @@
         });
     }
 
+    function loadCashBoxes() {
+        const paymentMethodId = Number($('#dsPaymentMethod').val() || 0);
+        const $select = $('#dsCashBox').empty().append($('<option>', { value: '', text: 'جارٍ تحميل الخزائن...' }));
+        $select.prop('disabled', true);
+        if (!paymentMethodId) {
+            $select.empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع أولًا' }));
+            updateSelectedTotals();
+            return $.Deferred().resolve().promise();
+        }
+        return request('GetDeliverySettlementCashBoxes', { payment_method_id: paymentMethodId }).done(response => {
+            $select.empty().append($('<option>', { value: '', text: 'اختر الخزينة المستلمة' }));
+            if (!response || !response.success) {
+                showError(new Error((response && response[2]) || 'تعذر تحميل خزائن الفرع.'));
+                return;
+            }
+            (response.cash_boxes || []).forEach(box => {
+                $select.append($('<option>', { value: box.id, text: box.name }));
+            });
+            $select.prop('disabled', false);
+            if (!(response.cash_boxes || []).length) {
+                $select.empty().append($('<option>', { value: '', text: 'لا توجد خزينة مرتبطة بحساب طريقة الدفع' }));
+            }
+            updateSelectedTotals();
+        }).fail(error => {
+            $select.empty().append($('<option>', { value: '', text: 'تعذر تحميل الخزائن' }));
+            showError(error);
+        });
+    }
+
     function loadOpenOrders() {
         const deliveryId = Number($('#dsDelivery').val() || 0);
         openOrders = [];
@@ -240,7 +269,7 @@
             }
             $('#dsPreviewResult').html('');
             lines.forEach(line => $('#dsPreviewResult').append($('<div>').text(line)));
-            $('#dsSettle').prop('disabled', !$('#dsPaymentMethod').val() || !$('#dsDelivery').val() || !lines.length);
+            $('#dsSettle').prop('disabled', !$('#dsPaymentMethod').val() || !$('#dsCashBox').val() || !$('#dsDelivery').val() || !lines.length);
             refreshCashPreview();
         }).fail(showError);
     }
@@ -248,10 +277,11 @@
     function settle() {
         const deliveryId = Number($('#dsDelivery').val() || 0);
         const paymentMethodId = Number($('#dsPaymentMethod').val() || 0);
+        const cashBoxId = Number($('#dsCashBox').val() || 0);
         const ids = selectedIds();
         const amountText = $('#dsAmount').val();
         const amount = Number(amountText || 0);
-        if (!deliveryId || !paymentMethodId) return showError(new Error('اختر المندوب وطريقة الدفع.'));
+        if (!deliveryId || !paymentMethodId || !cashBoxId) return showError(new Error('اختر المندوب وطريقة الدفع والخزينة المستلمة.'));
         if (amount <= 0 && !ids.length) return showError(new Error('حدد الأوامر أو أدخل مبلغ التسوية.'));
         if (amount > 0 && lastPreview === null) {
             return showError(new Error('نفّذ معاينة التوزيع قبل تسجيل الاستلام.'));
@@ -262,6 +292,7 @@
         const payload = {
             delivery_id: deliveryId,
             payment_method_id: paymentMethodId,
+            cash_box_id: cashBoxId,
             note: $('#dsNote').val(),
             commission_mode: currentMode === 'USER_CHOICE' ? $('#dsMode').val() : currentMode
         };
@@ -375,7 +406,8 @@
         });
         $('#dsAmount').on('input', function () { lastPreview = null; refreshCashPreview(); });
         $('#dsMode').on('change', function () { lastPreview = null; refreshCashPreview(); });
-        $('#dsPaymentMethod').on('change', updateSelectedTotals);
+        $('#dsPaymentMethod').on('change', function () { lastPreview = null; loadCashBoxes(); });
+        $('#dsCashBox').on('change', updateSelectedTotals);
         $('#dsRefresh').on('click', loadOpenOrders);
         $('#dsPreview').on('click', preview);
         $('#dsSettle').on('click', settle);
