@@ -262,9 +262,11 @@ class PaymentDisbursement {
             SELECT
                 REFERANC,
                 SUM(TOTAL_PRICE - TOTAL_PAYMENTS) AS RETURN_TOTAL
-            FROM purchases_return_orders
-            WHERE STATUSE = 'DEFERRED'
-            GROUP BY REFERANC
+            FROM purchases_return_orders PR
+            WHERE PR.STATUSE = 'DEFERRED'
+              AND EXISTS (SELECT 1 FROM inventory_movement IM
+                  WHERE IM.REFERENCE = PR.ORDER_ID AND LOWER(IM.IM_MOVE_TYPE) = 'refundpurchises')
+            GROUP BY PR.REFERANC
         ) PRO ON PO.ORDER_ID = PRO.REFERANC
         WHERE
             PO.SUPPLIER_ID = ?

@@ -161,7 +161,9 @@ final class SupplierAccountingManager
                 $check->execute([$supplierId]); if(!$check->fetchColumn()) throw new RuntimeException('المورد المحدد غير موجود.');
                 $rows=[]; $get=$this->db->prepare("SELECT PO.ORDER_ID,PO.SUPPLIER_ID,PO.TOTAL_PRICE,PO.TOTAL_PAYMENTS,
                     COALESCE((SELECT SUM(PR.TOTAL_PRICE-PR.TOTAL_PAYMENTS) FROM purchases_return_orders PR
-                        WHERE PR.REFERANC=PO.ORDER_ID AND PR.STATUSE='DEFERRED'),0) RETURN_TOTAL
+                        WHERE PR.REFERANC=PO.ORDER_ID AND PR.STATUSE='DEFERRED'
+                        AND EXISTS (SELECT 1 FROM inventory_movement IM
+                            WHERE IM.REFERENCE=PR.ORDER_ID AND LOWER(IM.IM_MOVE_TYPE)='refundpurchises')),0) RETURN_TOTAL
                     FROM purchases_orders PO WHERE PO.ORDER_ID=? FOR UPDATE");
                 foreach($allocations as $oid=>$value){
                     $get->execute([$oid]); $row=$get->fetch(PDO::FETCH_ASSOC);
