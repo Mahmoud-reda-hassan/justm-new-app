@@ -139,7 +139,8 @@ try {
     has($refundMethod, 'customer_refund_payments', 'رد المبلغ لا يسجل مستند GL مستقلًا.');
     has($refundMethod, 'transactionAccount($paymentMethodId', 'رد المبلغ لا يستخدم حساب طريقة الدفع الفعلية.');
     lacks($refundMethod, 'partners_balance', 'رد المبلغ ما زال يعتمد على دفتر الأرصدة القديم.');
-    lacks($refundMethod, 'financial_transactions', 'رد المبلغ ما زال يعتمد على الحركات المالية القديمة.');
+    lacks($refundMethod, 'INSERT INTO financial_transactions', 'رد المبلغ الجديد ما زال ينشئ حركة مالية قديمة.');
+    lacks($refundMethod, 'UPDATE financial_transactions', 'رد المبلغ الجديد ما زال يعدل الحركات المالية القديمة.');
     $refundController = projectFile($root, 'inc/controller/finance.control.php');
     has($refundController, "case 'RefundCustomerReturn'", 'Endpoint رد المرتجع GL غير موجود.');
     has($refundController, 'customerRefunds->refund(', 'Endpoint رد المرتجع لا يستدعي خدمة GL.');
