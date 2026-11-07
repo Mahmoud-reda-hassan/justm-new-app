@@ -70,6 +70,12 @@ class DatabaseMigrationManager
             'enabled' => true,
             'warning' => 'نفّذ بعد التأكد من إعدادات المرحلة 19. لا ينقل الأرصدة التاريخية من partners_balance.'
         ],
+        'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql' => [
+            'title' => 'ربط سطور اليومية بالخزينة الفعلية',
+            'description' => 'إضافة مرجع اختياري للخزينة على سطر القيد دون تخمين الخزائن التاريخية.',
+            'enabled' => true,
+            'warning' => 'مرحلة بنيوية فقط؛ لا تعيّن خزائن للحركات القديمة ولا تغيّر مسارات القبض والصرف الحالية.'
+        ],
     ];
 
     public function __construct($db, string $rootPath)
@@ -268,6 +274,8 @@ class DatabaseMigrationManager
             if ($count !== 3) {
                 throw new RuntimeException('لا يمكن تنفيذ المرحلة 19: يجب وجود الحسابات 2111 و1162 و1171 أولًا.');
             }
+        } elseif ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
+            $required = ['journal_entry_details', 'cash_boxes'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
