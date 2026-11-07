@@ -106,7 +106,7 @@ try {
     echo "PASS: direct sale posts product value only and excludes shipping.\n";
     echo "PASS: journal reversal locks, swaps lines, prevents duplicates and marks original reversed.\n";
     echo "PASS: financial event idempotency and transaction safeguards exist.\n";
-    echo "PASS: both installer copies are identical and define accounting_events.\n";
+    echo "PASS: both installer copies define accounting_events and its idempotency key.\n";
 } catch (Throwable $e) {
     fwrite(STDERR, "FAIL: " . $e->getMessage() . "\n");
     exit(1);
