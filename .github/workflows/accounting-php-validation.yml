@@ -20,11 +20,11 @@ on:
 
 jobs:
   php-validation:
-    name: PHP ${{ matrix.php }} accounting validation
+    name: PHP ${{ matrix.php }} / MariaDB ${{ matrix.mariadb }} validation
     runs-on: ubuntu-latest
     services:
       mariadb:
-        image: mariadb:10.11
+        image: mariadb:${{ matrix.mariadb }}
         env:
           MARIADB_ROOT_PASSWORD: accounting_test
           MARIADB_DATABASE: accounting_test
@@ -39,6 +39,7 @@ jobs:
       fail-fast: false
       matrix:
         php: ['8.0', '8.4']
+        mariadb: ['10.5.29', '10.11']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,6 +54,21 @@ jobs:
       - name: PHP syntax checks for all accounting classes and tests
         run: |
           find inc/Classes/Accounting tests/accounting -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Import both full database installers
+        env:
+          DB_PASSWORD: accounting_test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mariadb-client
+          mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" -e "CREATE DATABASE installer_root_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE installer_inc_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_root_test < JUSTM_DATABASE_INSTALL.sql
+          mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" installer_inc_test < inc/Databases/JUSTM_DATABASE_INSTALL.sql
+          root_count=$(mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_root_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews')")
+          inc_count=$(mariadb --host=127.0.0.1 --port=3306 --user=root --password="$DB_PASSWORD" --batch --skip-column-names -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_inc_test' AND table_name IN ('delivery_attempt_commissions','delivery_rejected_shipping_collections','delivery_rejected_shipping_reviews')")
+          test "$root_count" -eq 3
+          test "$inc_count" -eq 3
+          echo "PASS: both installers import and define all rejected-shipping tables on MariaDB."
 
       - name: Accounting static regression checks
         run: php tests/accounting/direct_sale_static_test.php
