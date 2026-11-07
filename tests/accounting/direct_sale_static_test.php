@@ -81,6 +81,24 @@ try {
     has($collection, "'event_type' => 'COMMISSION_ACCRUED'", 'حدث استحقاق العمولة غير محمي بمنع التكرار.');
     has($financeController, 'request_key', 'Endpoint التحصيل لا يستقبل مفتاح منع التكرار.');
 
+    $accountSettings = projectFile($root, 'inc/Classes/Accounting/AccountSettings.php');
+    $commissionAccountsMigration = projectFile($root, 'inc/Databases/migrations/PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql');
+    has($accountSettings, "MARKETER_COMMISSION_PAYABLE", 'إعداد حساب مستحقات عمولات المسوقين وقادة الفرق غير موجود.');
+    has($accountSettings, "MARKETER_COMMISSION_EXPENSE", 'إعداد حساب مصروف عمولات المسوقين وقادة الفرق غير موجود.');
+    has($collection, 'affiliate.COMMISSION_SALES', 'حساب عمولة المسوق لا يقرأ النسبة المعتمدة للمسوق.');
+    has($collection, 'leader.TEAM_COMMISSION', 'حساب عمولة قائد الفريق لا يقرأ نسبة عمولة الفريق.');
+    has($collection, "custody.CUST_STAT", 'احتساب عمولات التسويق لا يتحقق من حالة تجميد العهدة.');
+    has($collection, "'MARKETER_COMMISSION_ACCRUAL'", 'استحقاق عمولات المسوق والقائد لا يرحل إلى الأستاذ العام.');
+    has($collection, "'MARKETER_COMMISSION:COLLECTION:'", 'استحقاق عمولات التسويق لا يستخدم مفتاح منع التكرار.');
+    has($collection, 'marketerCommissionExpense()', 'مصروف عمولات التسويق لا يستخدم الحساب المستقل.');
+    has($collection, 'marketerCommissionPayable()', 'مستحقات عمولات التسويق لا تستخدم الحساب المستقل.');
+    has($commissionAccountsMigration, "'2152'", 'Migration لا ينشئ حساب مستحقات عمولات التسويق 2152.');
+    has($commissionAccountsMigration, "'5230'", 'Migration لا ينشئ حساب مصروف عمولات التسويق 5230.');
+    has($rootInstaller, "'MARKETER_COMMISSION_PAYABLE'", 'Installer الجذر لا يربط حساب مستحقات عمولات التسويق.');
+    has($rootInstaller, "'MARKETER_COMMISSION_EXPENSE'", 'Installer الجذر لا يربط حساب مصروف عمولات التسويق.');
+    has($installer, "'MARKETER_COMMISSION_PAYABLE'", 'Installer inc لا يربط حساب مستحقات عمولات التسويق.');
+    has($installer, "'MARKETER_COMMISSION_EXPENSE'", 'Installer inc لا يربط حساب مصروف عمولات التسويق.');
+
     $reverse = methodBody($journal, 'public function reverse(');
     has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
     has($reverse, "status'] !== 'POSTED'", 'عكس القيد لا يشترط أن يكون القيد الأصلي مرحلًا.');
