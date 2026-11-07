@@ -43,6 +43,18 @@ class AccountSettings
     public function cogs(): int { return $this->configuredAccount('COGS'); }
     public function inventory(): int { return $this->configuredAccount('INVENTORY'); }
 
+    /** حساب مصروف عمولات المسوقين وقادة الفرق، مستقل عن عمولات المندوبين. */
+    public function marketerCommissionExpense(): int
+    {
+        return $this->configuredAccount('MARKETER_COMMISSION_EXPENSE');
+    }
+
+    /** حساب مستحقات عمولات المسوقين وقادة الفرق، مستقل عن مستحقات المندوبين. */
+    public function marketerCommissionPayable(): int
+    {
+        return $this->configuredAccount('MARKETER_COMMISSION_PAYABLE');
+    }
+
     public function salesReturns(): int
     {
         $returns = $this->configuredAccount('SALES_RETURNS');
