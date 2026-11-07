@@ -153,6 +153,9 @@ try {
     has($courierConfirmation, '$accountingEvents->directSale(', 'تأكيد تسليم المندوب لا يرحّل البيع إلى الأستاذ العام.');
     has($courierConfirmation, "cs.TYPE = 'SELSE'", 'ترحيل البيع لا يقتصر على أوامر التسليم الفعلية.');
     lacks($shipmentSql, 'CALL restClientDebtBatch', 'إجراء تأكيد التسليم ما زال يستدعي تحديث مديونية العميل القديمة.');
+    $directCustomerDelivery = methodBody($shipmentBackend, 'public function CustomerDeliveryOfProducts(');
+    lacks($directCustomerDelivery, 'partners_balance', 'التسليم المباشر للعميل ما زال يكتب في دفتر الأرصدة القديم.');
+    has($directCustomerDelivery, '$accounting->directSale($orderId)', 'التسليم المباشر للعميل لا يرحّل البيع إلى الأستاذ العام.');
 
     echo "PASS: direct sale posts product value only and excludes shipping.\n";
     echo "PASS: journal reversal locks, swaps lines, prevents duplicates and marks original reversed.\n";
