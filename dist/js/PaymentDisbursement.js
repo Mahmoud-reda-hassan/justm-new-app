@@ -448,10 +448,15 @@ async function saveFinancialReturn(orderId) {
 async function saveSupplierPayment(){
 
     const supplierId = $('#select-morad').val();
+    const paymentMethodId = Number($('#supplier-payment-method').val() || 0);
     const totalAmount = parseFloat($('#amount-morad').val()) || 0;
 
     if(!supplierId){
 		showAlert('warning','تنبيه','قم بإختيار المورد');
+        return;
+    }
+    if(!paymentMethodId){
+        showAlert('warning','تنبيه','اختر طريقة الدفع');
         return;
     }
     if(totalAmount <= 0){
@@ -468,7 +473,7 @@ async function saveSupplierPayment(){
         CONTROL : 'SaveSupplierPayment',
         supplier_id : supplierId,
         total_amount : totalAmount,
-        payment_method_id : 1,
+        payment_method_id : paymentMethodId,
         request_key : supplierPaymentRequestKey,
         note : $('#morad-note').val() || ''
     };
@@ -504,6 +509,7 @@ async function saveSupplierPayment(){
         showAlert(data[0],data[1],data[2]);
         if (data[0] === 'success') {
             supplierPaymentRequestKey = null;
+            $('#supplier-payment-method').val('');
             const cacheKey = `${'SUPPLIER'}_${$('#select-morad').val()}`;
             delete balanceCache[cacheKey];
             $('#select-morad').val(null).trigger('change').html('<option value=""></option>');
@@ -524,7 +530,7 @@ async function loadMarketerPaymentMethods() {
     const response = await request(API_FINANCE, {
         CONTROL: 'GetDeliverySettlementPaymentMethods'
     }, 'POST');
-    const selects = ['#marketer-payment-method', '#delivery-payment-method', '#refund-payment-method'];
+    const selects = ['#marketer-payment-method', '#delivery-payment-method', '#refund-payment-method', '#supplier-payment-method'];
     selects.forEach(selector => {
         const $select = $(selector);
         $select.empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع' }));

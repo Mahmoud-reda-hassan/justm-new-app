@@ -141,6 +141,14 @@
                 <small class="text-muted">يتم توزيع المبلغ تلقائيًا على الفواتير الأقدم أولًا، وأي مبلغ زائد يُسجل مقدمًا للمورد.</small>
             </div>
 
+            <!-- طريقة الدفع المعتمدة في دفتر الأستاذ العام -->
+            <div class="mt-4">
+                <label for="supplier-payment-method" class="fw-bold">طريقة الدفع:</label>
+                <select class="form-control mt-1" id="supplier-payment-method">
+                    <option value="">اختر طريقة الدفع</option>
+                </select>
+            </div>
+
             <!-- ملاحظات -->
             <div class="mt-4">
                 <label class="fw-bold">ملاحظات:</label>

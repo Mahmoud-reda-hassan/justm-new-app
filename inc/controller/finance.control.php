@@ -285,7 +285,7 @@ try {
 			$requestKey = trim((string)($_POST['request_key'] ?? ''));
 			$supplierId = (int)($_POST['supplier_id'] ?? 0);
 			$totalAmount = (string)($_POST['total_amount'] ?? '0');
-			$paymentMethodId = (int)($_POST['payment_method_id'] ?? 1);
+			$paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
 			$orders = $readArray($_POST['orders'] ?? [], 'orders');
 			$result = $CBE->PaymentOfSupplierDues($supplierId, $totalAmount, $orders, $paymentMethodId, $requestKey);
 			echo json_encode(array_merge([
