@@ -45,8 +45,8 @@ $assert(strpos($manager, "INSERT INTO purchases_payments") !== false && strpos($
 $assert(strpos($manager, "supplier_gl_payment_allocations") !== false, 'Supplier payment allocations are not persisted.');
 $assert(strpos($balance, "public function GetSupplierOrderList") !== false && strpos($balance, "PO.TOTAL_PAYMENTS") !== false, 'Supplier order list no longer reads synchronized operational payment totals.');
 $report = $read('inc/controller/BackEnd/reports_BE.php');
-$supplierStatementStart = strpos($report, "if (strtoupper((string)$partnerType) === 'SUPPLIER')");
-$supplierStatementEnd = strpos($report, "if (strtoupper((string)$partnerType) === 'MARKETER')", $supplierStatementStart);
+$supplierStatementStart = strpos($report, 'if (strtoupper((string)$partnerType) === \'SUPPLIER\')');
+$supplierStatementEnd = strpos($report, 'if (strtoupper((string)$partnerType) === \'MARKETER\')', $supplierStatementStart);
 $supplierStatement = substr($report, $supplierStatementStart, $supplierStatementEnd - $supplierStatementStart);
 $assert(strpos($supplierStatement, "'رصيد سابق (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد سابق (GL)'") !== false, 'Supplier statement must show historical and GL opening balances separately.');
 $assert(strpos($supplierStatement, "'رصيد حالي (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد حالي (GL)'") !== false, 'Supplier statement must show historical and GL closing balances separately.');
