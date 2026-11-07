@@ -43,6 +43,18 @@ $assert(strpos($balance, '$totalBalance = round($legacyBalance + $glBalance, 2)'
 $assert(strpos($installer, 'supplier_gl_payments') !== false, 'Supplier GL payment tables are missing from installer.');
 $assert(strpos($manager, "INSERT INTO purchases_payments") !== false && strpos($manager, "UPDATE purchases_orders SET TOTAL_PAYMENTS") !== false, 'Supplier GL payments must keep the legacy operational payment totals synchronized.');
 $assert(strpos($manager, "supplier_gl_payment_allocations") !== false, 'Supplier payment allocations are not persisted.');
+$assert(strpos($manager, 'public function applyAdvances(') !== false, 'Supplier advance application workflow is missing.');
+$assert(strpos($manager, "'SUPPLIER_ADVANCE_APPLIED'") !== false, 'Supplier advance application GL event is missing.');
+$assert(strpos($manager, 'supplier_gl_advance_applications') !== false, 'Supplier advance source-to-invoice applications are not tracked.');
+$assert(strpos($manager, "'mode'=>$mode") !== false, 'Supplier advance application mode is not idempotently recorded.');
+$assert(strpos($balance, 'GetSupplierAdvanceBalance') !== false, 'Available supplier advance balance endpoint is missing.');
+$assert(strpos($balance, 'GetSupplierAdvanceBalance') !== false && strpos($balance, 'supplier_gl_advance_applications') !== false, 'Supplier available advance is not net of prior applications.');
+$assert(strpos($read('inc/controller/finance.control.php'), "case 'ApplySupplierAdvances'") !== false, 'Supplier advance application endpoint is missing.');
+$assert(strpos($read('dist/js/PaymentDisbursement.js'), "applySupplierAdvances('AUTO')") !== false
+    && strpos($read('dist/js/PaymentDisbursement.js'), "applySupplierAdvances('MANUAL')") !== false,
+    'Supplier advance UI must support both automatic and manual allocation.');
+$assert(strpos($installer, 'supplier_gl_advance_applications') !== false, 'Supplier advance application table is missing from installer.');
+
 $assert(strpos($balance, "public function GetSupplierOrderList") !== false && strpos($balance, "PO.TOTAL_PAYMENTS") !== false, 'Supplier order list no longer reads synchronized operational payment totals.');
 $report = $read('inc/controller/BackEnd/reports_BE.php');
 $supplierStatementStart = strpos($report, 'if (strtoupper((string)$partnerType) === \'SUPPLIER\')');
