@@ -498,17 +498,22 @@ async function loadMarketerPaymentMethods() {
     const response = await request(API_FINANCE, {
         CONTROL: 'GetDeliverySettlementPaymentMethods'
     }, 'POST');
-    const $select = $('#marketer-payment-method');
-    $select.empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع' }));
-    if (!response || response.success !== true) {
-        showAlert('error', 'خطأ', response?.[2] || response?.message || 'تعذر تحميل طرق الدفع المرتبطة بحسابات الفرع.');
-        return;
-    }
-    (response.methods || []).forEach(method => {
-        $select.append($('<option>', { value: method.id, text: method.name }));
+    const selects = ['#marketer-payment-method', '#delivery-payment-method'];
+    selects.forEach(selector => {
+        const $select = $(selector);
+        $select.empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع' }));
+        if (!response || response.success !== true) {
+            $select.append($('<option>', { value: '', text: 'تعذر تحميل طرق الدفع' }));
+            return;
+        }
+        (response.methods || []).forEach(method => {
+            $select.append($('<option>', { value: method.id, text: method.name }));
+        });
+        if (!(response.methods || []).length) {
+            $select.append($('<option>', { value: '', text: 'لا توجد طريقة دفع مرتبطة بحساب' }));
+        }
     });
 }
-
 /*==================================================
 =            SAVE MARKETER PAYMENT
 ==================================================*/
@@ -561,120 +566,49 @@ async function saveMarketerPayment() {
 =            SAVE DELIVERY PAYMENT
 ==================================================*/
 
-async function saveDeliveryPayment(){
+async function saveDeliveryPayment() {
+    const deliveryId = Number($('#select-mandob').val() || 0);
+    const paymentMethodId = Number($('#delivery-payment-method').val() || 0);
+    const amount = Number($('#amount-mandob').val() || 0);
+    const available = Number($('#total-mandob').text() || 0);
 
-    const deliveryId = $('#select-mandob').val();
-    const totalbalance = $("#total-mandob").text();
-    const amount = parseFloat(
-        $('#amount-mandob').val()
-    ) || 0;
-
-    /*==============================
-    =            validation
-    ==============================*/
-
-    if(!deliveryId){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإختيار المندوب'
-        );
-
-        return;
-
+    if (!deliveryId) return showAlert('warning', 'تنبيه', 'قم بإختيار المندوب');
+    if (!paymentMethodId) return showAlert('warning', 'تنبيه', 'اختر طريقة صرف العمولة');
+    if (!Number.isFinite(amount) || amount <= 0) return showAlert('warning', 'تنبيه', 'قم بإدخال مبلغ صحيح');
+    if (amount - available > 0.009) {
+        $('#amount-mandob').val(formatMoney(available));
+        return showAlert('warning', 'تنبيه', 'المبلغ أكبر من عمولة المندوب المستحقة في دفتر الأستاذ العام');
     }
 
-    if(amount <= 0){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإدخال مبلغ صحيح'
-        );
-
-        return;
-
-    }
-    if(amount > totalbalance){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'المبلغ المراد صرفه اكبر من مستحقات المندوب'
-        );
-		$('#amount-mandob').val(totalbalance);
-        return;
-
-    }
-
-    /*==============================
-    =            payload
-    ==============================*/
-
-    const payload = {
-
-        CONTROL : 'PaymentOfDeliveryDues',
-        partner_id : deliveryId,
-		balance :totalbalance,
-        amount : amount
-
-    };
-
+    const requestKey = 'DCP-' + (window.crypto?.randomUUID
+        ? window.crypto.randomUUID().replace(/-/g, '')
+        : Date.now().toString(36) + Math.random().toString(36).slice(2));
     showLoading('جارى حفظ عملية الصرف...');
-
-    try{
-
-        const data = await request(
-            API_FINANCE,
-            payload,
-            'POST'
-        );
-
+    try {
+        const data = await request(API_FINANCE, {
+            CONTROL: 'PayDeliveryCommission',
+            delivery_id: deliveryId,
+            payment_method_id: paymentMethodId,
+            amount: amount.toFixed(2),
+            request_key: requestKey
+        }, 'POST');
         hideLoading();
-
-        if(!data)
-            return;
-
-        showAlert(
-            data[0],
-            data[1],
-            data[2]
-        );
-
-        /*==============================
-        =            success
-        ==============================*/
-
-        if(data[0] === 'success'){
-			$('#select-mandob').val(null).trigger('change').html('<option value=""></option>');
-            $('#amount-mandob').val('');
-
-            delete balanceCache[
-                `DELIVERY_${deliveryId}`
-            ];
-            
-            /*loadPartnerBalance(
-                deliveryId,
-                'DELIVERY',
-                '#total-mandob',
-                '#amount-mandob'
-            );*/
-
+        if (!data) return;
+        if (data.success !== true) {
+            return showAlert('error', 'خطأ', data.message || data[2] || 'لم يتم تأكيد صرف العمولة');
         }
-
-    }catch(error){
-
+        showAlert('success', 'ناجح', data.already_posted
+            ? 'تم التعرف على نفس عملية الصرف السابقة دون تكرار القيد.'
+            : 'تم صرف عمولة المندوب بنجاح.');
+        $('#select-mandob').val(null).trigger('change').html('<option value="">اختر المندوب</option>');
+        $('#delivery-payment-method').val('');
+        $('#amount-mandob').val('');
+        $('#total-mandob').text('0.00');
+        delete balanceCache[`DELIVERY_${deliveryId}`];
+    } catch (error) {
         hideLoading();
-
-        showAlert(
-            'error',
-            'خطأ',
-            error.message
-        );
-
+        showAlert('error', 'خطأ', error.message);
     }
-
 }
 
 /*==================================================
