@@ -101,8 +101,10 @@ $report = $read('inc/controller/BackEnd/reports_BE.php');
 $supplierStatementStart = strpos($report, 'if (strtoupper((string)$partnerType) === \'SUPPLIER\')');
 $supplierStatementEnd = strpos($report, 'if (strtoupper((string)$partnerType) === \'MARKETER\')', $supplierStatementStart);
 $supplierStatement = substr($report, $supplierStatementStart, $supplierStatementEnd - $supplierStatementStart);
-$assert(strpos($supplierStatement, "'رصيد سابق (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد سابق (GL)'") !== false, 'Supplier statement must show historical and GL opening balances separately.');
-$assert(strpos($supplierStatement, "'رصيد حالي (السجل القديم)'") !== false && strpos($supplierStatement, "'رصيد حالي (GL)'") !== false, 'Supplier statement must show historical and GL closing balances separately.');
+$assert(strpos($supplierStatement, 'partners_balance') === false
+    && strpos($supplierStatement, "'رصيد سابق (GL)'") !== false
+    && strpos($supplierStatement, "'الرصيد الحالي (GL)'") !== false,
+    'Supplier statement must use GL only for opening, movements and closing balance.');
 $assert(strpos($supplierStatement, "CASE WHEN d.reference_type='SUPPLIER_ADVANCE' THEN NULL") !== false, 'Supplier advance credit line must not be displayed as a purchase order number.');
 
 echo "PASS: supplier purchase, receipt, return and payment paths use GL for new events.\n";
