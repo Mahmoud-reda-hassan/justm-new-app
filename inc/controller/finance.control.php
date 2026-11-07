@@ -262,17 +262,8 @@ try {
 			echo json_encode($CBE->PaymentOfSupplierDues($supplier_id, $total_amount, $orders));
 			break;
 		case 'PaymentOfMarketerDues':
-			$marketerId= $_POST['partner_id'];
-			$total_amount = $_POST['amount'];
-			$total_balance = isset($_POST['balance']) ? $_POST['balance']: 0;
-			echo json_encode($CBE->PaymentOfMarketerDues($marketerId, $total_balance, $total_amount));
-			break;
 		case 'PaymentOfDeliveryDues':
-			$deliveryid= $_POST['partner_id'];
-			$total_amount = $_POST['amount'];
-			$total_balance = isset($_POST['balance']) ? $_POST['balance']: 0;
-			echo json_encode($CBE->PaymentOfDeliveryDues($deliveryid, $total_balance, $total_amount));
-			break;
+			throw new RuntimeException('تم إيقاف مسار الصرف القديم. استخدم مسار الصرف المحاسبي المعتمد في الأستاذ العام.');
 
 		default:
 		    echo json_encode(array('error', 'Error', 'Your request is not available', []));
