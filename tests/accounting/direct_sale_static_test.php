@@ -120,6 +120,24 @@ try {
     has($installer, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer inc.');
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer الجذر.');
 
+    $accountingEvents = projectFile($root, 'inc/Classes/Accounting/AccountingEvents.php');
+    $salesReturn = methodBody($accountingEvents, 'private function salesReturnInternal(');
+    has($salesReturn, 'MARKETER_COMMISSION_REVERSAL', 'مرتجع البيع لا يعكس عمولة المسوق أو قائد الفريق في GL.');
+    has($salesReturn, 'assertSalesReturnStockReceived($orderId)', 'عكس عمولة المسوق يحدث قبل استلام المرتجع مخزنيًا.');
+    has($salesReturn, 'marketerCommissionPayable()', 'عكس عمولة المسوق لا يستخدم حساب المستحقات المستقل.');
+    has($salesReturn, 'marketerCommissionExpense()', 'عكس عمولة المسوق لا يعكس المصروف المستقل.');
+    has($salesReturn, "d.reference_type = 'MARKETER_COMMISSION_ACCRUAL'", 'عكس عمولة المسوق لا يحد العكس بما سبق استحقاقه.');
+    $reportsBackend = projectFile($root, 'inc/controller/BackEnd/reports_BE.php');
+    $accountStatement = methodBody($reportsBackend, 'public function AccountStatement(');
+    has($accountStatement, "if (strtoupper((string)$partnerType) === 'MARKETER')", 'كشف حساب المسوق لا يقرأ الأستاذ العام.');
+    has($accountStatement, 'MARKETER_COMMISSION_PAYABLE', 'كشف حساب المسوق لا يحدد حساب المستحقات.');
+    $marketerDailyReport = methodBody($reportsBackend, 'public function marketerDailyReport(');
+    $marketerDailyDetails = methodBody($reportsBackend, 'public function marketerDailyDetails(');
+    has($marketerDailyReport, 'journal_entry_details', 'تقرير المسوق اليومي لا يقرأ قيود GL.');
+    has($marketerDailyDetails, 'journal_entry_details', 'تفاصيل تقرير المسوق لا تقرأ قيود GL.');
+    lacks($marketerDailyReport, 'partners_balance', 'تقرير المسوق اليومي ما زال يعتمد على partners_balance.');
+    lacks($marketerDailyDetails, 'partners_balance', 'تفاصيل تقرير المسوق ما زالت تعتمد على partners_balance.');
+
     $reverse = methodBody($journal, 'public function reverse(');
     has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
     has($reverse, "status'] !== 'POSTED'", 'عكس القيد لا يشترط أن يكون القيد الأصلي مرحلًا.');
