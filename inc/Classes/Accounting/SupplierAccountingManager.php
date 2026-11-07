@@ -195,13 +195,13 @@ final class SupplierAccountingManager
                     VALUES (?,?,?,?,?,?,?,?)");
                 $insert->execute([$requestKey,$supplierId,$branchId,$paymentMethodId,$amount,$journalId,trim($note),$userId]);
                 $paymentId=(int)$this->db->lastInsertId();
-                $paymentRow=$this->db->prepare('INSERT INTO purchases_payments (ORDER_ID,AMOUNT,PAYMENT_METHOD,NOTE,CREATED_BY) VALUES (?,?,?,?,?)');
+                $paymentRow=$this->db->prepare('INSERT INTO purchases_payments (ORDER_ID,AMOUNT,PAYMENT_METHOD,NOTE,CREATED_BY,SUPPLIER_GL_PAYMENT_ID) VALUES (?,?,?,?,?,?)');
                 $update=$this->db->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS=?,
                     STATUSE=CASE WHEN ?>=? THEN 'COMPLETED' ELSE 'DEFERRED' END WHERE ORDER_ID=? AND SUPPLIER_ID=?");
                 $allocationInsert=$this->db->prepare("INSERT INTO supplier_gl_payment_allocations
                     (payment_id,supplier_id,purchase_order_id,allocation_type,amount,created_by) VALUES (?,?,?,?,?,?)");
                 foreach($allocations as $oid=>$value){
-                    $paymentRow->execute([$oid,$value,$paymentMethodId,trim($note)?:'سداد من دفعة المورد رقم '.$paymentId,$userId]);
+                    $paymentRow->execute([$oid,$value,$paymentMethodId,trim($note)?:'سداد من دفعة المورد رقم '.$paymentId,$userId,$paymentId]);
                     $newPaid=round((float)$rows[$oid]['TOTAL_PAYMENTS']+$value,2);
                     $netTotal=round((float)$rows[$oid]['TOTAL_PRICE']-(float)$rows[$oid]['RETURN_TOTAL'],2);
                     $update->execute([$newPaid,$newPaid,$netTotal,$oid,$supplierId]);
@@ -255,11 +255,13 @@ final class SupplierAccountingManager
 
                 $sourceSql = "SELECT A.id,A.payment_id,A.amount,P.created_at,
                     ROUND(A.amount-COALESCE((SELECT SUM(X.amount) FROM supplier_gl_advance_applications X
+                        INNER JOIN journal_entries AXJ ON AXJ.id=X.journal_entry_id AND AXJ.status='POSTED'
                         WHERE X.source_advance_allocation_id=A.id),0),2) AS AVAILABLE
                     FROM supplier_gl_payment_allocations A
-                    INNER JOIN supplier_gl_payments P ON P.id=A.payment_id
+                    INNER JOIN supplier_gl_payments P ON P.id=A.payment_id AND P.reversal_journal_entry_id IS NULL
                     WHERE A.supplier_id=? AND A.allocation_type='ADVANCE'
                       AND A.amount>COALESCE((SELECT SUM(X.amount) FROM supplier_gl_advance_applications X
+                        INNER JOIN journal_entries AXJ ON AXJ.id=X.journal_entry_id AND AXJ.status='POSTED'
                         WHERE X.source_advance_allocation_id=A.id),0)
                     ORDER BY P.created_at,A.id FOR UPDATE";
                 $sourceStmt=$this->db->prepare($sourceSql);
@@ -359,5 +361,119 @@ final class SupplierAccountingManager
             'applied_amount'=>$appliedAmount,'mode'=>$mode,'already_posted'=>(bool)$event['already_posted']];
     }
 
+    /**
+     * عكس تطبيق مقدم مورد مع إعادة فتح مستحقات أوامر الشراء.
+     * يظل سجل التطبيق محفوظًا، ويُحتسب فقط ما زال قيده POSTED كمبلغ مطبق.
+     */
+    public function reverseAdvanceApplication(int $journalId, int $userId, string $reason = ''): array
+    {
+        if ($journalId <= 0 || $userId <= 0) throw new InvalidArgumentException('رقم القيد والمستخدم مطلوبان.');
+        $this->db->beginTransaction();
+        try {
+            $lock = $this->db->prepare("SELECT id,branch_id,reference_type,status FROM journal_entries WHERE id=? FOR UPDATE");
+            $lock->execute([$journalId]);
+            $journalRow = $lock->fetch(PDO::FETCH_ASSOC);
+            if (!$journalRow || $journalRow['reference_type'] !== 'SUPPLIER_ADVANCE_APPLICATION' || $journalRow['status'] !== 'POSTED') {
+                throw new RuntimeException('قيد تطبيق المقدم غير موجود أو سبق عكسه.');
+            }
+            $apps = $this->db->prepare("SELECT supplier_id,purchase_order_id,SUM(amount) amount
+                FROM supplier_gl_advance_applications WHERE journal_entry_id=?
+                GROUP BY supplier_id,purchase_order_id ORDER BY purchase_order_id FOR UPDATE");
+            $apps->execute([$journalId]);
+            $rows = $apps->fetchAll(PDO::FETCH_ASSOC);
+            if (!$rows) throw new RuntimeException('لا توجد تفاصيل تطبيق مرتبطة بهذا القيد.');
+            $supplierId = (int)$rows[0]['supplier_id'];
+            $supplierLock = $this->db->prepare('SELECT SUP_ID FROM suppliers WHERE SUP_ID=? FOR UPDATE');
+            $supplierLock->execute([$supplierId]);
+            if (!$supplierLock->fetchColumn()) throw new RuntimeException('المورد المرتبط بالتطبيق غير موجود.');
+            $orderLock = $this->db->prepare('SELECT ORDER_ID,TOTAL_PRICE,TOTAL_PAYMENTS FROM purchases_orders WHERE ORDER_ID=? AND SUPPLIER_ID=? FOR UPDATE');
+            $orderUpdate = $this->db->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS=?,
+                STATUSE=CASE WHEN ?>=? THEN 'COMPLETED' ELSE 'DEFERRED' END
+                WHERE ORDER_ID=? AND SUPPLIER_ID=?");
+            foreach ($rows as $row) {
+                $orderLock->execute([(int)$row['purchase_order_id'],$supplierId]);
+                $order = $orderLock->fetch(PDO::FETCH_ASSOC);
+                $amount = round((float)$row['amount'],2);
+                if (!$order || (float)$order['TOTAL_PAYMENTS'] + 0.009 < $amount) {
+                    throw new RuntimeException('لا يمكن عكس التطبيق لأن رصيد أمر الشراء لم يعد يسمح بإرجاع المبلغ.');
+                }
+                $newPaid = round((float)$order['TOTAL_PAYMENTS']-$amount,2);
+                $orderUpdate->execute([$newPaid,$newPaid,(float)$order['TOTAL_PRICE'],(int)$order['ORDER_ID'],$supplierId]);
+                if ($orderUpdate->rowCount() !== 1) throw new RuntimeException('تعذر إعادة فتح أمر الشراء بعد عكس المقدم.');
+            }
+            $reversalId = (new JournalManager($this->db))->reverse($journalId, $reason ?: 'عكس تطبيق مقدم المورد', 'SUPPLIER_ADVANCE_APPLICATION');
+            $this->db->commit();
+            return ['journal_entry_id'=>$journalId,'reversal_journal_entry_id'=>$reversalId,'supplier_id'=>$supplierId];
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * عكس دفعة المورد بعد التأكد من إلغاء كل تطبيقات المقدم الصادرة منها.
+     * يعكس القيد، ويعيد أرصدة أوامر الشراء، ويربط سجلات الصرف التشغيلية بقيد العكس.
+     */
+    public function reversePayment(int $paymentId, int $userId, string $reason = ''): array
+    {
+        if ($paymentId <= 0 || $userId <= 0) throw new InvalidArgumentException('رقم الدفعة والمستخدم مطلوبان.');
+        $this->db->beginTransaction();
+        try {
+            $paymentLock = $this->db->prepare("SELECT id,supplier_id,journal_entry_id,reversal_journal_entry_id
+                FROM supplier_gl_payments WHERE id=? FOR UPDATE");
+            $paymentLock->execute([$paymentId]);
+            $payment = $paymentLock->fetch(PDO::FETCH_ASSOC);
+            if (!$payment || !empty($payment['reversal_journal_entry_id'])) throw new RuntimeException('دفعة المورد غير موجودة أو سبق عكسها.');
+            $supplierId = (int)$payment['supplier_id'];
+            $supplierLock = $this->db->prepare('SELECT SUP_ID FROM suppliers WHERE SUP_ID=? FOR UPDATE');
+            $supplierLock->execute([$supplierId]);
+            if (!$supplierLock->fetchColumn()) throw new RuntimeException('المورد المرتبط بالدفعة غير موجود.');
+
+            $activeApplications = $this->db->prepare("SELECT COUNT(*) FROM supplier_gl_advance_applications X
+                INNER JOIN supplier_gl_payment_allocations A ON A.id=X.source_advance_allocation_id
+                INNER JOIN journal_entries J ON J.id=X.journal_entry_id AND J.status='POSTED'
+                WHERE A.payment_id=?");
+            $activeApplications->execute([$paymentId]);
+            if ((int)$activeApplications->fetchColumn() > 0) {
+                throw new RuntimeException('يجب عكس تطبيقات المقدم المرتبطة بهذه الدفعة أولًا، ثم إعادة عكس الدفعة.');
+            }
+
+            $allocations = $this->db->prepare("SELECT purchase_order_id,SUM(amount) amount
+                FROM supplier_gl_payment_allocations
+                WHERE payment_id=? AND allocation_type='INVOICE'
+                GROUP BY purchase_order_id ORDER BY purchase_order_id FOR UPDATE");
+            $allocations->execute([$paymentId]);
+            $rows = $allocations->fetchAll(PDO::FETCH_ASSOC);
+            $orderLock = $this->db->prepare('SELECT ORDER_ID,TOTAL_PRICE,TOTAL_PAYMENTS FROM purchases_orders WHERE ORDER_ID=? AND SUPPLIER_ID=? FOR UPDATE');
+            $orderUpdate = $this->db->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS=?,
+                STATUSE=CASE WHEN ?>=? THEN 'COMPLETED' ELSE 'DEFERRED' END
+                WHERE ORDER_ID=? AND SUPPLIER_ID=?");
+            foreach ($rows as $row) {
+                $oid = (int)$row['purchase_order_id'];
+                $amount = round((float)$row['amount'],2);
+                $orderLock->execute([$oid,$supplierId]);
+                $order = $orderLock->fetch(PDO::FETCH_ASSOC);
+                if (!$order || (float)$order['TOTAL_PAYMENTS'] + 0.009 < $amount) {
+                    throw new RuntimeException('لا يمكن عكس الدفعة لأن رصيد أمر الشراء تغير بعد تسجيلها.');
+                }
+                $newPaid = round((float)$order['TOTAL_PAYMENTS']-$amount,2);
+                $orderUpdate->execute([$newPaid,$newPaid,(float)$order['TOTAL_PRICE'],$oid,$supplierId]);
+                if ($orderUpdate->rowCount() !== 1) throw new RuntimeException('تعذر تحديث أمر الشراء أثناء عكس الدفعة.');
+            }
+
+            $reversalId = (new JournalManager($this->db))->reverse((int)$payment['journal_entry_id'],
+                $reason ?: 'عكس دفعة المورد', 'SUPPLIER_PAYMENT');
+            $markPayment = $this->db->prepare('UPDATE supplier_gl_payments SET reversal_journal_entry_id=? WHERE id=? AND reversal_journal_entry_id IS NULL');
+            $markPayment->execute([$reversalId,$paymentId]);
+            if ($markPayment->rowCount() !== 1) throw new RuntimeException('تعذر تسجيل عكس دفعة المورد.');
+            $markOperational = $this->db->prepare('UPDATE purchases_payments SET reversal_journal_entry_id=? WHERE supplier_gl_payment_id=? AND reversal_journal_entry_id IS NULL');
+            $markOperational->execute([$reversalId,$paymentId]);
+            $this->db->commit();
+            return ['payment_id'=>$paymentId,'supplier_id'=>$supplierId,'journal_entry_id'=>(int)$payment['journal_entry_id'],'reversal_journal_entry_id'=>$reversalId];
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
+    }
 
 }
