@@ -508,7 +508,8 @@ class reports_BE {
 				WHERE pb.PARTNER_TYPE='SUPPLIER' AND pb.PARTNER_ID=? AND pb.CREATE_AT BETWEEN ? AND ?
 				UNION ALL
 				SELECT 'GL' AS source_bucket,COALESCE(NULLIF(d.note,''),h.description) AS note,d.id+1000000000000 AS id,
-					CAST(COALESCE(d.reference_id,h.reference_id) AS CHAR) AS ORDER_ID,
+					CASE WHEN d.reference_type='SUPPLIER_ADVANCE' THEN NULL
+					ELSE CAST(COALESCE(d.reference_id,h.reference_id) AS CHAR) END AS ORDER_ID,
 					NULL AS QTY_ORDER,NULL AS QTY_SUPPLIED,NULL AS QTY_RETURN,
 					h.entry_date AS transaction_date,
 					CASE WHEN d.debit>0 THEN 'DEBIT' ELSE 'CREDIT' END AS TRANSACTION_TYPE,
