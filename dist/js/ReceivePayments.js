@@ -362,7 +362,7 @@ custodyTotal	= ()  => {
         $('#rcPaymentMethod').empty().append($('<option>', { value: '', text: 'تعذر تحميل طرق الدفع' }));
     });
 	// زر السداد
-	$('.btn-app-pade').append('<button id="btnPay" class="btn btn-app-tools btnh text-dark btnPay" data-id="new" ><i class="fas fa-shopping-cart"></i><span class="btnname">سداد</span><span class="badge badge-danger navbar-badge onumBtnPay mr-2" ></span></button>');
+	$('.btn-app-pade').append('<button id="btnPay" class="btn btn-app-tools btnh text-dark btnPay" data-id="new" ><i class="fas fa-shopping-cart"></i><span class="btnname">تسجيل التحصيل</span><span class="badge badge-danger navbar-badge onumBtnPay mr-2" ></span></button>');
 	table = $('#tbl').DataTable({
 		//scrollY: '70vh',
 		//scrollX: false,
@@ -394,7 +394,7 @@ custodyTotal	= ()  => {
             {
                 orderable: false,
                 render: function(data, type, row, meta) {
-                    return `<button id="btnPayment" type="button" data-id="${row[0]}" class="btn btn-app-row btn-xs bg-secondary btnPayment h-80 f-5 m-1"><i class="fas fa-hand-holding-usd"></i></button>
+                    return `<button id="btnPayment" type="button" data-id="${row[0]}" ${Number(row[28]) > 0 ? '' : 'disabled'} class="btn btn-app-row btn-xs bg-secondary btnPayment h-80 f-5 m-1"><i class="fas fa-hand-holding-usd"></i></button>
                     	<button id="btnCancelPayment" type="button" data-id="${row[0]}" class="btn btn-app-row btn-xs bg-danger btnCancelPayment h-80 f-5 m-1" style="display:none;"><i class="fas fa-xmark"></i></button>`;
                 }
             }
@@ -519,6 +519,10 @@ custodyTotal	= ()  => {
 			let tr = e.target.closest('tr');
 			let row = table.row(tr);
 			let rowData = row.data();
+			if (!(Number(rowData[28]) > 0)) {
+				Toast_fire(['i', 'لا توجد مديونية مفتوحة على هذا الأمر في الأستاذ العام.']);
+				return;
+			}
 		
 			orderPayArr[rowData[0]] = row.data();
 			console.log(orderPayArr)
@@ -667,8 +671,10 @@ custodyTotal	= ()  => {
 			if (val) {
 				$("#btnSelectAllPayment").prop('disabled', false);
 			    $('.btnPayment').each(function() {
-			        $(this).prop('disabled', false);
-			        $(this).removeClass('bg-secondary').addClass('bg-info');
+					const rowData = table.row($(this).closest('tr')).data();
+					const hasOpenBalance = rowData && Number(rowData[28]) > 0;
+			        $(this).prop('disabled', !hasOpenBalance);
+			        $(this).removeClass(hasOpenBalance ? 'bg-secondary' : 'bg-info').addClass(hasOpenBalance ? 'bg-info' : 'bg-secondary');
 			    });
 			} else {
 				//$("#btnCancelAllPayment").click();
