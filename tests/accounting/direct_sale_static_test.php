@@ -175,8 +175,10 @@ try {
     has($shipmentBackend, '$accounting->salesReturn($returnOrderId)', 'استلام المرتجع مخزنيًا لا يرحّل عكس البيع إلى GL.');
     has($shipmentBackend, "processInventory('RETURN_SALES'", 'مسار المرتجع لا ينفذ حركة المخزون قبل قيد عكس البيع.');
     $directCustomerDelivery = methodBody($shipmentBackend, 'public function CustomerDeliveryOfProducts(');
+    $directCustomerSaleConfirmation = methodBody($shipmentBackend, 'public function confirmOrderSales(');
     lacks($directCustomerDelivery, 'partners_balance', 'التسليم المباشر للعميل ما زال يكتب في دفتر الأرصدة القديم.');
-    has($directCustomerDelivery, '$accounting->directSale($orderId)', 'التسليم المباشر للعميل لا يرحّل البيع إلى الأستاذ العام.');
+    lacks($directCustomerSaleConfirmation, 'partners_balance', 'تأكيد التسليم المباشر للعميل ما زال يكتب في دفتر الأرصدة القديم.');
+    has($directCustomerSaleConfirmation, '$accounting->directSale($orderId)', 'تأكيد التسليم المباشر للعميل لا يرحّل البيع إلى الأستاذ العام.');
 
     echo "PASS: direct sale posts product value only and excludes shipping.\n";
     echo "PASS: journal reversal locks, swaps lines, prevents duplicates and marks original reversed.\n";
