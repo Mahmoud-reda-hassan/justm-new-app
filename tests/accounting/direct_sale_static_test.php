@@ -99,6 +99,27 @@ try {
     has($installer, "'MARKETER_COMMISSION_PAYABLE'", 'Installer inc لا يربط حساب مستحقات عمولات التسويق.');
     has($installer, "'MARKETER_COMMISSION_EXPENSE'", 'Installer inc لا يربط حساب مصروف عمولات التسويق.');
 
+    $marketerPayout = methodBody($deliveryManager, 'public function payMarketerCommission(');
+    has($marketerPayout, 'marketer_commission_payments', 'صرف عمولة المسوق لا ينشئ مستند صرف GL.');
+    has($marketerPayout, 'marketerCommissionPayable()', 'صرف عمولة المسوق لا يخفض حساب المستحقات المستقل.');
+    has($marketerPayout, 'transactionAccount($paymentMethodId, $branchId)', 'صرف عمولة المسوق لا يستخدم حساب طريقة الدفع المرتبط بالفرع.');
+    has($marketerPayout, "'partner_type' => 'MARKETER'", 'قيد صرف عمولة المسوق لا يربط الشريك.');
+    has($marketerPayout, "'reference_type' => 'MARKETER_COMMISSION_PAYMENT'", 'قيد صرف عمولة المسوق بلا مرجع واضح.');
+    lacks($marketerPayout, 'partners_balance', 'صرف عمولة المسوق ما زال يعتمد على دفتر الأرصدة القديم.');
+    lacks($marketerPayout, 'financial_transactions', 'صرف عمولة المسوق ما زال يسجل معاملة مالية قديمة.');
+    $payoutController = projectFile($root, 'inc/controller/finance.control.php');
+    has($payoutController, "case 'PayMarketerCommission'", 'Endpoint صرف عمولة المسوق غير موجود.');
+    has($payoutController, 'payMarketerCommission(', 'Endpoint الصرف لا يستدعي خدمة GL.');
+    $payoutBackend = projectFile($root, 'inc/controller/BackEnd/PaymentDisbursement_BE.php');
+    has($payoutBackend, "MARKETER_COMMISSION_PAYABLE", 'رصيد المسوق في شاشة الصرف لا يُقرأ من حساب GL.');
+    $payoutView = projectFile($root, 'inc/Views/PaymentDisbursement.php');
+    has($payoutView, 'marketer-payment-method', 'شاشة صرف المسوق لا تطلب طريقة الدفع.');
+    $payoutJs = projectFile($root, 'dist/js/PaymentDisbursement.js');
+    has($payoutJs, "'PayMarketerCommission'", 'شاشة الصرف لا تستخدم endpoint الأستاذ العام.');
+    has($payoutJs, 'request_key', 'شاشة الصرف لا ترسل مفتاح منع التكرار.');
+    has($installer, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer inc.');
+    has($rootInstaller, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer الجذر.');
+
     $reverse = methodBody($journal, 'public function reverse(');
     has($reverse, 'FOR UPDATE', 'عكس القيد لا يقفل القيد الأصلي.');
     has($reverse, "status'] !== 'POSTED'", 'عكس القيد لا يشترط أن يكون القيد الأصلي مرحلًا.');
