@@ -134,7 +134,7 @@ try {
     has($rootInstaller, 'CREATE TABLE IF NOT EXISTS marketer_commission_payments', 'جدول صرف عمولات المسوق غير موجود في Installer الجذر.');
 
     $accountsBackend = projectFile($root, 'inc/controller/BackEnd/accounts_BE.php');
-    $accountsMainQuery = methodBody($accountsBackend, 'private function main_query(');
+    $accountsMainQuery = methodBody($accountsBackend, 'private function main_query');
     $custodyTotals = methodBody($accountsBackend, 'private function custodyTotal');
     has($accountsMainQuery, 'accounting_line_allocations', 'قائمة تحصيل المندوب لا تحسب المديونية المفتوحة من تخصيصات GL.');
     has($accountsMainQuery, 'SHIPPING_REVENUE_RECOGNIZED', 'قائمة التحصيل لا تضم مديونية الشحن المرحّلة.');
