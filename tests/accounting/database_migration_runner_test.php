@@ -107,6 +107,22 @@ $assert(strtolower((string)$cashBoxColumnType) === 'bigint(20) unsigned', 'Phase
 $assert($cashBoxIndex === 1, 'Phase 22 must create the cash-box lookup index.');
 $assert($cashBoxForeignKey === 1, 'Phase 22 must create the cash-box foreign key.');
 
+// The full installer may already contain Phase 22's schema without a migration-ledger row.
+// The runner must recognize that state and register it without trying to add the column again.
+$deletePhase22Ledger = $pdo->prepare('DELETE FROM app_schema_migrations WHERE migration_key = ?');
+$deletePhase22Ledger->execute(['PHASE22_JOURNAL_CASHBOX_REFERENCE.sql']);
+$schemaPresent = null;
+foreach ($manager->listMigrations() as $migration) {
+    if ($migration['file'] === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
+        $schemaPresent = $migration;
+        break;
+    }
+}
+$assert($schemaPresent !== null && $schemaPresent['status'] === 'SCHEMA_PRESENT' && !$schemaPresent['enabled'],
+    'Phase 22 must be recognized as already present when the installer created its schema.');
+$recognized = $manager->run('PHASE22_JOURNAL_CASHBOX_REFERENCE.sql', 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql', 1);
+$assert(!empty($recognized['already_applied']), 'Existing Phase 22 schema must be recorded without rerunning DDL.');
+
 $final = $manager->listMigrations();
 foreach ($final as $migration) {
     if (!$migration['enabled']) continue;
