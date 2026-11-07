@@ -884,30 +884,14 @@ class Order_tbl {
 	                           	}
 	                        	//echo $sqlQuery_3;
 	                        	if ($st3) {
-	                            	$stmt4 = $this->conn->prepare('SELECT CLIENT_ID FROM addresses WHERE ADDRESS_ID = ?');
-	                            	$stmt4->bindValue(1, $this->address_id, PDO::PARAM_INT);
-	                            	$stmt4->execute();
-	                            	if($stmt4->execute() && $stmt4->rowCount() == 1){
-	                            		$cli_id = $stmt4->fetch(PDO::FETCH_ASSOC);                            		
-	                            		$cli_id = $cli_id['CLIENT_ID'];
-	                            		$finance = new finance_BE($this->conn);
-	                            		$resultFinal = $finance->addClientDebt($cli_id, $orderid, $amount);
-		                                if($resultFinal['result']){
-		                                	$this->conn->commit();
-			                                if ($err2 === 0) {
-			                                    echo json_encode(array('s', 'تم حفظ امر البيع برقم - '.$this->sub_order_id));
-			                                } else {
-			                                    echo json_encode(array('s', '<a>تم حفظ امر البيع برقم - '.$this->sub_order_id .'<br>ولكن هناك تغيرات حدثة فى الخلفية عند الحفظ </a><hr>'.$msg1));
-			                                }
-		                                }else{
-		                                	$this->conn->rollback();
-		                                	echo json_encode(array('e','خطاء - لم ننجح فى حفظ امر البيع'));
-		                                }
-	                            	}else{
-	                            		$this->conn->rollback();
-		                                echo json_encode(array('e','خطاء - لم ننجح فى حفظ امر البيع'));
+	                            	// إنشاء الطلب لا يثبت مديونية محاسبية.
+	                            	// يتم إثبات البيع في الأستاذ العام عند نقطة التسليم الفعلي فقط.
+	                            	$this->conn->commit();
+	                            	if ($err2 === 0) {
+		                                echo json_encode(array('s', 'تم حفظ امر البيع برقم - '.$this->sub_order_id));
+	                            	} else {
+		                                echo json_encode(array('s', '<a>تم حفظ امر البيع برقم - '.$this->sub_order_id .'<br>ولكن هناك تغيرات حدثة فى الخلفية عند الحفظ </a><hr>'.$msg1));
 	                            	}
-	                            
 	                            } else {
 	                                $this->conn->rollback();
 	                                echo json_encode(array('e', 'لم يتم حفظ امر البيع لاسباب غير معروفة'));
