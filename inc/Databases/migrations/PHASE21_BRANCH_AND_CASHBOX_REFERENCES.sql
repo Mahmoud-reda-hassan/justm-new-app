@@ -1,8 +1,9 @@
 -- ================================================================
 -- PHASE 21: Branch and cash-box relational foundation
 -- Target: MariaDB 10.5+
--- Scope: one company now; schema remains compatible with multi-company
---       operation later. This migration does not create financial data.
+-- Scope: one company operationally. This lays branch-ownership groundwork;
+--       it does NOT enable multi-company accounting. Account charts/settings
+--       remain global until a separate reviewed migration and code cutover.
 -- Apply ONLY to databases created with the older installer (global BR_NAME
 -- index and missing branch foreign keys). Do NOT run on a fresh database
 -- created with the updated JUSTM_DATABASE_INSTALL.sql.
