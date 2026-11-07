@@ -14,14 +14,15 @@
 | `financial_transactions` | نعم | نعم | `finance_BE.php`, `AccountingEvents.php`, `accounts_BE.php` | قديم/حلقة ربط انتقالية | يخزن القبض/الصرف، ويستخدم كمدخل لمحرك الأستاذ العام في بعض الأحداث. |
 | `transaction_categories` | غير مثبت في الملفات المفحوصة ككاتب | نعم | `AccountingEvents.php`, `accounts_BE.php` | قديم | تصنيف الحركات وتحديد CASH_IN/CASH_OUT وفئة صرف المرتجع. |
 | `payment_methods` | غير محسوم | نعم | `AccountSettings.php` | مشترك/انتقالي | ربط طريقة الدفع بحساب الأستاذ يتم عبر `payment_method_accounts`. |
-| `payment_method_accounts` | غير محسوم | نعم | `AccountSettings.php` | مستهدف/انتقالي | يحدد حساب الترحيل لكل طريقة دفع وفرع. |
+| `payment_method_accounts` | غير محسوم | نعم | `AccountSettings.php`, `DeliverySettlementManager.php` | مستهدف/انتقالي | يربط طريقة الدفع بحساب GL واحد لكل فرع حاليًا بسبب `uq_payment_method_branch`؛ يلزم توسيعه لدعم أكثر من وجهة بنكية عند اعتماد التصميم. |
 | `accounts` | نعم | نعم | `AccountManager.php`, `AccountSettings.php`, `JournalManager.php` (من خلال تفاصيل القيد) | مستهدف | دليل الحسابات وإعداد الحسابات. |
 | `account_settings` | غير محسوم | نعم | `AccountSettings.php` | مستهدف | يربط مفاتيح الأحداث بحسابات الأستاذ. |
 | `journal_entries` | نعم | نعم | `JournalManager.php`, `PartnerLedger.php`, `DeliverySettlementManager.php` | مستهدف | رأس القيد ومصدر تقارير الأستاذ. |
 | `journal_entry_details` | نعم | نعم | `JournalManager.php`, `PartnerLedger.php`, `AccountingEvents.php`, `DeliverySettlementManager.php` | مستهدف | تفاصيل المدين/الدائن والأبعاد والطرف. |
 | `accounting_line_allocations` | نعم | نعم | `AccountingEvents.php`, `PartnerLedger.php`, `DeliverySettlementManager.php` | مستهدف | تخصيص التحصيلات على المديونيات. |
 | `cash_boxes` | غير محسوم | نعم | `AccountSettings.php` | مستهدف | اختيار صندوق الفرع الافتراضي عند غياب طريقة الدفع؛ يلزم تتبع شاشة إدارة الصناديق. |
-| `banks` | غير محسوم | غير محسوم | لم يثبت استعماله في الملفات الأساسية المفحوصة | مستهدف/غير محسوم | وجود الجدول لا يثبت اكتمال دورة البنوك. |
+| `banks` | لم يثبت | لم يثبت | Installer فقط في البحث الحالي | قديم/غير مستخدم مثبتًا | تعريفه بلا PK/UNIQUE/FK و`account_id INT` لا يطابق `accounts.id BIGINT UNSIGNED`؛ لا يُربط مباشرة قبل تدقيق بيانات النسخة الاحتياطية. التصميم الجديد موثق في `docs/finance/PHASE23_BANK_ACCOUNT_DESIGN_AR.md`. |
+| `bank_accounts` (مقترح) | — | — | لم يُنشأ بعد | تصميم مستهدف | كيان جديد لحسابات البنوك مرتبط بالفرع وحساب GL، منفصل عن `cash_boxes`. |
 | `delivery_accounting_settings` | نعم | نعم | `DeliverySettlementManager.php` | مستهدف | إعداد طريقة تسوية عهدة المندوب. |
 | `purchases_payments` | نعم | لم يثبت في العينة المحددة | `finance_BE.php` | قديم/انتقالي | تفاصيل دفعات المورد لكل أمر شراء. |
 | `supplier_payment_allocations` | نعم | غير محسوم | `finance_BE.php` | انتقالي | ربط دفعة المورد بالفواتير أو المقدم. |
@@ -309,3 +310,12 @@ dist/js/CashReceiptVouchers.js يستدعي get_mandob_data.php وget_mandob_bal
 - لا تتغير دورة المخزون أو عهدة البضاعة ضمن هذا التحويل.
 - لا يتم دمج الفرع أو تطبيق Migration على testar دون مراجعة واعتماد المستخدم.
 - تحديث 2026-11-07: شاشة تحصيل المندوب أصبحت تحسب المديونية المفتوحة من قيود العميل وتخصيصات `accounting_line_allocations`، وملخص النقدية من حسابات الصناديق وطرق الدفع في GL؛ تم إيقاف `CollectingFinancialPledge` القديم.
+
+
+## 8. تحديث تدقيق البنوك — 2026-11-08
+
+- مراجعة Installer الحالي أكدت أن `banks` لا يحتوي مفتاحًا أساسيًا أو علاقة FK، وأن `account_id` نوعه `INT` مقابل `accounts.id BIGINT UNSIGNED`.
+- البحث النصي في المستودع عن `bank_name` ومواضع `banks` لم يثبت مستهلك PHP تشغيليًا؛ النتيجة المؤكدة حاليًا هي تعريف الجدول والوثائق.
+- `payment_method_accounts` له قيد فريد `(payment_method_id, branch_id)`؛ لذلك لا يدعم أكثر من حساب GL واحد لطريقة الدفع في الفرع حاليًا.
+- صرف عمولة المندوب الحالي يطلب خزينة محددة ويتحقق من تطابقها مع حساب طريقة الدفع، ويحفظ `cash_box_id` في سطر القيد. لا يُعامل هذا المسار كصرف بنكي.
+- التصميم المقترح للحسابات البنكية منفصل في `docs/finance/PHASE23_BANK_ACCOUNT_DESIGN_AR.md`. لم تُنفذ تغييرات SQL أو PHP ولم تُشغل أي قاعدة بيانات.
