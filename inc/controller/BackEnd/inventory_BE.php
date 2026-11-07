@@ -514,9 +514,11 @@ class inventory_BE {
 		    //$resC = $finance->Add_transaction($resB, 'SUPPLIER', $supplierId, $totalPrice, 1, 10, 'deferred', $comment);
 		     
 		    //if($deliveryProduct)  $this->inventoryMovement($products, $resA, $supplierId, 'refundpurchises',$store_id):true;
-		   	if($deliveryProduct)  $movementUniqueId = 'PURCHASE_RETURN_' . bin2hex(random_bytes(16));
-		   	$this->InventoryManager->processInventory('refundpurchises', [$resA], $userActionId, $branchId, $movementUniqueId, $store_id);
-		   	(new SupplierAccountingManager($this->conn))->recordReturnByMovementUniqueId($movementUniqueId);
+		   	if ($deliveryProduct) {
+				$movementUniqueId = 'PURCHASE_RETURN_' . bin2hex(random_bytes(16));
+				$this->InventoryManager->processInventory('refundpurchises', [$resA], $userActionId, $branchId, $movementUniqueId, $store_id);
+				(new SupplierAccountingManager($this->conn))->recordReturnByMovementUniqueId($movementUniqueId);
+			}
 		   	
 		    if ($resB2) {
 		        $this->conn->commit();

@@ -206,11 +206,12 @@ class PaymentDisbursement {
 			$legacyStmt->execute($legacyParams);
 			$legacyBalance = (float)$legacyStmt->fetchColumn();
 
+			$accountKeys = $order_id ? "'SUPPLIERS'" : "'SUPPLIERS','SUPPLIER_ADVANCES'";
 			$glSql = "SELECT COALESCE(SUM(d.credit-d.debit),0)
 				FROM journal_entry_details d
 				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
 				INNER JOIN account_settings aset ON aset.account_id=d.account_id
-					AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
+					AND aset.setting_key IN ($accountKeys)
 				WHERE d.partner_type='SUPPLIER' AND d.partner_id=?";
 			$glParams = [(int)$partnerId];
 			if ($order_id) {
