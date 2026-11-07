@@ -44,17 +44,22 @@ $assert(strpos($inventory, 'كمية مرتجع المنتج') !== false && strp
 $assert(strpos($inventoryManager, 'WHERE STO_ID = ? AND PRO_CODE IN ($stockPlaceholders)') !== false && strpos($inventoryManager, 'FOR UPDATE') !== false && strpos($inventoryManager, 'لا يكفي لتنفيذ المرتجع') !== false, 'Supplier return must reject insufficient stock while holding the global inventory lock.');
 $assert(strpos($inventory, "'QTY_RETURN' => \$qty") !== false && strpos($inventory, "'PURCHASE_UNIT_PRICE' => \$unitPrice") !== false, 'Supplier return rows must persist server-verified return quantities and purchase prices.');
 
+$insertOrderStart = strpos($dao, 'public function insertOrder(');
+$insertOrderEnd = strpos($dao, 'public function insertReturnOrder(', $insertOrderStart);
+$insertOrderMethod = substr($dao, $insertOrderStart, $insertOrderEnd - $insertOrderStart);
+$assert(strpos($insertOrderMethod, 'recordPurchaseOrder(') !== false,
+    'Every new supplier purchase order must be recognized in GL when it is created.');
 $addStockStart = strpos($inventory, 'public function AddStock(');
 $addStockEnd = strpos($inventory, 'public function returnPurchisesFormStock(', $addStockStart);
 $addStockMethod = substr($inventory, $addStockStart, $addStockEnd - $addStockStart);
-$purchasePostingPosition = strpos($addStockMethod, 'recordPurchaseOrder(');
+$purchaseCreationPosition = strpos($addStockMethod, 'addPurchaseOrder(');
 $physicalReceiptPosition = strpos($addStockMethod, "processInventory('receiving'");
 $receiptReclassificationPosition = strpos($addStockMethod, 'recordReceiptByMovementUniqueId(');
-$assert($purchasePostingPosition !== false && $physicalReceiptPosition !== false
+$assert($purchaseCreationPosition !== false && $physicalReceiptPosition !== false
     && $receiptReclassificationPosition !== false
-    && $purchasePostingPosition < $physicalReceiptPosition
+    && $purchaseCreationPosition < $physicalReceiptPosition
     && $physicalReceiptPosition < $receiptReclassificationPosition,
-    'A new supplier purchase must recognize the full GL liability before stock receipt reclassification.');
+    'A new supplier purchase must be created and recognized before stock receipt reclassification.');
 $assert(strpos($inventory, 'recordReceiptByMovementUniqueId') !== false, 'Physical purchase receipts are not linked to GL.');
 $assert(strpos($inventory, 'recordReturnByMovementUniqueId') !== false, 'Physical supplier returns are not linked to GL.');
 $assert(strpos($inventory, 'recordReturnByMovementUniqueId($movementUniqueId)') !== false, 'Supplier return GL posting must follow the physical stock movement.');
