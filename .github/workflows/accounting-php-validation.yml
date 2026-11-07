@@ -86,6 +86,13 @@ jobs:
           test "$inc_orphans" -eq 0
           echo "PASS: both installers import, define all rejected-shipping tables and preserve seed references."
 
+      - name: Supplier GL full-installer schema compatibility
+        env:
+          ACCOUNTING_SCHEMA_DSN: mysql:host=127.0.0.1;port=3306;dbname=installer_root_test;charset=utf8mb4
+          ACCOUNTING_SCHEMA_DB_USER: root
+          ACCOUNTING_SCHEMA_DB_PASSWORD: accounting_test
+        run: php tests/accounting/supplier_gl_schema_compatibility_test.php
+
       - name: Accounting static regression checks
         run: |
           php tests/accounting/direct_sale_static_test.php
