@@ -85,23 +85,37 @@ class AccountSettings
         return $returns;
     }
 
-    /** حساب الصندوق الفعلي للفرع، للاستخدام فقط في الحركات التي لا تحمل طريقة دفع. */
+    /**
+     * حساب الصندوق الفعلي للفرع عند وجود صندوق واحد فقط.
+     * يمنع الاختيار العشوائي إذا تعددت الخزائن؛ يجب أن يحدد مسار الحركة الخزينة صراحةً.
+     */
     public function cash(int $branchId): int
     {
+        if ($branchId <= 0) {
+            throw new InvalidArgumentException('الفرع مطلوب لتحديد حساب الصندوق.');
+        }
+
         $stmt = $this->db->prepare(
-            'SELECT a.id
+            'SELECT cb.id AS cash_box_id, a.id AS account_id
              FROM cash_boxes cb
              INNER JOIN accounts a ON a.id = cb.account_id
              WHERE cb.branch_id = ? AND cb.is_active = 1
                AND a.is_active = 1 AND a.allow_posting = 1
-             ORDER BY cb.id LIMIT 1'
+             ORDER BY cb.id'
         );
         $stmt->execute([$branchId]);
-        $id = $stmt->fetchColumn();
-        if (!$id) {
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (count($rows) === 0) {
             throw new RuntimeException('لا يوجد صندوق نشط مربوط بحساب قابل للترحيل لهذا الفرع.');
         }
-        return (int)$id;
+        if (count($rows) > 1) {
+            throw new RuntimeException(
+                'يوجد أكثر من صندوق نشط لهذا الفرع. يجب تحديد الخزينة المطلوبة صراحةً قبل الترحيل.'
+            );
+        }
+
+        return (int)$rows[0]['account_id'];
     }
 
     /** يرجع الحساب المحدد صراحةً لطريقة الدفع والفرع؛ لا يوجد fallback للصندوق. */
