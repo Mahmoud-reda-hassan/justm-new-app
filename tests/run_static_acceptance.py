@@ -65,6 +65,26 @@ check('JournalManager validates cash-box branch and account', 'cash_box_id' in j
 check('JournalManager persists cash-box reference', 'cash_box_id,' in journal_manager and "$line['cash_box_id']" in journal_manager)
 journal_lines = journal_manager.split('protected function saveLines', 1)[1].split('protected function generateEntryNumber', 1)[0]
 check('JournalManager cash-box insert has 14 matching placeholders', '(?,?,?,?,?,?,?,?,?,?,?,?,?,?)' in journal_lines)
+# 1c) Courier settlement must identify the actual receiving cash box.
+cash_box_service = read('inc/Classes/Accounting/CashBox.php')
+settlement_manager = read('inc/Classes/Accounting/DeliverySettlementManager.php')
+finance_controller = read('inc/controller/finance.control.php')
+settlement_js = read('dist/js/DeliverySettlement.js')
+settlement_view = read('inc/Views/ReceivePayments.php')
+check('CashBox lists only active boxes mapped to branch payment account',
+      'listForPaymentMethod' in cash_box_service and 'pma.account_id = cb.account_id' in cash_box_service
+      and 'cb.branch_id = ? AND cb.is_active = 1' in cash_box_service)
+check('Courier settlement validates selected box against payment mapping',
+      'cash_box_id' in settlement_manager and 'pma.payment_method_id = ?' in settlement_manager
+      and 'الخزينة المحددة غير نشطة' in settlement_manager)
+check('Courier settlement stores cash-box ID on received cash journal line',
+      "'cash_box_id' => $cashBoxId" in settlement_manager)
+check('Finance endpoint returns branch cash boxes and requires selected box',
+      'GetDeliverySettlementCashBoxes' in finance_controller and "'cash_box_id' => $cashBoxId" in finance_controller)
+check('Courier settlement UI requires and sends selected cash box',
+      'id="dsCashBox"' in settlement_view and 'cash_box_id: cashBoxId' in settlement_js
+      and 'GetDeliverySettlementCashBoxes' in settlement_js)
+
 phase22 = read('inc/Databases/migrations/PHASE22_JOURNAL_CASHBOX_REFERENCE.sql')
 check('Phase 22 migration adds nullable cash-box reference', 'ADD COLUMN cash_box_id BIGINT UNSIGNED NULL' in phase22 and 'fk_journal_detail_cash_box' in phase22)
 migration_manager = read('inc/Classes/DatabaseMigrationManager.php')
