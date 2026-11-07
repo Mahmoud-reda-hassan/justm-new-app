@@ -121,11 +121,15 @@
         <label for="dsDelivery">المندوب</label>
         <select id="dsDelivery" class="form-control select2" style="width:100%"><option value="">اختر المندوب</option></select>
       </div>
-      <div class="form-group col-md-4">
+      <div class="form-group col-md-3">
         <label for="dsPaymentMethod">طريقة استلام المبلغ</label>
         <select id="dsPaymentMethod" class="form-control"><option value="">اختر طريقة الدفع</option></select>
       </div>
-      <div class="form-group col-md-4" id="dsModeWrap" style="display:none">
+      <div class="form-group col-md-3">
+        <label for="dsCashBox">الخزينة المستلمة</label>
+        <select id="dsCashBox" class="form-control" disabled><option value="">اختر طريقة الدفع أولًا</option></select>
+      </div>
+      <div class="form-group col-md-3" id="dsModeWrap" style="display:none">
         <label for="dsMode">تسوية العمولة</label>
         <select id="dsMode" class="form-control">
           <option value="DEDUCT_FROM_CUSTODY">خصم العمولة من العهدة</option>
