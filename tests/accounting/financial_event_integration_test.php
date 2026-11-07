@@ -83,6 +83,7 @@ try {
         line_no INT NOT NULL,
         account_id BIGINT UNSIGNED NOT NULL,
         branch_id BIGINT UNSIGNED NULL,
+        cash_box_id BIGINT UNSIGNED NULL,
         store_id BIGINT UNSIGNED NULL,
         cost_center_id BIGINT UNSIGNED NULL,
         partner_type VARCHAR(30) NULL,
