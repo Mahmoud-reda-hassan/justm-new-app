@@ -25,6 +25,8 @@ $inventoryProcedure = $read('inc/Databases/procedure_inventory.sql');
 $assert(strpos($manager, 'PURCHASE_ORDER_RECOGNIZED') !== false, 'Purchase order GL event is missing.');
 $assert(strpos($journal, "['SUPPLIER_PAYMENT', 'SUPPLIER_ADVANCE_APPLICATION']") !== false, 'Generic journal reversal must block supplier payments and advance applications until coordinated operational reversal exists.');
 $assert(strpos($journal, 'أرصدة أوامر الشراء وسجلات التخصيص') !== false, 'Supplier reversal guard must explain the coordinated reversal requirement.');
+$assert(strpos($journal, '$coordinatedSupplierReference') !== false, 'Journal manager does not restrict supplier reversal bypass to an explicit coordinated reference type.');
+
 $assert(strpos($manager, 'PURCHASE_STOCK_RECEIVED') !== false, 'Purchase receipt GL reclassification is missing.');
 $assert(strpos($manager, 'PURCHASE_RETURN_RECOGNIZED') !== false, 'Supplier return GL event is missing.');
 $assert(strpos($manager, 'PRO.REFERANC PURCHASE_ORDER_ID') !== false, 'Supplier return does not resolve its original purchase order.');
@@ -84,14 +86,29 @@ $assert(strpos($supplierBalanceMethod, 'partners_balance') === false
     && strpos($supplierBalanceMethod, "'SUPPLIERS','SUPPLIER_ADVANCES'") !== false,
     'Supplier balances must use GL only, including supplier advances.');
 $assert(strpos($installer, 'supplier_gl_payments') !== false, 'Supplier GL payment tables are missing from installer.');
+$assert(strpos($installer, 'SUPPLIER_GL_PAYMENT_ID') !== false && strpos($installer, 'REVERSAL_JOURNAL_ENTRY_ID') !== false, 'Root installer is missing supplier reversal linkage columns.');
+$assert(strpos($runtimeInstaller, 'SUPPLIER_GL_PAYMENT_ID') !== false && strpos($runtimeInstaller, 'REVERSAL_JOURNAL_ENTRY_ID') !== false, 'Runtime installer is missing supplier reversal linkage columns.');
+
 $assert(strpos($manager, "INSERT INTO purchases_payments") !== false && strpos($manager, "UPDATE purchases_orders SET TOTAL_PAYMENTS") !== false, 'Supplier GL payments must keep the legacy operational payment totals synchronized.');
 $assert(strpos($manager, "supplier_gl_payment_allocations") !== false, 'Supplier payment allocations are not persisted.');
 $assert(strpos($manager, 'public function applyAdvances(') !== false, 'Supplier advance application workflow is missing.');
+$assert(strpos($manager, 'public function reversePayment(') !== false, 'Coordinated supplier payment reversal is missing.');
+$assert(strpos($manager, 'public function reverseAdvanceApplication(') !== false, 'Coordinated supplier advance application reversal is missing.');
+$assert(strpos($manager, "reversal_journal_entry_id") !== false && strpos($manager, "SUPPLIER_GL_PAYMENT_ID") !== false, 'Supplier reversal linkage is incomplete.');
+$assert(strpos($manager, 'يجب عكس تطبيقات المقدم المرتبطة بهذه الدفعة أولًا') !== false, 'A supplier payment cannot be reversed while its advance applications remain active.');
+$assert(strpos($manager, "AXJ.status='POSTED'") !== false, 'Reversed advance applications are still deducted from available advances.');
+
 $assert(strpos($manager, "'SUPPLIER_ADVANCE_APPLIED'") !== false, 'Supplier advance application GL event is missing.');
 $assert(strpos($manager, 'supplier_gl_advance_applications') !== false, 'Supplier advance source-to-invoice applications are not tracked.');
+$assert(strpos($read('inc/controller/finance.control.php'), "case 'ReverseSupplierPayment'") !== false
+    && strpos($read('inc/controller/finance.control.php'), "case 'ReverseSupplierAdvanceApplication'") !== false,
+    'Supplier coordinated reversal endpoints are missing.');
+
 $assert(strpos($manager, "'mode'=>\$mode") !== false, 'Supplier advance application mode is not idempotently recorded.');
 $assert(strpos($balance, 'GetSupplierAdvanceBalance') !== false, 'Available supplier advance balance endpoint is missing.');
 $assert(strpos($balance, 'GetSupplierAdvanceBalance') !== false && strpos($balance, 'supplier_gl_advance_applications') !== false, 'Supplier available advance is not net of prior applications.');
+$assert(strpos($balance, "P.reversal_journal_entry_id IS NULL") !== false && strpos($balance, "J.status='POSTED'") !== false, 'Supplier available advance must exclude reversed payments and applications.');
+
 $assert(strpos($read('inc/controller/finance.control.php'), "case 'ApplySupplierAdvances'") !== false, 'Supplier advance application endpoint is missing.');
 $supplierJs = $read('dist/js/PaymentDisbursement.js');
 $assert(strpos($supplierJs, 'supplierAdvanceRequestFingerprint') !== false, 'Supplier advance retries must reuse the same idempotency key for identical requests.');
