@@ -94,7 +94,7 @@ class accounts_BE {
 					INNER JOIN account_settings aset ON aset.account_id = d.account_id AND aset.setting_key = 'CUSTOMERS'
 					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
 					WHERE d.journal_entry_id = O.SALE_ENTRY_ID AND d.partner_type = 'CLIENT'
-						AND d.partner_id = H.CLIENT_ID AND d.debit > 0
+						AND d.partner_id = TEL.CLIENT_ID AND d.debit > 0
 					GROUP BY d.id, d.debit
 				),0)
 				+ CASE WHEN O.ORDER_TYPE_ID <> 5 AND CO.CUST_STAT <> 'FREEZE' THEN COALESCE((
@@ -106,7 +106,7 @@ class accounts_BE {
 					LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
 					WHERE ev.idempotency_key = CONCAT('ORDER_SHIPPING:ORDER:', O.ORDER_ID, ':SHIPPING_REVENUE')
 						AND ev.event_type = 'SHIPPING_REVENUE_RECOGNIZED'
-						AND d.partner_type = 'CLIENT' AND d.partner_id = H.CLIENT_ID AND d.debit > 0
+						AND d.partner_type = 'CLIENT' AND d.partner_id = TEL.CLIENT_ID AND d.debit > 0
 					GROUP BY d.id, d.debit
 				),0) ELSE 0 END
 			   ,2) AS REQUIRED_PAYMENT,
@@ -133,6 +133,7 @@ class accounts_BE {
 			   LEFT JOIN USERS 				AS UC ON O.ORDER_BY = UC.USER_ID
 			   LEFT JOIN ADDRESSES 			AS G ON O.ADDRESS_ID = G.ADDRESS_ID
 			   LEFT JOIN CLIENT 			AS H ON G.CLIENT_ID = H.CLIENT_ID
+			   LEFT JOIN telephones 		AS TEL ON TEL.TEL_ID = O.TEL_ID
 			   LEFT JOIN CITY 				AS K ON O.CITY_ID = K.CI_ID
 			   LEFT JOIN ZONES 				AS L ON K.ZONE_ID = L.ZONE_ID
 			   LEFT JOIN (SELECT  CP.ORDER_ID,
@@ -155,7 +156,7 @@ class accounts_BE {
 			   O.SUB_ORDER_ID,
 			   Concat(UC.FORENAME, ' ', UC.LASTNAME),
 			   Concat(UD.FORENAME, ' ', UD.LASTNAME),
-			   H.CLIENT_ID,
+			   TEL.CLIENT_ID,
 			   O.DELIVERY_DATE,
 			   O.ORDER_SUCCESS,
 			   O.LAST_UPDATE,
