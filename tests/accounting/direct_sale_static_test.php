@@ -128,9 +128,16 @@ try {
     $courierPayout = methodBody($deliveryManager, 'public function payCommission(');
     has($courierPayout, 'delivery_commission_payments', 'صرف عمولة المندوب لا ينشئ مستند صرف GL.');
     has($courierPayout, 'transactionAccount($paymentMethodId, $branchId)', 'صرف عمولة المندوب لا يستخدم حساب طريقة الدفع.');
+    has($courierPayout, 'cashBoxId', 'صرف عمولة المندوب لا يستقبل رقم الخزينة.');
+    has($courierPayout, 'cash_boxes cb', 'صرف عمولة المندوب لا يتحقق من الخزينة والفرع والحساب.');
+    has($courierPayout, "'cash_box_id' => $cashBoxId", 'قيد صرف عمولة المندوب لا يحفظ الخزينة الفعلية.');
     has($courierPayout, "'partner_type' => 'DELIVERY'", 'قيد صرف عمولة المندوب لا يربط الشريك.');
     has($payoutBackend, 'courier_commission_payable_account_id', 'رصيد المندوب في شاشة الصرف لا يُقرأ من حساب GL.');
     has($payoutView, 'delivery-payment-method', 'شاشة صرف المندوب لا تطلب طريقة الدفع.');
+    has($payoutView, 'delivery-cash-box', 'شاشة صرف المندوب لا تطلب الخزينة.');
+    has($payoutJs, 'loadDeliveryCommissionCashBoxes', 'شاشة صرف المندوب لا تحمل خزائن طريقة الدفع.');
+    has($payoutJs, 'cash_box_id: cashBoxId', 'شاشة صرف المندوب لا ترسل رقم الخزينة.');
+    has($payoutController, "'cash_box_id' => $cashBoxId", 'بصمة طلب صرف العمولة لا تشمل الخزينة.');
     has($payoutJs, "'PayDeliveryCommission'", 'شاشة صرف المندوب لا تستخدم endpoint الأستاذ العام.');
     has($payoutController, "case 'PaymentOfMarketerDues':", 'لم يتم إغلاق endpoint الصرف القديم للمسوق.');
     has($payoutController, "case 'PaymentOfDeliveryDues':", 'لم يتم إغلاق endpoint الصرف القديم للمندوب.');
