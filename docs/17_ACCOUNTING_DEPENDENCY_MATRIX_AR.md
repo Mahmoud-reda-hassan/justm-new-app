@@ -21,7 +21,7 @@
 | `journal_entry_details` | نعم | نعم | `JournalManager.php`, `PartnerLedger.php`, `AccountingEvents.php`, `DeliverySettlementManager.php` | مستهدف | تفاصيل المدين/الدائن والأبعاد والطرف. |
 | `accounting_line_allocations` | نعم | نعم | `AccountingEvents.php`, `PartnerLedger.php`, `DeliverySettlementManager.php` | مستهدف | تخصيص التحصيلات على المديونيات. |
 | `cash_boxes` | غير محسوم | نعم | `AccountSettings.php` | مستهدف | اختيار صندوق الفرع الافتراضي عند غياب طريقة الدفع؛ يلزم تتبع شاشة إدارة الصناديق. |
-| `banks` | لم يثبت | لم يثبت | Installer فقط في البحث الحالي | قديم/غير مستخدم مثبتًا | تعريفه بلا PK/UNIQUE/FK و`account_id INT` لا يطابق `accounts.id BIGINT UNSIGNED`؛ لا يُربط مباشرة قبل تدقيق بيانات النسخة الاحتياطية. التصميم الجديد موثق في `docs/finance/PHASE23_BANK_ACCOUNT_DESIGN_AR.md`. |
+| `banks` | لم يثبت | لم يثبت | Installer فقط في البحث الحالي | جدول قديم يحتاج إصلاح Installer | نسخة القديم `cptest (17).sql` تثبت وجود PK وAUTO_INCREMENT وFK إلى `accounts(id)`؛ لكن Installer الحالي ونسخة testar الجزئية لا يظهر بهما هذه القيود، و`account_id INT` لا يطابق `accounts.id BIGINT UNSIGNED`. لا توجد سجلات بنوك في الملفين المرفقين. التفاصيل في `docs/finance/PHASE23_BANK_ACCOUNT_DESIGN_AR.md`. |
 | `bank_accounts` (مقترح) | — | — | لم يُنشأ بعد | تصميم مستهدف | كيان جديد لحسابات البنوك مرتبط بالفرع وحساب GL، منفصل عن `cash_boxes`. |
 | `delivery_accounting_settings` | نعم | نعم | `DeliverySettlementManager.php` | مستهدف | إعداد طريقة تسوية عهدة المندوب. |
 | `purchases_payments` | نعم | لم يثبت في العينة المحددة | `finance_BE.php` | قديم/انتقالي | تفاصيل دفعات المورد لكل أمر شراء. |
