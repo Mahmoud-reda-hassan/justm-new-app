@@ -20,6 +20,8 @@ on:
     paths:
       - 'inc/Classes/Accounting/**'
       - 'inc/Classes/DatabaseMigrationManager.php'
+      - 'inc/Classes/user_permission.php'
+      - 'inc/template/SidebarMenu.php'
       - 'inc/controller/databaseMigrations.control.php'
       - 'inc/Views/DatabaseMigrations.php'
       - 'dist/js/DatabaseMigrations.js'
