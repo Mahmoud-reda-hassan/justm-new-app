@@ -578,30 +578,6 @@ class inventory_BE {
 				throw new Exception("قيمة مرتجع المورد غير صالحة.");
 			}
 
-			if ($deliveryProduct) {
-				// قفل أرصدة المخزن والتحقق من كفايتها قبل إنشاء أي حركة أو قيد.
-				$codes = array_keys($productCodes);
-				$placeholders = implode(',', array_fill(0, count($codes), '?'));
-				$stockStmt = $this->conn->prepare("
-					SELECT STO_ID, PRO_CODE, STO_QTY
-					FROM stores_product
-					WHERE STO_ID = ? AND PRO_CODE IN ($placeholders)
-					FOR UPDATE
-				");
-				$stockStmt->execute(array_merge([$store_id], $codes));
-				$stockRows = [];
-				foreach ($stockStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-					$stockRows[(string)$row['PRO_CODE']] = (float)$row['STO_QTY'];
-				}
-				foreach ($normalizedProducts as $product) {
-					$code = $product['PRO_CODE'];
-					$availableQty = (float)($stockRows[$code] ?? 0);
-					if ($product['QTY_RETURN'] - $availableQty > 0.00001) {
-						throw new Exception("رصيد المنتج $code في المخزن لا يكفي لتنفيذ المرتجع.");
-					}
-				}
-			}
-
 			$resA = $this->purchase->returnPurchaseOrder(
 				(int)$supplierId,
 				(int)$reference,
