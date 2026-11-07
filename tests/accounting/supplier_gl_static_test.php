@@ -52,6 +52,7 @@ $assert(strpos($balance, 'GetSupplierAdvanceBalance') !== false && strpos($balan
 $assert(strpos($read('inc/controller/finance.control.php'), "case 'ApplySupplierAdvances'") !== false, 'Supplier advance application endpoint is missing.');
 $supplierJs = $read('dist/js/PaymentDisbursement.js');
 $assert(strpos($supplierJs, 'supplierAdvanceRequestFingerprint') !== false, 'Supplier advance retries must reuse the same idempotency key for identical requests.');
+$assert(strpos($supplierJs, 'supplierPaymentRequestFingerprint') !== false && strpos($supplierJs, 'paymentOrders.sort') !== false, 'Supplier payment retries must reuse the key only when the normalized payment request is unchanged.');
 $supplierView = $read('inc/Views/PaymentDisbursement.php');
 $assert(strpos($supplierView, "applySupplierAdvances('AUTO')") !== false
     && strpos($supplierView, "applySupplierAdvances('MANUAL')") !== false,
