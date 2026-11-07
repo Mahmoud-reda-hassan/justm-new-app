@@ -253,13 +253,12 @@ final class SupplierAccountingManager
                 $lock->execute([$supplierId]);
                 if (!$lock->fetchColumn()) throw new RuntimeException('المورد المحدد غير موجود.');
 
-                $sourceSql = "SELECT A.id,A.payment_id,A.amount,
-                    ROUND(A.amount-COALESCE(SUM(X.amount),0),2) AS AVAILABLE
+                $sourceSql = "SELECT A.id,A.payment_id,A.amount,P.created_at,
+                    ROUND(A.amount-COALESCE((SELECT SUM(X.amount) FROM supplier_gl_advance_applications X
+                        WHERE X.source_advance_allocation_id=A.id),0),2) AS AVAILABLE
                     FROM supplier_gl_payment_allocations A
                     INNER JOIN supplier_gl_payments P ON P.id=A.payment_id
-                    LEFT JOIN supplier_gl_advance_applications X ON X.source_advance_allocation_id=A.id
                     WHERE A.supplier_id=? AND A.allocation_type='ADVANCE'
-                    GROUP BY A.id,A.payment_id,A.amount,P.created_at
                     HAVING AVAILABLE>0 ORDER BY P.created_at,A.id FOR UPDATE";
                 $sourceStmt=$this->db->prepare($sourceSql);
                 $sourceStmt->execute([$supplierId]);
@@ -351,8 +350,11 @@ final class SupplierAccountingManager
                 }
                 return $journalId;
             });
+        $appliedStmt=$this->db->prepare('SELECT COALESCE(SUM(amount),0) FROM supplier_gl_advance_applications WHERE journal_entry_id=?');
+        $appliedStmt->execute([(int)$event['journal_entry_id']]);
+        $appliedAmount=round((float)$appliedStmt->fetchColumn(),2);
         return ['journal_entry_id'=>(int)$event['journal_entry_id'],'supplier_id'=>$supplierId,
-            'applied_amount'=>round(array_sum($requested),2),'mode'=>$mode,'already_posted'=>(bool)$event['already_posted']];
+            'applied_amount'=>$appliedAmount,'mode'=>$mode,'already_posted'=>(bool)$event['already_posted']];
     }
 
 
