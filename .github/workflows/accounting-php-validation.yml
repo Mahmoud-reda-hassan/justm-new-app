@@ -54,6 +54,9 @@ jobs:
       - name: PHP syntax checks for accounting classes, controllers and tests
         run: |
           find inc/Classes/Accounting tests/accounting -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l inc/controller/DataAccessObject/PurchaseOrderDAO.php
+          php -l inc/controller/BackEnd/inventory_BE.php
+          php -l inc/controller/BackEnd/finance_BE.php
           php -l inc/controller/BackEnd/accounts_BE.php
           php -l inc/controller/BackEnd/PaymentDisbursement_BE.php
           php -l inc/controller/BackEnd/reports_BE.php
@@ -84,7 +87,8 @@ jobs:
           echo "PASS: both installers import, define all rejected-shipping tables and preserve seed references."
 
       - name: Accounting static regression checks
-        run: php tests/accounting/direct_sale_static_test.php
+        run: |
+          php tests/accounting/direct_sale_static_test.php
           php tests/accounting/supplier_gl_static_test.php
 
       - name: Financial event MariaDB integration tests
