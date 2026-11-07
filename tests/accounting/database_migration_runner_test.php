@@ -21,6 +21,15 @@ $assert = static function (bool $condition, string $message): void {
     if (!$condition) throw new RuntimeException($message);
 };
 
+$userPermission = (string)file_get_contents($root . '/inc/Classes/user_permission.php');
+$sidebar = (string)file_get_contents($root . '/inc/template/SidebarMenu.php');
+$controller = (string)file_get_contents($root . '/inc/controller/databaseMigrations.control.php');
+$assert(strpos($userPermission, '$_GET["Go"] === "DatabaseMigrations"') !== false, 'Admin migration screen route is missing.');
+$assert(strpos($sidebar, '?Go=DatabaseMigrations') !== false, 'Admin migration menu link is missing.');
+$assert(strpos($controller, "hash_equals(\$sessionToken, \$requestToken)") !== false, 'Migration endpoint must validate its CSRF token.');
+$assert(strpos($controller, "ADMIN_TYPE") !== false && strpos($controller, "testar.just-m.net") !== false,
+    'Migration endpoint must restrict execution to Admin on the test host.');
+
 $splitter = new ReflectionMethod(DatabaseMigrationManager::class, 'splitSqlStatements');
 $splitter->setAccessible(true);
 $parts = $splitter->invoke($manager, "-- heading\nSELECT 'a;b', \"c;d\", `e;f`; /* comment ; */ SELECT 2; # tail\n");
