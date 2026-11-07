@@ -51,9 +51,18 @@ jobs:
           extensions: pdo_mysql
           coverage: none
 
-      - name: PHP syntax checks for all accounting classes and tests
+      - name: PHP syntax checks for accounting classes, controllers and tests
         run: |
           find inc/Classes/Accounting tests/accounting -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l inc/controller/BackEnd/accounts_BE.php
+          php -l inc/controller/BackEnd/PaymentDisbursement_BE.php
+          php -l inc/controller/BackEnd/reports_BE.php
+          php -l inc/controller/finance.control.php
+
+      - name: JavaScript syntax checks for converted finance screens
+        run: |
+          node --check dist/js/PaymentDisbursement.js
+          node --check dist/js/ReceivePayments.js
 
       - name: Import both full database installers
         env:
