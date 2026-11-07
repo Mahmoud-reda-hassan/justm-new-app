@@ -30,6 +30,7 @@ $assert(strpos($manager, 'SUPPLIER_PAYMENT_POSTED') !== false, 'Supplier payment
 $assert(strpos($manager, 'supplierAdvances()') !== false, 'Supplier advance account is not used.');
 $assert(strpos($manager, "'partner_type'=>'SUPPLIER','partner_id'=>\$supplierId,'reference_type'=>'SUPPLIER_ADVANCE'") !== false, 'Supplier advances are not linked to their supplier partner.');
 $assert(strpos($dao, 'recordPurchaseOrder') !== false && strpos($dao, 'addSupplierDebt') === false, 'New purchase orders still write legacy supplier balances.');
+$assert(strpos($dao, 'if ((float)$total_payments > 0)') !== false && strpos($dao, 'لا يمكن تسجيل دفعة أولية مع أمر الشراء حاليًا') !== false, 'New purchase orders must reject initial payments until their GL payment path is implemented.');
 $assert(strpos($dao, 'addSupplierCredit') === false, 'New supplier returns still write legacy supplier balances.');
 $assert(strpos($inventory, 'recordReceiptByMovementUniqueId') !== false, 'Physical purchase receipts are not linked to GL.');
 $assert(strpos($inventory, 'recordReturnByMovementUniqueId') !== false, 'Physical supplier returns are not linked to GL.');
