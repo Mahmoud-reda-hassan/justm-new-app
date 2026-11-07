@@ -275,6 +275,7 @@ try {
             if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
             $deliveryId = (int)($_POST['delivery_id'] ?? 0);
             $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $cashBoxId = (int)($_POST['cash_box_id'] ?? 0);
             $amount = round((float)($_POST['amount'] ?? 0), 2);
             $note = trim((string)($_POST['note'] ?? ''));
             $requestKey = trim((string)($_POST['request_key'] ?? ''));
@@ -282,11 +283,12 @@ try {
                 'delivery_id' => $deliveryId,
                 'branch_id' => $branchId,
                 'payment_method_id' => $paymentMethodId,
+                'cash_box_id' => $cashBoxId,
                 'amount' => $amount,
                 'note' => $note,
             ], JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
             $result = $deliveryAccounting->payCommission(
-                $deliveryId, $branchId, $paymentMethodId, $amount, $note, $requestKey, $requestHash
+                $deliveryId, $branchId, $paymentMethodId, $cashBoxId, $amount, $note, $requestKey, $requestHash
             );
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
