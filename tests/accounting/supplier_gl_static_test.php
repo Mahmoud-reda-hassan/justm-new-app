@@ -71,8 +71,12 @@ $paymentMethod = substr($finance, $paymentStart, $paymentEnd - $paymentStart);
 $assert(strpos($paymentMethod, 'SupplierAccountingManager') !== false, 'Supplier payment does not use the GL manager.');
 $assert(strpos($paymentMethod, 'Add_partners_balance') === false && strpos($paymentMethod, 'Add_transaction') === false, 'New supplier payment still writes legacy finance tables.');
 $assert(strpos($balance, "'SUPPLIER_ADVANCES'") !== false, 'Supplier balance omits supplier advances.');
-$assert(strpos($balance, "'legacy_balance'") !== false && strpos($balance, "'gl_balance'") !== false, 'Historical and GL supplier balances must remain separate.');
-$assert(strpos($balance, '$totalBalance = round($legacyBalance + $glBalance, 2)') !== false, 'Supplier total balance must include both historical and GL balances.');
+$supplierBalanceStart = strpos($balance, 'if ($partnerType === \'SUPPLIER\')');
+$supplierBalanceEnd = strpos($balance, 'if ($partnerType === \'DELIVERY\')', $supplierBalanceStart);
+$supplierBalanceMethod = substr($balance, $supplierBalanceStart, $supplierBalanceEnd - $supplierBalanceStart);
+$assert(strpos($supplierBalanceMethod, 'partners_balance') === false
+    && strpos($supplierBalanceMethod, "'SUPPLIERS','SUPPLIER_ADVANCES'") !== false,
+    'Supplier balances must use GL only, including supplier advances.');
 $assert(strpos($installer, 'supplier_gl_payments') !== false, 'Supplier GL payment tables are missing from installer.');
 $assert(strpos($manager, "INSERT INTO purchases_payments") !== false && strpos($manager, "UPDATE purchases_orders SET TOTAL_PAYMENTS") !== false, 'Supplier GL payments must keep the legacy operational payment totals synchronized.');
 $assert(strpos($manager, "supplier_gl_payment_allocations") !== false, 'Supplier payment allocations are not persisted.');
