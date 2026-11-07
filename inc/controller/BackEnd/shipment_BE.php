@@ -39,6 +39,7 @@ include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryAttemptCommissionManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingCollectionManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
 
 class shipment_BE {
 	private $orders_log_Tbl = 'ORDERS_LOG';
