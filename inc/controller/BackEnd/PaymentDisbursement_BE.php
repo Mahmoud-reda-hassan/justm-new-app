@@ -305,4 +305,20 @@ class PaymentDisbursement {
 
     
     
+
+    public function GetSupplierAdvanceBalance($supplierId): array
+    {
+        $stmt = $this->conn->prepare("SELECT ROUND(COALESCE(SUM(A.amount),0)-COALESCE((
+                SELECT SUM(X.amount) FROM supplier_gl_advance_applications X
+                WHERE X.supplier_id=A.supplier_id
+            ),0),2) AS AVAILABLE
+            FROM supplier_gl_payment_allocations A
+            WHERE A.supplier_id=? AND A.allocation_type='ADVANCE'
+            GROUP BY A.supplier_id");
+        $stmt->execute([(int)$supplierId]);
+        $amount = $stmt->fetchColumn();
+        return ['supplier_id'=>(int)$supplierId,'available_advance'=>round((float)($amount ?: 0),2)];
+    }
+
+
 }
