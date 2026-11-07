@@ -492,123 +492,69 @@ async function saveSupplierPayment(){
 }
 
 /*==================================================
+=            MARKETER GL PAYMENT METHODS
+==================================================*/
+async function loadMarketerPaymentMethods() {
+    const response = await request(API_FINANCE, {
+        CONTROL: 'GetDeliverySettlementPaymentMethods'
+    }, 'POST');
+    const $select = $('#marketer-payment-method');
+    $select.empty().append($('<option>', { value: '', text: 'اختر طريقة الدفع' }));
+    if (!response || response.success !== true) {
+        showAlert('error', 'خطأ', response?.[2] || response?.message || 'تعذر تحميل طرق الدفع المرتبطة بحسابات الفرع.');
+        return;
+    }
+    (response.methods || []).forEach(method => {
+        $select.append($('<option>', { value: method.id, text: method.name }));
+    });
+}
+
+/*==================================================
 =            SAVE MARKETER PAYMENT
 ==================================================*/
 
-async function saveMarketerPayment(){
+async function saveMarketerPayment() {
+    const marketerId = Number($('#select-masouq').val() || 0);
+    const paymentMethodId = Number($('#marketer-payment-method').val() || 0);
+    const amount = Number($('#amount-masouq').val() || 0);
+    const available = Number($('#total-masouq').text() || 0);
 
-    const marketerId = $('#select-masouq').val();
-	const totalbalance = $("#total-masouq").text();
-    const amount = parseFloat(
-        $('#amount-masouq').val()
-    ) || 0;
-
-    /*==============================
-    =            validation
-    ==============================*/
-
-    if(!marketerId){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإختيار المسوق'
-        );
-
-        return;
-
+    if (!marketerId) return showAlert('warning', 'تنبيه', 'قم بإختيار المسوق');
+    if (!paymentMethodId) return showAlert('warning', 'تنبيه', 'اختر طريقة صرف العمولة');
+    if (!Number.isFinite(amount) || amount <= 0) return showAlert('warning', 'تنبيه', 'قم بإدخال مبلغ صحيح');
+    if (amount - available > 0.009) {
+        $('#amount-masouq').val(formatMoney(available));
+        return showAlert('warning', 'تنبيه', 'المبلغ أكبر من مستحقات المسوق المتاحة في دفتر الأستاذ العام');
     }
 
-    if(amount <= 0){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'قم بإدخال مبلغ صحيح'
-        );
-
-        return;
-
-    }
-    if(amount > totalbalance){
-
-        showAlert(
-            'warning',
-            'تنبيه',
-            'المبلغ الذى ادخلته اكبر من مستحقات المسوق'
-        );
-		$('#amount-masouq').val(totalbalance);
-        return;
-
-    }
-
-    /*==============================
-    =            payload
-    ==============================*/
-
+    const requestKey = 'MCP-' + (window.crypto?.randomUUID
+        ? window.crypto.randomUUID().replace(/-/g, '')
+        : Date.now().toString(36) + Math.random().toString(36).slice(2));
     const payload = {
-
-        CONTROL : 'PaymentOfMarketerDues',
-        partner_id : marketerId,
-        balance : totalbalance,
-        amount : amount
-
+        CONTROL: 'PayMarketerCommission',
+        partner_id: marketerId,
+        payment_method_id: paymentMethodId,
+        amount: amount.toFixed(2),
+        request_key: requestKey
     };
 
     showLoading('جارى حفظ عملية الصرف...');
-
-    try{
-
-        const data = await request(
-            API_FINANCE,
-            payload,
-            'POST'
-        );
-
+    try {
+        const data = await request(API_FINANCE, payload, 'POST');
         hideLoading();
-
-        if(!data)
-            return;
-
-        showAlert(
-            data[0],
-            data[1],
-            data[2]
-        );
-
-        /*==============================
-        =            success
-        ==============================*/
-
-        if(data[0] === 'success'){
-			$('#select-masouq').val(null).trigger('change').html('<option value=""></option>');
+        if (!data) return;
+        showAlert(data[0] || 'error', data[1] || 'خطأ', data[2] || 'لم يتم تأكيد عملية الصرف');
+        if (data[0] === 'success') {
+            $('#select-masouq').val(null).trigger('change').html('<option value="">اختر المسوق</option>');
+            $('#marketer-payment-method').val('');
             $('#amount-masouq').val('');
-			
-            delete balanceCache[
-                `MARKETER_${marketerId}`
-            ];
-
-            /*loadPartnerBalance(
-                marketerId,
-                'MARKETER',
-                '#total-masouq',
-                '#amount-masouq'
-            );*/
-
+            $('#total-masouq').text('0.00');
+            delete balanceCache[`MARKETER_${marketerId}`];
         }
-
-    }catch(error){
-
+    } catch (error) {
         hideLoading();
-
-        showAlert(
-            'error',
-            'خطأ',
-            error.message
-        );
-
+        showAlert('error', 'خطأ', error.message);
     }
-
 }
 
 /*==================================================
@@ -738,6 +684,7 @@ $(function() {
     initBackButton();
 
     // تهيئة المندوب والمسوق والمورد
+    loadMarketerPaymentMethods();
     initPartnerSelect2('#select-mandob', 'GetDeliveryData', 'اختر المندوب');
     initPartnerSelect2('#select-masouq', 'GetMasouqData', 'اختر المسوق');
     initPartnerSelect2('#select-morad', 'GetMoradData', 'اختر المورد');
