@@ -44,6 +44,21 @@ for fragment in [
 ]:
     check('Migration contains ' + fragment, fragment in migration)
 
+# 1b) Branch and cash-box ownership integrity.
+branches = table_block(installer, 'branches')
+cash_boxes = table_block(installer, 'cash_boxes')
+pma = table_block(installer, 'payment_method_accounts')
+check('Branch names are unique within company', 'uq_branches_company_name' in branches and 'UNIQUE KEY `BR_NAME`' not in branches)
+check('Cash boxes reference an existing branch', 'fk_cash_boxes_branch' in cash_boxes)
+check('Payment-method mappings reference an existing branch', 'fk_pma_branch' in pma)
+check('Root and nested installers are synchronized', read('JUSTM_DATABASE_INSTALL.sql') == installer)
+cash_settings = read('inc/Classes/Accounting/AccountSettings.php')
+cash_method = re.search(r'public function cash\(int \$branchId\): int(.*?)public function transactionAccount', cash_settings, re.S)
+check('Cash selection rejects multiple active boxes', bool(cash_method) and 'count($rows) > 1' in cash_method.group(1) and 'LIMIT 1' not in cash_method.group(1))
+phase21 = read('inc/Databases/migrations/PHASE21_BRANCH_AND_CASHBOX_REFERENCES.sql')
+check('Legacy branch/cash-box migration includes orphan preflight', 'orphan_cash_boxes' in phase21 and 'orphan_payment_method_accounts' in phase21)
+check('Phase 21 migration adds branch foreign keys', 'fk_cash_boxes_branch' in phase21 and 'fk_pma_branch' in phase21)
+
 # 2) Accounting safeguards and approved shipping behavior.
 accounting = read('inc/Classes/Accounting/AccountingEvents.php')
 check('Per-line delivered cost validation', 'INVALID_COST_LINES_COUNT' in accounting and "COST_PRICE IS NULL OR op.COST_PRICE <= 0" in accounting)
