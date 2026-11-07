@@ -12,11 +12,11 @@ require_once __DIR__ . '/FinancialEventManager.php';
  */
 final class DeliverySettlementManager
 {
-    private PDO $db;
+    private PDO|TrimmedPDO $db;
     private JournalManager $journal;
     private AccountSettings $accounts;
 
-    public function __construct(PDO $db)
+    public function __construct(PDO|TrimmedPDO $db)
     {
         $this->db = $db;
         $this->journal = new JournalManager($db);
