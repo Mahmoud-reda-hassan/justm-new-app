@@ -1023,6 +1023,15 @@ class finance_BE {
 		);
 	}
 
+
+    public function ApplySupplierAdvances(int $supplier_id, array $orders, string $mode, string $request_key): array {
+        $branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+        $userId = (int)($_SESSION['USER_ID'] ?? 0);
+        return (new SupplierAccountingManager($this->conn))->applyAdvances(
+            $supplier_id, $orders, $mode, $branchId, $userId, $request_key
+        );
+    }
+
 	// صرف مستحقات عميل (مرتجع مبيعات)
 	public function PaymentOfCustomerDues($oid){
 		if(!$oid) throw new Exception("من فضلك قم بإختيار امر البيع اولا"); 
