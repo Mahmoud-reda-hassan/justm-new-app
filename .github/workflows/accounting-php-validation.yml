@@ -2,9 +2,13 @@ name: Accounting PHP Validation
 
 on:
   push:
-    branches: [main, feature/gl-only-accounting-cutover]
+    branches: [main, feature/gl-only-accounting-cutover, feature/admin-database-migrations]
     paths:
       - 'inc/Classes/Accounting/**'
+      - 'inc/Classes/DatabaseMigrationManager.php'
+      - 'inc/controller/databaseMigrations.control.php'
+      - 'inc/Views/DatabaseMigrations.php'
+      - 'dist/js/DatabaseMigrations.js'
       - 'inc/Databases/JUSTM_DATABASE_INSTALL.sql'
       - 'JUSTM_DATABASE_INSTALL.sql'
       - 'tests/accounting/**'
@@ -61,11 +65,16 @@ jobs:
           php -l inc/controller/BackEnd/PaymentDisbursement_BE.php
           php -l inc/controller/BackEnd/reports_BE.php
           php -l inc/controller/finance.control.php
+          php -l inc/Classes/DatabaseMigrationManager.php
+          php -l inc/controller/databaseMigrations.control.php
+          php -l inc/Views/DatabaseMigrations.php
+          php -l tests/accounting/database_migration_runner_test.php
 
       - name: JavaScript syntax checks for converted finance screens
         run: |
           node --check dist/js/PaymentDisbursement.js
           node --check dist/js/ReceivePayments.js
+          node --check dist/js/DatabaseMigrations.js
 
       - name: Import both full database installers
         env:
@@ -92,6 +101,13 @@ jobs:
           ACCOUNTING_SCHEMA_DB_USER: root
           ACCOUNTING_SCHEMA_DB_PASSWORD: accounting_test
         run: php tests/accounting/supplier_gl_schema_compatibility_test.php
+
+      - name: Admin database migration runner MariaDB integration tests
+        env:
+          ACCOUNTING_SCHEMA_DSN: mysql:host=127.0.0.1;port=3306;dbname=installer_root_test;charset=utf8mb4
+          ACCOUNTING_SCHEMA_DB_USER: root
+          ACCOUNTING_SCHEMA_DB_PASSWORD: accounting_test
+        run: php tests/accounting/database_migration_runner_test.php
 
       - name: Accounting static regression checks
         run: |
