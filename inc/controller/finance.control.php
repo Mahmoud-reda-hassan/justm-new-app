@@ -277,10 +277,7 @@ try {
 			echo json_encode($CBE->registerCollection($_POST['delivery_id'], $_POST['orderObj'], $_POST['totalAmount']));
 		    break;
 		case 'PaymentOfCustomerDues':
-		    $CBE->transaction_user_id = $_SESSION['USER_ID'];
-			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];
-		    echo json_encode($CBE->PaymentOfCustomerDues($_POST['oid']));
-			break;
+			throw new RuntimeException('تم إيقاف مسار رد المرتجع القديم. استخدم مسار رد المبلغ المعتمد في الأستاذ العام.');
 		case 'SaveSupplierPayment':
 			$supplier_id= $_POST['supplier_id'];
 			$total_amount = $_POST['total_amount'];
