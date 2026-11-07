@@ -220,7 +220,9 @@ class PaymentDisbursement {
 			}
 			$glStmt = $this->conn->prepare($glSql);
 			$glStmt->execute($glParams);
-			return [['total_balance' => round($legacyBalance, 2), 'legacy_balance' => round($legacyBalance, 2), 'gl_balance' => round((float)$glStmt->fetchColumn(), 2)]];
+			$glBalance = round((float)$glStmt->fetchColumn(), 2);
+			$totalBalance = round($legacyBalance + $glBalance, 2);
+			return [['total_balance' => $totalBalance, 'legacy_balance' => round($legacyBalance, 2), 'gl_balance' => $glBalance]];
 		}
 		if ($partnerType === 'DELIVERY') {
 			if ($order_id) return [['total_balance' => 0]];
