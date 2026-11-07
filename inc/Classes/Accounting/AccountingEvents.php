@@ -706,7 +706,7 @@ class AccountingEvents {
             $marketerId = (int)$order['MARKETER_ID'];
             $leaderId = (int)($order['LEADER_ID'] ?? 0);
             $marketerExpected = round($returnedQty * (float)$order['MARKETER_COMMISSION_RATE'], 2);
-            $leaderExpected = ($leaderId > 0 && $leaderId !== $marketerId)
+            $leaderExpected = ($leaderId > 0)
                 ? round($returnedQty * (float)$order['LEADER_COMMISSION_RATE'], 2)
                 : 0.0;
 
