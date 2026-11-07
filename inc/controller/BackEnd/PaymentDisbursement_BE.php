@@ -302,9 +302,11 @@ class PaymentDisbursement {
     {
         $stmt = $this->conn->prepare("SELECT ROUND(COALESCE(SUM(A.amount),0)-COALESCE((
                 SELECT SUM(X.amount) FROM supplier_gl_advance_applications X
+                INNER JOIN journal_entries J ON J.id=X.journal_entry_id AND J.status='POSTED'
                 WHERE X.supplier_id=A.supplier_id
             ),0),2) AS AVAILABLE
             FROM supplier_gl_payment_allocations A
+            INNER JOIN supplier_gl_payments P ON P.id=A.payment_id AND P.reversal_journal_entry_id IS NULL
             WHERE A.supplier_id=? AND A.allocation_type='ADVANCE'
             GROUP BY A.supplier_id");
         $stmt->execute([(int)$supplierId]);
