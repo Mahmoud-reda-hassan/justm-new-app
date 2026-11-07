@@ -8,6 +8,7 @@ include_once(ABSPATH.'/inc/Databases/TableInserterDAO.php');
 include_once(ABSPATH.'/inc/Databases/TableUpdaterDAO.php');
 include_once(ABSPATH.'/inc/Databases/TableDeleterDAO.php');
 include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/SupplierAccountingManager.php');
 
 
 class inventory_BE {
@@ -452,7 +453,9 @@ class inventory_BE {
 		    if (!$resA) {
 		        throw new Exception("لم يتم تأكيد حفظ أمر الشراء.");
 		    }
-		    $this->InventoryManager->processInventory('receiving', [$resA], $userActionId, $branch_id, null, $store_id);
+		    $movementUniqueId = 'PURCHASE_RECEIPT_' . bin2hex(random_bytes(16));
+		    $this->InventoryManager->processInventory('receiving', [$resA], $userActionId, $branch_id, $movementUniqueId, $store_id);
+		    (new SupplierAccountingManager($this->conn))->recordReceiptByMovementUniqueId($movementUniqueId);
 			//processPurchaseOrder('receiving', $resA, $userActionId, $branch_id, );     
 		    		
 		    $this->conn->commit();
@@ -511,7 +514,9 @@ class inventory_BE {
 		    //$resC = $finance->Add_transaction($resB, 'SUPPLIER', $supplierId, $totalPrice, 1, 10, 'deferred', $comment);
 		     
 		    //if($deliveryProduct)  $this->inventoryMovement($products, $resA, $supplierId, 'refundpurchises',$store_id):true;
-		   	if($deliveryProduct)  $this->InventoryManager->processInventory('refundpurchises', [$resA], $userActionId, $branchId, null, $store_id);
+		   	if($deliveryProduct)  $movementUniqueId = 'PURCHASE_RETURN_' . bin2hex(random_bytes(16));
+		   	$this->InventoryManager->processInventory('refundpurchises', [$resA], $userActionId, $branchId, $movementUniqueId, $store_id);
+		   	(new SupplierAccountingManager($this->conn))->recordReturnByMovementUniqueId($movementUniqueId);
 		   	
 		    if ($resB2) {
 		        $this->conn->commit();
@@ -553,7 +558,9 @@ class inventory_BE {
 		        throw new Exception("لم يتم تأكيد حفظ أمر الشراء.");
 		    }
 
-			$this->InventoryManager->processInventory('partialreceipt', [$orderid], $userActionId, $branch_id, null, $store_id , null, $products);
+			$movementUniqueId = 'PURCHASE_PARTIAL_RECEIPT_' . bin2hex(random_bytes(16));
+			$this->InventoryManager->processInventory('partialreceipt', [$orderid], $userActionId, $branch_id, $movementUniqueId, $store_id , null, $products);
+			(new SupplierAccountingManager($this->conn))->recordReceiptByMovementUniqueId($movementUniqueId);
 			
 		    if ($resC) {
 		        $this->conn->commit();

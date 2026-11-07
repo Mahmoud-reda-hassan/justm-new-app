@@ -1,4 +1,5 @@
 <?php
+require_once ABSPATH . '/inc/Classes/Accounting/SupplierAccountingManager.php';
 include_once(ABSPATH.'/inc/configDateTimeFN.php');
 include_once(ABSPATH.'/inc/Databases/DBSchema.php');
 include_once(ABSPATH.'/inc/Databases/DataProcessor.php');
@@ -243,10 +244,9 @@ class PurchaseOrderDAO {
 		if (!$orderId || !$response) {
 			throw new Exception("purchases products not confirmed");
 		}
-		$response1 = $this->finance->addSupplierDebt($this->pdo,$supplierId, $orderId, $total_price);
-		if (!$response1) {
-			throw new Exception("partner balanceis not confirmed");
-		}
+		$branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+		$userId = (int)($_SESSION['USER_ID'] ?? 0);
+		(new SupplierAccountingManager($this->pdo))->recordPurchaseOrder((int)$orderId, (int)$supplierId, $branchId, $userId);
 		
 		return $orderId;
 	}
@@ -276,10 +276,7 @@ class PurchaseOrderDAO {
 			throw new Exception("Return Purchase product is not confirmed");
 		}
 		
-		$response1 = $this->finance->addSupplierCredit($this->pdo,$supplierId, $orderId, $total_price);
-		if (!$response1) {
-			throw new Exception("partner balanceis not confirmed");
-		}
+		// يُسجل تخفيض مستحق المورد بعد اعتماد حركة الصرف المخزني للمرتجع فقط.
 		return $orderId;
 	}
 	// داله لتحديث بينات امر الشراء فى جدول purchases_orders
