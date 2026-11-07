@@ -162,8 +162,16 @@
             </div>
 
             <div class="row mt-3">
-                <div class="col-md-6"><div class="alert alert-info mb-2">الموزع على الفواتير: <strong id="current-payment-total">0.00</strong></div></div>
-                <div class="col-md-6"><div class="alert alert-warning mb-2">مقدم المورد: <strong id="supplier-advance-total">0.00</strong></div></div>
+                <div class="col-md-4"><div class="alert alert-info mb-2">الموزع من الدفعة الحالية: <strong id="current-payment-total">0.00</strong></div></div>
+                <div class="col-md-4"><div class="alert alert-warning mb-2">مقدم جديد من الدفعة: <strong id="supplier-advance-total">0.00</strong></div></div>
+                <div class="col-md-4"><div class="alert alert-success mb-2">مقدم سابق متاح: <strong id="supplier-existing-advance">0.00</strong></div></div>
+            </div>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
+                <small class="text-muted">يمكن تطبيق المقدم السابق تلقائيًا على أقدم الفواتير، أو تحديد مبلغ لكل فاتورة يدويًا.</small>
+                <button type="button" class="btn btn-outline-success" onclick="applySupplierAdvances('AUTO')">تطبيق المقدم تلقائيًا</button>
+            </div>
+            <div class="mt-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="applySupplierAdvances('MANUAL')">تطبيق المبالغ المحددة يدويًا</button>
             </div>
             <!-- توزيع دفعة المورد على الفواتير -->
             <div class="table-responsive mt-4">
@@ -177,7 +185,8 @@
                             <th>المرتجع</th>
                             <th>المسدّد</th>
                             <th>المتبقي</th>
-                            <th width="140">المبلغ الحالي</th>
+                            <th width="140">من الدفعة الحالية</th>
+                            <th width="140">من المقدم السابق</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
