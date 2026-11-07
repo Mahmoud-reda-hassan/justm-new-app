@@ -32,6 +32,18 @@ $assert(stripos((string)$environment['database'], 'test') !== false, 'Migration 
 // Force the two first CREATE TABLE migrations through their real creation path.
 $pdo->exec('DROP TABLE IF EXISTS payment_method_accounts');
 $pdo->exec('DROP TABLE IF EXISTS accounting_line_allocations');
+$pdo->exec('DROP TABLE IF EXISTS delivery_settlement_collection_links');
+$pdo->exec('DROP TABLE IF EXISTS delivery_collection_order_allocations');
+$pdo->exec('DROP TABLE IF EXISTS delivery_customer_collections');
+$pdo->exec('DROP TABLE IF EXISTS delivery_company_settlements');
+$pdo->exec('DROP TABLE IF EXISTS delivery_commission_payments');
+$pdo->exec('DROP TABLE IF EXISTS delivery_accounting_settings');
+$pdo->exec('DROP TABLE IF EXISTS supplier_payment_allocations');
+$pdo->exec('DROP TABLE IF EXISTS marketer_commission_payments');
+$pdo->exec('DROP TABLE IF EXISTS customer_refund_payments');
+$pdo->exec('DROP TABLE IF EXISTS supplier_gl_advance_applications');
+$pdo->exec('DROP TABLE IF EXISTS supplier_gl_payment_allocations');
+$pdo->exec('DROP TABLE IF EXISTS supplier_gl_payments');
 
 $migrations = $manager->listMigrations();
 $assert(count($migrations) === 10, 'The approved migration registry must contain ten numbered phases.');
