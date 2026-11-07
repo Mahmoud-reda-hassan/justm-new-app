@@ -63,7 +63,8 @@ check('Journal cash-box foreign key exists', 'fk_journal_detail_cash_box' in tab
 journal_manager = read('inc/Classes/Accounting/JournalManager.php')
 check('JournalManager validates cash-box branch and account', 'cash_box_id' in journal_manager and 'الخزينة المحددة غير نشطة' in journal_manager)
 check('JournalManager persists cash-box reference', 'cash_box_id,' in journal_manager and "$line['cash_box_id']" in journal_manager)
-check('JournalManager cash-box insert has 14 matching placeholders', bool(re.search(r'cash_box_id,.*?VALUES\\s*\\(\\?,\\?,\\?,\\?,\\?,\\?,\\?,\\?,\\?,\\?,\\?,\\?,\\?,\\?\\)', journal_manager, re.S)))
+journal_lines = journal_manager.split('protected function saveLines', 1)[1].split('protected function generateEntryNumber', 1)[0]
+check('JournalManager cash-box insert has 14 matching placeholders', '(?,?,?,?,?,?,?,?,?,?,?,?,?,?)' in journal_lines)
 phase22 = read('inc/Databases/migrations/PHASE22_JOURNAL_CASHBOX_REFERENCE.sql')
 check('Phase 22 migration adds nullable cash-box reference', 'ADD COLUMN cash_box_id BIGINT UNSIGNED NULL' in phase22 and 'fk_journal_detail_cash_box' in phase22)
 migration_manager = read('inc/Classes/DatabaseMigrationManager.php')
