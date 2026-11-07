@@ -17,7 +17,12 @@ on:
   pull_request:
     paths:
       - 'inc/Classes/Accounting/**'
+      - 'inc/Classes/DatabaseMigrationManager.php'
+      - 'inc/controller/databaseMigrations.control.php'
+      - 'inc/Views/DatabaseMigrations.php'
+      - 'dist/js/DatabaseMigrations.js'
       - 'inc/Databases/JUSTM_DATABASE_INSTALL.sql'
+      - 'inc/Databases/migrations/**'
       - 'JUSTM_DATABASE_INSTALL.sql'
       - 'tests/accounting/**'
       - '.github/workflows/accounting-php-validation.yml'
