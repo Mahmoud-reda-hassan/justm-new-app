@@ -143,6 +143,8 @@ try {
                 FROM payment_methods pm
                 INNER JOIN payment_method_accounts pma ON pma.payment_method_id = pm.id
                     AND pma.branch_id = ? AND pma.is_active = 1
+                INNER JOIN cash_boxes cb ON cb.branch_id = pma.branch_id
+                    AND cb.account_id = pma.account_id AND cb.is_active = 1
                 WHERE pm.is_active = 1 ORDER BY pm.id");
             $methodsStmt->execute([$branchId]);
             echo json_encode(['success' => true, 'methods' => $methodsStmt->fetchAll(PDO::FETCH_ASSOC)], JSON_UNESCAPED_UNICODE);
