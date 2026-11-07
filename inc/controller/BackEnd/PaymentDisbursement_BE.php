@@ -181,6 +181,19 @@ class PaymentDisbursement {
 	}
 	
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
+		// مستحقات المسوقين وقادة الفرق مصدرها حساب المستحقات في الأستاذ العام فقط.
+		if (strtoupper((string)$partnerType) === 'MARKETER') {
+			if ($order_id) return [['total_balance' => 0]];
+			$stmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit - d.debit),0) AS total_balance
+				FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+				INNER JOIN account_settings aset ON aset.account_id = d.account_id
+					AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
+				WHERE d.partner_type = 'MARKETER' AND d.partner_id = ?");
+			$stmt->execute([(int)$partnerId]);
+			return [['total_balance' => round((float)$stmt->fetchColumn(), 2)]];
+		}
+
 		$query = "SELECT COALESCE(Sum(CASE
 				    WHEN TRANSACTION_TYPE = 'CREDIT'
 				    THEN BALANCE
@@ -190,19 +203,18 @@ class PaymentDisbursement {
 				   THEN BALANCE
 				   ELSE 0
 				     END),0) AS total_balance
-				FROM  partners_balance pb 
-				WHERE PARTNER_TYPE = :ptype
-				 AND PARTNER_ID = :pid ";
-				 $parms = ['ptype' =>$partnerType, 'pid' => $partnerId];
-				 if($order_id) {
-				 	$query .= " AND pb.REFERENCE_ID =:oid";
-				 	$parms['oid']=$order_id;
-				 }
+				FROM partners_balance pb
+				WHERE PARTNER_TYPE = :ptype AND PARTNER_ID = :pid ";
+		$parms = ['ptype' => $partnerType, 'pid' => $partnerId];
+		if ($order_id) {
+			$query .= " AND pb.REFERENCE_ID = :oid";
+			$parms['oid'] = $order_id;
+		}
 		$stmt = $this->conn->prepare($query);
-	    $stmt->execute($parms);
+		$stmt->execute($parms);
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	
+
 	public function GetSupplierOrderList($supplierId){
 
     $records = [];
