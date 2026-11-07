@@ -94,6 +94,11 @@ $assert(strpos($manager, "supplier_gl_payment_allocations") !== false, 'Supplier
 $assert(strpos($manager, 'public function applyAdvances(') !== false, 'Supplier advance application workflow is missing.');
 $assert(strpos($manager, 'public function reversePayment(') !== false, 'Coordinated supplier payment reversal is missing.');
 $assert(strpos($manager, 'public function reverseAdvanceApplication(') !== false, 'Coordinated supplier advance application reversal is missing.');
+$supplierJs = $read('dist/js/PaymentDisbursement.js');
+$assert(strpos($supplierJs, "offerSupplierReversal('ReverseSupplierPayment'") !== false
+    && strpos($supplierJs, "offerSupplierReversal('ReverseSupplierAdvanceApplication'") !== false,
+    'Supplier payment and advance reversal must be available through explicit UI confirmation.');
+
 $assert(strpos($manager, "reversal_journal_entry_id") !== false && strpos($manager, "SUPPLIER_GL_PAYMENT_ID") !== false, 'Supplier reversal linkage is incomplete.');
 $assert(strpos($manager, 'يجب عكس تطبيقات المقدم المرتبطة بهذه الدفعة أولًا') !== false, 'A supplier payment cannot be reversed while its advance applications remain active.');
 $assert(strpos($manager, "AXJ.status='POSTED'") !== false, 'Reversed advance applications are still deducted from available advances.');
