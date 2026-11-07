@@ -46,12 +46,13 @@ $assert(strpos($manager, "supplier_gl_payment_allocations") !== false, 'Supplier
 $assert(strpos($manager, 'public function applyAdvances(') !== false, 'Supplier advance application workflow is missing.');
 $assert(strpos($manager, "'SUPPLIER_ADVANCE_APPLIED'") !== false, 'Supplier advance application GL event is missing.');
 $assert(strpos($manager, 'supplier_gl_advance_applications') !== false, 'Supplier advance source-to-invoice applications are not tracked.');
-$assert(strpos($manager, "'mode'=>$mode") !== false, 'Supplier advance application mode is not idempotently recorded.');
+$assert(strpos($manager, "'mode'=>\$mode") !== false, 'Supplier advance application mode is not idempotently recorded.');
 $assert(strpos($balance, 'GetSupplierAdvanceBalance') !== false, 'Available supplier advance balance endpoint is missing.');
 $assert(strpos($balance, 'GetSupplierAdvanceBalance') !== false && strpos($balance, 'supplier_gl_advance_applications') !== false, 'Supplier available advance is not net of prior applications.');
 $assert(strpos($read('inc/controller/finance.control.php'), "case 'ApplySupplierAdvances'") !== false, 'Supplier advance application endpoint is missing.');
-$assert(strpos($read('dist/js/PaymentDisbursement.js'), "applySupplierAdvances('AUTO')") !== false
-    && strpos($read('dist/js/PaymentDisbursement.js'), "applySupplierAdvances('MANUAL')") !== false,
+$supplierView = $read('inc/Views/PaymentDisbursement.php');
+$assert(strpos($supplierView, "applySupplierAdvances('AUTO')") !== false
+    && strpos($supplierView, "applySupplierAdvances('MANUAL')") !== false,
     'Supplier advance UI must support both automatic and manual allocation.');
 $assert(strpos($installer, 'supplier_gl_advance_applications') !== false, 'Supplier advance application table is missing from installer.');
 
