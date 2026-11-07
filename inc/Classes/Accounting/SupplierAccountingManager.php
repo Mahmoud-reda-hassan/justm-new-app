@@ -100,30 +100,31 @@ final class SupplierAccountingManager
     public function recordReturnByMovementUniqueId(string $uniqueId): array
     {
         $stmt=$this->db->prepare("SELECT IM.IM_ID,IM.REFERENCE RETURN_ORDER_ID,IM.IM_BRANCH,IM.STO_ID,IM.IM_USER,
-            PRO.SUPPLIER_ID,ROUND(COALESCE(SUM(PRP.PURCHASE_UNIT_PRICE*IPM.IPM_QTY),0),2) AMOUNT
+            PRO.SUPPLIER_ID,PRO.REFERANC PURCHASE_ORDER_ID,
+            ROUND(COALESCE(SUM(PRP.PURCHASE_UNIT_PRICE*IPM.IPM_QTY),0),2) AMOUNT
             FROM inventory_movement IM
             INNER JOIN inventory_product_movement IPM ON IPM.IM_ID=IM.IM_ID
             INNER JOIN purchases_return_products PRP ON PRP.ORDER_ID=IPM.ORDER_ID AND PRP.PRO_CODE=IPM.IPM_CODE
             INNER JOIN purchases_return_orders PRO ON PRO.ORDER_ID=IM.REFERENCE
             WHERE IM.UNIQUE_ID=? AND LOWER(IM.IM_MOVE_TYPE)='refundpurchises' AND IPM.IPM_TYPE_MOV='OUT'
-            GROUP BY IM.IM_ID,IM.REFERENCE,IM.IM_BRANCH,IM.STO_ID,IM.IM_USER,PRO.SUPPLIER_ID LIMIT 1");
+            GROUP BY IM.IM_ID,IM.REFERENCE,IM.IM_BRANCH,IM.STO_ID,IM.IM_USER,PRO.SUPPLIER_ID,PRO.REFERANC LIMIT 1");
         $stmt->execute([$uniqueId]); $m=$stmt->fetch(PDO::FETCH_ASSOC);
         if(!$m) throw new RuntimeException('تعذر العثور على حركة صرف مرتجع المشتريات.');
         $amount=round((float)$m['AMOUNT'],2); if($amount<=0) throw new RuntimeException('قيمة مرتجع المشتريات غير صالحة.');
-        $mid=(int)$m['IM_ID']; $rid=(int)$m['RETURN_ORDER_ID']; $supplier=(int)$m['SUPPLIER_ID'];
+        $mid=(int)$m['IM_ID']; $rid=(int)$m['RETURN_ORDER_ID']; $purchaseOrderId=(int)$m['PURCHASE_ORDER_ID']; $supplier=(int)$m['SUPPLIER_ID'];
         $branch=(int)$m['IM_BRANCH']; $store=(int)$m['STO_ID']; $user=(int)$m['IM_USER'];
         return $this->postEvent('PURCHASE_RETURN_MOVEMENT:'.$mid,'PURCHASE_RETURN_RECOGNIZED',
             'INVENTORY_MOVEMENT',$mid,$branch,$user,
-            ['return_order_id'=>$rid,'supplier_id'=>$supplier,'store_id'=>$store,'amount'=>number_format($amount,2,'.','')],
-            function() use($mid,$rid,$supplier,$branch,$store,$user,$amount): int {
+            ['return_order_id'=>$rid,'purchase_order_id'=>$purchaseOrderId,'supplier_id'=>$supplier,'store_id'=>$store,'amount'=>number_format($amount,2,'.','')],
+            function() use($mid,$rid,$purchaseOrderId,$supplier,$branch,$store,$user,$amount): int {
                 $j=new JournalManager($this->db);
                 $j->create(['branch_id'=>$branch,'entry_date'=>date('Y-m-d H:i:s'),
                     'reference_type'=>'PURCHASE_RETURN','reference_id'=>$rid,
                     'description'=>'مرتجع مشتريات رقم '.$rid.' بعد الصرف المخزني','created_by'=>$user])
                   ->addLine(['account_id'=>$this->accounts->suppliers(),'branch_id'=>$branch,
                     'partner_type'=>'SUPPLIER','partner_id'=>$supplier,'debit'=>$amount,
-                    'reference_type'=>'PURCHASE_RETURN','reference_id'=>$rid,
-                    'note'=>'تخفيض مستحق المورد عن مرتجع مشتريات '.$rid])
+                    'reference_type'=>'PURCHASE_ORDER','reference_id'=>$purchaseOrderId,
+                    'note'=>'تخفيض مستحق المورد عن مرتجع مشتريات '.$rid.' لأمر الشراء '.$purchaseOrderId])
                   ->addLine(['account_id'=>$this->accounts->inventory(),'branch_id'=>$branch,'store_id'=>$store,
                     'credit'=>$amount,'reference_type'=>'PURCHASE_RETURN','reference_id'=>$rid,
                     'note'=>'صرف قيمة البضاعة المرتجعة من المخزون']);
