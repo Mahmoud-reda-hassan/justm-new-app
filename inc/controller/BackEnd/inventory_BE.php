@@ -490,6 +490,13 @@ class inventory_BE {
 			$this->conn->beginTransaction();
 			$this->conn->exec("SET innodb_lock_wait_timeout = 0");
 
+			// منع تنفيذ مرتجع من مخزن تابع لفرع آخر.
+			$storeStmt = $this->conn->prepare("SELECT STO_ID FROM stores WHERE STO_ID = ? AND BRANCH_ID = ? FOR UPDATE");
+			$storeStmt->execute([$store_id, $branchId]);
+			if (!$storeStmt->fetchColumn()) {
+				throw new Exception("المخزن المحدد غير تابع للفرع الحالي.");
+			}
+
 			// قفل أمر الشراء الأصلي حتى لا يتجاوز مرتجعان متزامنان الكمية المستلمة.
 			$sourceStmt = $this->conn->prepare("
 				SELECT ORDER_ID, SUPPLIER_ID
