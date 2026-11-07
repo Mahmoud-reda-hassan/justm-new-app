@@ -1639,6 +1639,22 @@ class shipment_BE {
 	        $call->closeCursor();
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
+                // ترحيل البيع إلى الأستاذ العام بعد نجاح تأكيد التسليم الفعلي.
+                // لا نُرحّل الطلبات المرفوضة أو التي لم تصل لحالة تسليم.
+                $deliveredOrders = $this->conn->prepare(
+                    "SELECT DISTINCT o.ORDER_ID
+                     FROM confirm_staging cs
+                     INNER JOIN orders o ON o.ORDER_ID = cs.ORDER_ID
+                     WHERE cs.SESSION_ID = ? AND cs.TYPE = 'SELSE'
+                       AND o.ORDER_STATUS IN (3, 4)
+                     ORDER BY o.ORDER_ID"
+                );
+                $deliveredOrders->execute([$sessionId]);
+                $accountingEvents = new AccountingEvents($this->conn);
+                foreach ($deliveredOrders->fetchAll(PDO::FETCH_COLUMN) as $deliveredOrderId) {
+                    $accountingEvents->directSale((int)$deliveredOrderId);
+                }
+
                 if ($customerPaidShipping === true) {
                     // إثبات التحصيل أولًا حتى تُحتسب عمولة هذه المحاولة بعد نجاح التحصيل.
                     $shippingCollectionManager = new DeliveryRejectedShippingCollectionManager($this->conn);
