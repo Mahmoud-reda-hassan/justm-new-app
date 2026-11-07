@@ -93,8 +93,9 @@ try {
                 $marketerId, $branchId, $paymentMethodId, $amount, $note, $requestKey, $requestHash
             );
             echo json_encode([
-                'success' => true,
-                'message' => !empty($result['already_posted']) ? 'تم تسجيل نفس عملية الصرف سابقًا دون تكرار القيد.' : 'تم صرف مستحقات المسوق بنجاح.',
+                'success',
+                'ناجح',
+                !empty($result['already_posted']) ? 'تم تسجيل نفس عملية الصرف سابقًا دون تكرار القيد.' : 'تم صرف مستحقات المسوق بنجاح.',
                 'payment' => $result,
             ], JSON_UNESCAPED_UNICODE);
             break;
