@@ -21,6 +21,8 @@ $installer = $read('JUSTM_DATABASE_INSTALL.sql');
 $assert(strpos($manager, 'PURCHASE_ORDER_RECOGNIZED') !== false, 'Purchase order GL event is missing.');
 $assert(strpos($manager, 'PURCHASE_STOCK_RECEIVED') !== false, 'Purchase receipt GL reclassification is missing.');
 $assert(strpos($manager, 'PURCHASE_RETURN_RECOGNIZED') !== false, 'Supplier return GL event is missing.');
+$assert(strpos($manager, 'PRO.REFERANC PURCHASE_ORDER_ID') !== false, 'Supplier return does not resolve its original purchase order.');
+$assert(strpos($manager, "'reference_type'=>'PURCHASE_ORDER','reference_id'=>$purchaseOrderId") !== false, 'Supplier return liability is not linked to the original purchase order.');
 $assert(strpos($manager, 'SUPPLIER_PAYMENT_POSTED') !== false, 'Supplier payment GL event is missing.');
 $assert(strpos($manager, 'supplierAdvances()') !== false, 'Supplier advance account is not used.');
 $assert(strpos($dao, 'recordPurchaseOrder') !== false && strpos($dao, 'addSupplierDebt') === false, 'New purchase orders still write legacy supplier balances.');
