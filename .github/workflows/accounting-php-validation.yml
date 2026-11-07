@@ -85,6 +85,7 @@ jobs:
 
       - name: Accounting static regression checks
         run: php tests/accounting/direct_sale_static_test.php
+          php tests/accounting/supplier_gl_static_test.php
 
       - name: Financial event MariaDB integration tests
         env:
