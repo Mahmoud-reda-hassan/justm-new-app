@@ -64,12 +64,20 @@ $pdo->exec('DROP TABLE IF EXISTS supplier_gl_advance_applications');
 $pdo->exec('DROP TABLE IF EXISTS supplier_gl_payment_allocations');
 $pdo->exec('DROP TABLE IF EXISTS supplier_gl_payments');
 
+// Remove Phase 22's installer-provided objects so the migration runner test exercises
+// the real additive migration path on this isolated CI database.
+$pdo->exec('ALTER TABLE journal_entry_details DROP FOREIGN KEY fk_journal_detail_cash_box');
+$pdo->exec('ALTER TABLE journal_entry_details DROP INDEX idx_journal_detail_cash_box');
+$pdo->exec('ALTER TABLE journal_entry_details DROP COLUMN cash_box_id');
+
 $migrations = $manager->listMigrations();
-$assert(count($migrations) === 10, 'The approved migration registry must contain ten numbered phases.');
+$assert(count($migrations) === 11, 'The approved migration registry must contain eleven numbered phases (11-20 and 22).');
 $byFile = [];
 foreach ($migrations as $migration) $byFile[$migration['file']] = $migration;
 $assert(isset($byFile['PHASE13_SALES_RETURNS_ACCOUNT.sql']) && !$byFile['PHASE13_SALES_RETURNS_ACCOUNT.sql']['enabled'],
     'Phase 13 must remain blocked until its fixed account parent and open transaction are reviewed.');
+$assert(isset($byFile['PHASE22_JOURNAL_CASHBOX_REFERENCE.sql']) && $byFile['PHASE22_JOURNAL_CASHBOX_REFERENCE.sql']['enabled'],
+    'Phase 22 must be available when the branch ownership prerequisite exists and its schema objects are absent.');
 
 $wrongConfirmationRejected = false;
 try {
@@ -92,6 +100,12 @@ $paymentAccountType = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.CO
 $allocationDebitType = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounting_line_allocations' AND COLUMN_NAME = 'debit_line_id'")->fetchColumn();
 $assert(strtolower((string)$paymentAccountType) === 'bigint(20) unsigned', 'Phase 11 account_id must match accounts.id as BIGINT UNSIGNED.');
 $assert(strtolower((string)$allocationDebitType) === 'bigint(20) unsigned', 'Phase 12 debit_line_id must match journal_entry_details.id as BIGINT UNSIGNED.');
+$cashBoxColumnType = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details' AND COLUMN_NAME = 'cash_box_id'")->fetchColumn();
+$cashBoxIndex = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details' AND INDEX_NAME = 'idx_journal_detail_cash_box'")->fetchColumn();
+$cashBoxForeignKey = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details' AND COLUMN_NAME = 'cash_box_id' AND REFERENCED_TABLE_NAME = 'cash_boxes' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
+$assert(strtolower((string)$cashBoxColumnType) === 'bigint(20) unsigned', 'Phase 22 cash_box_id must be BIGINT UNSIGNED.');
+$assert($cashBoxIndex === 1, 'Phase 22 must create the cash-box lookup index.');
+$assert($cashBoxForeignKey === 1, 'Phase 22 must create the cash-box foreign key.');
 
 $final = $manager->listMigrations();
 foreach ($final as $migration) {
