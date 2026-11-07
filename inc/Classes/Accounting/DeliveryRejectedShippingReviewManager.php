@@ -6,8 +6,8 @@ require_once __DIR__ . '/FinancialEventManager.php';
 /** قائمة مراجعة لتعويضات رفض الطلبات التي لم يتحصل فيها الشحن. */
 final class DeliveryRejectedShippingReviewManager
 {
- private PDO $db; private JournalManager $journal; private FinancialEventManager $events;
- public function __construct(PDO $db) { $this->db=$db; $this->journal=new JournalManager($db); $this->events=new FinancialEventManager($db); }
+ private PDO|TrimmedPDO $db; private JournalManager $journal; private FinancialEventManager $events;
+ public function __construct(PDO|TrimmedPDO $db) { $this->db=$db; $this->journal=new JournalManager($db); $this->events=new FinancialEventManager($db); }
 
  /** يحفظ المحاولات غير المحصلة للمراجعة فقط، دون قيد مالي. */
  public function recordUnpaidAttempts(string $sessionId,int $branchId,int $actorId): array
