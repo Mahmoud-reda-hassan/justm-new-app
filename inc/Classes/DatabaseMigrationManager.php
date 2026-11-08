@@ -393,10 +393,8 @@ class DatabaseMigrationManager
             $invalidRefunds = $this->db->query("
                 SELECT COUNT(DISTINCT h.id)
                 FROM journal_entries h
-                INNER JOIN financial_transactions ft
+                LEFT JOIN financial_transactions ft
                     ON ft.id = h.reference_id
-                   AND ft.status = 'COMPLETED'
-                   AND ft.entity_type = 'CLIENT'
                 LEFT JOIN invoices i
                     ON i.INVO_ID = ft.invoice_id
                    AND i.REFERENCE_TYPE = 'SALES'
@@ -415,7 +413,8 @@ class DatabaseMigrationManager
                 WHERE h.reference_type = 'SALES_RETURN_PAYMENT'
                   AND h.status = 'POSTED'
                   AND (
-                      ft.entity_id IS NULL OR ft.entity_id <= 0
+                      ft.id IS NULL OR ft.status <> 'COMPLETED' OR ft.entity_type <> 'CLIENT'
+                      OR ft.entity_id IS NULL OR ft.entity_id <= 0
                       OR ft.branch_id IS NULL OR ft.branch_id <= 0
                       OR ft.payment_method_id IS NULL OR ft.payment_method_id <= 0
                       OR i.INVO_ID IS NULL OR o.ORDER_ID IS NULL
