@@ -57,6 +57,7 @@ final class FinancialVoucherManager
             }
 
             $cashBoxAccountId = $this->getCashBoxAccountId($data['branch_id'], $data['cash_box_id']);
+            $data = $this->prepareCounterpartLines($data);
             $this->validateCounterpartLines($data);
 
             if ($data['voucher_subtype'] === 'SUPPLIER_REFUND') {
@@ -179,27 +180,47 @@ final class FinancialVoucherManager
                 $journalId = $journal->post();
 
                 if (in_array($data['voucher_subtype'], ['CUSTOMER_RECEIPT', 'SUPPLIER_REFUND'], true)) {
-                    $creditLine = $this->db->prepare(
-                        'SELECT id FROM journal_entry_details WHERE journal_entry_id = ? AND line_no = 2 LIMIT 1'
-                    );
-                    $creditLine->execute([$journalId]);
-                    $creditLineId = (int)$creditLine->fetchColumn();
-                    $creditLine->closeCursor();
-                    if ($creditLineId <= 0) {
-                        throw new RuntimeException('تعذر تحديد سطر الطرف في قيد سند القبض للتخصيص.');
-                    }
+                    $partnerAccountId = $data['voucher_subtype'] === 'CUSTOMER_RECEIPT'
+                        ? $this->accountSettings->customers()
+                        : $this->accountSettings->suppliers();
 
-                    $this->allocateReceiptToOldestDebits(
-                        $journalId,
-                        $creditLineId,
-                        $data['lines'][0]['account_id'],
-                        (string)$data['partner_type'],
-                        (int)$data['partner_id'],
-                        (float)$data['total_amount'],
-                        (int)$data['created_by'],
-                        $data['voucher_subtype'] === 'CUSTOMER_RECEIPT',
-                        $voucherNo
-                    );
+                    foreach ($data['lines'] as $line) {
+                        if ((int)$line['account_id'] !== $partnerAccountId
+                            || strtoupper((string)$line['partner_type']) !== (string)$data['partner_type']
+                            || (int)$line['partner_id'] !== (int)$data['partner_id']) {
+                            continue;
+                        }
+
+                        $creditLine = $this->db->prepare(
+                            'SELECT id FROM journal_entry_details
+                             WHERE journal_entry_id = ? AND account_id = ?
+                               AND partner_type = ? AND partner_id = ? AND credit > 0
+                             ORDER BY line_no LIMIT 1'
+                        );
+                        $creditLine->execute([
+                            $journalId,
+                            $partnerAccountId,
+                            $data['partner_type'],
+                            $data['partner_id'],
+                        ]);
+                        $creditLineId = (int)$creditLine->fetchColumn();
+                        $creditLine->closeCursor();
+                        if ($creditLineId <= 0) {
+                            throw new RuntimeException('تعذر تحديد سطر مديونية الطرف في قيد سند القبض للتخصيص.');
+                        }
+
+                        $this->allocateReceiptToOldestDebits(
+                            $journalId,
+                            $creditLineId,
+                            $partnerAccountId,
+                            (string)$data['partner_type'],
+                            (int)$data['partner_id'],
+                            (float)$line['amount'],
+                            (int)$data['created_by'],
+                            false,
+                            $voucherNo
+                        );
+                    }
                 }
 
                 return $journalId;
@@ -361,6 +382,20 @@ final class FinancialVoucherManager
         return $this->partnerLedger->getBalance($accountId, $partnerType, $partnerId);
     }
 
+    /** الرصيد الدائن للعميل المودع في حساب 1152، ويظل قابلًا للاستخدام لاحقًا. */
+    public function getCustomerCreditBalance(int $clientId): float
+    {
+        if ($clientId <= 0) {
+            throw new InvalidArgumentException('رقم العميل غير صحيح.');
+        }
+        $balance = $this->partnerLedger->getBalance(
+            $this->accountSettings->customerCredits(),
+            'CLIENT',
+            $clientId
+        );
+        return max(0.0, round(-$balance, 2));
+    }
+
     public function listVouchers(int $branchId, int $limit = 100): array
     {
         if ($branchId <= 0) {
@@ -487,6 +522,53 @@ final class FinancialVoucherManager
                 'lines' => $lines,
             ],
         ];
+    }
+
+    /**
+     * يوزع تحصيل العميل: يسدد أقدم المديونيات على 1151 أولًا،
+     * ويثبت أي زيادة في حساب أرصدة العملاء الدائنة 1152.
+     */
+    private function prepareCounterpartLines(array $data): array
+    {
+        if ($data['voucher_subtype'] !== 'CUSTOMER_RECEIPT') {
+            return $data;
+        }
+
+        $clientId = (int)$data['partner_id'];
+        $receivableAccountId = $this->accountSettings->customers();
+        $creditBalanceAccountId = $this->accountSettings->customerCredits();
+        $openReceivable = $this->getOpenDebitAmount($receivableAccountId, 'CLIENT', $clientId);
+        $receivableAmount = round(min((float)$data['total_amount'], $openReceivable), 2);
+        $creditAmount = round((float)$data['total_amount'] - $receivableAmount, 2);
+        $lines = [];
+
+        if ($receivableAmount > 0) {
+            $lines[] = [
+                'account_id' => $receivableAccountId,
+                'partner_type' => 'CLIENT',
+                'partner_id' => $clientId,
+                'cost_center_id' => null,
+                'amount' => $receivableAmount,
+                'line_description' => 'تسوية مديونية العميل حسب الأقدم',
+            ];
+        }
+        if ($creditAmount > 0) {
+            $lines[] = [
+                'account_id' => $creditBalanceAccountId,
+                'partner_type' => 'CLIENT',
+                'partner_id' => $clientId,
+                'cost_center_id' => null,
+                'amount' => $creditAmount,
+                'line_description' => 'رصيد دائن للعميل قابل للاستخدام في عمليات لاحقة',
+            ];
+        }
+        if (!$lines) {
+            throw new RuntimeException('تعذر تحديد حسابات مديونية/رصيد العميل.');
+        }
+
+        $data['lines'] = $lines;
+        $data['payload']['lines'] = $lines;
+        return $data;
     }
 
     private function validateCounterpartLines(array $data): void
