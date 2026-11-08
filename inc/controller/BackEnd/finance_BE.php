@@ -142,127 +142,17 @@ private function releaseGlobalFinanceLock(): void {
   	
   	// يتم استدعاؤه عن تحديث بينات امر البيع.
   	function restClientdebt($orderid) {
-	    $sqlOrderData = "
-	        SELECT 
-	            A.CLIENT_ID,
-	            O.ORDER_ID,
-	            O.ORDER_STATUS,
-	            O.EXISTS_ID,
-	            SUM((OP.PRICE - OP.DISCOUNT) * OP.QTY)
-	            + (CASE WHEN O.ORDER_STATUS = 5 THEN 0 ELSE O.SHIPPING_VAL END) AS TOTAL_ORDER_PRICE,
-	            SUM((OP.PRICE - OP.DISCOUNT) * 
-	                (CASE WHEN OP.PRO_STATUSE IN ('rejected','partial') 
-	                THEN (OP.QTY - OP.DELIVERED_QTY) ELSE 0 END)
-	            ) AS TOTAL_REFUND_ORDER
-	        FROM orders O
-	        JOIN order_product OP ON O.ORDER_ID = OP.ORDER_ID
-	        JOIN addresses A ON O.ADDRESS_ID = A.ADDRESS_ID
-	        WHERE O.ORDER_ID = :order_id
-	        GROUP BY A.CLIENT_ID, O.ORDER_ID, O.ORDER_STATUS, O.EXISTS_ID
-	    ";
-	
-	    $stmt = $this->conn->prepare($sqlOrderData);
-	    $stmt->bindValue(":order_id", $orderid);
-	    $stmt->execute();
-	    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-	
-	    if (!$row) {
-	        return [
-	            "statuse" => false,
-	            "result" => 0,
-	            "message" => "لم يتم العثور على بيانات للطلب المحدد"
-	        ];
-	    }
-	
-	    // تحديث الرصيد إن كان موجودًا
-	    $updateSql = "
-	        UPDATE partners_balance AS P
-	        SET 
-	            P.BALANCE = CASE WHEN :exists_id = 5 THEN 0 ELSE (:total_order - :refund_order) END,
-	            P.LAST_UPDATE = NOW(6)
-	        WHERE P.PARTNER_TYPE = 'CLIENT'
-	          AND P.REFERENCE_ID = :order_id
-	          AND P.PARTNER_ID = :client_id
-	    ";
-	
-	    $upd = $this->conn->prepare($updateSql);
-	    $upd->execute([
-	        ':exists_id' => $row['EXISTS_ID'],
-	        ':total_order' => $row['TOTAL_ORDER_PRICE'],
-	        ':refund_order' => $row['TOTAL_REFUND_ORDER'],
-	        ':order_id' => $row['ORDER_ID'],
-	        ':client_id' => $row['CLIENT_ID']
-	    ]);
-	
-	    if ($upd->rowCount() > 0) {
-	        return [
-	            "statuse" => true,
-	            "result" => $upd->rowCount(),
-	            "message" => "تم تحديث أرصدة العميل بنجاح"
-	        ];
-	    } else {
-	        // إضافة سجل جديد إن لم يكن موجود
-	        $amount = ($row['EXISTS_ID'] == 5) ? 0 : ($row['TOTAL_ORDER_PRICE'] - $row['TOTAL_REFUND_ORDER']);
-	        return $this->addClientDebt($row['CLIENT_ID'], $row['ORDER_ID'], $amount);
-	    }
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
   	
   	// يتم استدعاؤه عند تسجيل فاتورة آجلة للعميل.
     function addClientDebt($client_id, $order_id, $amount, $category_id = 8) {
-	    $sqlcheck  = "SELECT ID FROM  partners_balance WHERE PARTNER_TYPE = 'CLIENT' AND PARTNER_ID = :client_id AND REFERENCE_ID = :order_id AND TRANSACTION_CATEGORY_ID = :category_id";
-	    $sqlUpdate = "UPDATE partners_balance SET BALANCE = :amount WHERE PARTNER_TYPE = 'CLIENT' AND PARTNER_ID = :client_id AND REFERENCE_ID = :order_id AND TRANSACTION_CATEGORY_ID = :category_id";
-	    $sqlInsert = "INSERT INTO partners_balance (PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE,TRANSACTION_CATEGORY_ID) VALUES ('CLIENT', :client_id, :order_id, 'DEBIT', :amount, 'مديونية مستحقة على العميل لفاتورة مبيعات',:category_id)";
-	    
-	    $addClientDebt = $this->conn->prepare($sqlcheck);
-	    $addClientDebt->bindValue(":client_id", $client_id);
-		$addClientDebt->bindValue(":order_id", $order_id);
-		$addClientDebt->bindValue(":category_id", $category_id);
-	    $addClientDebt->execute();
-	    $result = $addClientDebt;
-	    if($result->rowCount()){
-	    	$addClientDebt1 = $this->conn->prepare($sqlUpdate);
-	    	$addClientDebt1->bindValue(":client_id", $client_id);
-		    $addClientDebt1->bindValue(":order_id", $order_id);
-		    $addClientDebt1->bindValue(":amount", $amount);
-		    $addClientDebt1->bindValue(":category_id", $category_id);
-		    $addClientDebt1->execute();	
-		    return [
-                "statuse" 		=> $addClientDebt1->rowCount(),
-                "result"		=> $addClientDebt1->rowCount(),
-                "message"		=> $result ? "Insert into partners_balance successful" : "Insert into $tableName failed",
-                "insertedId" 	=> $result ? $this->conn->lastInsertId() : null
-            ];
-	    }else{
-	    	$addClientDebt2 = $this->conn->prepare($sqlInsert);
-		    $addClientDebt2->bindValue(":client_id", $client_id);
-		    $addClientDebt2->bindValue(":order_id", $order_id);
-		    $addClientDebt2->bindValue(":amount", $amount);
-		    $addClientDebt2->bindValue(":category_id", $category_id);
-		    $addClientDebt2->execute();
-		    return [
-		    	"statuse" 		=> $addClientDebt2->rowCount(),
-                "result"		=> $addClientDebt2->rowCount(),
-                "message"		=> $result ? "Insert into partners_balance successful" : "Insert into $tableName failed",
-                "insertedId" 	=> $result ? $this->conn->lastInsertId() : null
-            ];
-	    }
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
     
     //يتم استدعاؤه عند دفع العميل جزءًا من المبلغ المستحق
 	function addClientCredit($client_id, $order_id, $amount) {
-	    $sql = "INSERT INTO partners_balance (PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE,TRANSACTION_CATEGORY_ID, USE_OF_CREDIT)
-	            VALUES ('CLIENT', :client_id, :order_id, 'CREDIT', :amount, 'رصيد دائن نتيجة تحصيلات مبيعات','9',1)";
-	    $addClientCredit = $this->conn->prepare($sql);
-	    $addClientCredit->bindValue(":client_id", $client_id);
-		$addClientCredit->bindValue(":order_id", $order_id);
-		$addClientCredit->bindValue(":amount", $amount);
-	    $result = $addClientCredit->execute();
-	    return [
-	    	"statuse" 		=> $result ? true : false,
-            "result"		=> $addClientCredit->rowCount(),
-            "message"		=> $result ? "Insert into partners_balance successful" : "Insert into $tableName failed",
-            "insertedId" 	=> $result ? $this->conn->lastInsertId() : null
-        ];
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
     
     //يتم استدعاؤه عند دفع العميل جزءًا من المبلغ المستحق
@@ -284,112 +174,12 @@ private function releaseGlobalFinanceLock(): void {
 	
 	//  يتم استدعاؤه عند تسجيل مرتجع للعميل، ليكون لديه رصيد دائن يمكنه استخدامه لاحقًا
 	function reduceClientCredit($client_id, $order_id) {
-	    //جلب قيمة الرصيد المرتجع من منتجات امر البيع والتحقق مما اذا كان تم تسجيل مرتجعات سابقه لهذا الامر او لا
-	    $sql0 = "-- CTE لحساب RETURN_PRICE
-				WITH return_price_per_order AS (
-					SELECT 
-						ORDER_ID, 
-						SUM((PRICE - DISCOUNT) * RETURNED_QTY) AS RETURN_PRICE
-					FROM order_product
-					GROUP BY ORDER_ID
-				),
-				
-				-- CTE لاختيار أول صف من partners_balance لكل ORDER_ID
-				first_balance_per_order AS (
-					SELECT *
-					FROM (
-						SELECT *,
-							   ROW_NUMBER() OVER (PARTITION BY REFERENCE_ID ORDER BY ID) AS rn
-						FROM partners_balance
-						WHERE TRANSACTION_CATEGORY_ID = 14
-						  AND PARTNER_TYPE = 'CLIENT'
-					) AS ranked
-					WHERE rn = 1
-				)
-				
-				-- الاستعلام النهائي
-				SELECT  
-					A.ORDER_ID,
-					B.RETURN_PRICE,
-					C.BALANCE
-				FROM orders A
-				LEFT JOIN return_price_per_order B ON B.ORDER_ID = A.ORDER_ID
-				LEFT JOIN first_balance_per_order C ON C.REFERENCE_ID = A.ORDER_ID
-				WHERE A.ORDER_ID = :order_id;";
-		// فى حالة عدم وجود مرتجعات مسجله مسبقا يتم تسجيل سجل جديد
-		$sql1 = "INSERT INTO partners_balance (PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE, TRANSACTION_CATEGORY_ID, USE_OF_CREDIT)
-	            VALUES ('CLIENT', :client_id, :order_id, 'CREDIT', :amount, 'رصيد دائن نتيجة ارجاع منتجات','14',1)";
-	    // فى حالة وجود سجل مسجل بالفعل يتم تحديثه
-	    $sql2 = "UPDATE partners_balance  
-	            SET BALANCE = :amount  
-	            WHERE 
-	            	REFERENCE_ID 				= :order_id
-	    			AND PARTNER_ID 				= :client_id 
-		            AND PARTNER_TYPE 			= 'CLIENT' 
-		            AND TRANSACTION_TYPE 		= 'CREDIT' 
-		            AND TRANSACTION_CATEGORY_ID ='14'";
-	    //يستخدم فى حالى حذف قيمة المرتجع 
-	    $sql3 = "DELETE FROM partners_balance 
-	    		WHERE 
-	    			REFERENCE_ID 				= :order_id
-	    			AND PARTNER_ID 				= :client_id 
-	    			AND PARTNER_TYPE 			= 'CLIENT' 
-	    			AND TRANSACTION_TYPE 		= 'CREDIT' 
-	    			AND TRANSACTION_CATEGORY_ID = 14";
-	    
-	    $reduceClientDebt0 = $this->conn->prepare($sql0);
-		$reduceClientDebt0->bindValue(":order_id", $order_id);
-		$reduceClientDebt0->execute();
-		$row = $reduceClientDebt0->fetch(PDO::FETCH_ASSOC);
-		$parms =[];
-		$inserted = false;
-		if(!$row['BALANCE'] && $row['RETURN_PRICE'] > 0){
-			//INSERT
-			$inserted = true;
-			$sql = $sql1;
-			$parms = [
-		        ':client_id' => $client_id,
-		        ':order_id'  => $order_id,
-		        ':amount'    => $row['RETURN_PRICE']
-		    ];
-		}else if($row['BALANCE'] && $row['RETURN_PRICE'] > 0){
-			//UPDATE
-			$sql = $sql2;
-			$parms = [
-		        ':client_id' => $client_id,
-		        ':order_id'  => $order_id,
-		        ':amount'    => $row['RETURN_PRICE']
-		    ];
-		}else if($row['RETURN_PRICE'] == 0){
-			//DELETE
-			$sql = $sql3;
-			$parms = [
-		        ':client_id' => $client_id,
-		        ':order_id'  => $order_id,
-		    ];
-		}
-	
-	    $reduceClientDebt1 = $this->conn->prepare($sql);
-	    $result =  $reduceClientDebt1->execute($parms); 
-	    return [
-			"statuse" 		=> $result ? true:false,
-		    "result"		=> $reduceClientDebt1->rowCount(),
-		    "message"		=> $result ? "update partners_balance successful" : "update partner balance failed",
-		    "insertedId" 	=> $inserted ? $this->conn->lastInsertId() : null
-		];
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
 	
 	// يتم استدعاؤه عندما يريد العميل استخدام رصيده الدائن لدفع فاتورة جديدة.
 	function useClientCredit($pdo, $client_id, $credit_used) {
-	    $sql = "UPDATE partners_balance  
-	            SET BALANCE = BALANCE - :credit_used  
-	            WHERE PARTNER_TYPE = 'CLIENT' AND PARTNER_ID = :client_id AND TRANSACTION_TYPE = 'CREDIT'";
-	    
-	    $stmt = $pdo->prepare($sql);
-	    return $stmt->execute([
-	        ':client_id' => $client_id,
-	        ':credit_used' => $credit_used
-	    ]);
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
 /*=========================================
  التعامل مع مشتريات الشركه من المورد ارصده ومدفوعات 
@@ -397,48 +187,12 @@ private function releaseGlobalFinanceLock(): void {
     
     //يتم استدعاؤه عند تسجيل أمر شراء مؤجل الدفع
 	function addSupplierDebt($pdo,$supplier_id, $order_id, $amount) {
-	    
-		$sql = "INSERT INTO partners_balance (PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE, TRANSACTION_CATEGORY_ID, USE_OF_CREDIT)
-		        VALUES ('SUPPLIER', :supplier_id, :order_id, 'CREDIT', :amount, 'مديونية مستحقة على الشركة لأمر شراء مؤجل',10,1)";
-		try{
-		    $stmtaddSupplierDebt = $pdo->prepare($sql);
-		    $stmtaddSupplierDebt->bindValue(":supplier_id", $supplier_id);
-		    $stmtaddSupplierDebt->bindValue(":order_id", $order_id);
-		    $stmtaddSupplierDebt->bindValue(":amount", $amount);
-		    
-		    $result = $stmtaddSupplierDebt->execute(); 
-		   
-            return [
-                "result"		=> $stmtaddSupplierDebt->rowCount(),
-                "message"		=> $result ? "Insert into partners_balance successful" : "Insert into $tableName failed",
-                "insertedId" 	=> $result ? $pdo->lastInsertId() : null
-            ];
-		} catch (PDOException $e) {
-	        throw $e;
-		}
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
     
     //يتم استدعاؤه عند تسجيل أمر شراء مؤجل الدفع
 	function reduceSupplierDebt($pdo,$supplier_id, $order_id, $amount) {
-	    
-		$sql = "INSERT INTO partners_balance (PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE, TRANSACTION_CATEGORY_ID, USE_OF_CREDIT)
-		        VALUES ('SUPPLIER', :supplier_id, :order_id, 'DEBIT', :amount, 'مديونية مستحقة على الشركة لأمر شراء مؤجل',10,1)";
-		try{
-		    $stmtaddSupplierDebt = $pdo->prepare($sql);
-		    $stmtaddSupplierDebt->bindValue(":supplier_id", $supplier_id);
-		    $stmtaddSupplierDebt->bindValue(":order_id", $order_id);
-		    $stmtaddSupplierDebt->bindValue(":amount", $amount);
-		    
-		    $result = $stmtaddSupplierDebt->execute(); 
-		   
-            return [
-                "result"		=> $stmtaddSupplierDebt->rowCount(),
-                "message"		=> $result ? "Insert into partners_balance successful" : "Insert into $tableName failed",
-                "insertedId" 	=> $result ? $pdo->lastInsertId() : null
-            ];
-		} catch (PDOException $e) {
-	        throw $e;
-		}
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
     
     //يتم استخدامه عند تسجيل دفعة للمورد لتقليل مديونية الشركة.
@@ -456,28 +210,12 @@ private function releaseGlobalFinanceLock(): void {
     
     //يتم استدعاؤه عند تسجيل مرتجع مشتريات لإضافة رصيد دائن للمورد.
 	function addSupplierCredit($pdo, $supplier_id, $return_order_id, $return_amount) {
-	    $sql = "INSERT INTO partners_balance (PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE, TRANSACTION_CATEGORY_ID, USE_OF_CREDIT)
-	            VALUES ('SUPPLIER', :supplier_id, :return_order_id, 'DEBIT', :return_amount, 'رصيد مدين نتيجة مرتجع مشتريات',15,1)";
-	    
-	    $stmt = $pdo->prepare($sql);
-	    return $stmt->execute([
-	        ':supplier_id' => $supplier_id,
-	        ':return_order_id' => $return_order_id,
-	        ':return_amount' => $return_amount
-	    ]);
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
 	
 	// يتم استدعائه عندما عندما تريد الشركه استخدام الرصيد المدين للمورد لسداد فواتيره
 	function useSupplierCredit($pdo, $supplier_id, $credit_used) {
-	    $sql = "UPDATE partners_balance  
-	            SET BALANCE = BALANCE - :credit_used  
-	            WHERE PARTNER_TYPE = 'SUPPLIER' AND PARTNER_ID = :supplier_id AND TRANSACTION_TYPE = 'DEBIT'";
-	    
-	    $stmt = $pdo->prepare($sql);
-	    return $stmt->execute([
-	        ':supplier_id' => $supplier_id,
-	        ':credit_used' => $credit_used
-	    ]);
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
 /*=========================================
  التعامل مع الفواتير 
@@ -485,140 +223,22 @@ private function releaseGlobalFinanceLock(): void {
 	
 	// تسجيل الفاتورة
 	public function Add_invoice($referenceId, $referenceType, $totalPrice, $returnPrice, $amountPaid, $paymentSuccess){
-		// تحقق من القيم المدخلة
-		
-		if (empty($referenceId) || empty($referenceType) || empty($totalPrice) || !isset($returnPrice) || !isset($amountPaid) || !isset($paymentSuccess)) {
-			return false;
-		}
-
-		// إعداد الاستعلام
-		$stmt = $this->conn->prepare('INSERT INTO invoices (REFERENCE_ID, REFERENCE_TYPE, TOTAL_PRICE, RETURN_PRICE, AMOUNT_PAID, PAYMENT_SUCCESS) VALUES (?, ?, ?, ?, ?, ?)');
-
-		// ربط القيم مع التحقق
-		$stmt->bindValue(1, $referenceId, 	PDO::PARAM_INT);
-		$stmt->bindValue(2, $referenceType, PDO::PARAM_STR);
-		$stmt->bindValue(3, $totalPrice, 	PDO::PARAM_STR);
-		$stmt->bindValue(4, $returnPrice, 	PDO::PARAM_STR);
-		$stmt->bindValue(5, $amountPaid, 	PDO::PARAM_STR);
-		$stmt->bindValue(6, $paymentSuccess,PDO::PARAM_INT);
-
-		// تنفيذ الاستعلام
-		if (!$stmt->execute()) {
-			return false;
-		}
-
-		// الحصول على آخر ID
-		$invoiceId = $this->conn->lastInsertId();
-		return $invoiceId ?: false;
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
     
     // تحديث فاتورة المبيعات
     public function Update_invoice($referenceId, $paymentSuccess){
-		// تحقق من القيم المدخلة
-		
-		if (empty($referenceId) || !isset($paymentSuccess)) {
-			return false;
-		}
-		
-		//  جلب الـ invoice id 
-	    $stmtGet = $this->conn->prepare("
-	        SELECT INVO_ID 
-	        FROM invoices 
-	        WHERE REFERENCE_ID = ? 
-	        AND REFERENCE_TYPE = 'SALES'
-	        LIMIT 1
-	    ");
-	
-	    $stmtGet->execute([$referenceId]);
-	    $invoice = $stmtGet->fetch(PDO::FETCH_ASSOC);
-	
-	    if (!$invoice) {
-	        return false;
-	    }
-	
-	    $invoiceId = $invoice['INVO_ID'];
-
-    
-		// إعداد الاستعلام
-		$stmt = $this->conn->prepare("
-			UPDATE invoices I
-			LEFT JOIN (
-				SELECT  
-					ORDER_ID,
-					Sum(QTY * ( PRICE - DISCOUNT )) AS TOTAL_PRICE,
-					Sum(CASE WHEN PRO_STATUSE IN('rejected','partial') THEN ( ( QTY - DELIVERED_QTY ) * ( PRICE - DISCOUNT ) ) ELSE 0 END)   AS RETURN_PRICE,
-					Sum(CASE WHEN PRO_STATUSE IN('refund','partial_refund') THEN ( RETURNED_QTY * ( PRICE - DISCOUNT ) ) ELSE 0 END)   AS REFUND_PRICE
-				FROM   order_product
-				GROUP BY ORDER_ID
-			) AS OP ON I.REFERENCE_ID = OP.ORDER_ID
-			SET I.TOTAL_PRICE = OP.TOTAL_PRICE, 
-				I.RETURN_PRICE = OP.RETURN_PRICE,
-				I.REFUND_PRICE = OP.REFUND_PRICE,
-				I.AMOUNT_PAID = ((OP.TOTAL_PRICE - OP.RETURN_PRICE) - OP.REFUND_PRICE), 
-				I.PAYMENT_SUCCESS = ?
-			WHERE I.REFERENCE_ID  = ?
-			AND I.REFERENCE_TYPE  = 'SALES'
-		");
-
-		// ربط القيم مع التحقق
-		$stmt->bindValue(1, $paymentSuccess,PDO::PARAM_INT);
-		$stmt->bindValue(2, $referenceId, 	PDO::PARAM_INT);
-		// تنفيذ الاستعلام
-		if (!$stmt->execute() || $stmt->rowCount() == 0) {
-			return false;
-		}
-
-		
-		return $invoiceId;
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
 	
     //تسجيل المعامله فى ايرادات الخزنه
 	public function Add_transaction($invoice_id, $entity_type, $entity_id, $amount, $payment_method_id, $category_id, $status, $note = ''){
-	    // تحقق من القيم المدخلة
-	    if (empty($entity_type) || empty($entity_id) || empty($amount) || empty($payment_method_id) || empty($category_id) || empty($status)) {
-	        return false;
-	    }
-	
-	    // إعداد الاستعلام
-	    $stmt = $this->conn->prepare("INSERT INTO financial_transactions (branch_id, transaction_user_id,invoice_id, entity_type, entity_id, amount, payment_method_id, category_id, status, note) VALUES (?,?,?,?,?,?,?,?,?,?)");
-	
-	    // ربط القيم
-	    $userId = $this->transaction_user_id;
-	    $stmt->bindValue(1 , $_SESSION['BRANCH_ID'], PDO::PARAM_INT);
-	    $stmt->bindValue(2 , $userId, PDO::PARAM_INT);
-	    $stmt->bindValue(3 , $invoice_id, PDO::PARAM_INT);
-	    $stmt->bindValue(4 , $entity_type, PDO::PARAM_STR);
-	    $stmt->bindValue(5 , $entity_id, PDO::PARAM_INT);
-	    $stmt->bindValue(6 , $amount, PDO::PARAM_STR);
-	    $stmt->bindValue(7 , $payment_method_id, PDO::PARAM_INT);
-	    $stmt->bindValue(8 , $category_id, PDO::PARAM_INT);
-	    $stmt->bindValue(9 , $status, PDO::PARAM_STR);
-	    $stmt->bindValue(10, $note, PDO::PARAM_STR);
-	
-	    // تنفيذ الاستعلام
-	    if (!$stmt->execute()) {
-	        return false;
-	    }
-		
-	    // تحقق من إدخال البيانات
-	    return (int) $this->conn->lastInsertId();
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
     
     //تسجيل ارصدة العملاء والموردين والمنسقين والمندوبين
 	public function Add_partners_balance($partner_type , $partner_id, $reference_id, $transaction_type, $balance, $note='',$transaction_category_id =null){
-		$stmt = $this->conn->prepare('INSERT INTO partners_balance(PARTNER_TYPE, PARTNER_ID, REFERENCE_ID, TRANSACTION_TYPE, BALANCE, NOTE, transaction_category_id) VALUES (?,?,?,?,?,?,?)');
-		$stmt->bindValue(1 , $partner_type, 	PDO::PARAM_STR);
-	    $stmt->bindValue(2 , $partner_id, 		PDO::PARAM_INT);
-	    $stmt->bindValue(3 , $reference_id, 	PDO::PARAM_INT);
-	    $stmt->bindValue(4 , $transaction_type, PDO::PARAM_STR);
-	    $stmt->bindValue(5 , $balance, 			PDO::PARAM_STR);
-	    $stmt->bindValue(6 , $note,				PDO::PARAM_STR);
-	    $stmt->bindValue(7 , $transaction_category_id, PDO::PARAM_STR);
-		$stmt->execute();
-		if(!$stmt->rowCount()){
-			 return false;
-		}
-		return true;
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
 	}
     
     //خذف العهدة من حساب المندوب
@@ -1003,105 +623,8 @@ private function releaseGlobalFinanceLock(): void {
 
 	// صرف مستحقات عميل (مرتجع مبيعات)
 	public function PaymentOfCustomerDues($oid){
-        if (!$oid) throw new Exception("من فضلك قم بإختيار أمر البيع أولًا.");
-
-        try {
-            $oid = (int)$oid;
-            if ($oid <= 0) throw new Exception("رقم أمر البيع غير صحيح.");
-            $this->conn->beginTransaction();
-            $this->acquireGlobalFinanceLock();
-
-            // لا نقرأ partners_balance أو ننشئ فاتورة/حركة مالية قديمة لتسوية المرتجع.
-            $stmt = $this->conn->prepare(
-                "SELECT O.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY,
-                        O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE, O.RETURN_ENTRY_ID,
-                        TE.CLIENT_ID, CRO.USER_ID AS DELIVERY_ID
-                 FROM orders O
-                 INNER JOIN telephones TE ON TE.TEL_ID = O.TEL_ID
-                 LEFT JOIN custody_return_orders CRO ON CRO.ORDER_ID = O.ORDER_ID
-                 WHERE O.ORDER_ID = ? LIMIT 1 FOR UPDATE"
-            );
-            $stmt->execute([$oid]);
-            $order = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$order) throw new Exception("أمر البيع غير موجود.");
-            if ((int)$order['ORDER_SUCCESS'] === 2) {
-                throw new Exception("تمت تسوية مرتجع هذا الأمر بالفعل.");
-            }
-            if (!in_array((int)$order['ORDER_STATUS'], [6, 7], true)) {
-                throw new Exception("الأمر ليس في حالة مرتجع معتمد.");
-            }
-
-            // بوابة المخزن إلزامية قبل إثبات مردود المبيعات أو رد أي مبلغ.
-            $this->Accounting->assertSalesReturnStockReceived($oid);
-
-            // إذا لم يكن قيد مردود البيع قد أنشئ، ننشئه الآن بعد تحقق الاستلام المخزني.
-            if (empty($order['RETURN_ENTRY_ID'])) {
-                $returnJournalId = $this->Accounting->salesReturn($oid);
-                if ($returnJournalId <= 0) throw new Exception("تعذر ترحيل مردود البيع إلى الأستاذ العام.");
-            }
-
-            // المردود يخصم المديونية أولًا؛ يُرد نقدًا فقط الجزء الدائن المتبقي.
-            $refundManager = new CustomerRefundManager($this->conn);
-            $refundAmount = $refundManager->getAvailableRefundAmount($oid);
-            if ($refundAmount > 0.009) {
-                $refundKey = 'ORDER-RETURN-' . $oid . '-' . substr(hash('sha256', number_format($refundAmount, 2, '.', '')), 0, 16);
-                $refundHash = hash('sha256', json_encode([
-                    'order_id' => $oid,
-                    'amount' => round($refundAmount, 2),
-                    'return_entry_id' => (int)$this->conn->query(
-                        "SELECT RETURN_ENTRY_ID FROM orders WHERE ORDER_ID = " . $oid
-                    )->fetchColumn(),
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-                $refund = $refundManager->refund($oid, 1, $refundAmount, $refundKey, $refundHash);
-                if (empty($refund['success'])) throw new Exception("تعذر رد الرصيد الدائن المتبقي للعميل.");
-            }
-
-            // إغلاق مسار المرتجع حتى إذا تمت التسوية بالكامل بخصم المديونية ولم يتبق رد نقدي.
-            $updateOrder = $this->conn->prepare(
-                "UPDATE orders SET ORDER_SUCCESS = 2, LAST_UPDATE = NOW(6) WHERE ORDER_ID = ? AND ORDER_SUCCESS <> 2"
-            );
-            $updateOrder->execute([$oid]);
-            if ($updateOrder->rowCount() !== 1) throw new Exception("فشل تحديث حالة أمر البيع.");
-
-            if (!empty($order['DELIVERY_ID'])) {
-                $deleted = $this->delete_custody($oid, (int)$order['DELIVERY_ID'], true);
-                if (!$deleted) throw new Exception("فشل حذف عهدة المندوب بعد تسوية المرتجع.");
-            }
-
-            $logText = "تمت تسوية مرتجع أمر البيع إلى الأستاذ العام، وصرف الرصيد الدائن المتبقي إن وجد.";
-            $log = $this->conn->prepare(
-                "INSERT INTO ORDERS_LOG (ORDER_ID, USER_ACTION, LOG_TEXT) VALUES (?, ?, ?)"
-            );
-            $log->execute([$oid, $this->transaction_user_id, $logText]);
-            if ($log->rowCount() !== 1) throw new Exception("فشل تسجيل تسوية المرتجع في سجل الطلب.");
-
-            if (!empty($order['DELIVERY_ID'])) {
-                $shipping = $this->conn->prepare(
-                    "INSERT INTO shipping_movement (movement_type, delivery_id, user_id, shipment_orders)
-                     VALUES (11, ?, ?, ?)"
-                );
-                $shipping->execute([
-                    (int)$order['DELIVERY_ID'],
-                    $this->transaction_user_id,
-                    $oid,
-                ]);
-                if ($shipping->rowCount() !== 1) throw new Exception("فشل تسجيل حركة استلام مرتجع البيع.");
-            }
-
-            $this->conn->commit();
-            return ['success', 'ناجح', 'تمت تسوية المرتجع من الأستاذ العام بنجاح'];
-        } catch (PDOException $e) {
-            if ($this->conn->inTransaction()) $this->conn->rollBack();
-            error_log("finance_BE Error: " . $e->getMessage());
-            return ['error', 'خطأ', $e->getMessage()];
-        } catch (Throwable $e) {
-            if ($this->conn->inTransaction()) $this->conn->rollBack();
-            error_log("finance_BE Error: " . $e->getMessage());
-            return ['error', 'خطأ', $e->getMessage()];
-        } finally {
-            $this->releaseGlobalFinanceLock();
-        }
-    }
+		throw new LogicException("مسار محاسبي قديم معطّل نهائيًا؛ استخدم خدمات الأستاذ العام المعتمدة.");
+	}
 
 }
 ?>
