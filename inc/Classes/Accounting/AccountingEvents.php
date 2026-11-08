@@ -485,99 +485,17 @@ class AccountingEvents {
 
 	// جلب بيانات تحصيل البيع المباشر
 	protected function getDirectSalePayment(int $transactionId): array{
-	    // جلب الحركة بواسطة رقمها الفعلي، وليس رقم الطلب.
-	    $stmt = $this->db->prepare("
-	        SELECT
-	            FT.id,
-	            FT.branch_id,
-	            FT.transaction_date AS JOURNAL_DATE,
-	            FT.invoice_id,
-	            FT.amount,
-	            FT.payment_method_id,
-	            FT.entity_type,
-	            FT.entity_id,
-	            FT.status,
-	            FT.accounting_posted,
-	            FT.accounting_entry_id,
-	            FT.note AS PAYMENT_COMPONENT,
-	            I.reference_id,
-	            I.reference_type,
-	            O.ORDER_TYPE_ID,
-	            O.SUB_ORDER_ID,
-	            O.SALE_ENTRY_ID,
-	            (SELECT SH.id FROM journal_entries SH
-	             WHERE SH.reference_type = 'ORDER_SHIPPING'
-	               AND SH.reference_id = O.ORDER_ID
-	               AND SH.status = 'POSTED'
-	             ORDER BY SH.id DESC LIMIT 1) AS SHIPPING_ENTRY_ID
-	        FROM financial_transactions FT
-	        INNER JOIN invoices I
-	            ON I.INVO_ID = FT.invoice_id
-	           AND I.REFERENCE_TYPE = 'SALES'
-	        INNER JOIN orders O
-	            ON O.ORDER_ID = I.REFERENCE_ID
-	        WHERE FT.id = ?
-	        LIMIT 1
-	        FOR UPDATE
-	    ");
-
-	    $stmt->execute([$transactionId]);
-	    $trx = $stmt->fetch(PDO::FETCH_ASSOC);
-
-	    if (!$trx) {
-	        throw new Exception("Financial transaction not found.");
-	    }
-
-	    return $trx;
-	}
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
+    }
 
 	// التحقق من صحة تحصيل البيع المباشر
 	protected function validateDirectSalePayment(array $trx): void{
-	
-	    if ($trx['reference_type'] !== 'SALES') {
-	        throw new Exception("Transaction is not sales.");
-	    }
-	
-	    // يدعم تحصيل كل أنواع أوامر البيع؛ نوع الأمر لا يغيّر طبيعة مديونية العميل.
-	
-	    if ($trx['entity_type'] !== 'CLIENT') {
-	        throw new Exception("Transaction is not client payment.");
-	    }
-	    if ((int)($trx['entity_id'] ?? 0) <= 0) {
-	        throw new Exception("Client ID is missing from the sales payment.");
-	    }
-	
-	    if ($trx['status'] !== 'COMPLETED') {
-	        throw new Exception("Transaction is not completed.");
-	    }
-	
-	    if ((float)$trx['amount'] <= 0) {
-	        throw new Exception("Transaction amount is zero.");
-	    }
-
-	    if (empty($trx['payment_method_id'])) {
-	        throw new Exception("Payment method is required to determine the posting account.");
-	    }
-	
-	    if ((int)$trx['accounting_posted'] === 1) {
-	        throw new Exception("Transaction already posted.");
-	    }
-	
-	}
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
+    }
 	
 	// تحديث حالة ترحيل التحصيل
 	    protected function markPaymentPosted(int $transactionId, int $journalId): void {
-        $stmt = $this->db->prepare("
-            UPDATE financial_transactions
-               SET accounting_posted = 1, accounting_entry_id = ?
-             WHERE id = ?
-               AND COALESCE(accounting_posted, 0) = 0
-               AND accounting_entry_id IS NULL
-        ");
-        $stmt->execute([$journalId, $transactionId]);
-        if ($stmt->rowCount() !== 1) {
-            throw new Exception("Financial transaction was already posted or changed concurrently.");
-        }
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
     }
 
     /**
@@ -585,123 +503,17 @@ class AccountingEvents {
      * يجب أن يكون جدول accounting_line_allocations مطبقًا قبل تفعيل ترحيل التحصيلات.
      */
     protected function allocateDirectSalePayment(int $orderId, int $customerId, int $journalId, float $amount): void {
-        $orderStmt = $this->db->prepare("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID = ? FOR UPDATE");
-        $orderStmt->execute([$orderId]);
-        $saleEntryId = (int)$orderStmt->fetchColumn();
-        if ($saleEntryId <= 0) {
-            throw new Exception('لا يوجد قيد مبيعات معتمد لتخصيص التحصيل عليه.');
-        }
-
-        $customerAccountId = $this->settings->customers();
-        $debitStmt = $this->db->prepare("SELECT id, debit FROM journal_entry_details
-            WHERE journal_entry_id = ? AND account_id = ? AND partner_type = 'CLIENT'
-              AND partner_id = ? AND debit > 0 ORDER BY id LIMIT 1 FOR UPDATE");
-        $debitStmt->execute([$saleEntryId, $customerAccountId, $customerId]);
-        $debitLine = $debitStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$debitLine) {
-            throw new Exception('لم يتم العثور على مديونية العميل في قيد المبيعات.');
-        }
-
-        $usedStmt = $this->db->prepare("SELECT COALESCE(SUM(amount),0) FROM accounting_line_allocations
-            WHERE debit_line_id = ? AND status = 'ACTIVE'");
-        $usedStmt->execute([(int)$debitLine['id']]);
-        $openAmount = round((float)$debitLine['debit'] - (float)$usedStmt->fetchColumn(), 2);
-        if ($amount - $openAmount > 0.009) {
-            throw new Exception('مبلغ التحصيل أكبر من الرصيد المفتوح لأمر البيع.');
-        }
-
-        $creditStmt = $this->db->prepare("SELECT id FROM journal_entry_details
-            WHERE journal_entry_id = ? AND account_id = ? AND partner_type = 'CLIENT'
-              AND partner_id = ? AND credit > 0 ORDER BY id LIMIT 1");
-        $creditStmt->execute([$journalId, $customerAccountId, $customerId]);
-        $creditLineId = (int)$creditStmt->fetchColumn();
-        if ($creditLineId <= 0) {
-            throw new Exception('تعذر تحديد سطر دائن العملاء في قيد التحصيل.');
-        }
-
-        $insert = $this->db->prepare("INSERT INTO accounting_line_allocations
-            (debit_line_id, credit_line_id, amount, allocation_date, status, note, created_by)
-            VALUES (?, ?, ?, NOW(), 'ACTIVE', ?, ?)");
-        $insert->execute([
-            (int)$debitLine['id'], $creditLineId, round($amount, 2),
-            'تخصيص تحصيل مباشر لأمر بيع رقم ' . $orderId, $this->getCurrentUserId()
-        ]);
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
     }
 
 	// الدالة الرئيسيه لسداد العميل لامر البيع المباشر
 	public function directSalePayment(int $transactionId): int {
-        return $this->runAtomically(function () use ($transactionId) {
-            return $this->directSalePaymentInternal($transactionId);
-        });
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
     }
 
     private function directSalePaymentInternal(int $transactionId): int
     {
-        $trx = $this->getDirectSalePayment($transactionId);
-
-        // إعادة الطلب بعد نجاح الترحيل تعيد القيد نفسه ولا تنشئ قيدًا ثانيًا.
-        if ((int)$trx['accounting_posted'] === 1) {
-            $existingJournalId = (int)($trx['accounting_entry_id'] ?? 0);
-            if ($existingJournalId <= 0) {
-                throw new RuntimeException('الحركة معلّمة كمرحّلة دون مرجع قيد؛ يلزم فحصها يدويًا.');
-            }
-            return $existingJournalId;
-        }
-
-        $this->validateDirectSalePayment($trx);
-        if ((int)$trx['payment_method_id'] !== 1) {
-            throw new RuntimeException('تحصيلات البيع غير النقدية متوقفة حتى اكتمال الحسابات البنكية والتسويات؛ لم يتم ترحيل الحركة.');
-        }
-
-        $component = strtoupper(trim((string)($trx['PAYMENT_COMPONENT'] ?? '')));
-        $targetJournalId = $component === 'ORDER_SHIPPING'
-            ? (int)($trx['SHIPPING_ENTRY_ID'] ?? 0)
-            : (int)($trx['SALE_ENTRY_ID'] ?? 0);
-        if ($targetJournalId <= 0) {
-            throw new RuntimeException(
-                $component === 'ORDER_SHIPPING'
-                    ? 'لا يوجد قيد إيراد شحن معتمد لتخصيص تحصيل الشحن عليه.'
-                    : 'لا يوجد قيد بيع معتمد لتخصيص تحصيل المنتجات عليه.'
-            );
-        }
-
-        $cashBoxService = new CashBox($this->db);
-        $availableBoxes = $cashBoxService->listForPaymentMethod((int)$trx['branch_id'], 1);
-        if (!$availableBoxes) {
-            throw new RuntimeException('لا توجد خزينة نقدية نشطة في فرع الطلب؛ أضف خزينة قبل ترحيل التحصيل.');
-        }
-
-        $defaults = array_values(array_filter(
-            $availableBoxes,
-            static fn(array $box): bool => (int)($box['is_default'] ?? 0) === 1
-        ));
-        if (count($defaults) === 1) {
-            $cashBoxId = (int)$defaults[0]['id'];
-        } elseif (count($availableBoxes) === 1) {
-            $cashBoxId = (int)$availableBoxes[0]['id'];
-        } else {
-            throw new RuntimeException('يوجد أكثر من خزينة للفرع دون خزينة افتراضية؛ حدد الخزينة الافتراضية من شاشة إدارة الخزائن.');
-        }
-
-        $voucherManager = new FinancialVoucherManager($this->db);
-        $voucher = $voucherManager->post([
-            'voucher_subtype' => 'CUSTOMER_RECEIPT',
-            'branch_id' => (int)$trx['branch_id'],
-            'cash_box_id' => $cashBoxId,
-            'payment_method_id' => 1,
-            'voucher_date' => (string)$trx['JOURNAL_DATE'],
-            'partner_id' => (int)$trx['entity_id'],
-            'amount' => (float)$trx['amount'],
-            'target_journal_entry_id' => $targetJournalId,
-            'description' => ($component === 'ORDER_SHIPPING' ? 'تحصيل رسوم شحن' : 'تحصيل قيمة منتجات')
-                . ' أمر بيع رقم ' . $trx['SUB_ORDER_ID'],
-            'idempotency_key' => 'DIRECT-SALE-PAYMENT:' . $transactionId,
-            'created_by' => $this->getCurrentUserId(),
-        ]);
-
-        $journalId = (int)$voucher['journal_entry_id'];
-        $this->markPaymentPosted($transactionId, $journalId);
-        return $journalId;
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
     }
 
 /*****************************************************
@@ -976,129 +788,22 @@ class AccountingEvents {
     
 	// جلب بيانات صرف قيمة مرتجع البيع
 	protected function getSalesReturnPayment(int $transactionId): array{
-	
-	    $stmt = $this->db->prepare("
-	        SELECT
-	            FT.id,
-	            FT.branch_id,
-	            FT.transaction_date AS JOURNAL_DATE,
-	            FT.invoice_id,
-	            FT.amount,
-	            FT.payment_method_id,
-	            FT.entity_type,
-	            FT.entity_id,
-	            FT.status,
-	            FT.accounting_posted,
-	            FT.accounting_entry_id,
-	            I.reference_id,
-	            I.reference_type,
-	            O.ORDER_TYPE_ID,
-	            O.ORDER_STATUS,
-	            O.SUB_ORDER_ID,
-	            TC.name
-	        FROM financial_transactions FT
-	
-	        INNER JOIN invoices I
-	            ON I.INVO_ID = FT.invoice_id
-	
-	        INNER JOIN orders O
-	            ON O.ORDER_ID = I.reference_id
-	
-	        INNER JOIN transaction_categories TC
-	            ON TC.id = FT.category_id
-	
-	        WHERE FT.id = ?
-	
-	        LIMIT 1
-	    ");
-	
-	    $stmt->execute([$transactionId]);
-	
-	    $trx = $stmt->fetch(PDO::FETCH_ASSOC);
-	
-	    if (!$trx)
-	        throw new Exception("Financial transaction not found.");
-	
-	    return $trx;
-	}
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
+    }
 	
 	// التحقق من صحة صرف قيمة المرتجع
 	protected function validateSalesReturnPayment(array $trx): void{
-	
-	    if ($trx['reference_type'] !== 'SALES')
-	        throw new Exception("Transaction is not sales.");
-	
-	    /*if ((int)$trx['ORDER_TYPE_ID'] !== 1)
-	        throw new Exception("Order is not direct sale.");*/
-	
-	    if (
-	        (int)$trx['ORDER_STATUS'] !== 6 &&
-	        (int)$trx['ORDER_STATUS'] !== 7
-	    ){
-	        throw new Exception("Order is not returned.");
-	    }
-	
-	    if ($trx['entity_type'] !== 'CLIENT')
-	        throw new Exception("Transaction is not client.");
-
-	    if (empty($trx['payment_method_id']))
-	        throw new Exception("Payment method is required to determine the posting account.");
-	
-	    if ($trx['status'] !== 'COMPLETED')
-	        throw new Exception("Transaction is not completed.");
-	
-	    if ((float)$trx['amount'] <= 0)
-	        throw new Exception("Transaction amount is zero.");
-	
-	    if ((int)$trx['accounting_posted'] === 1)
-	        throw new Exception("Transaction already posted.");
-	
-	    // التأكد أنها حركة "مدفوعات مرتجع مبيعات"
-	    if (trim($trx['name']) !== 'مدفوعات مرتجع مبيعات')
-	        throw new Exception("Invalid transaction category.");
-	
-	}
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
+    }
     
     // صرف قيمة مرتجع بيع
 	public function salesReturnPayment(int $transactionId): int {
-        return $this->runAtomically(function () use ($transactionId) {
-            return $this->salesReturnPaymentInternal($transactionId);
-        });
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
     }
 
     private function salesReturnPaymentInternal(int $transactionId): int
     {
-        $trx = $this->getSalesReturnPayment($transactionId);
-
-        if ((int)$trx['accounting_posted'] === 1) {
-            $existingJournalId = (int)($trx['accounting_entry_id'] ?? 0);
-            if ($existingJournalId <= 0) {
-                throw new RuntimeException('حركة رد المرتجع معلّمة كمرحّلة دون مرجع قيد؛ يلزم فحصها يدويًا.');
-            }
-            return $existingJournalId;
-        }
-
-        $this->validateSalesReturnPayment($trx);
-        $orderId = (int)$trx['reference_id'];
-        $requestKey = 'RETURN-TRANSACTION:' . $transactionId;
-        $requestHash = hash('sha256', json_encode([
-            'transaction_id' => $transactionId,
-            'order_id' => $orderId,
-            'client_id' => (int)$trx['entity_id'],
-            'payment_method_id' => (int)$trx['payment_method_id'],
-            'amount' => round((float)$trx['amount'], 2),
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
-        $refund = (new CustomerRefundManager($this->db))->refund(
-            $orderId,
-            (int)$trx['payment_method_id'],
-            (float)$trx['amount'],
-            $requestKey,
-            $requestHash
-        );
-        $journalId = (int)$refund['journal_id'];
-        $this->markPaymentPosted($transactionId, $journalId);
-        return $journalId;
+        throw new LogicException("مسار تحصيل/رد قديم معطّل؛ استخدم مستندات القبض/الصرف المرتبطة بالأستاذ العام.");
     }
 
 }
