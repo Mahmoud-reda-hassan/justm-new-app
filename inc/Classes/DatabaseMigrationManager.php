@@ -361,7 +361,7 @@ class DatabaseMigrationManager
         } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
             $required = ['branches', 'cash_boxes', 'payment_methods', 'payment_method_accounts', 'accounts', 'account_settings', 'journal_entries', 'accounting_events', 'accounting_line_allocations', 'journal_entry_details'];
         } elseif ($file === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
-            $required = ['customer_refund_payments', 'financial_transactions', 'invoices', 'journal_entries', 'journal_entry_details', 'account_settings', 'orders'];
+            $required = ['customer_refund_payments', 'financial_transactions', 'invoices', 'journal_entries', 'journal_entry_details', 'account_settings', 'orders', 'branches', 'payment_methods', 'client'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
@@ -399,6 +399,9 @@ class DatabaseMigrationManager
                     ON i.INVO_ID = ft.invoice_id
                    AND i.REFERENCE_TYPE = 'SALES'
                 LEFT JOIN orders o ON o.ORDER_ID = i.REFERENCE_ID
+                LEFT JOIN branches b ON b.BR_ID = ft.branch_id
+                LEFT JOIN payment_methods pm ON pm.id = ft.payment_method_id
+                LEFT JOIN client cl ON cl.CLIENT_ID = ft.entity_id
                 LEFT JOIN (
                     SELECT d.journal_entry_id, d.partner_id, SUM(d.debit) AS amount
                     FROM journal_entry_details d
@@ -417,6 +420,7 @@ class DatabaseMigrationManager
                       OR ft.entity_id IS NULL OR ft.entity_id <= 0
                       OR ft.branch_id IS NULL OR ft.branch_id <= 0
                       OR ft.payment_method_id IS NULL OR ft.payment_method_id <= 0
+                      OR b.BR_ID IS NULL OR pm.id IS NULL OR cl.CLIENT_ID IS NULL
                       OR i.INVO_ID IS NULL OR o.ORDER_ID IS NULL
                       OR posted_refund.amount IS NULL OR posted_refund.amount <= 0
                   )
