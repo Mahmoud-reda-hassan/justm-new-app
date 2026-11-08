@@ -137,10 +137,19 @@ try {
     $payoutJs = projectFile($root, 'dist/js/PaymentDisbursement.js');
     has($payoutJs, "'PayMarketerCommission'", 'شاشة الصرف لا تستخدم endpoint الأستاذ العام.');
     has($payoutJs, 'request_key', 'شاشة الصرف لا ترسل مفتاح منع التكرار.');
+    has($payoutView, 'marketer-cash-box', 'شاشة صرف المسوق لا تطلب الخزينة الفعلية.');
+    has($payoutJs, 'loadMarketerCommissionCashBoxes', 'شاشة صرف المسوق لا تحمل خزائن الفرع.');
+    has($payoutJs, 'cash_box_id: cashBoxId', 'شاشة صرف المسوق لا ترسل رقم الخزينة.');
+    $marketerPayout = methodBody($deliveryManager, 'public function payMarketerCommission(');
+    has($marketerPayout, '$cashBoxId', 'صرف عمولة المسوق لا يتحقق من الخزينة.');
+    has($marketerPayout, "'cash_box_id' => \$cashBoxId", 'قيد صرف عمولة المسوق لا يحفظ الخزينة الفعلية.');
+    lacks($marketerPayout, 'transactionAccount($paymentMethodId, $branchId)', 'صرف عمولة المسوق يعتمد على mapping غير مستخدم.');
 
     $courierPayout = methodBody($deliveryManager, 'public function payCommission(');
     has($courierPayout, 'delivery_commission_payments', 'صرف عمولة المندوب لا ينشئ مستند صرف GL.');
-    has($courierPayout, 'transactionAccount($paymentMethodId, $branchId)', 'صرف عمولة المندوب لا يستخدم حساب طريقة الدفع.');
+    lacks($courierPayout, 'transactionAccount($paymentMethodId, $branchId)', 'صرف عمولة المندوب يعتمد على mapping قديم بدل الخزينة الفعلية.');
+    has($courierPayout, '$paymentMethodId !== 1', 'صرف العمولة غير النقدي متاح قبل اكتمال البنوك.');
+    has($courierPayout, '$cashBoxAccountId', 'صرف عمولة المندوب لا يستخدم حساب الخزينة الفعلية.');
     has($courierPayout, 'cashBoxId', 'صرف عمولة المندوب لا يستقبل رقم الخزينة.');
     has($courierPayout, 'cash_boxes cb', 'صرف عمولة المندوب لا يتحقق من الخزينة والفرع والحساب.');
     has($courierPayout, "'cash_box_id' => \$cashBoxId", 'قيد صرف عمولة المندوب لا يحفظ الخزينة الفعلية.');
