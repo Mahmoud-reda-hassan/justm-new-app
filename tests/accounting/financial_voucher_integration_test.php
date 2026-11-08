@@ -215,7 +215,7 @@ try {
         (6, '5210', 'مصروفات تشغيلية', 'EXPENSE', 1, 1)");
     $db->exec("INSERT INTO account_settings (setting_key, account_id) VALUES
         ('CUSTOMERS', 2), ('CUSTOMER_CREDITS', 3), ('SUPPLIERS', 4)");
-    $db->exec("INSERT INTO client (CLIENT_ID) VALUES (10), (11)");
+    $db->exec("INSERT INTO client (CLIENT_ID) VALUES (10), (11), (12)");
     $db->exec("INSERT INTO suppliers (SUP_ID) VALUES (20)");
     $db->exec("INSERT INTO payment_methods (id, name, is_active) VALUES (1, 'نقدي', 1), (2, 'تحويل بنكي', 1)");
     $db->exec("INSERT INTO cash_boxes (id, branch_id, account_id, box_name, name, is_active) VALUES (1, 1, 1, 'الخزينة الرئيسية', 'الخزينة الرئيسية', 1)");
@@ -299,6 +299,51 @@ try {
     voucherAssert(!empty($retry['already_posted']) && (int)$retry['voucher_id'] === $voucherId, 'إعادة نفس طلب التحصيل يجب أن تعيد المستند السابق.');
     $voucherCount = (int)$db->query('SELECT COUNT(*) FROM financial_vouchers')->fetchColumn();
     voucherAssert($voucherCount === 1, 'منع التكرار يجب ألا ينشئ مستندًا ثانيًا.');
+
+    // التحصيل المرتبط بالشحن يجب أن يخصص على قيد الشحن فقط، لا على قيد المنتجات الأقدم.
+    $orderSale = (new JournalManager($db))->create([
+        'branch_id' => 1, 'entry_date' => '2026-11-03 10:00:00',
+        'reference_type' => 'DIRECT_SALE', 'reference_id' => 12,
+        'description' => 'بيع منتجات للعميل 12', 'created_by' => 7, 'status' => 'POSTED'
+    ]);
+    $orderSale->addLine(['account_id' => 2, 'partner_type' => 'CLIENT', 'partner_id' => 12, 'debit' => 100]);
+    $orderSale->addLine(['account_id' => 5, 'credit' => 100]);
+    $orderSaleJournalId = $orderSale->post();
+    $orderShipping = (new JournalManager($db))->create([
+        'branch_id' => 1, 'entry_date' => '2026-11-03 10:05:00',
+        'reference_type' => 'ORDER_SHIPPING', 'reference_id' => 12,
+        'description' => 'رسوم شحن للعميل 12', 'created_by' => 7, 'status' => 'POSTED'
+    ]);
+    $orderShipping->addLine(['account_id' => 2, 'partner_type' => 'CLIENT', 'partner_id' => 12, 'debit' => 20]);
+    $orderShipping->addLine(['account_id' => 5, 'credit' => 20]);
+    $orderShippingJournalId = $orderShipping->post();
+    $shippingReceipt = $manager->post([
+        'voucher_subtype' => 'CUSTOMER_RECEIPT',
+        'branch_id' => 1, 'cash_box_id' => 1, 'payment_method_id' => 1,
+        'voucher_date' => '2026-11-08 09:15:00',
+        'partner_id' => 12, 'amount' => 30,
+        'target_journal_entry_id' => $orderShippingJournalId,
+        'description' => 'تحصيل منتجات وشحن محدد',
+        'idempotency_key' => 'TEST-ORDER-SHIPPING-RECEIPT', 'created_by' => 7
+    ]);
+    $shippingVoucherLines = $db->prepare('SELECT account_id, amount FROM financial_voucher_lines WHERE voucher_id = ? ORDER BY line_no');
+    $shippingVoucherLines->execute([(int)$shippingReceipt['voucher_id']]);
+    $shippingVoucherRows = $shippingVoucherLines->fetchAll(PDO::FETCH_ASSOC);
+    voucherAssert(count($shippingVoucherRows) === 2
+        && (int)$shippingVoucherRows[0]['account_id'] === 2
+        && abs((float)$shippingVoucherRows[0]['amount'] - 20.0) < 0.001
+        && (int)$shippingVoucherRows[1]['account_id'] === 3
+        && abs((float)$shippingVoucherRows[1]['amount'] - 10.0) < 0.001,
+        'الزيادة عن رصيد الشحن المحدد يجب أن تتحول إلى رصيد دائن.');
+    $shippingDebitLine = (int)$db->query("SELECT id FROM journal_entry_details WHERE journal_entry_id = {$orderShippingJournalId} AND account_id = 2")->fetchColumn();
+    $saleDebitLine = (int)$db->query("SELECT id FROM journal_entry_details WHERE journal_entry_id = {$orderSaleJournalId} AND account_id = 2")->fetchColumn();
+    $shippingAllocation = $db->prepare("SELECT COUNT(*) FROM accounting_line_allocations WHERE debit_line_id = ? AND status = 'ACTIVE'");
+    $shippingAllocation->execute([$shippingDebitLine]);
+    voucherAssert((int)$shippingAllocation->fetchColumn() === 1, 'يجب تخصيص التحصيل على سطر مديونية الشحن المحدد.');
+    $shippingAllocation->execute([$saleDebitLine]);
+    voucherAssert((int)$shippingAllocation->fetchColumn() === 0, 'لا يجوز تحويل تحصيل الشحن إلى مديونية المنتجات.');
+    voucherAssert(abs($manager->getPartnerBalance('CLIENT', 12) - 100.0) < 0.001,
+        'بعد تحصيل الشحن يظل رصيد المنتجات فقط مفتوحًا.');
 
     // عميل آخر بلا مديونية: كامل المبلغ يصبح رصيدًا دائنًا.
     $creditOnly = $manager->post([
