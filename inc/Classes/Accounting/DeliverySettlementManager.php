@@ -1147,7 +1147,7 @@ final class DeliverySettlementManager
 
             $balanceStmt = $this->db->prepare("SELECT ROUND(COALESCE(SUM(d.credit - d.debit),0),2)
                 FROM journal_entry_details d
-                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
                 WHERE d.account_id = ? AND d.partner_type = 'DELIVERY' AND d.partner_id = ?");
             $balanceStmt->execute([$payableAccountId, $deliveryId]);
             $outstanding = round((float)$balanceStmt->fetchColumn(), 2);
