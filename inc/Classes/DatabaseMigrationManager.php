@@ -350,7 +350,7 @@ class DatabaseMigrationManager
         } elseif ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
             $required = ['journal_entry_details', 'cash_boxes', 'branches'];
         } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
-            $required = ['financial_vouchers', 'financial_voucher_lines', 'branches', 'cash_boxes', 'payment_methods', 'accounts', 'journal_entries', 'accounting_events'];
+            $required = ['branches', 'cash_boxes', 'payment_methods', 'accounts', 'journal_entries', 'accounting_events', 'journal_entry_details'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
