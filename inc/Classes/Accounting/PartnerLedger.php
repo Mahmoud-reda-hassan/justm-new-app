@@ -10,9 +10,9 @@ declare(strict_types=1);
  */
 final class PartnerLedger
 {
-    private PDO $db;
+    private PDO|TrimmedPDO $db;
 
-    public function __construct(PDO $db)
+    public function __construct(PDO|TrimmedPDO $db)
     {
         $this->db = $db;
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
