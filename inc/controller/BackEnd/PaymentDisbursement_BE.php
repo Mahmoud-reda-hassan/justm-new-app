@@ -97,15 +97,19 @@ class PaymentDisbursement {
 			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
 			INNER JOIN client C ON C.CLIENT_ID = T.CLIENT_ID
 			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
-			INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
-			INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
-				AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+			INNER JOIN (
+				SELECT D.journal_entry_id, D.partner_id, SUM(D.credit) AS return_credit
+				FROM journal_entry_details D
+				INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
+					AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+				WHERE D.partner_type = 'CLIENT' AND D.credit > 0
+				GROUP BY D.journal_entry_id, D.partner_id
+			) RC ON RC.journal_entry_id = H.id AND RC.partner_id = C.CLIENT_ID
 			LEFT JOIN (
 				SELECT order_id, SUM(amount) AS refunded
 				FROM customer_refund_payments WHERE status = 'POSTED' GROUP BY order_id
 			) R ON R.order_id = O.ORDER_ID
-			WHERE D.partner_type = 'CLIENT' AND D.partner_id = C.CLIENT_ID AND D.credit > 0
-				AND D.credit > COALESCE(R.refunded,0)";
+			WHERE RC.return_credit > COALESCE(R.refunded,0)";
 		$params = [];
 		if ($search !== '') {
 			$query .= " AND (C.CLIENT_NAME LIKE :search OR T.TEL_NUMBER LIKE :search)";
@@ -124,15 +128,19 @@ class PaymentDisbursement {
 			FROM orders O
 			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
 			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
-			INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
-			INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
-				AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+			INNER JOIN (
+				SELECT D.journal_entry_id, D.partner_id, SUM(D.credit) AS return_credit
+				FROM journal_entry_details D
+				INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
+					AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+				WHERE D.partner_type = 'CLIENT' AND D.credit > 0
+				GROUP BY D.journal_entry_id, D.partner_id
+			) RC ON RC.journal_entry_id = H.id AND RC.partner_id = T.CLIENT_ID
 			LEFT JOIN (
 				SELECT order_id, SUM(amount) AS refunded
 				FROM customer_refund_payments WHERE status = 'POSTED' GROUP BY order_id
 			) R ON R.order_id = O.ORDER_ID
-			WHERE T.CLIENT_ID = :client_id AND D.partner_type = 'CLIENT'
-				AND D.partner_id = T.CLIENT_ID AND D.credit > COALESCE(R.refunded,0)";
+			WHERE T.CLIENT_ID = :client_id AND RC.return_credit > COALESCE(R.refunded,0)";
 		$params = ['client_id' => $clientId];
 		if ($search !== '') {
 			$query .= " AND O.SUB_ORDER_ID LIKE :search";
@@ -155,8 +163,7 @@ class PaymentDisbursement {
 					WHERE H.id = O.RETURN_ENTRY_ID AND D.partner_type = 'CLIENT'
 						AND D.partner_id = T.CLIENT_ID AND D.credit > 0),0)
 				- COALESCE((SELECT SUM(R.amount) FROM customer_refund_payments R
-					WHERE R.order_id = O.ORDER_ID AND R.status = 'POSTED'),0)
-, 0
+					WHERE R.order_id = O.ORDER_ID AND R.status = 'POSTED'),0), 0
 			) AS total_balance
 			FROM orders O
 			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
