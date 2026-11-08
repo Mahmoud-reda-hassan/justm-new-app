@@ -821,22 +821,22 @@ public function array_body_JS(){
 		<script src="../../dist/js/model/connection-monitor.js?ver='.$this->assetVersion('/dist/js/model/connection-monitor.js').'"></script>
 		
 		<!-- Popper.js (مطلوب للقوائم المنسدلة في Bootstrap -->
-		<script src="../../libraries/popper/umd/popper.min.js"></script> 
+		<script src="../../libraries/popper/umd/popper.min.js?v=' . $this->assetVersion('/libraries/popper/umd/popper.min.js') . '"></script> 
 		
 		<!-- select2 -->
 		<script src="../../libraries/select2/js/select2.min.js?ver=' . $this->assetVersion('/libraries/select2/js/select2.min.js') . '"></script>
 		<script src="../../libraries/select2/js/i18n/ar.js?v=' . $this->assetVersion('/libraries/select2/js/i18n/ar.js') . '"></script>
 		
 		<!-- Bootstrap -->
-		<script src="../../libraries/bootstrap/4.2.1/js/bootstrap.bundle.min.js"></script>
+		<script src="../../libraries/bootstrap/4.2.1/js/bootstrap.bundle.min.js?v=' . $this->assetVersion('/libraries/bootstrap/4.2.1/js/bootstrap.bundle.min.js') . '"></script>
 		
 		<!-- Date Range Picker -->
-		<script src="../../libraries/daterangepicker-master/moment.min.js"></script>
-		<script src="../../libraries/daterangepicker-master/daterangepicker.js"></script>
+		<script src="../../libraries/daterangepicker-master/moment.min.js?v=' . $this->assetVersion('/libraries/daterangepicker-master/moment.min.js') . '"></script>
+		<script src="../../libraries/daterangepicker-master/daterangepicker.js?v=' . $this->assetVersion('/libraries/daterangepicker-master/daterangepicker.js') . '"></script>
 		
 		
 		<!-- Overlay Scrollbars -->
-		<script src="../../libraries/overlayScrollbars/js/jquery.overlayScrollbars.min.js?ver=' . $this->assetVersion('/dist/js/custom.js') . '"></script>
+		<script src="../../libraries/overlayScrollbars/js/jquery.overlayScrollbars.min.js?ver=' . $this->assetVersion('/libraries/overlayScrollbars/js/jquery.overlayScrollbars.min.js') . '"></script>
 		
 			
 		<!-- Dropdown Tree -->
@@ -856,13 +856,13 @@ public function array_body_JS(){
 		<script src="../../libraries/dist/js/demo.js?v='.$this->assetVersion('/libraries/dist/js/demo.js').'"></script>
 		
 		<!-- DataTables -->
-		<script src="../../libraries/datatables/datatables.min.js"></script>
+		<script src="../../libraries/datatables/datatables.min.js?v=' . $this->assetVersion('/libraries/datatables/datatables.min.js') . '"></script>
 		
 		<!-- Fuse.js -->
-		<script src="../../libraries/fuse/fuse.min.js"></script>
+		<script src="../../libraries/fuse/fuse.min.js?v=' . $this->assetVersion('/libraries/fuse/fuse.min.js') . '"></script>
 		
 		<!-- Custom Scripts -->
-		<script src="../../dist/js/custom.js?ver='.filemtime($_SERVER["DOCUMENT_ROOT"]."/dist/js/custom.js").'"></script>  
+		<script src="../../dist/js/custom.js?ver='.$this->assetVersion('/dist/js/custom.js').'"></script>  
 
 	';
     
