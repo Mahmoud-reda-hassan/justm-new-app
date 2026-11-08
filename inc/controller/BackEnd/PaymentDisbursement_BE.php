@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../../Classes/Accounting/CustomerRefundManager.php';
+
 class PaymentDisbursement {
    	public $Requst;
     private $conn;
@@ -165,30 +167,10 @@ class PaymentDisbursement {
 	}
 
 	public function GetRefundBalance($orderId){
-		if (!$orderId) return [['total_balance' => 0]];
-		$query = "SELECT GREATEST(
-				COALESCE((SELECT SUM(D.credit - COALESCE(A.allocated_amount,0))
-					FROM journal_entry_details D
-					INNER JOIN journal_entries H ON H.id = D.journal_entry_id AND H.status = 'POSTED'
-					INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
-						AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
-					LEFT JOIN (
-						SELECT credit_line_id, SUM(amount) AS allocated_amount
-						FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
-					) A ON A.credit_line_id = D.id
-					WHERE H.id = O.RETURN_ENTRY_ID AND D.partner_type = 'CLIENT'
-						AND D.partner_id = T.CLIENT_ID AND D.credit > 0),0)
-				- COALESCE((SELECT SUM(R.amount) FROM customer_refund_payments R
-					WHERE R.order_id = O.ORDER_ID AND R.status = 'POSTED'),0), 0
-			) AS total_balance
-			FROM orders O
-			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
-			WHERE O.ORDER_ID = ? AND O.RETURN_ENTRY_ID IS NOT NULL
-				AND O.ORDER_STATUS IN (6,7) LIMIT 1";
-		$stmt = $this->conn->prepare($query);
-		$stmt->execute([(int)$orderId]);
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
-		return [$row ?: ['total_balance' => 0]];
+		$orderId = (int)$orderId;
+		if ($orderId <= 0) return [['total_balance' => 0.0]];
+		$refundManager = new CustomerRefundManager($this->conn);
+		return [['total_balance' => $refundManager->getAvailableRefundAmount($orderId)]];
 	}
 
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
