@@ -593,10 +593,7 @@ class inventory_BE {
 				throw new Exception("لم يتم تأكيد حفظ مرتجع أمر الشراء.");
 			}
 
-			$resB2 = $this->finance->Add_invoice($resA, 'PURCHASES', round($totalPrice, 2), 0, 0, 0);
-			if (!$resB2) {
-				throw new Exception("لم يتم تأكيد حفظ فاتورة مرتجع الشراء.");
-			}
+			// إثبات مرتجع الشراء يتم عبر SupplierAccountingManager بعد حركة المخزون؛ لا تُنشأ فاتورة مالية قديمة.
 
 			if ($deliveryProduct) {
 				$movementUniqueId = 'PURCHASE_RETURN_' . bin2hex(random_bytes(16));
