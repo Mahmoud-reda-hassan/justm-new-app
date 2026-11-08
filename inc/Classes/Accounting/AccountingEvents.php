@@ -804,6 +804,12 @@ class AccountingEvents {
 	    // قيمة البيع وتكلفة البضاعة المرتجعة
 	    $salesAmount = (float)$order['RETURN_AMOUNT'];
 	    $costAmount  = (float)$order['RETURN_COST_AMOUNT'];
+
+        // مردود البيع يخفض مديونية العميل أولًا؛ الزيادة فقط تتحول إلى رصيد دائن 1152.
+        $voucherManager = new FinancialVoucherManager($this->db);
+        $openReceivable = $voucherManager->getOpenPartnerDebitAmount('CLIENT', (int)$order['CLIENT_ID']);
+        $receivableCredit = round(min($salesAmount, $openReceivable), 2);
+        $customerCredit = round($salesAmount - $receivableCredit, 2);
 	
 	    // إنشاء القيد
 	    $this->journal->reset();
@@ -823,12 +829,24 @@ class AccountingEvents {
 	        'debit'      => $salesAmount
 	    ]);
 	
-	    $this->journal->addLine([
-	        'account_id'   => $this->settings->customers(),
-	        'partner_type' => 'CLIENT',
-	        'partner_id'   => $order['CLIENT_ID'],
-	        'credit'       => $salesAmount
-	    ]);
+        if ($receivableCredit > 0) {
+            $this->journal->addLine([
+                'account_id' => $this->settings->customers(),
+                'partner_type' => 'CLIENT',
+                'partner_id' => (int)$order['CLIENT_ID'],
+                'credit' => $receivableCredit,
+                'note' => 'تخفيض مديونية العميل بمردود البيع',
+            ]);
+        }
+        if ($customerCredit > 0) {
+            $this->journal->addLine([
+                'account_id' => $this->settings->customerCredits(),
+                'partner_type' => 'CLIENT',
+                'partner_id' => (int)$order['CLIENT_ID'],
+                'credit' => $customerCredit,
+                'note' => 'رصيد دائن للعميل بعد تسوية مديونيته بمردود البيع',
+            ]);
+        }
 	
 	    // إعادة المخزون
 	    $this->journal->addLine([
@@ -919,7 +937,35 @@ class AccountingEvents {
     
 	    // ترحيل القيد
 	    $journalId = $this->journal->post();
-	
+
+        if ($receivableCredit > 0) {
+            $creditLineStmt = $this->db->prepare(
+                "SELECT id FROM journal_entry_details
+                 WHERE journal_entry_id = ? AND account_id = ?
+                   AND partner_type = 'CLIENT' AND partner_id = ? AND credit > 0
+                 ORDER BY line_no LIMIT 1"
+            );
+            $creditLineStmt->execute([
+                $journalId,
+                $this->settings->customers(),
+                (int)$order['CLIENT_ID'],
+            ]);
+            $creditLineId = (int)$creditLineStmt->fetchColumn();
+            $creditLineStmt->closeCursor();
+            if ($creditLineId <= 0) {
+                throw new RuntimeException('تعذر تحديد سطر تخفيض مديونية العميل في قيد المرتجع.');
+            }
+            $voucherManager->allocatePartnerCreditLineToOldestDebits(
+                $journalId,
+                $creditLineId,
+                'CLIENT',
+                (int)$order['CLIENT_ID'],
+                $receivableCredit,
+                $this->getCurrentUserId(),
+                'تخصيص مردود البيع لتخفيض أقدم مديونيات العميل'
+            );
+        }
+
 	    // تحديث حالة الترحيل
 	    $this->markSalesReturnPosted($orderId, $journalId);
 	
