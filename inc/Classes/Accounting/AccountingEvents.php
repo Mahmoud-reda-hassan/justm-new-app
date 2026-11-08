@@ -308,6 +308,14 @@ class AccountingEvents {
             $order = $this->getSalesOrder($orderId);
             $this->validateDirectSale($order);
 
+            // استخدم رصيد العميل الدائن 1152 قبل إثبات مديونية جديدة عليه.
+            $customerCreditLines = $this->getOpenCustomerCreditLines($clientId, true);
+            $customerCreditAvailable = 0.0;
+            foreach ($customerCreditLines as $creditLine) {
+                $customerCreditAvailable += max(0.0, (float)$creditLine['credit'] - (float)$creditLine['allocated_amount']);
+            }
+            $customerCreditApplied = round(min($productsAmount, $customerCreditAvailable), 2);
+
             // تأكد أن بيانات الطلب لم تتغير بين تكوين بصمة الحدث وبدء الترحيل.
             if (
                 (int)$order['CLIENT_ID'] !== $clientId ||
@@ -345,6 +353,24 @@ class AccountingEvents {
                 'credit' => $productsAmount,
             ]);
 
+            if ($customerCreditApplied > 0) {
+                $customerCreditAccountId = $this->settings->customerCredits();
+                $this->journal->addLine([
+                    'account_id' => $customerCreditAccountId,
+                    'partner_type' => 'CLIENT',
+                    'partner_id' => $clientId,
+                    'debit' => $customerCreditApplied,
+                    'note' => 'استخدام رصيد العميل الدائن في أمر البيع رقم ' . $order['SUB_ORDER_ID'],
+                ]);
+                $this->journal->addLine([
+                    'account_id' => $this->settings->customers(),
+                    'partner_type' => 'CLIENT',
+                    'partner_id' => $clientId,
+                    'credit' => $customerCreditApplied,
+                    'note' => 'تسوية مديونية البيع من رصيد العميل الدائن',
+                ]);
+            }
+
             // إثبات تكلفة البضاعة وتخفيض المخزون.
             $this->journal->addLine([
                 'account_id' => $this->settings->cogs(),
@@ -357,6 +383,14 @@ class AccountingEvents {
             ]);
 
             $journalId = $this->journal->post();
+            if ($customerCreditApplied > 0) {
+                $this->allocateCustomerCreditToSale(
+                    $journalId,
+                    $clientId,
+                    $customerCreditApplied,
+                    $customerCreditLines
+                );
+            }
             $this->markOrderPosted($orderId, $journalId);
             return $journalId;
         });
@@ -369,6 +403,83 @@ class AccountingEvents {
 	
 	//================================================
 	
+    /**
+     * جلب سطور أرصدة العميل الدائنة المفتوحة FIFO، مع قفلها قبل استخدامها في البيع.
+     * لا نحتسب قيود JOURNAL_REVERSE كسندات ائتمان جديدة؛ قيد العكس يعيد فتح المصدر الأصلي.
+     */
+    protected function getOpenCustomerCreditLines(int $clientId, bool $lock = false): array
+    {
+        if ($clientId <= 0) {
+            throw new InvalidArgumentException('رقم العميل مطلوب لتحديد الرصيد الدائن.');
+        }
+
+        $accountId = $this->settings->customerCredits();
+        $sql = "SELECT d.id, d.credit, COALESCE(SUM(a.amount),0) AS allocated_amount
+            FROM journal_entry_details d
+            INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+            LEFT JOIN accounting_line_allocations a
+                ON a.credit_line_id = d.id AND a.status = 'ACTIVE'
+            WHERE d.account_id = ? AND d.partner_type = 'CLIENT' AND d.partner_id = ?
+              AND d.credit > 0 AND d.debit = 0 AND h.reference_type <> 'JOURNAL_REVERSE'
+            GROUP BY d.id, d.credit, h.entry_date, h.id, d.line_no
+            HAVING d.credit > COALESCE(SUM(a.amount),0)
+            ORDER BY h.entry_date, h.id, d.line_no, d.id";
+        if ($lock) {
+            $sql .= ' FOR UPDATE';
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$accountId, $clientId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** يخصص استخدام الرصيد الدائن من أقدم سندات الائتمان الأصلية. */
+    protected function allocateCustomerCreditToSale(
+        int $saleJournalId,
+        int $clientId,
+        float $amount,
+        array $availableCreditLines
+    ): void {
+        if ($amount <= 0) return;
+
+        require_once __DIR__ . '/PartnerLedger.php';
+        $ledger = new PartnerLedger($this->db);
+        $accountId = $this->settings->customerCredits();
+
+        $debitStmt = $this->db->prepare(
+            "SELECT id FROM journal_entry_details
+             WHERE journal_entry_id = ? AND account_id = ?
+               AND partner_type = 'CLIENT' AND partner_id = ? AND debit > 0
+             ORDER BY line_no, id LIMIT 1"
+        );
+        $debitStmt->execute([$saleJournalId, $accountId, $clientId]);
+        $debitLineId = (int)$debitStmt->fetchColumn();
+        $debitStmt->closeCursor();
+        if ($debitLineId <= 0) {
+            throw new RuntimeException('تعذر تحديد سطر استخدام رصيد العميل الدائن في قيد البيع.');
+        }
+
+        $remaining = round($amount, 2);
+        foreach ($availableCreditLines as $creditLine) {
+            if ($remaining <= 0) break;
+            $available = round((float)$creditLine['credit'] - (float)$creditLine['allocated_amount'], 2);
+            if ($available <= 0) continue;
+            $take = min($available, $remaining);
+            $ledger->allocate(
+                $debitLineId,
+                (int)$creditLine['id'],
+                $take,
+                $this->getCurrentUserId(),
+                'استخدام رصيد دائن في قيد البيع رقم ' . $saleJournalId
+            );
+            $remaining = round($remaining - $take, 2);
+        }
+
+        if ($remaining > 0.009) {
+            throw new RuntimeException('تغير رصيد العميل الدائن أثناء ترحيل البيع؛ أعد المحاولة.');
+        }
+    }
+
 	// جلب بيانات تحصيل البيع المباشر
 	protected function getDirectSalePayment(int $transactionId): array{
 	    // جلب الحركة بواسطة رقمها الفعلي، وليس رقم الطلب.
