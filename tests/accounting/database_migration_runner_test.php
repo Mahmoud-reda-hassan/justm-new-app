@@ -104,8 +104,6 @@ try {
 $assert($wrongConfirmationRejected, 'Migration execution must require exact typed filename confirmation.');
 
 foreach ($migrations as $migration) {
-    if (!$migration['enabled']) continue;
-
     // Refresh prerequisites after each migration so later phases can become enabled
     // only after their dependencies (notably Phase 22 before Phase 24) are complete.
     $current = null;
@@ -141,6 +139,15 @@ $assert((int)$marketerMappings === 2, 'Phase 17 must map both marketer commissio
 $assert(strtolower((string)$cashBoxColumnType) === 'bigint(20) unsigned', 'Phase 22 cash_box_id must be BIGINT UNSIGNED.');
 $assert($cashBoxIndex === 1, 'Phase 22 must create the cash-box lookup index.');
 $assert($cashBoxForeignKey === 1, 'Phase 22 must create the cash-box foreign key.');
+$voucherHeader = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_vouchers'")->fetchColumn();
+$voucherLines = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_voucher_lines'")->fetchColumn();
+$voucherCashBoxFk = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_vouchers' AND COLUMN_NAME = 'cash_box_id' AND REFERENCED_TABLE_NAME = 'cash_boxes' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
+$voucherLineHeaderFk = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_voucher_lines' AND COLUMN_NAME = 'voucher_id' AND REFERENCED_TABLE_NAME = 'financial_vouchers' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
+$voucherLineAccountFk = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_voucher_lines' AND COLUMN_NAME = 'account_id' AND REFERENCED_TABLE_NAME = 'accounts' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
+$assert($voucherHeader === 1 && $voucherLines === 1, 'Phase 24 must create both financial voucher tables.');
+$assert($voucherCashBoxFk === 1, 'Phase 24 must link vouchers to their actual cash box.');
+$assert($voucherLineHeaderFk === 1, 'Phase 24 must link voucher lines to their header.');
+$assert($voucherLineAccountFk === 1, 'Phase 24 must link voucher lines to GL accounts.');
 
 // The full installer may already contain Phase 22's schema without a migration-ledger row.
 // The runner must recognize that state and register it without trying to add the column again.
@@ -157,6 +164,20 @@ $assert($schemaPresent !== null && $schemaPresent['status'] === 'SCHEMA_PRESENT'
     'Phase 22 must be recognized as already present when the installer created its schema.');
 $recognized = $manager->run('PHASE22_JOURNAL_CASHBOX_REFERENCE.sql', 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql', 1);
 $assert(!empty($recognized['already_applied']), 'Existing Phase 22 schema must be recorded without rerunning DDL.');
+
+$deletePhase24Ledger = $pdo->prepare('DELETE FROM app_schema_migrations WHERE migration_key = ?');
+$deletePhase24Ledger->execute(['PHASE24_FINANCIAL_VOUCHERS.sql']);
+$voucherSchemaPresent = null;
+foreach ($manager->listMigrations() as $migration) {
+    if ($migration['file'] === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+        $voucherSchemaPresent = $migration;
+        break;
+    }
+}
+$assert($voucherSchemaPresent !== null && $voucherSchemaPresent['status'] === 'SCHEMA_PRESENT' && !$voucherSchemaPresent['enabled'],
+    'Phase 24 must recognize installer-provided voucher tables without rerunning DDL.');
+$recognizedVoucherSchema = $manager->run('PHASE24_FINANCIAL_VOUCHERS.sql', 'PHASE24_FINANCIAL_VOUCHERS.sql', 1);
+$assert(!empty($recognizedVoucherSchema['already_applied']), 'Existing Phase 24 schema must be recorded without rerunning DDL.');
 
 $final = $manager->listMigrations();
 foreach ($final as $migration) {
