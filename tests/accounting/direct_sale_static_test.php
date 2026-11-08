@@ -43,6 +43,7 @@ try {
     $rootInstaller = projectFile($root, 'JUSTM_DATABASE_INSTALL.sql');
     $deliveryManager = projectFile($root, 'inc/Classes/Accounting/DeliverySettlementManager.php');
     $financeController = projectFile($root, 'inc/controller/finance.control.php');
+    $financialVoucherManager = projectFile($root, 'inc/Classes/Accounting/FinancialVoucherManager.php');
 
     $sale = methodBody($accounting, 'public function directSale(int $orderId): int');
     $directPayment = methodBody($accounting, 'private function directSalePaymentInternal(int $transactionId): int');
@@ -57,12 +58,14 @@ try {
     has($sale, 'FOR UPDATE', 'لا يوجد قفل للطلب وبنوده.');
     has($sale, 'getOpenCustomerCreditLines', 'البيع الجديد لا يفحص رصيد العميل الدائن 1152.');
     has($sale, 'allocateCustomerCreditToSale', 'استخدام رصيد العميل الدائن لا يُسجل كتخصيص قابل للعكس.');
-    has($directPayment, 'FinancialVoucherManager', 'تحصيل البيع المباشر لا يستخدم مستند قبض GL موحدًا.');
-    has($directPayment, 'target_journal_entry_id', 'تحصيل المنتجات/الشحن لا يخصص على القيد المصدر الصحيح.');
-    has($directPayment, 'DIRECT-SALE-PAYMENT:', 'تحصيل البيع المباشر لا يستخدم مفتاح منع التكرار.');
-    has($directPayment, 'ORDER_SHIPPING', 'تحصيل الشحن لا يميز قيد إيراد الشحن عن قيد المنتجات.');
-    has($directPayment, 'CashBox', 'تحصيل البيع المباشر لا يربط الخزينة الفعلية.');
-    lacks($directPayment, 'allocateDirectSalePayment(', 'تحصيل البيع المباشر ما زال يستخدم التخصيص القديم.');
+    has($directPayment, 'throw new LogicException', 'مسار تحصيل البيع القديم المعتمد على financial_transactions لم يتم تعطيله.');
+    has($financeController, "case 'PostFinancialVoucher':", 'مسار سند القبض/الصرف الموحد غير متاح.');
+    has($financeController, "case 'RefundCustomerReturn':", 'مسار رد مرتجع العميل الجديد غير متاح.');
+    has($financeController, '$customerRefunds->refund(', 'رد المرتجع لا يستخدم مستند رد GL.');
+    has($financialVoucherManager, 'target_journal_entry_id', 'سند القبض لا يخصص على قيد المديونية المصدر.');
+    has($financialVoucherManager, 'cash_box_id', 'سند القبض لا يربط الخزينة الفعلية.');
+    has($financialVoucherManager, 'accounting_line_allocations', 'تخصيص التحصيل لا يسجل في جدول التخصيصات المحاسبية.');
+    lacks($directPayment, 'allocateDirectSalePayment(', 'مسار التحصيل القديم ما زال يستخدم التخصيص القديم.');
     lacks($sale, 'SHIPPING_VAL', 'الشحن دخل في البيع المباشر.');
     lacks($sale, 'shippingRevenue', 'إيراد الشحن دخل في البيع المباشر.');
     lacks($validation, 'SHIPPING_VAL', 'التحقق من البيع المباشر يعتمد على الشحن.');
