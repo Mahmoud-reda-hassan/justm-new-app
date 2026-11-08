@@ -82,6 +82,12 @@ class DatabaseMigrationManager
             'enabled' => true,
             'warning' => 'ينشئ مستندات المصدر فقط؛ الأرصدة تظل من الأستاذ العام. يتطلب اكتمال المرحلة 22.'
         ],
+        'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql' => [
+            'title' => 'ترحيل مستندات رد العملاء التاريخية إلى GL',
+            'description' => 'ربط الردود التاريخية التي لها قيود GL مرحلة بمستندات رد العملاء لمنع تكرار الصرف.',
+            'enabled' => true,
+            'warning' => 'ترحيل لمرة واحدة للقيود المرحلة فقط؛ لا ينشئ قيودًا ولا يقرأ الجداول القديمة أثناء التشغيل اليومي.'
+        ],
     ];
 
     public function __construct($db, string $rootPath)
@@ -354,6 +360,8 @@ class DatabaseMigrationManager
             $required = ['journal_entry_details', 'cash_boxes', 'branches'];
         } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
             $required = ['branches', 'cash_boxes', 'payment_methods', 'payment_method_accounts', 'accounts', 'account_settings', 'journal_entries', 'accounting_events', 'accounting_line_allocations', 'journal_entry_details'];
+        } elseif ($file === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
+            $required = ['customer_refund_payments', 'financial_transactions', 'invoices', 'journal_entries', 'journal_entry_details', 'account_settings', 'orders'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
