@@ -475,7 +475,7 @@ class reports_BE {
 			$endOfDay = substr((string)$end, 0, 10) . ' 23:59:59';
 			$openingStmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0)
 				FROM journal_entry_details d
-				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status IN ('POSTED','REVERSED')
 				INNER JOIN account_settings aset ON aset.account_id=d.account_id
 					AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
 				WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date < ?");
@@ -494,7 +494,7 @@ class reports_BE {
 				? + SUM(d.credit-d.debit) OVER (ORDER BY h.entry_date,d.id
 					ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+			INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status IN ('POSTED','REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id=d.account_id
 				AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
 			WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date BETWEEN ? AND ?
@@ -509,7 +509,7 @@ class reports_BE {
 
 			$currentStmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0)
 				FROM journal_entry_details d
-				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status IN ('POSTED','REVERSED')
 				INNER JOIN account_settings aset ON aset.account_id=d.account_id
 					AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
 				WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date <= ?");
