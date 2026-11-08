@@ -159,13 +159,20 @@ try {
     cashBoxAssert(count($cashBoxes->listForPaymentMethod(1, 1)) === 0, 'يجب إيقاف ربط طرق الدفع عند إيقاف الخزينة.');
 
     $cashBoxes->save(1, $boxId, 'الخزينة بعد تعديل الحساب', 101, true);
-    cashBoxAssert(count($cashBoxes->listForPaymentMethod(1, 1)) === 0, 'إعادة تفعيل الخزينة لا تعيد ربط طريقة الدفع تلقائيًا.');
+    cashBoxAssert(count($cashBoxes->listForPaymentMethod(1, 1)) === 1, 'إعادة تفعيل الخزينة تجعلها متاحة للاختيار دون استعادة الربط الافتراضي تلقائيًا.');
 
     $cashBoxes->setPaymentMethodMapping(1, 1, $boxId);
     cashBoxAssert(count($cashBoxes->listForPaymentMethod(1, 1)) === 1, 'يجب السماح بإعادة الربط يدويًا بعد التفعيل.');
 
     $cashBoxes->setPaymentMethodMapping(1, 1, 0);
-    cashBoxAssert(count($cashBoxes->listForPaymentMethod(1, 1)) === 0, 'يجب دعم إلغاء ربط طريقة الدفع.');
+    cashBoxAssert(count($cashBoxes->listForPaymentMethod(1, 1)) === 1, 'إلغاء الربط الافتراضي لا يمنع اختيار خزينة الفرع النشطة.');
+
+    $secondBoxId = $cashBoxes->save(1, 0, 'خزينة ثانية', 100, true);
+    $cashBoxes->setPaymentMethodMapping(1, 1, $boxId);
+    $allBranchBoxes = $cashBoxes->listForPaymentMethod(1, 1);
+    cashBoxAssert(count($allBranchBoxes) === 2, 'يجب إتاحة أكثر من خزينة نقدية نشطة داخل الفرع نفسه.');
+    cashBoxAssert((int)$allBranchBoxes[0]['id'] === $boxId && (int)$allBranchBoxes[0]['is_default'] === 1,
+        'الربط الافتراضي يحدد الاختيار الأول فقط ولا يمنع اختيار الخزائن الأخرى.');
 
     echo "PASS: Cash-box management and payment-method mapping integration checks completed.\n";
 } catch (Throwable $e) {
