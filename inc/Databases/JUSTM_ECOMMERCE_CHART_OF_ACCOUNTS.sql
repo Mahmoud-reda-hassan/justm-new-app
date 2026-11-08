@@ -141,6 +141,7 @@ UPDATE accounts a JOIN tmp_justm_coa t ON t.account_code=a.account_code SET a.al
 INSERT INTO account_settings (setting_key, account_id, description)
 SELECT m.setting_key, a.id, m.description
 FROM (SELECT 'CUSTOMERS' setting_key,'1151' account_code,'حساب رقابي للعملاء' description
+      UNION ALL SELECT 'CUSTOMER_CREDITS','1152','حساب رقابي لأرصدة العملاء الدائنة القابلة لإعادة الاستخدام'
       UNION ALL SELECT 'SALES','4110','إيراد مبيعات المنتجات'
       UNION ALL SELECT 'COGS','5110','تكلفة البضاعة المباعة'
       UNION ALL SELECT 'INVENTORY','1161','مخزون البضاعة'
