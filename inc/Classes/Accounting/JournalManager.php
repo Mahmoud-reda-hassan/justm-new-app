@@ -312,7 +312,8 @@ class JournalManager{
 	public function reverse(
 	    int $journalId,
 	    string $reason = '',
-	    ?string $coordinatedSupplierReference = null): int {
+	    ?string $coordinatedSupplierReference = null,
+	    ?int $reversedBy = null): int {
 	    if ($journalId <= 0) {
 	        throw new InvalidArgumentException("Journal ID is required.");
 	    }
@@ -367,7 +368,7 @@ class JournalManager{
 	            'reference_type' => 'JOURNAL_REVERSE',
 	            'reference_id'   => $journalId,
 	            'description'    => 'Reverse Entry : ' . $reason,
-	            'created_by'     => (int)$header['created_by']
+	            'created_by'     => ($reversedBy !== null && $reversedBy > 0) ? $reversedBy : (int)$header['created_by']
 	        ]);
 
 	        foreach ($lines as $line) {
@@ -388,6 +389,51 @@ class JournalManager{
 	        }
 
 	        $reversalId = $this->post();
+
+            // أي تخصيص يمس أحد سطور القيد الأصلي يجب عكسه مع القيد نفسه؛
+            // وإلا يظل رصيد العميل/المورد محجوزًا رغم إنشاء القيد العكسي.
+            $lineIds = array_values(array_filter(array_map(
+                static fn(array $line): int => (int)($line['id'] ?? 0),
+                $lines
+            )));
+            if ($lineIds) {
+                $placeholders = implode(',', array_fill(0, count($lineIds), '?'));
+                $allocationSql = "SELECT id FROM accounting_line_allocations
+                    WHERE status = 'ACTIVE'
+                      AND (debit_line_id IN ($placeholders) OR credit_line_id IN ($placeholders))
+                    ORDER BY id FOR UPDATE";
+
+                try {
+                    // الاستعلام المباشر يعمل أيضًا مع الجداول المؤقتة في اختبارات CI؛
+                    // information_schema لا يعرض الجداول المؤقتة في بعض إصدارات MariaDB.
+                    $allocationStmt = $this->db->prepare($allocationSql);
+                    $allocationStmt->execute(array_merge($lineIds, $lineIds));
+                    $allocationIds = array_map('intval', $allocationStmt->fetchAll(PDO::FETCH_COLUMN));
+                    $allocationStmt->closeCursor();
+
+                    if ($allocationIds) {
+                        require_once __DIR__ . '/PartnerLedger.php';
+                        $partnerLedger = new PartnerLedger($this->db);
+                        $allocationReason = trim($reason) !== ''
+                            ? trim($reason)
+                            : 'عكس القيد رقم ' . $journalId;
+                        $allocationActor = ($reversedBy !== null && $reversedBy > 0)
+                            ? $reversedBy
+                            : (int)$original['created_by'];
+                        foreach ($allocationIds as $allocationId) {
+                            $partnerLedger->reverseAllocation(
+                                $allocationId,
+                                $allocationActor,
+                                'عكس القيد رقم ' . $journalId . ': ' . $allocationReason
+                            );
+                        }
+                    }
+                } catch (PDOException $allocationError) {
+                    if ($allocationError->getCode() !== '42S02') {
+                        throw $allocationError;
+                    }
+                }
+            }
 
 	        $markOriginal = $this->db->prepare(
 	            "UPDATE journal_entries SET status = 'REVERSED'

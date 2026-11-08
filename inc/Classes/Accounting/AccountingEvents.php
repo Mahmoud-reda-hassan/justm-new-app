@@ -2,6 +2,9 @@
 include_once(__dir__.'/../../Classes/Accounting/JournalManager.php');
 include_once(__dir__.'/../../Classes/Accounting/AccountSettings.php');
 include_once(__dir__.'/../../Classes/Accounting/FinancialEventManager.php');
+include_once(__dir__.'/../../Classes/Accounting/CashBox.php');
+include_once(__dir__.'/../../Classes/Accounting/FinancialVoucherManager.php');
+include_once(__dir__.'/../../Classes/Accounting/CustomerRefundManager.php');
 
 class AccountingEvents {
 
@@ -308,6 +311,14 @@ class AccountingEvents {
             $order = $this->getSalesOrder($orderId);
             $this->validateDirectSale($order);
 
+            // استخدم رصيد العميل الدائن 1152 قبل إثبات مديونية جديدة عليه.
+            $customerCreditLines = $this->getOpenCustomerCreditLines($clientId, true);
+            $customerCreditAvailable = 0.0;
+            foreach ($customerCreditLines as $creditLine) {
+                $customerCreditAvailable += max(0.0, (float)$creditLine['credit'] - (float)$creditLine['allocated_amount']);
+            }
+            $customerCreditApplied = round(min($productsAmount, $customerCreditAvailable), 2);
+
             // تأكد أن بيانات الطلب لم تتغير بين تكوين بصمة الحدث وبدء الترحيل.
             if (
                 (int)$order['CLIENT_ID'] !== $clientId ||
@@ -345,6 +356,24 @@ class AccountingEvents {
                 'credit' => $productsAmount,
             ]);
 
+            if ($customerCreditApplied > 0) {
+                $customerCreditAccountId = $this->settings->customerCredits();
+                $this->journal->addLine([
+                    'account_id' => $customerCreditAccountId,
+                    'partner_type' => 'CLIENT',
+                    'partner_id' => $clientId,
+                    'debit' => $customerCreditApplied,
+                    'note' => 'استخدام رصيد العميل الدائن في أمر البيع رقم ' . $order['SUB_ORDER_ID'],
+                ]);
+                $this->journal->addLine([
+                    'account_id' => $this->settings->customers(),
+                    'partner_type' => 'CLIENT',
+                    'partner_id' => $clientId,
+                    'credit' => $customerCreditApplied,
+                    'note' => 'تسوية مديونية البيع من رصيد العميل الدائن',
+                ]);
+            }
+
             // إثبات تكلفة البضاعة وتخفيض المخزون.
             $this->journal->addLine([
                 'account_id' => $this->settings->cogs(),
@@ -357,6 +386,14 @@ class AccountingEvents {
             ]);
 
             $journalId = $this->journal->post();
+            if ($customerCreditApplied > 0) {
+                $this->allocateCustomerCreditToSale(
+                    $journalId,
+                    $clientId,
+                    $customerCreditApplied,
+                    $customerCreditLines
+                );
+            }
             $this->markOrderPosted($orderId, $journalId);
             return $journalId;
         });
@@ -369,6 +406,83 @@ class AccountingEvents {
 	
 	//================================================
 	
+    /**
+     * جلب سطور أرصدة العميل الدائنة المفتوحة FIFO، مع قفلها قبل استخدامها في البيع.
+     * لا نحتسب قيود JOURNAL_REVERSE كسندات ائتمان جديدة؛ قيد العكس يعيد فتح المصدر الأصلي.
+     */
+    protected function getOpenCustomerCreditLines(int $clientId, bool $lock = false): array
+    {
+        if ($clientId <= 0) {
+            throw new InvalidArgumentException('رقم العميل مطلوب لتحديد الرصيد الدائن.');
+        }
+
+        $accountId = $this->settings->customerCredits();
+        $sql = "SELECT d.id, d.credit, COALESCE(SUM(a.amount),0) AS allocated_amount
+            FROM journal_entry_details d
+            INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+            LEFT JOIN accounting_line_allocations a
+                ON a.credit_line_id = d.id AND a.status = 'ACTIVE'
+            WHERE d.account_id = ? AND d.partner_type = 'CLIENT' AND d.partner_id = ?
+              AND d.credit > 0 AND d.debit = 0 AND h.reference_type <> 'JOURNAL_REVERSE'
+            GROUP BY d.id, d.credit, h.entry_date, h.id, d.line_no
+            HAVING d.credit > COALESCE(SUM(a.amount),0)
+            ORDER BY h.entry_date, h.id, d.line_no, d.id";
+        if ($lock) {
+            $sql .= ' FOR UPDATE';
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$accountId, $clientId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** يخصص استخدام الرصيد الدائن من أقدم سندات الائتمان الأصلية. */
+    protected function allocateCustomerCreditToSale(
+        int $saleJournalId,
+        int $clientId,
+        float $amount,
+        array $availableCreditLines
+    ): void {
+        if ($amount <= 0) return;
+
+        require_once __DIR__ . '/PartnerLedger.php';
+        $ledger = new PartnerLedger($this->db);
+        $accountId = $this->settings->customerCredits();
+
+        $debitStmt = $this->db->prepare(
+            "SELECT id FROM journal_entry_details
+             WHERE journal_entry_id = ? AND account_id = ?
+               AND partner_type = 'CLIENT' AND partner_id = ? AND debit > 0
+             ORDER BY line_no, id LIMIT 1"
+        );
+        $debitStmt->execute([$saleJournalId, $accountId, $clientId]);
+        $debitLineId = (int)$debitStmt->fetchColumn();
+        $debitStmt->closeCursor();
+        if ($debitLineId <= 0) {
+            throw new RuntimeException('تعذر تحديد سطر استخدام رصيد العميل الدائن في قيد البيع.');
+        }
+
+        $remaining = round($amount, 2);
+        foreach ($availableCreditLines as $creditLine) {
+            if ($remaining <= 0) break;
+            $available = round((float)$creditLine['credit'] - (float)$creditLine['allocated_amount'], 2);
+            if ($available <= 0) continue;
+            $take = min($available, $remaining);
+            $ledger->allocate(
+                $debitLineId,
+                (int)$creditLine['id'],
+                $take,
+                $this->getCurrentUserId(),
+                'استخدام رصيد دائن في قيد البيع رقم ' . $saleJournalId
+            );
+            $remaining = round($remaining - $take, 2);
+        }
+
+        if ($remaining > 0.009) {
+            throw new RuntimeException('تغير رصيد العميل الدائن أثناء ترحيل البيع؛ أعد المحاولة.');
+        }
+    }
+
 	// جلب بيانات تحصيل البيع المباشر
 	protected function getDirectSalePayment(int $transactionId): array{
 	    // جلب الحركة بواسطة رقمها الفعلي، وليس رقم الطلب.
@@ -384,10 +498,18 @@ class AccountingEvents {
 	            FT.entity_id,
 	            FT.status,
 	            FT.accounting_posted,
+	            FT.accounting_entry_id,
+	            FT.note AS PAYMENT_COMPONENT,
 	            I.reference_id,
 	            I.reference_type,
 	            O.ORDER_TYPE_ID,
-	            O.SUB_ORDER_ID
+	            O.SUB_ORDER_ID,
+	            O.SALE_ENTRY_ID,
+	            (SELECT SH.id FROM journal_entries SH
+	             WHERE SH.reference_type = 'ORDER_SHIPPING'
+	               AND SH.reference_id = O.ORDER_ID
+	               AND SH.status = 'POSTED'
+	             ORDER BY SH.id DESC LIMIT 1) AS SHIPPING_ENTRY_ID
 	        FROM financial_transactions FT
 	        INNER JOIN invoices I
 	            ON I.INVO_ID = FT.invoice_id
@@ -513,51 +635,74 @@ class AccountingEvents {
         });
     }
 
-    private function directSalePaymentInternal(int $transactionId): int {
-	
-	    // جلب بيانات التحصيل
-	    $trx = $this->getDirectSalePayment($transactionId);
-	
-	    // التحقق
-	    $this->validateDirectSalePayment($trx);
-	
-	    // إنشاء القيد
-	    $this->journal->reset();
-	
-	    $this->journal->create([
-	        'branch_id'      => $trx['branch_id'],
-	        'entry_date'     => $trx['JOURNAL_DATE'],
-	        'reference_type' => 'SALE_PAYMENT',
-	        'reference_id'   => $transactionId,
-	        'description'    => 'تحصيل أمر بيع رقم '.$trx['SUB_ORDER_ID'],
-	        'created_by'     => $this->getCurrentUserId()
-	    ]);
-	
-	    // مدين الصندوق
-	    $this->journal->addLine([
-	        'account_id' => $this->settings->transactionAccount((int)$trx['payment_method_id'], (int)$trx['branch_id']),
-	        'debit'      => (float)$trx['amount']
-	    ]);
-	
-	    // دائن العملاء
-	    $this->journal->addLine([
-	        'account_id'   => $this->settings->customers(),
-	        'partner_type' => 'CLIENT',
-	        'partner_id'   => $trx['entity_id'],
-	        'credit'       => (float)$trx['amount']
-	    ]);
-	
-	    // ترحيل القيد
-	    $journalId = $this->journal->post();
-	
-	    // تخصيص التحصيل على مديونية أمر البيع قبل اعتماد الحركة.
-	    $this->allocateDirectSalePayment((int)$trx['reference_id'], (int)$trx['entity_id'], $journalId, (float)$trx['amount']);
+    private function directSalePaymentInternal(int $transactionId): int
+    {
+        $trx = $this->getDirectSalePayment($transactionId);
 
-	    // تحديث الحركة
-	    $this->markPaymentPosted($transactionId, $journalId);
-	
-	    return $journalId;
-	}
+        // إعادة الطلب بعد نجاح الترحيل تعيد القيد نفسه ولا تنشئ قيدًا ثانيًا.
+        if ((int)$trx['accounting_posted'] === 1) {
+            $existingJournalId = (int)($trx['accounting_entry_id'] ?? 0);
+            if ($existingJournalId <= 0) {
+                throw new RuntimeException('الحركة معلّمة كمرحّلة دون مرجع قيد؛ يلزم فحصها يدويًا.');
+            }
+            return $existingJournalId;
+        }
+
+        $this->validateDirectSalePayment($trx);
+        if ((int)$trx['payment_method_id'] !== 1) {
+            throw new RuntimeException('تحصيلات البيع غير النقدية متوقفة حتى اكتمال الحسابات البنكية والتسويات؛ لم يتم ترحيل الحركة.');
+        }
+
+        $component = strtoupper(trim((string)($trx['PAYMENT_COMPONENT'] ?? '')));
+        $targetJournalId = $component === 'ORDER_SHIPPING'
+            ? (int)($trx['SHIPPING_ENTRY_ID'] ?? 0)
+            : (int)($trx['SALE_ENTRY_ID'] ?? 0);
+        if ($targetJournalId <= 0) {
+            throw new RuntimeException(
+                $component === 'ORDER_SHIPPING'
+                    ? 'لا يوجد قيد إيراد شحن معتمد لتخصيص تحصيل الشحن عليه.'
+                    : 'لا يوجد قيد بيع معتمد لتخصيص تحصيل المنتجات عليه.'
+            );
+        }
+
+        $cashBoxService = new CashBox($this->db);
+        $availableBoxes = $cashBoxService->listForPaymentMethod((int)$trx['branch_id'], 1);
+        if (!$availableBoxes) {
+            throw new RuntimeException('لا توجد خزينة نقدية نشطة في فرع الطلب؛ أضف خزينة قبل ترحيل التحصيل.');
+        }
+
+        $defaults = array_values(array_filter(
+            $availableBoxes,
+            static fn(array $box): bool => (int)($box['is_default'] ?? 0) === 1
+        ));
+        if (count($defaults) === 1) {
+            $cashBoxId = (int)$defaults[0]['id'];
+        } elseif (count($availableBoxes) === 1) {
+            $cashBoxId = (int)$availableBoxes[0]['id'];
+        } else {
+            throw new RuntimeException('يوجد أكثر من خزينة للفرع دون خزينة افتراضية؛ حدد الخزينة الافتراضية من شاشة إدارة الخزائن.');
+        }
+
+        $voucherManager = new FinancialVoucherManager($this->db);
+        $voucher = $voucherManager->post([
+            'voucher_subtype' => 'CUSTOMER_RECEIPT',
+            'branch_id' => (int)$trx['branch_id'],
+            'cash_box_id' => $cashBoxId,
+            'payment_method_id' => 1,
+            'voucher_date' => (string)$trx['JOURNAL_DATE'],
+            'partner_id' => (int)$trx['entity_id'],
+            'amount' => (float)$trx['amount'],
+            'target_journal_entry_id' => $targetJournalId,
+            'description' => ($component === 'ORDER_SHIPPING' ? 'تحصيل رسوم شحن' : 'تحصيل قيمة منتجات')
+                . ' أمر بيع رقم ' . $trx['SUB_ORDER_ID'],
+            'idempotency_key' => 'DIRECT-SALE-PAYMENT:' . $transactionId,
+            'created_by' => $this->getCurrentUserId(),
+        ]);
+
+        $journalId = (int)$voucher['journal_entry_id'];
+        $this->markPaymentPosted($transactionId, $journalId);
+        return $journalId;
+    }
 
 /*****************************************************
 * مرتجع بيع
@@ -659,6 +804,12 @@ class AccountingEvents {
 	    // قيمة البيع وتكلفة البضاعة المرتجعة
 	    $salesAmount = (float)$order['RETURN_AMOUNT'];
 	    $costAmount  = (float)$order['RETURN_COST_AMOUNT'];
+
+        // مردود البيع يخفض مديونية العميل أولًا؛ الزيادة فقط تتحول إلى رصيد دائن 1152.
+        $voucherManager = new FinancialVoucherManager($this->db);
+        $openReceivable = $voucherManager->getOpenPartnerDebitAmount('CLIENT', (int)$order['CLIENT_ID']);
+        $receivableCredit = round(min($salesAmount, $openReceivable), 2);
+        $customerCredit = round($salesAmount - $receivableCredit, 2);
 	
 	    // إنشاء القيد
 	    $this->journal->reset();
@@ -678,12 +829,24 @@ class AccountingEvents {
 	        'debit'      => $salesAmount
 	    ]);
 	
-	    $this->journal->addLine([
-	        'account_id'   => $this->settings->customers(),
-	        'partner_type' => 'CLIENT',
-	        'partner_id'   => $order['CLIENT_ID'],
-	        'credit'       => $salesAmount
-	    ]);
+        if ($receivableCredit > 0) {
+            $this->journal->addLine([
+                'account_id' => $this->settings->customers(),
+                'partner_type' => 'CLIENT',
+                'partner_id' => (int)$order['CLIENT_ID'],
+                'credit' => $receivableCredit,
+                'note' => 'تخفيض مديونية العميل بمردود البيع',
+            ]);
+        }
+        if ($customerCredit > 0) {
+            $this->journal->addLine([
+                'account_id' => $this->settings->customerCredits(),
+                'partner_type' => 'CLIENT',
+                'partner_id' => (int)$order['CLIENT_ID'],
+                'credit' => $customerCredit,
+                'note' => 'رصيد دائن للعميل بعد تسوية مديونيته بمردود البيع',
+            ]);
+        }
 	
 	    // إعادة المخزون
 	    $this->journal->addLine([
@@ -774,7 +937,35 @@ class AccountingEvents {
     
 	    // ترحيل القيد
 	    $journalId = $this->journal->post();
-	
+
+        if ($receivableCredit > 0) {
+            $creditLineStmt = $this->db->prepare(
+                "SELECT id FROM journal_entry_details
+                 WHERE journal_entry_id = ? AND account_id = ?
+                   AND partner_type = 'CLIENT' AND partner_id = ? AND credit > 0
+                 ORDER BY line_no LIMIT 1"
+            );
+            $creditLineStmt->execute([
+                $journalId,
+                $this->settings->customers(),
+                (int)$order['CLIENT_ID'],
+            ]);
+            $creditLineId = (int)$creditLineStmt->fetchColumn();
+            $creditLineStmt->closeCursor();
+            if ($creditLineId <= 0) {
+                throw new RuntimeException('تعذر تحديد سطر تخفيض مديونية العميل في قيد المرتجع.');
+            }
+            $voucherManager->allocatePartnerCreditLineToOldestDebits(
+                $journalId,
+                $creditLineId,
+                'CLIENT',
+                (int)$order['CLIENT_ID'],
+                $receivableCredit,
+                $this->getCurrentUserId(),
+                'تخصيص مردود البيع لتخفيض أقدم مديونيات العميل'
+            );
+        }
+
 	    // تحديث حالة الترحيل
 	    $this->markSalesReturnPosted($orderId, $journalId);
 	
@@ -798,6 +989,7 @@ class AccountingEvents {
 	            FT.entity_id,
 	            FT.status,
 	            FT.accounting_posted,
+	            FT.accounting_entry_id,
 	            I.reference_id,
 	            I.reference_type,
 	            O.ORDER_TYPE_ID,
@@ -874,51 +1066,39 @@ class AccountingEvents {
         });
     }
 
-    private function salesReturnPaymentInternal(int $transactionId): int {
-	
-	    // جلب بيانات الحركة المالية
-	    $trx = $this->getSalesReturnPayment($transactionId);
-		
-	    // التحقق
-	    $this->validateSalesReturnPayment($trx);
-	
-	    // إنشاء القيد
-	    
-	    $this->journal->create([
-	        'branch_id'      => $trx['branch_id'],
-	        'entry_date'     => $trx['JOURNAL_DATE'],
-	        'reference_type' => 'SALES_RETURN_PAYMENT',
-	        'reference_id'   => $transactionId,
-	        'description'    => 'صرف قيمة مرتجع بيع رقم '.$trx['SUB_ORDER_ID'],
-	        'created_by'     => $this->getCurrentUserId()
-	    ]);
-		
-	    // مدين العملاء
-	    $this->journal->addLine([
-	        'account_id'   => $this->settings->customers(),
-	        'partner_type' => 'CLIENT',
-	        'partner_id'   => $trx['entity_id'],
-	        'debit'        => (float)$trx['amount']
-	    ]);
-		
-	    // دائن صندوق الفرع
-	    $this->journal->addLine([
-	        'account_id' => $this->settings->transactionAccount((int)$trx['payment_method_id'], (int)$trx['branch_id']),
-	        'credit'     => (float)$trx['amount']
-	    ]);
-	    
-	
-	    // ترحيل القيد
-	    $journalId = $this->journal->post();
-	    // تحديث الحركة
-	    $this->markPaymentPosted($transactionId, $journalId);
-	 	
-	    return $journalId;
-	}
-	
-    
-    
-    
-    
-    
+    private function salesReturnPaymentInternal(int $transactionId): int
+    {
+        $trx = $this->getSalesReturnPayment($transactionId);
+
+        if ((int)$trx['accounting_posted'] === 1) {
+            $existingJournalId = (int)($trx['accounting_entry_id'] ?? 0);
+            if ($existingJournalId <= 0) {
+                throw new RuntimeException('حركة رد المرتجع معلّمة كمرحّلة دون مرجع قيد؛ يلزم فحصها يدويًا.');
+            }
+            return $existingJournalId;
+        }
+
+        $this->validateSalesReturnPayment($trx);
+        $orderId = (int)$trx['reference_id'];
+        $requestKey = 'RETURN-TRANSACTION:' . $transactionId;
+        $requestHash = hash('sha256', json_encode([
+            'transaction_id' => $transactionId,
+            'order_id' => $orderId,
+            'client_id' => (int)$trx['entity_id'],
+            'payment_method_id' => (int)$trx['payment_method_id'],
+            'amount' => round((float)$trx['amount'], 2),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        $refund = (new CustomerRefundManager($this->db))->refund(
+            $orderId,
+            (int)$trx['payment_method_id'],
+            (float)$trx['amount'],
+            $requestKey,
+            $requestHash
+        );
+        $journalId = (int)$refund['journal_id'];
+        $this->markPaymentPosted($transactionId, $journalId);
+        return $journalId;
+    }
+
 }

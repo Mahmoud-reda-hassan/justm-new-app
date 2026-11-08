@@ -1921,37 +1921,6 @@ CREATE TABLE IF NOT EXISTS `account_settings` (
     ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- PHASE17: حسابات مستقلة لعمولات المسوقين وقادة الفرق.
-INSERT INTO accounts
-    (account_code, account_name, account_type, normal_balance, account_level,
-     is_active, allow_posting, system_account, is_system_created, description)
-SELECT
-    '2152', 'مستحقات عمولات المسوقين وقادة الفرق', 'LIABILITY', 'CREDIT', 1,
-    1, 1, 1, 1, 'مستحقات مستقلة لعمولات المسوقين وقادة الفرق'
-WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = '2152');
-
-INSERT INTO accounts
-    (account_code, account_name, account_type, normal_balance, account_level,
-     is_active, allow_posting, system_account, is_system_created, description)
-SELECT
-    '5230', 'مصروف عمولات المسوقين وقادة الفرق', 'EXPENSE', 'DEBIT', 1,
-    1, 1, 1, 1, 'مصروف مستقل لعمولات المسوقين وقادة الفرق'
-WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE account_code = '5230');
-
-INSERT INTO account_settings (setting_key, account_id, description)
-SELECT 'MARKETER_COMMISSION_PAYABLE', id,
-       'حساب مستحقات عمولات المسوقين وقادة الفرق - 2152'
-FROM accounts WHERE account_code = '2152'
-ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
-                        description = VALUES(description);
-
-INSERT INTO account_settings (setting_key, account_id, description)
-SELECT 'MARKETER_COMMISSION_EXPENSE', id,
-       'حساب مصروف عمولات المسوقين وقادة الفرق - 5230'
-FROM accounts WHERE account_code = '5230'
-ON DUPLICATE KEY UPDATE account_id = VALUES(account_id),
-                        description = VALUES(description);
-
 CREATE TABLE IF NOT EXISTS `cash_boxes` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `branch_id` INT NOT NULL,
@@ -2626,3 +2595,95 @@ CREATE TABLE IF NOT EXISTS supplier_gl_advance_applications (
     KEY idx_supplier_advance_journal (journal_entry_id),
     KEY idx_supplier_advance_supplier (supplier_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+
+-- PHASE24: GL-native financial vouchers.
+-- Phase 24: GL-native receipt/payment voucher source documents.
+-- Run after the approved chart seed and the branch/cash-box migrations.
+
+CREATE TABLE IF NOT EXISTS financial_vouchers (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    voucher_no VARCHAR(40) NULL,
+    voucher_type ENUM('RECEIPT','PAYMENT') NOT NULL,
+    voucher_subtype ENUM('CUSTOMER_RECEIPT','SUPPLIER_REFUND','GENERAL_RECEIPT','GENERAL_PAYMENT') NOT NULL,
+    branch_id INT NOT NULL,
+    cash_box_id BIGINT UNSIGNED NOT NULL,
+    payment_method_id INT NOT NULL,
+    voucher_date DATETIME NOT NULL,
+    partner_type VARCHAR(20) NULL,
+    partner_id BIGINT UNSIGNED NULL,
+    total_amount DECIMAL(18,2) NOT NULL,
+    description VARCHAR(500) NULL,
+    status ENUM('PROCESSING','POSTED','REVERSED','FAILED') NOT NULL DEFAULT 'PROCESSING',
+    journal_entry_id BIGINT UNSIGNED NULL,
+    accounting_event_id BIGINT UNSIGNED NULL,
+    reversal_event_id BIGINT UNSIGNED NULL,
+    reversal_journal_entry_id BIGINT UNSIGNED NULL,
+    idempotency_key VARCHAR(128) NOT NULL,
+    payload_hash CHAR(64) NOT NULL,
+    created_by BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    posted_at DATETIME NULL,
+    reversed_by BIGINT UNSIGNED NULL,
+    reversed_at DATETIME NULL,
+    reversal_reason VARCHAR(500) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_financial_voucher_no (voucher_no),
+    UNIQUE KEY uq_financial_voucher_idempotency (idempotency_key),
+    UNIQUE KEY uq_financial_voucher_journal (journal_entry_id),
+    UNIQUE KEY uq_financial_voucher_event (accounting_event_id),
+    UNIQUE KEY uq_financial_voucher_reversal_event (reversal_event_id),
+    KEY idx_financial_voucher_branch_date (branch_id, voucher_date, id),
+    KEY idx_financial_voucher_partner (partner_type, partner_id, voucher_date),
+    KEY idx_financial_voucher_status (status, voucher_type, voucher_date),
+    CONSTRAINT fk_financial_voucher_branch
+        FOREIGN KEY (branch_id) REFERENCES branches (BR_ID)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_cash_box
+        FOREIGN KEY (cash_box_id) REFERENCES cash_boxes (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_payment_method
+        FOREIGN KEY (payment_method_id) REFERENCES payment_methods (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_journal
+        FOREIGN KEY (journal_entry_id) REFERENCES journal_entries (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_event
+        FOREIGN KEY (accounting_event_id) REFERENCES accounting_events (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_reversal_event
+        FOREIGN KEY (reversal_event_id) REFERENCES accounting_events (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_reversal_journal
+        FOREIGN KEY (reversal_journal_entry_id) REFERENCES journal_entries (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS financial_voucher_lines (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    voucher_id BIGINT UNSIGNED NOT NULL,
+    line_no SMALLINT UNSIGNED NOT NULL,
+    account_id BIGINT UNSIGNED NOT NULL,
+    partner_type VARCHAR(20) NULL,
+    partner_id BIGINT UNSIGNED NULL,
+    cost_center_id BIGINT UNSIGNED NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    line_description VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_financial_voucher_line_no (voucher_id, line_no),
+    KEY idx_financial_voucher_line_account_partner (account_id, partner_type, partner_id),
+    CONSTRAINT fk_financial_voucher_line_header
+        FOREIGN KEY (voucher_id) REFERENCES financial_vouchers (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_line_account
+        FOREIGN KEY (account_id) REFERENCES accounts (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Approved customer credit control account (1152), used for receipt amounts
+-- that exceed the customer's currently open receivable balance.
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'CUSTOMER_CREDITS', a.id, 'حساب رقابي لأرصدة العملاء الدائنة القابلة لإعادة الاستخدام'
+FROM accounts a
+WHERE a.account_code = '1152' AND a.is_active = 1 AND a.allow_posting = 1
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id), description = VALUES(description);

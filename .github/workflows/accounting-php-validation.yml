@@ -2,19 +2,19 @@ name: Accounting PHP Validation
 
 on:
   push:
-    branches: [main, feature/gl-only-accounting-cutover, feature/admin-database-migrations]
+    branches: [main, feature/gl-only-accounting-cutover, feature/admin-database-migrations, feature/gl-accounting-completion-2026-11]
     paths:
       - 'inc/Classes/Accounting/**'
       - 'inc/Classes/DatabaseMigrationManager.php'
       - 'inc/Classes/user_permission.php'
       - 'inc/template/SidebarMenu.php'
-      - 'inc/controller/databaseMigrations.control.php'
-      - 'inc/Views/DatabaseMigrations.php'
-      - 'dist/js/DatabaseMigrations.js'
-      - 'inc/Databases/JUSTM_DATABASE_INSTALL.sql'
-      - 'inc/Databases/migrations/**'
+      - 'inc/controller/**'
+      - 'inc/Views/**'
+      - 'dist/js/**'
+      - 'inc/Databases/**'
       - 'JUSTM_DATABASE_INSTALL.sql'
       - 'tests/accounting/**'
+      - 'docs/**'
       - '.github/workflows/accounting-php-validation.yml'
   pull_request:
     paths:
@@ -22,13 +22,13 @@ on:
       - 'inc/Classes/DatabaseMigrationManager.php'
       - 'inc/Classes/user_permission.php'
       - 'inc/template/SidebarMenu.php'
-      - 'inc/controller/databaseMigrations.control.php'
-      - 'inc/Views/DatabaseMigrations.php'
-      - 'dist/js/DatabaseMigrations.js'
-      - 'inc/Databases/JUSTM_DATABASE_INSTALL.sql'
-      - 'inc/Databases/migrations/**'
+      - 'inc/controller/**'
+      - 'inc/Views/**'
+      - 'dist/js/**'
+      - 'inc/Databases/**'
       - 'JUSTM_DATABASE_INSTALL.sql'
       - 'tests/accounting/**'
+      - 'docs/**'
       - '.github/workflows/accounting-php-validation.yml'
   workflow_dispatch:
 
@@ -76,6 +76,10 @@ jobs:
           php -l inc/controller/BackEnd/reports_BE.php
           php -l inc/controller/finance.control.php
           php -l inc/Classes/DatabaseMigrationManager.php
+          php -l inc/Classes/Accounting/CashBox.php
+          php -l inc/Views/CashBoxManagement.php
+          php -l inc/Views/FinancialVouchers.php
+          php -l tests/accounting/cash_box_management_test.php
           php -l inc/Classes/user_permission.php
           php -l inc/template/SidebarMenu.php
           php -l inc/controller/databaseMigrations.control.php
@@ -87,6 +91,8 @@ jobs:
           node --check dist/js/PaymentDisbursement.js
           node --check dist/js/ReceivePayments.js
           node --check dist/js/DatabaseMigrations.js
+          node --check dist/js/CashBoxManagement.js
+          node --check dist/js/FinancialVouchers.js
 
       - name: Import both full database installers
         env:
@@ -139,3 +145,17 @@ jobs:
           ACCOUNTING_TEST_DB_USER: root
           ACCOUNTING_TEST_DB_PASSWORD: accounting_test
         run: php tests/accounting/supplier_gl_reversal_integration_test.php
+
+      - name: Cash-box management MariaDB integration tests
+        env:
+          ACCOUNTING_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=accounting_test;charset=utf8mb4
+          ACCOUNTING_TEST_DB_USER: root
+          ACCOUNTING_TEST_DB_PASSWORD: accounting_test
+        run: php tests/accounting/cash_box_management_test.php
+
+      - name: GL financial voucher MariaDB integration tests
+        env:
+          ACCOUNTING_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=accounting_test;charset=utf8mb4
+          ACCOUNTING_TEST_DB_USER: root
+          ACCOUNTING_TEST_DB_PASSWORD: accounting_test
+        run: php tests/accounting/financial_voucher_integration_test.php

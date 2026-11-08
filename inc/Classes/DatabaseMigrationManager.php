@@ -50,7 +50,7 @@ class DatabaseMigrationManager
             'title' => 'حسابات عمولات المسوقين',
             'description' => 'إنشاء وربط حسابات مستحقات ومصروف عمولات المسوقين.',
             'enabled' => true,
-            'warning' => 'يراجع الحسابان 2152 و5230 قبل استخدام دورة صرف العمولات.'
+            'warning' => 'يتطلب استيراد شجرة الحسابات المعتمدة أولًا؛ الحسابان المستهدفان 2152 و5420.'
         ],
         'PHASE18_CUSTOMER_RETURN_REFUNDS.sql' => [
             'title' => 'مستندات رد مبالغ مرتجعات العملاء',
@@ -75,6 +75,12 @@ class DatabaseMigrationManager
             'description' => 'إضافة مرجع اختياري للخزينة على سطر القيد دون تخمين الخزائن التاريخية.',
             'enabled' => true,
             'warning' => 'مرحلة بنيوية فقط؛ لا تعيّن خزائن للحركات القديمة ولا تغيّر مسارات القبض والصرف الحالية.'
+        ],
+        'PHASE24_FINANCIAL_VOUCHERS.sql' => [
+            'title' => 'مستندات القبض والصرف العامة',
+            'description' => 'إنشاء مستندات قبض وصرف مرتبطة بالخزينة والفرع وقيد الأستاذ والحدث المالي.',
+            'enabled' => true,
+            'warning' => 'ينشئ مستندات المصدر فقط؛ الأرصدة تظل من الأستاذ العام. يتطلب اكتمال المرحلة 22.'
         ],
     ];
 
@@ -118,15 +124,56 @@ class DatabaseMigrationManager
             $checksum = hash_file('sha256', $path);
             $row = $applied[$file] ?? null;
             $status = !$row ? 'PENDING' : (string)$row['status'];
+            $warning = $meta['warning'];
+
             if ($row && $row['status'] === 'APPLIED' && !hash_equals((string)$row['checksum'], $checksum)) {
                 $status = 'CHANGED';
             }
+
+            if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
+                $schemaState = $this->cashBoxReferenceSchemaState();
+                if ($schemaState === 'COMPLETE' && !$row) {
+                    $status = 'SCHEMA_PRESENT';
+                    $warning = 'العمود والفهرس والعلاقة موجودة بالفعل في قاعدة التثبيت الحالية؛ لا حاجة لإعادة تنفيذ الترحيل.';
+                } elseif ($schemaState === 'PARTIAL') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'مخطط الخزينة غير مكتمل (عمود أو فهرس أو علاقة ناقصة). أوقف التنفيذ وافحص القاعدة قبل أي تعديل.';
+                } elseif ($schemaState === 'BLOCKED') {
+                    $status = 'BLOCKED';
+                    $warning = 'يلزم وجود علاقة cash_boxes.branch_id مع branches.BR_ID (المرحلة 21 أو ما يعادلها) قبل تنفيذ المرحلة 22.';
+                } elseif ($schemaState === 'MISSING' && $row && $row['status'] === 'APPLIED') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'المرحلة مسجلة كمطبقة لكن مراجع الخزينة غير موجودة. لا تعِد تنفيذها تلقائيًا؛ افحص القاعدة.';
+                }
+            }
+
+            if ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+                $schemaState = $this->financialVoucherSchemaState();
+                if ($schemaState === 'COMPLETE' && !$row) {
+                    $status = 'SCHEMA_PRESENT';
+                    $warning = 'جداول مستندات القبض والصرف موجودة بالفعل في Installer؛ لا حاجة لإعادة تنفيذ الترحيل.';
+                } elseif ($schemaState === 'MAPPING_MISSING') {
+                    $status = 'PENDING';
+                    $warning = 'الجداول موجودة لكن ربط حساب أرصدة العملاء الدائنة 1152 ناقص؛ يمكن إعادة تنفيذ المرحلة لإصلاح الربط بأمان.';
+                } elseif ($schemaState === 'PARTIAL') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'جداول مستندات القبض والصرف موجودة بصورة جزئية أو بأعمدة ناقصة أو ربط حساب 1152 متعارض؛ يلزم فحص المخطط.';
+                } elseif ($schemaState === 'BLOCKED') {
+                    $status = 'BLOCKED';
+                    $warning = 'يتطلب الترحيل وجود الفروع والخزائن وطرق الدفع والأستاذ العام مع اكتمال مرجع الخزينة في المرحلة 22.';
+                } elseif ($schemaState === 'MISSING' && $row && $row['status'] === 'APPLIED') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'المرحلة مسجلة كمطبقة لكن جداول المستندات غير موجودة؛ افحص القاعدة قبل أي إعادة تنفيذ.';
+                }
+            }
+
             $result[] = [
                 'file' => $file,
                 'title' => $meta['title'],
                 'description' => $meta['description'],
-                'enabled' => (bool)$meta['enabled'] && $status !== 'CHANGED' && $status !== 'MISSING',
-                'warning' => $meta['warning'],
+                'enabled' => (bool)$meta['enabled']
+                    && !in_array($status, ['CHANGED', 'MISSING', 'SCHEMA_PRESENT', 'SCHEMA_DRIFT', 'BLOCKED'], true),
+                'warning' => $warning,
                 'status' => $status,
                 'checksum' => $checksum,
                 'applied_at' => $row['finished_at'] ?? null,
@@ -203,8 +250,37 @@ class DatabaseMigrationManager
                 }
                 return ['already_applied' => true, 'message' => 'هذا الترحيل منفذ بالفعل بنفس نسخة الملف.'];
             }
-            if ($existing && $existing['status'] === 'APPLIED' && !hash_equals((string)$existing['checksum'], $checksum)) {
-                throw new RuntimeException('بصمة ملف الترحيل لا تطابق النسخة المسجلة.');
+
+            if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql'
+                && $this->cashBoxReferenceSchemaState() === 'COMPLETE') {
+                $record = $this->db->prepare(
+                    'INSERT INTO ' . self::LEDGER_TABLE . ' (migration_key, checksum, status, applied_by, started_at, finished_at, error_text, statement_count)
+                     VALUES (?, ?, \'APPLIED\', ?, NOW(), NOW(), NULL, 0)
+                     ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), status = \'APPLIED\',
+                        applied_by = VALUES(applied_by), finished_at = NOW(), error_text = NULL, statement_count = 0'
+                );
+                $record->execute([$file, $checksum, $userId]);
+                return [
+                    'already_applied' => true,
+                    'message' => 'مراجع الخزينة موجودة بالفعل في مخطط قاعدة البيانات؛ تم تسجيل المرحلة دون إعادة تنفيذ DDL.',
+                    'statement_count' => 0,
+                ];
+            }
+
+            if ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql'
+                && $this->financialVoucherSchemaState() === 'COMPLETE') {
+                $record = $this->db->prepare(
+                    'INSERT INTO ' . self::LEDGER_TABLE . ' (migration_key, checksum, status, applied_by, started_at, finished_at, error_text, statement_count)
+                     VALUES (?, ?, \'APPLIED\', ?, NOW(), NOW(), NULL, 0)
+                     ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), status = \'APPLIED\',
+                        applied_by = VALUES(applied_by), finished_at = NOW(), error_text = NULL, statement_count = 0'
+                );
+                $record->execute([$file, $checksum, $userId]);
+                return [
+                    'already_applied' => true,
+                    'message' => 'جداول مستندات القبض والصرف موجودة بالفعل؛ تم تسجيل المرحلة دون إعادة تنفيذ DDL.',
+                    'statement_count' => 0,
+                ];
             }
 
             $stmt = $this->db->prepare(
@@ -275,7 +351,9 @@ class DatabaseMigrationManager
                 throw new RuntimeException('لا يمكن تنفيذ المرحلة 19: يجب وجود الحسابات 2111 و1162 و1171 أولًا.');
             }
         } elseif ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
-            $required = ['journal_entry_details', 'cash_boxes'];
+            $required = ['journal_entry_details', 'cash_boxes', 'branches'];
+        } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+            $required = ['branches', 'cash_boxes', 'payment_methods', 'payment_method_accounts', 'accounts', 'account_settings', 'journal_entries', 'accounting_events', 'accounting_line_allocations', 'journal_entry_details'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
@@ -295,6 +373,191 @@ class DatabaseMigrationManager
                 throw new RuntimeException('لا يمكن تنفيذ الترحيل؛ الجدول المطلوب غير موجود: ' . $table);
             }
         }
+
+        if ($file === 'PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql') {
+            $stmt = $this->db->query(
+                "SELECT COUNT(*) FROM accounts
+                 WHERE (account_code = '2150' AND account_type = 'LIABILITY' AND is_active = 1 AND allow_posting = 0)
+                    OR (account_code = '5400' AND account_type = 'EXPENSE' AND is_active = 1 AND allow_posting = 0)"
+            );
+            $parentCount = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($parentCount !== 2) {
+                throw new RuntimeException(
+                    'لا يمكن تنفيذ المرحلة 17: استورد شجرة الحسابات المعتمدة أولًا، وتأكد من وجود الحسابين الرئيسيين 2150 و5400 غير القابلين للترحيل.'
+                );
+            }
+        }
+
+        if ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+            if ($this->cashBoxReferenceSchemaState() !== 'COMPLETE') {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 24 قبل اكتمال مرجع الخزينة والفرع في المرحلة 22.');
+            }
+            $customerCreditAccount = $this->db->query(
+                "SELECT COUNT(*) FROM accounts WHERE account_code = '1152' AND is_active = 1 AND allow_posting = 1"
+            );
+            $hasCustomerCreditAccount = (int)$customerCreditAccount->fetchColumn() === 1;
+            $customerCreditAccount->closeCursor();
+            if (!$hasCustomerCreditAccount) {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 24 قبل استيراد شجرة الحسابات المعتمدة التي تتضمن حساب أرصدة العملاء الدائنة 1152.');
+            }
+            $existingCreditMapping = $this->db->query(
+                "SELECT a.account_code FROM account_settings s
+                 INNER JOIN accounts a ON a.id = s.account_id
+                 WHERE s.setting_key = 'CUSTOMER_CREDITS' LIMIT 1"
+            );
+            $mappedCode = $existingCreditMapping->fetchColumn();
+            $existingCreditMapping->closeCursor();
+            if ($mappedCode !== false && (string)$mappedCode !== '1152') {
+                throw new RuntimeException('إعداد CUSTOMER_CREDITS مرتبط بحساب غير 1152. راجع الربط يدويًا قبل تنفيذ المرحلة 24؛ لن يتم استبدال ربط محاسبي قائم تلقائيًا.');
+            }
+        }
+
+        if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
+            $schemaState = $this->cashBoxReferenceSchemaState();
+            if ($schemaState === 'BLOCKED') {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 22 قبل وجود علاقة cash_boxes.branch_id مع branches.BR_ID (المرحلة 21 أو ما يعادلها).');
+            }
+            if ($schemaState === 'PARTIAL') {
+                throw new RuntimeException('مخطط الخزينة جزئي؛ أوقف الترحيل وافحص العمود والفهرس والعلاقة قبل التنفيذ.');
+            }
+        }
+    }
+
+    /**
+     * COMPLETE: العمود والفهرس وFK موجودة.
+     * MISSING: لا يوجد أي جزء من إضافة المرحلة 22 ويمكن تنفيذها.
+     * PARTIAL: بعض العناصر موجودة وبعضها مفقود؛ التنفيذ التلقائي غير آمن.
+     * BLOCKED: الجداول أو علاقة ملكية الفرع المطلوبة غير موجودة.
+     */
+    private function cashBoxReferenceSchemaState(): string
+    {
+        $tables = $this->db->prepare(
+            'SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (?, ?)'
+        );
+        $tables->execute(['cash_boxes', 'journal_entry_details']);
+        $tablesExist = (int)$tables->fetchColumn() === 2;
+        $tables->closeCursor();
+        if (!$tablesExist) {
+            return 'BLOCKED';
+        }
+
+        $branchRelation = $this->db->prepare(
+            'SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = \'cash_boxes\'
+               AND COLUMN_NAME = \'branch_id\' AND REFERENCED_TABLE_NAME = \'branches\'
+               AND REFERENCED_COLUMN_NAME = \'BR_ID\''
+        );
+        $branchRelation->execute();
+        $branchRelationExists = (int)$branchRelation->fetchColumn() > 0;
+        $branchRelation->closeCursor();
+        if (!$branchRelationExists) {
+            return 'BLOCKED';
+        }
+
+        $column = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details'
+               AND COLUMN_NAME = 'cash_box_id'"
+        );
+        $columnExists = (int)$column->fetchColumn() > 0;
+        $column->closeCursor();
+
+        $index = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details'
+               AND INDEX_NAME = 'idx_journal_detail_cash_box'"
+        );
+        $indexExists = (int)$index->fetchColumn() > 0;
+        $index->closeCursor();
+
+        $foreignKey = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'journal_entry_details'
+               AND COLUMN_NAME = 'cash_box_id' AND REFERENCED_TABLE_NAME = 'cash_boxes'
+               AND REFERENCED_COLUMN_NAME = 'id'"
+        );
+        $foreignKeyExists = (int)$foreignKey->fetchColumn() > 0;
+        $foreignKey->closeCursor();
+
+        $presentCount = (int)$columnExists + (int)$indexExists + (int)$foreignKeyExists;
+        if ($presentCount === 3) {
+            return 'COMPLETE';
+        }
+        return $presentCount === 0 ? 'MISSING' : 'PARTIAL';
+    }
+
+    /**
+     * COMPLETE: جدولا المستندات وأعمدتهما الأساسية موجودة.
+     * MISSING: الجدولان غير موجودين ويمكن إنشاءهما.
+     * PARTIAL: جدول واحد أو أعمدة أساسية ناقصة.
+     * BLOCKED: متطلبات الأستاذ/الخزائن/الفروع غير مكتملة.
+     */
+    private function financialVoucherSchemaState(): string
+    {
+        $dependencies = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME IN ('branches','cash_boxes','payment_methods','payment_method_accounts','accounts','account_settings','journal_entries','accounting_events','accounting_line_allocations','journal_entry_details')"
+        );
+        $dependenciesExist = (int)$dependencies->fetchColumn() === 10;
+        $dependencies->closeCursor();
+        if (!$dependenciesExist || $this->cashBoxReferenceSchemaState() !== 'COMPLETE') {
+            return 'BLOCKED';
+        }
+
+        $tables = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME IN ('financial_vouchers','financial_voucher_lines')"
+        );
+        $tableCount = (int)$tables->fetchColumn();
+        $tables->closeCursor();
+        if ($tableCount === 0) {
+            return 'MISSING';
+        }
+        if ($tableCount !== 2) {
+            return 'PARTIAL';
+        }
+
+        $requiredColumns = [
+            'financial_vouchers' => ['voucher_no','voucher_type','voucher_subtype','branch_id','cash_box_id','payment_method_id','voucher_date','total_amount','status','journal_entry_id','accounting_event_id','reversal_event_id','reversal_journal_entry_id','reversed_by','reversed_at','reversal_reason','idempotency_key','payload_hash','created_by'],
+            'financial_voucher_lines' => ['voucher_id','line_no','account_id','partner_type','partner_id','cost_center_id','amount','line_description'],
+        ];
+        foreach ($requiredColumns as $tableName => $columns) {
+            $placeholders = implode(',', array_fill(0, count($columns), '?'));
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME IN (' . $placeholders . ')'
+            );
+            $stmt->execute(array_merge([$tableName], $columns));
+            $found = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($found !== count($columns)) {
+                return 'PARTIAL';
+            }
+        }
+
+        $customerCreditMapping = $this->db->query(
+            "SELECT a.account_code, a.is_active, a.allow_posting
+             FROM account_settings s
+             INNER JOIN accounts a ON a.id = s.account_id
+             WHERE s.setting_key = 'CUSTOMER_CREDITS'
+             LIMIT 1"
+        );
+        $mapping = $customerCreditMapping->fetch(PDO::FETCH_ASSOC) ?: null;
+        $customerCreditMapping->closeCursor();
+        if (!$mapping) {
+            return 'MAPPING_MISSING';
+        }
+        if ($mapping['account_code'] !== '1152'
+            || (int)$mapping['is_active'] !== 1
+            || (int)$mapping['allow_posting'] !== 1) {
+            return 'PARTIAL';
+        }
+
+        return 'COMPLETE';
     }
 
     private function getMigration(string $file): array

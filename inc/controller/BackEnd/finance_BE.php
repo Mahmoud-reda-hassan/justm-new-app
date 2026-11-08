@@ -7,6 +7,7 @@
 include_once(__dir__.'/../../configDateTimeFN.php');
 include_once(__dir__.'/../../Classes/Accounting/AccountingEvents.php');
 include_once(__dir__.'/../../Classes/Accounting/SupplierAccountingManager.php');
+include_once(__dir__.'/../../Classes/Accounting/DeliverySettlementManager.php');
 class finance_BE {
 
 	public $transaction_date;
@@ -49,7 +50,27 @@ class finance_BE {
      * @return void
      * @throws Exception
      */
-    private function releaseGlobalFinanceLock(): void {
+        private function resolveCommissionCashBoxId(int $branchId, int $requestedCashBoxId = 0): int
+    {
+        if ($branchId <= 0) throw new InvalidArgumentException('الفرع الحالي غير محدد لصرف العمولة.');
+        $boxes = (new CashBox($this->conn))->listForPaymentMethod($branchId, 1);
+        if (!$boxes) throw new RuntimeException('لا توجد خزينة نقدية نشطة في الفرع المحدد.');
+        if ($requestedCashBoxId > 0) {
+            foreach ($boxes as $box) {
+                if ((int)$box['id'] === $requestedCashBoxId) return $requestedCashBoxId;
+            }
+            throw new RuntimeException('الخزينة المحددة غير نشطة أو لا تتبع الفرع الحالي.');
+        }
+        $defaults = array_values(array_filter(
+            $boxes,
+            static fn(array $box): bool => (int)($box['is_default'] ?? 0) === 1
+        ));
+        if (count($defaults) === 1) return (int)$defaults[0]['id'];
+        if (count($boxes) === 1) return (int)$boxes[0]['id'];
+        throw new RuntimeException('حدد خزينة افتراضية للفرع أو اختر الخزينة عند صرف العمولة.');
+    }
+
+private function releaseGlobalFinanceLock(): void {
         $stmt = $this->conn->prepare("SELECT RELEASE_LOCK('global_Finance_lock') AS released");
         $stmt->execute();
     }
@@ -655,6 +676,7 @@ class finance_BE {
 						O.ORDER_SUCCESS,
 						O.LAST_UPDATE,
 						TE.CLIENT_ID,
+						sale_journal.branch_id AS BRANCH_ID,
 						CO.USER_ID AS DELIVERY_ID,
 						ROUND((if(CO.CUST_STAT = 'FREEZE' ,0,O.SHIPPING_VAL) * UD.PERCENT / 100),2) AS DELIVERY_CIMMISSION,
 						UA.AFFILIATEED_WITH AS LEADER_ID,
@@ -693,6 +715,7 @@ class finance_BE {
 					LEFT JOIN users_affiliate AS UB ON UA.AFFILIATEED_WITH = UB.USER_ID
 					LEFT JOIN users_delivery  AS UD ON CO.USER_ID = UD.USER_ID
 					LEFT JOIN telephones      AS TE ON TE.TEL_ID = O.TEL_ID
+					LEFT JOIN journal_entries AS sale_journal ON sale_journal.id = O.SALE_ENTRY_ID
 					LEFT JOIN 
 					(   SELECT  
 						 CP.ORDER_ID,
@@ -709,7 +732,7 @@ class finance_BE {
 						GROUP BY CP.ORDER_ID, CP.USER_ID, CP.PRO_CODE, PR.PRO_NAME
 					) AS VOP ON CP.ORDER_ID = VOP.ORDER_ID AND CP.PRO_CODE = VOP.PRO_CODE AND CP.USER_ID = VOP.USER_ID
 					WHERE FIND_IN_SET (CO.ORDER_ID ,:oids)
-				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE";
+				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE, sale_journal.branch_id";
 			$oIds = htmlspecialchars(strip_tags(trim(implode(',',array_keys($orderIds)))));
 			$this->conn->beginTransaction();
 			
@@ -764,119 +787,85 @@ class finance_BE {
 				}
 					//===============================================
 				if($err === 0){
-						// تسجيل فاتورة مبيعات المنتجات
-						$invoice_id1 = $this->Add_invoice($orderData['ORDER_ID'], 'SALES', $orderData['TOTAL_DELIVERED_PRICE'], $orderData['TOTAL_REJECTED_PRICE'], $orderData['ACTUAL_TOTAL'], 1);
+                        // تسجيل تحصيل العميل وعهدة المندوب وعمولاته في GL دون إنشاء فواتير/حركات مالية قديمة.
+                        $collectionAmount = round((float)$orderData['REQUIRED_PAYMENT'], 2);
+                        if ($collectionAmount <= 0) {
+                            $error[] = 'لا يوجد مبلغ مستحق للتحصيل في أمر البيع ' . $orderData['SUB_ORDER_ID'];
+                            continue;
+                        }
+                        if (empty($orderData['BRANCH_ID'])) {
+                            $error[] = 'لا يوجد فرع مرتبط بقيد البيع لأمر ' . $orderData['SUB_ORDER_ID'];
+                            continue;
+                        }
 
-						if(!$invoice_id1){
-							$error[] = "Invoice Record Number is null";
-							continue;
-						}
-						// اضافة المعامله
-						$transactionRecorded1 = $this->Add_transaction($invoice_id1, 'CLIENT',$orderData['CLIENT_ID'], $orderData['ACTUAL_TOTAL'],1, 9 ,'COMPLETED','');
-						if(!$transactionRecorded1){
-							$error[] = "Unable to record financial1 transaction";
-							continue;
-						}
-						// ترحيل التحصيل إلى دفتر الأستاذ وتخصيصه على مديونية أمر البيع.
-						$this->Accounting->directSalePayment((int)$transactionRecorded1);
-						// تسجيل مبلغ السداد فى رصيد العميل
-						$resultFinal = $this->addClientCredit($orderData['CLIENT_ID'], $orderId,  $orderData['ACTUAL_TOTAL']+$orderData['SHIPPING_VAL']);
-						if(!$resultFinal['statuse']){
-							$error[] = "An error occurred while add ORDERS_LOG.";
-							continue;
-						}
-						//===============================================
-						
-						//تسجيل فاتورة خدمة الشحن
-						if($orderData['SHIPPING_VAL']>0){
-							// اضافة المعامله
-							$transactionRecorded2 = $this->Add_transaction($invoice_id1, 'CLIENT', $orderData['CLIENT_ID'], $orderData['SHIPPING_VAL'],1, 9 ,'COMPLETED','');
-							if(!$transactionRecorded2){
-								$error[] = "Unable to record financial2 transaction";
-								continue;
-							}
-							// رسوم الشحن حركة تحصيل مستقلة لكنها تخص نفس مديونية أمر البيع.
-							$this->Accounting->directSalePayment((int)$transactionRecorded2);
-						}
-						// تحديث رصيد المندوب اذا كان الامر تم تسليمه عن طريق الشحن
-						if($orderData['DELIVERY_ID']){
-							$update_delevery_balance = $this->Add_partners_balance( 'DELIVERY', $orderData['DELIVERY_ID'], $orderData['ORDER_ID'], 'CREDIT', $orderData['DELIVERY_CIMMISSION'],'عمولة مستحقة للمندوب من خدمة الشحن','12');
-							if(!$update_delevery_balance){
-								$error[] = "An error occurred while updating the delegate's balance.";
-								continue;
-							}
-						}
-						// تحديث رصيد المسوق ان كان نوع الامر من المسوق
-						if($orderData['ORDER_TYPE_ID'] == 2  && $orderData['MARKETER_ID'] && $orderData['CUST_STAT'] !='FREEZE'){
-							$update_marketer_balance = $this->Add_partners_balance( 'MARKETER', $orderData['MARKETER_ID'], $orderData['ORDER_ID'], 'CREDIT', $orderData['MARKETER_COMMISSION'],'عمولة مستحقة للمسوق من امر البيع','12' );
-							if(!$update_marketer_balance){
-								$error[] = "An error occurred while updating the MARKETER's balance.";
-								continue;
-							}
-							// تحديث رصيد قائد المسوق ان وجد قائد للمسوق
-							if($update_marketer_balance && $orderData['ORDER_TYPE_ID'] == 2 && $orderData['LEADER_ID'] && $orderData['CUST_STAT'] !='FREEZE'){
-								$update_mleader_balance = $this->Add_partners_balance( 'MARKETER', $orderData['LEADER_ID'], $orderData['ORDER_ID'], 'CREDIT', $orderData['LEADER_COMMISSION'], 'عمولة مستحقة للمسوق من الفريق' ,'12');
-								if(!$update_mleader_balance){
-									$error[] = "An error occurred while updating the leader's balance.";
-									continue;
-								}
-							}
-						}
-						// تحديث حالة أمر البيع
-						$stmt = $this->conn->prepare("UPDATE orders SET ORDER_SUCCESS = 1 ,LAST_UPDATE = NOW(6) WHERE ORDER_ID = ?");
-						$stmt->execute([$orderData['ORDER_ID']]);
-						if(!$stmt->rowCount()){
-							$error[] = "An error occurred while updating the statuse order balance.";
-							continue;
-						}
-						// حذف العهده المخزنيه للمندوب
-						$delcustOrder = $this->delete_custody($orderData['ORDER_ID'], $orderData['DELIVERY_ID'],);
-						if(!$delcustOrder){
-							$error[] = "An error occurred while delete the custody order's balance.";
-							continue;
-						}
-						//=================insert ORDERS_LOG===================
-						$stratlogtext = " تم تحديث بيانات امر البيع من ";
-						$textRes = "تم استلام مبالغ التحصيل من المندوب بنجاح وتم اغلاق امر البيع ";
-						$logtext = $stratlogtext. $this->user_group."*". $textRes;
-						$stOLog = $this->conn->prepare("INSERT INTO ORDERS_LOG (`ORDER_ID`, `USER_ACTION`, `LOG_TEXT`) VALUES (:oid , :uauction, :log) ");
-						$stOLog->bindValue(':oid', $orderData['ORDER_ID'], PDO::PARAM_INT);
-						$stOLog->bindValue(':uauction', $this->transaction_user_id, PDO::PARAM_INT);
-						$stOLog->bindValue(':log', $logtext, PDO::PARAM_STR);
-						$stOLog->execute();
-						if (!$stOLog->rowCount()) {
-							$error[] = "An error occurred while add ORDERS_LOG.";
-							continue;
-						}
-						$totalCHECK += $orderData['ACTUAL_TOTAL'];
-						$totatShipp += $orderData['SHIPPING_VAL'];
-						$shippCommission += $orderData['DELIVERY_CIMMISSION'];
+                        $collectionKey = 'FCOL:' . (int)$delivery_id . ':' . (int)$orderId . ':'
+                            . substr(hash('sha256', number_format($collectionAmount, 2, '.', '')), 0, 12);
+                        $collectionManager = new DeliverySettlementManager($this->conn);
+                        $collectionResult = $collectionManager->registerCustomerCollection(
+                            (int)$delivery_id,
+                            (int)$orderData['BRANCH_ID'],
+                            1,
+                            [(int)$orderId => $collectionAmount],
+                            $collectionKey,
+                            'تحصيل أمر البيع من المندوب'
+                        );
+                        if (empty($collectionResult['success']) || empty($collectionResult['collections'][0])) {
+                            $error[] = 'فشل ترحيل تحصيل أمر البيع ' . $orderData['SUB_ORDER_ID'] . ' إلى GL.';
+                            continue;
+                        }
+                        $totalCHECK += $collectionAmount;
+                        $shippCommission += (float)($collectionResult['collections'][0]['commission'] ?? 0);
 
-						//=============insert shipping_movement================
-								/*
-									0 = start Shipping 
-									1 = freeze
-									2 = Returned order and product
-									3 = Delivered
-									4 = Partial
-									5 = Rejected 
-									6 = Returned From Rejected or Partial
-									7 = تم السداد
-									8 = Return after sale
-								*/
-						$shtype = 7;
-						$shipquery = 'INSERT INTO `shipping_movement`( `movement_type`, `delivery_id`, `user_id`, `shipment_orders`) VALUES (:type, :deliveryid, :userid, :shipmentdata)';
-						
-						$stShMov = $this->conn->prepare($shipquery);
-						$stShMov->bindValue(':type', $shtype, PDO::PARAM_INT);
-						$stShMov->bindValue(':deliveryid', $orderData['DELIVERY_ID'], PDO::PARAM_INT);
-						$stShMov->bindValue(':userid', $this->transaction_user_id, PDO::PARAM_INT);
-						$stShMov->bindValue(':shipmentdata', $orderData['ORDER_ID'], PDO::PARAM_STR);
-						$stShMov->execute();
-						if (!$stShMov->rowCount()) {
-							$error[] = "An error occurred while add ORDERS_LOG.";
-							continue;
-						}
+                        // إغلاق العهدة التشغيلية بعد نجاح تسجيل التحصيل في GL.
+                        if ((int)$orderData['ORDER_SUCCESS'] !== 1) {
+                            $updateOrder = $this->conn->prepare(
+                                "UPDATE orders SET ORDER_SUCCESS = 1, LAST_UPDATE = NOW(6)
+                                 WHERE ORDER_ID = ? AND COALESCE(ORDER_SUCCESS,0) <> 1"
+                            );
+                            $updateOrder->execute([$orderData['ORDER_ID']]);
+                            if (!$updateOrder->rowCount()) {
+                                $checkSuccess = $this->conn->prepare("SELECT ORDER_SUCCESS FROM orders WHERE ORDER_ID = ?");
+                                $checkSuccess->execute([$orderData['ORDER_ID']]);
+                                if ((int)$checkSuccess->fetchColumn() !== 1) {
+                                    $error[] = "An error occurred while updating the order accounting status.";
+                                    continue;
+                                }
+                            }
+
+                            $custodyCheck = $this->conn->prepare(
+                                "SELECT COUNT(*) FROM custody_orders WHERE ORDER_ID = ? AND USER_ID = ?"
+                            );
+                            $custodyCheck->execute([$orderData['ORDER_ID'], $orderData['DELIVERY_ID']]);
+                            if ((int)$custodyCheck->fetchColumn() > 0
+                                && !$this->delete_custody($orderData['ORDER_ID'], $orderData['DELIVERY_ID'])) {
+                                $error[] = "An error occurred while deleting the physical custody order.";
+                                continue;
+                            }
+
+                            $logText = "تم تسجيل تحصيل العميل وعهدة المندوب وعمولاته في الأستاذ العام.";
+                            $log = $this->conn->prepare(
+                                "INSERT INTO ORDERS_LOG (ORDER_ID, USER_ACTION, LOG_TEXT) VALUES (?, ?, ?)"
+                            );
+                            $log->execute([$orderData['ORDER_ID'], $this->transaction_user_id, $logText]);
+                            if (!$log->rowCount()) {
+                                $error[] = "An error occurred while adding the order log.";
+                                continue;
+                            }
+
+                            $shippingMovement = $this->conn->prepare(
+                                "INSERT INTO shipping_movement (movement_type, delivery_id, user_id, shipment_orders)
+                                 VALUES (7, ?, ?, ?)"
+                            );
+                            $shippingMovement->execute([
+                                $orderData['DELIVERY_ID'],
+                                $this->transaction_user_id,
+                                $orderData['ORDER_ID'],
+                            ]);
+                            if (!$shippingMovement->rowCount()) {
+                                $error[] = "An error occurred while adding the shipping movement.";
+                                continue;
+                            }
+                        }
 				}
 			}
 			// إذا تم تنفيذ كل شيء بنجاح، نقوم بتأكيد المعاملة
@@ -925,92 +914,60 @@ class finance_BE {
 =========================================*/
 
 	// صرف عمولة المندوب
-	public function PaymentOfDeliveryDues(int $deliveryid, string $total_balance, string $total_amount): array {
-		if ($deliveryid <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار المندوب اولا");
-	    if ((float)$total_amount <= 0) throw new Exception("لم يتم الحفظ - من فضلك ادخل مبلغ صحيح لحفظ اذن الصرف ");
-		if ((float)$total_balance <= 0) throw new Exception("لم يتم الحفظ - رصيد المندوب صفر");
-	    if ((float)$total_balance < (float)$total_amount) throw new Exception("رصيد المندوب لا يكفى لصرف المبلغ الحالى");
-	    try {
-	        $this->conn->beginTransaction();
-			// الحصول على قفل عالمي لمنع التعارض مع حركات أخرى
-			$this->acquireGlobalFinanceLock();
-			
-	        // اضافة المعامله
-			$transactionRecorded = $this->Add_transaction(NULL, 'DELIVERY', $deliveryid, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مندوب');
-			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
-			
-			// تسجيل مبلغ المرتجع فى رصيد العميل
-			$resultFinal = $this->Add_partners_balance( 'DELIVERY', $deliveryid, NULL, 'DEBIT', $total_amount,'صرف مستحقات مندوب','17' );
-			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المندوب");
-			
-	        $this->conn->commit();
-	
-	        return [
-	            'success',
-	            'ناجح',
-	            'تم صرف دفعه للمندوب بنجاح'
-	        ];
-	
-	    } catch (PDOException $e) {
-	
-	        $this->conn->rollBack();
-	
-	        return [
-	            'success',
-	            'حدث خطأ أثناء حفظ السداد',
-	            $e->getMessage()
-	        ];
-	
-	    } finally {
-            // فك القفل بعد الانتهاء
-            $this->releaseGlobalFinanceLock();
+	public function PaymentOfDeliveryDues(int $deliveryid, string $total_balance, string $total_amount): array
+    {
+        $branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+        $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+        $amount = round((float)$total_amount, 2);
+        if ($deliveryid <= 0 || $amount <= 0 || $branchId <= 0 || $actorId <= 0) {
+            throw new InvalidArgumentException('المندوب والفرع والمستخدم ومبلغ الصرف بيانات إلزامية.');
         }
+        $paymentMethodId = 1;
+        $cashBoxId = $this->resolveCommissionCashBoxId($branchId, (int)($_POST['cash_box_id'] ?? 0));
+        $note = trim((string)($_POST['note'] ?? 'صرف مستحقات مندوب'));
+        $requestKey = 'DCPAY:' . $deliveryid . ':' . $branchId . ':'
+            . substr(hash('sha256', number_format($amount, 2, '.', '')), 0, 16);
+        $requestHash = hash('sha256', json_encode([
+            'delivery_id' => $deliveryid, 'branch_id' => $branchId,
+            'payment_method_id' => $paymentMethodId, 'cash_box_id' => $cashBoxId,
+            'amount' => number_format($amount, 2, '.', ''),
+            'actor_id' => $actorId, 'note' => $note,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $result = (new DeliverySettlementManager($this->conn))->payCommission(
+            $deliveryid, $branchId, $paymentMethodId, $cashBoxId, $amount,
+            $note, $requestKey, $requestHash
+        );
+        return ['success', 'ناجح', 'تم صرف دفعة للمندوب بنجاح', $result];
+    }
 
-	}
 
 	// صرف مستحقات مسوق
-	public function PaymentOfMarketerDues(int $marketerId, string $total_balance, string $total_amount): array {
-		if ($marketerId <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار المسوق اولا");
-	    if ((float)$total_amount <= 0) throw new Exception("لم يتم الحفظ - من فضلك ادخل مبلغ صحيح لحفظ اذن الصرف ");
-		if ((float)$total_balance <= 0) throw new Exception("لم يتم الحفظ - رصيد المسوق صفر");
-	    if ((float)$total_balance < (float)$total_amount) throw new Exception("رصيد المسوق لا يكفى لصرف المبلغ الحالى");
-	    try {
-	        $this->conn->beginTransaction();
-			
-			// الحصول على قفل عالمي لمنع التعارض مع حركات أخرى
-			$this->acquireGlobalFinanceLock();
-			
-	        // اضافة المعامله
-			$transactionRecorded = $this->Add_transaction(NULL, 'MARKETER', $marketerId, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مسوق');
-			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
-			
-			// تسجيل مبلغ المرتجع فى رصيد العميل
-			$resultFinal = $this->Add_partners_balance( 'MARKETER', $marketerId, NULL, 'DEBIT', $total_amount,'صرف مستحقات مسوق','17' );
-			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المسوق");
-			
-	        $this->conn->commit();
-	
-	        return [
-	            'success',
-	            'ناجح',
-	            'تم صرف دفعه للمسوق بنجاح'
-	        ];
-	
-	    } catch (PDOException $e) {
-	
-	        $this->conn->rollBack();
-	
-	        return [
-	            'success',
-	            'حدث خطأ أثناء حفظ السداد',
-	            $e->getMessage()
-	        ];
-	
-	    } finally {
-            // فك القفل بعد الانتهاء
-            $this->releaseGlobalFinanceLock();
+	public function PaymentOfMarketerDues(int $marketerId, string $total_balance, string $total_amount): array
+    {
+        $branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+        $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+        $amount = round((float)$total_amount, 2);
+        if ($marketerId <= 0 || $amount <= 0 || $branchId <= 0 || $actorId <= 0) {
+            throw new InvalidArgumentException('المسوق والفرع والمستخدم ومبلغ الصرف بيانات إلزامية.');
         }
-	}
+        $paymentMethodId = 1;
+        $cashBoxId = $this->resolveCommissionCashBoxId($branchId, (int)($_POST['cash_box_id'] ?? 0));
+        $note = trim((string)($_POST['note'] ?? 'صرف مستحقات مسوق'));
+        $requestKey = 'MCPAY:' . $marketerId . ':' . $branchId . ':'
+            . substr(hash('sha256', number_format($amount, 2, '.', '')), 0, 16);
+        $requestHash = hash('sha256', json_encode([
+            'marketer_id' => $marketerId, 'branch_id' => $branchId,
+            'payment_method_id' => $paymentMethodId, 'cash_box_id' => $cashBoxId,
+            'amount' => number_format($amount, 2, '.', ''),
+            'actor_id' => $actorId, 'note' => $note,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $result = (new DeliverySettlementManager($this->conn))->payMarketerCommission(
+            $marketerId, $branchId, $paymentMethodId, $amount,
+            $note, $requestKey, $requestHash, $cashBoxId
+        );
+        return ['success', 'ناجح', 'تم صرف دفعة للمسوق بنجاح', $result];
+    }
+
 
 	// صرف مستحقات المورد: الترحيل الجديد في الأستاذ العام دون تعديل الأرصدة التاريخية.
 	public function PaymentOfSupplierDues(int $supplier_id, string $total_amount, array $orders = [], int $payment_method_id = 1, string $request_key = ''): array {
@@ -1046,147 +1003,105 @@ class finance_BE {
 
 	// صرف مستحقات عميل (مرتجع مبيعات)
 	public function PaymentOfCustomerDues($oid){
-		if(!$oid) throw new Exception("من فضلك قم بإختيار امر البيع اولا"); 
-		$query = "SELECT 
-				    O.ORDER_ID, 
-				    O.SUB_ORDER_ID, 
-				    O.ORDER_TYPE_ID, 
-				    O.ORDER_BY, 
-				    CRO.ORDER_STATUSE, 
-				    CRO.CUST_STAT, 
-				    CRO.RETURNS, 
-				    O.ORDER_STATUS, 
-				    O.ORDER_SUCCESS,
-				    O.LAST_UPDATE, 
-				    TE.CLIENT_ID, 
-				    CRO.USER_ID AS DELIVERY_ID, 
-				    UA.AFFILIATEED_WITH AS LEADER_ID,
-				    Round(SUM(OP.RETURNED_QTY)*UB.TEAM_COMMISSION,2) LEADER_COMMISSION,
-                    UA.USER_ID AS MARKETER_ID,
-				    Round(SUM(OP.RETURNED_QTY)*UA.COMMISSION_SALES,2) AS MARKETER_COMMISSION,
-				    Round(PB.BALANCE,2) AS ACTUAL_TOTAL
-				FROM  (
-			 	    SELECT 
-				     REFERENCE_ID,
-				     CASE WHEN TRANSACTION_CATEGORY_ID = 14 THEN 1 ELSE 0 END AS DEFERRED_PAYMENT,
-				     CASE WHEN TRANSACTION_CATEGORY_ID = 18 THEN 1 ELSE 0 END AS PAID,
-				     BALANCE
-				    FROM  partners_balance
-				    WHERE PARTNER_TYPE ='CLIENT' AND TRANSACTION_CATEGORY_ID IN(14,18) 
-				    GROUP BY REFERENCE_ID,PARTNER_ID
-			    ) PB
-				LEFT JOIN orders AS O ON PB.REFERENCE_ID = O.ORDER_ID 
-				LEFT JOIN order_product AS OP ON O.ORDER_ID = OP.ORDER_ID
-				LEFT JOIN users_affiliate AS UA ON O.ORDER_BY = UA.USER_ID
-				LEFT JOIN users_affiliate AS UB ON UA.AFFILIATEED_WITH = UB.USER_ID
-				LEFT JOIN telephones      AS TE ON TE.TEL_ID = O.TEL_ID
-			    LEFT JOIN custody_return_orders CRO ON CRO.ORDER_ID = PB.REFERENCE_ID
-                LEFT JOIN users_delivery  AS UD ON CRO.USER_ID = UD.USER_ID
-                WHERE PB.PAID = 0 AND PB.REFERENCE_ID = :oid
-			    GROUP BY O.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, CRO.ORDER_STATUSE, CRO.CUST_STAT, 
-			      CRO.RETURNS, O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE, TE.CLIENT_ID, CRO.USER_ID, UA.AFFILIATEED_WITH, UA.USER_ID ";
-		try{     
-			$oid = htmlspecialchars(strip_tags(trim($oid)));
-			$this->conn->beginTransaction();
-			
-			// الحصول على قفل عالمي لمنع التعارض مع حركات أخرى
-			$this->acquireGlobalFinanceLock();
-			
-			$stmt = $this->conn->prepare($query);
-			$stmt->execute(['oid'=>$oid]);
-			$record = $stmt->fetchAll(PDO::FETCH_ASSOC);
-			$order=isset($record[0]) ? $record[0]:[];
-			if(!count($order)) throw new Exception("امر البيع الذى تم اختيارة لم يتوفر له بيانات فى الوقت الحالى");
-			if(isset($order['ORDER_SUCCESS']) && $order['ORDER_SUCCESS'] == 2) throw new Exception("امر البيع الذى تم اختيارة ليس له مرتجعات فى الوقت الحالى");
-			
-			// لا يُسمح بصرف المرتجع المالي قبل ثبوت استلام الكميات المرتجعة مخزنيًا.
-			$this->Accounting->assertSalesReturnStockReceived((int)$order['ORDER_ID']);
-			
-			//================= تسجيل فاتورة مبيعات المنتجات
-			$invoice_id = $this->Update_invoice($order['ORDER_ID'], 'SALES', 1);
-			if(!$invoice_id) throw new Exception("غير قادر على تحديث بيانات فاتورة المبيعات");
-			
-			//================= اضافة المعامله
-			$transactionRecorded1 = $this->Add_transaction($invoice_id, 'CLIENT',$order['CLIENT_ID'], $order['ACTUAL_TOTAL'],1, 18 ,'COMPLETED','');
-			if(!$transactionRecorded1) throw new Exception("غير قادر على اضافة الحركه المالية");
-			
-			//================= اضافة القيود المحاسبيه
-			$accounting = $this->Accounting->salesReturnPayment($transactionRecorded1);
-			if(!$accounting) throw new Exception("غير قادر على اضافة القيود المحاسبيه");
-			
-			//================= تسجيل مبلغ المرتجع فى رصيد العميل
-			$resultFinal = $this->Add_partners_balance( 'CLIENT', $order['CLIENT_ID'], $order['ORDER_ID'], 'DEBIT', $order['ACTUAL_TOTAL'],'مرتجع مبيعات للعميل','18' );
-			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد العميل");
-	
-			//================= تحديث رصيد المسوق ان كان نوع الامر من المسوق
-			if($order['ORDER_TYPE_ID'] == 2  && $order['MARKETER_ID']){
-				// تحديث رصيد المسوق
-				$update_marketer_balance = $this->Add_partners_balance( 'MARKETER', $order['MARKETER_ID'], $order['ORDER_ID'], 'DEBIT', $order['MARKETER_COMMISSION'],'خصم عمولة من مرتجع امر بيع','16' );
-				if(!$update_marketer_balance) throw new Exception("فشل تحديث ارصدة المسوق");
-				
-				// تحديث رصيد قائد المسوق ان وجد قائد للمسوق
-				if($update_marketer_balance && $order['ORDER_TYPE_ID'] == 2 && $order['LEADER_ID']){
-					$update_mleader_balance = $this->Add_partners_balance( 'MARKETER', $order['LEADER_ID'], $order['ORDER_ID'], 'DEBIT', $order['LEADER_COMMISSION'], 'خصم عمولة مرتجع امر بيع من الفريق' ,'16');
-					if(!$update_mleader_balance) throw new Exception("فشل تحديث ارصدة قائد المسوق");
-				}
-			}
-			
-			//================= تحديث حالة أمر البيع
-			$stmt = $this->conn->prepare("UPDATE orders SET ORDER_SUCCESS = 2 ,LAST_UPDATE = NOW(6) WHERE ORDER_ID = ?");
-			$stmt->execute([$order['ORDER_ID']]);
-			if(!$stmt->rowCount()) throw new Exception("فشل فى تحديث حالة امر البيع");
-			
-			//================= حذف العهده المخزنيه للمندوب
-			$delcustOrder = $this->delete_custody($order['ORDER_ID'], $order['DELIVERY_ID'],true);
-			if(!$delcustOrder) throw new Exception("فشل فى حذف عهدة المندوب");
-			
-			//=================insert ORDERS_LOG===================
-			$stratlogtext = " تم تحديث بيانات امر البيع من ";
-			$textRes = "تم صرف قيمة مرتجعات امر البيع للعميل ";
-			$logtext = $stratlogtext. $this->user_group."*". $textRes;
-			$stOLog = $this->conn->prepare("INSERT INTO ORDERS_LOG (`ORDER_ID`, `USER_ACTION`, `LOG_TEXT`) VALUES (:oid , :uauction, :log) ");
-			$stOLog->execute(['oid' =>  $order['ORDER_ID'], 'uauction' => $this->transaction_user_id, 'log' => $logtext]);
-			if (!$stOLog->rowCount()) throw new Exception("فشل فى اضافة سجلات اوامر البيع");
-			
-			//=============insert shipping_movement================
-				/*
-					0 = start Shipping
-						1 = freeze
-						2 = Returned From Freeze
-						3 = Delivered
-						4 = Partial
-						5 = Rejected ,
-						6 = Returned From Rejected or Partial
-						7 = تم السداد
-						8 = Retutn From Sell
-						9 = Return partial from sell
-						10= رفض العميل تسليم المرتجعات
-						11= تم استلام مرتجع البيع
-				*/
-			$shtype = 11;
-			if($order['DELIVERY_ID']){
-				$shipquery = 'INSERT INTO `shipping_movement`( `movement_type`, `delivery_id`, `user_id`, `shipment_orders`) VALUES (:type, :deliveryid, :userid, :shipmentdata)';
-				$stShMov = $this->conn->prepare($shipquery);
-				$stShMov->execute(['type' => $shtype, 'deliveryid' => $order['DELIVERY_ID'], 'userid' => $this->transaction_user_id, 'shipmentdata' => $order['ORDER_ID']]);
-				if (!$stShMov->rowCount()) throw new Exception("فشل تسجيل حركة الشحن");
-			}
-			
-			$this->conn->commit();
-			return array('success', 'ناجح', 'تم الحفظ بنجاح');
-			
-		} catch (PDOException $e) {
-			$this->conn->rollBack();
-			error_log("finance_BE Error: " . $e->getMessage());
-			return array('error', 'خطاء',$e->getMessage());
-		} catch (Exception $e) {
-			$this->conn->rollBack();
+        if (!$oid) throw new Exception("من فضلك قم بإختيار أمر البيع أولًا.");
+
+        try {
+            $oid = (int)$oid;
+            if ($oid <= 0) throw new Exception("رقم أمر البيع غير صحيح.");
+            $this->conn->beginTransaction();
+            $this->acquireGlobalFinanceLock();
+
+            // لا نقرأ partners_balance أو ننشئ فاتورة/حركة مالية قديمة لتسوية المرتجع.
+            $stmt = $this->conn->prepare(
+                "SELECT O.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY,
+                        O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE, O.RETURN_ENTRY_ID,
+                        TE.CLIENT_ID, CRO.USER_ID AS DELIVERY_ID
+                 FROM orders O
+                 INNER JOIN telephones TE ON TE.TEL_ID = O.TEL_ID
+                 LEFT JOIN custody_return_orders CRO ON CRO.ORDER_ID = O.ORDER_ID
+                 WHERE O.ORDER_ID = ? LIMIT 1 FOR UPDATE"
+            );
+            $stmt->execute([$oid]);
+            $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$order) throw new Exception("أمر البيع غير موجود.");
+            if ((int)$order['ORDER_SUCCESS'] === 2) {
+                throw new Exception("تمت تسوية مرتجع هذا الأمر بالفعل.");
+            }
+            if (!in_array((int)$order['ORDER_STATUS'], [6, 7], true)) {
+                throw new Exception("الأمر ليس في حالة مرتجع معتمد.");
+            }
+
+            // بوابة المخزن إلزامية قبل إثبات مردود المبيعات أو رد أي مبلغ.
+            $this->Accounting->assertSalesReturnStockReceived($oid);
+
+            // إذا لم يكن قيد مردود البيع قد أنشئ، ننشئه الآن بعد تحقق الاستلام المخزني.
+            if (empty($order['RETURN_ENTRY_ID'])) {
+                $returnJournalId = $this->Accounting->salesReturn($oid);
+                if ($returnJournalId <= 0) throw new Exception("تعذر ترحيل مردود البيع إلى الأستاذ العام.");
+            }
+
+            // المردود يخصم المديونية أولًا؛ يُرد نقدًا فقط الجزء الدائن المتبقي.
+            $refundManager = new CustomerRefundManager($this->conn);
+            $refundAmount = $refundManager->getAvailableRefundAmount($oid);
+            if ($refundAmount > 0.009) {
+                $refundKey = 'ORDER-RETURN-' . $oid . '-' . substr(hash('sha256', number_format($refundAmount, 2, '.', '')), 0, 16);
+                $refundHash = hash('sha256', json_encode([
+                    'order_id' => $oid,
+                    'amount' => round($refundAmount, 2),
+                    'return_entry_id' => (int)$this->conn->query(
+                        "SELECT RETURN_ENTRY_ID FROM orders WHERE ORDER_ID = " . $oid
+                    )->fetchColumn(),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                $refund = $refundManager->refund($oid, 1, $refundAmount, $refundKey, $refundHash);
+                if (empty($refund['success'])) throw new Exception("تعذر رد الرصيد الدائن المتبقي للعميل.");
+            }
+
+            // إغلاق مسار المرتجع حتى إذا تمت التسوية بالكامل بخصم المديونية ولم يتبق رد نقدي.
+            $updateOrder = $this->conn->prepare(
+                "UPDATE orders SET ORDER_SUCCESS = 2, LAST_UPDATE = NOW(6) WHERE ORDER_ID = ? AND ORDER_SUCCESS <> 2"
+            );
+            $updateOrder->execute([$oid]);
+            if ($updateOrder->rowCount() !== 1) throw new Exception("فشل تحديث حالة أمر البيع.");
+
+            if (!empty($order['DELIVERY_ID'])) {
+                $deleted = $this->delete_custody($oid, (int)$order['DELIVERY_ID'], true);
+                if (!$deleted) throw new Exception("فشل حذف عهدة المندوب بعد تسوية المرتجع.");
+            }
+
+            $logText = "تمت تسوية مرتجع أمر البيع إلى الأستاذ العام، وصرف الرصيد الدائن المتبقي إن وجد.";
+            $log = $this->conn->prepare(
+                "INSERT INTO ORDERS_LOG (ORDER_ID, USER_ACTION, LOG_TEXT) VALUES (?, ?, ?)"
+            );
+            $log->execute([$oid, $this->transaction_user_id, $logText]);
+            if ($log->rowCount() !== 1) throw new Exception("فشل تسجيل تسوية المرتجع في سجل الطلب.");
+
+            if (!empty($order['DELIVERY_ID'])) {
+                $shipping = $this->conn->prepare(
+                    "INSERT INTO shipping_movement (movement_type, delivery_id, user_id, shipment_orders)
+                     VALUES (11, ?, ?, ?)"
+                );
+                $shipping->execute([
+                    (int)$order['DELIVERY_ID'],
+                    $this->transaction_user_id,
+                    $oid,
+                ]);
+                if ($shipping->rowCount() !== 1) throw new Exception("فشل تسجيل حركة استلام مرتجع البيع.");
+            }
+
+            $this->conn->commit();
+            return ['success', 'ناجح', 'تمت تسوية المرتجع من الأستاذ العام بنجاح'];
+        } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) $this->conn->rollBack();
             error_log("finance_BE Error: " . $e->getMessage());
-            return array('error', 'خطاء',$e->getMessage());
+            return ['error', 'خطأ', $e->getMessage()];
+        } catch (Throwable $e) {
+            if ($this->conn->inTransaction()) $this->conn->rollBack();
+            error_log("finance_BE Error: " . $e->getMessage());
+            return ['error', 'خطأ', $e->getMessage()];
         } finally {
-            // فك القفل بعد الانتهاء
             $this->releaseGlobalFinanceLock();
         }
-	}
+    }
 
 }
 ?>

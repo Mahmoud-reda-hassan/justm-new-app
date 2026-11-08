@@ -300,7 +300,7 @@ class reports_BE {
 				NULL AS debit, NULL AS credit,
 				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN delivery_accounting_settings das ON das.id = 1
 				AND d.account_id IN (das.courier_custody_account_id, das.courier_commission_payable_account_id)
 			WHERE d.partner_type = 'DELIVERY' AND d.partner_id = ? AND h.entry_date < ?
@@ -320,7 +320,7 @@ class reports_BE {
 				(
 					SELECT COALESCE(SUM(opening.credit - opening.debit),0.00)
 					FROM journal_entry_details opening
-					INNER JOIN journal_entries oh ON oh.id = opening.journal_entry_id AND oh.status = 'POSTED'
+					INNER JOIN journal_entries oh ON oh.id = opening.journal_entry_id AND oh.status IN ('POSTED', 'REVERSED')
 					INNER JOIN delivery_accounting_settings oda ON oda.id = 1
 						AND opening.account_id IN (oda.courier_custody_account_id, oda.courier_commission_payable_account_id)
 					WHERE opening.partner_type = 'DELIVERY' AND opening.partner_id = ?
@@ -330,7 +330,7 @@ class reports_BE {
 					ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 				) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN delivery_accounting_settings das ON das.id = 1
 				AND d.account_id IN (das.courier_custody_account_id, das.courier_commission_payable_account_id)
 			LEFT JOIN delivery_customer_collections dcc ON dcc.id = h.reference_id
@@ -356,7 +356,7 @@ class reports_BE {
 				COALESCE(SUM(d.credit),0.00) AS credit,
 				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN delivery_accounting_settings das ON das.id = 1
 				AND d.account_id IN (das.courier_custody_account_id, das.courier_commission_payable_account_id)
 			WHERE d.partner_type = 'DELIVERY' AND d.partner_id = ? AND h.entry_date <= ?";
@@ -386,7 +386,7 @@ class reports_BE {
 				NULL AS debit, NULL AS credit,
 				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
 				AND aset.setting_key = 'CUSTOMERS'
 			WHERE d.partner_type = 'CLIENT' AND d.partner_id = ? AND h.entry_date < ?
@@ -406,7 +406,7 @@ class reports_BE {
 				(
 					SELECT COALESCE(SUM(opening.credit - opening.debit),0.00)
 					FROM journal_entry_details opening
-					INNER JOIN journal_entries oh ON oh.id = opening.journal_entry_id AND oh.status = 'POSTED'
+					INNER JOIN journal_entries oh ON oh.id = opening.journal_entry_id AND oh.status IN ('POSTED', 'REVERSED')
 					INNER JOIN account_settings oa ON oa.account_id = opening.account_id
 						AND oa.setting_key = 'CUSTOMERS'
 					WHERE opening.partner_type = 'CLIENT' AND opening.partner_id = ?
@@ -416,7 +416,7 @@ class reports_BE {
 					ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 				) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
 				AND aset.setting_key = 'CUSTOMERS'
 			LEFT JOIN financial_transactions ft ON ft.id = h.reference_id
@@ -448,7 +448,7 @@ class reports_BE {
 				COALESCE(SUM(d.credit),0.00) AS credit,
 				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
 				AND aset.setting_key = 'CUSTOMERS'
 			WHERE d.partner_type = 'CLIENT' AND d.partner_id = ? AND h.entry_date <= ?";
@@ -475,7 +475,7 @@ class reports_BE {
 			$endOfDay = substr((string)$end, 0, 10) . ' 23:59:59';
 			$openingStmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0)
 				FROM journal_entry_details d
-				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status IN ('POSTED','REVERSED')
 				INNER JOIN account_settings aset ON aset.account_id=d.account_id
 					AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
 				WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date < ?");
@@ -494,7 +494,7 @@ class reports_BE {
 				? + SUM(d.credit-d.debit) OVER (ORDER BY h.entry_date,d.id
 					ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+			INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status IN ('POSTED','REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id=d.account_id
 				AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
 			WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date BETWEEN ? AND ?
@@ -509,7 +509,7 @@ class reports_BE {
 
 			$currentStmt = $this->conn->prepare("SELECT COALESCE(SUM(d.credit-d.debit),0)
 				FROM journal_entry_details d
-				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status IN ('POSTED','REVERSED')
 				INNER JOIN account_settings aset ON aset.account_id=d.account_id
 					AND aset.setting_key IN ('SUPPLIERS','SUPPLIER_ADVANCES')
 				WHERE d.partner_type='SUPPLIER' AND d.partner_id=? AND h.entry_date <= ?");
@@ -528,7 +528,7 @@ class reports_BE {
 				NULL AS debit, NULL AS credit,
 				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
 				AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
 			WHERE d.partner_type = 'MARKETER' AND d.partner_id = ? AND h.entry_date < ?
@@ -548,7 +548,7 @@ class reports_BE {
 				(
 					SELECT COALESCE(SUM(opening.credit - opening.debit),0.00)
 					FROM journal_entry_details opening
-					INNER JOIN journal_entries oh ON oh.id = opening.journal_entry_id AND oh.status = 'POSTED'
+					INNER JOIN journal_entries oh ON oh.id = opening.journal_entry_id AND oh.status IN ('POSTED', 'REVERSED')
 					INNER JOIN account_settings oa ON oa.account_id = opening.account_id
 						AND oa.setting_key = 'MARKETER_COMMISSION_PAYABLE'
 					WHERE opening.partner_type = 'MARKETER' AND opening.partner_id = ?
@@ -558,7 +558,7 @@ class reports_BE {
 					ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 				) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
 				AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
 			LEFT JOIN orders o ON h.reference_type IN ('MARKETER_COMMISSION_ACCRUAL','SALES_RETURN')
@@ -581,7 +581,7 @@ class reports_BE {
 				COALESCE(SUM(d.credit),0.00) AS credit,
 				COALESCE(SUM(d.credit - d.debit),0.00) AS running_balance
 			FROM journal_entry_details d
-			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
 				AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
 			WHERE d.partner_type = 'MARKETER' AND d.partner_id = ? AND h.entry_date <= ?";
@@ -2354,7 +2354,7 @@ ORDER BY report_date
 			     SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_ACCRUAL' THEN d.credit ELSE 0 END) AS CREDIT,
 			     SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_REVERSAL' THEN d.debit ELSE 0 END) AS DEBIT
 			   FROM journal_entry_details d
-			   INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			   INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			   INNER JOIN account_settings aset ON aset.account_id = d.account_id
 			     AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
 			   WHERE d.reference_type IN ('MARKETER_COMMISSION_ACCRUAL','MARKETER_COMMISSION_REVERSAL')
@@ -2414,7 +2414,7 @@ ORDER BY report_date
 			       SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_ACCRUAL' THEN d.credit ELSE 0 END) AS CREDIT,
 			       SUM(CASE WHEN d.reference_type = 'MARKETER_COMMISSION_REVERSAL' THEN d.debit ELSE 0 END) AS DEBIT
 			      FROM journal_entry_details d
-			      INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+			      INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			      INNER JOIN account_settings aset ON aset.account_id = d.account_id
 			        AND aset.setting_key = 'MARKETER_COMMISSION_PAYABLE'
 			      WHERE d.reference_type IN ('MARKETER_COMMISSION_ACCRUAL','MARKETER_COMMISSION_REVERSAL')

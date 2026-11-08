@@ -31,3 +31,68 @@ PASS: 31 FAIL: 0
 [PASS] inc/Databases/JUSTM_DATABASE_INSTALL.sql retains legacy tables
 [PASS] PHP syntax (774 files)
 [PASS] JavaScript syntax (1277 files)
+
+
+Accounting PHP Validation — 2026-11-08
+PR: #4 — Fix accounting migration runner Phase 22 handling
+Commit: ab80596b922344ba3a8a4373c7e6a5fa7c6f256e
+Workflow run: 42427722757
+Result: PASS — 4/4 matrix jobs
+
+[PASS] PHP 8.0 / MariaDB 10.11
+[PASS] PHP 8.4 / MariaDB 10.5.29
+[PASS] PHP 8.4 / MariaDB 10.11
+[PASS] PHP 8.0 / MariaDB 10.5.29
+
+All matrix jobs passed:
+- PHP syntax checks for accounting classes, controllers and tests
+- JavaScript syntax checks for converted finance screens
+- Import both full database installers
+- Supplier GL full-installer schema compatibility
+- Admin database migration runner MariaDB integration tests
+- Accounting static regression checks
+- Financial event MariaDB integration tests
+- Supplier GL payment and reversal MariaDB integration tests
+
+This CI result validates the repository test fixtures and isolated CI databases only. It does not mean SQL was executed on testar or that browser workflows and real balances were tested there.
+
+
+Accounting + Cash-box Management CI — 2026-11-08
+Commit: daa965208582289704b601e74648dbd0907af2dc
+Workflow run: 42428497475
+Result: PASS — 4/4 matrix jobs
+
+[PASS] PHP 8.0 / MariaDB 10.5.29
+[PASS] PHP 8.0 / MariaDB 10.11
+[PASS] PHP 8.4 / MariaDB 10.5.29
+[PASS] PHP 8.4 / MariaDB 10.11
+
+Additional coverage:
+- CashBox.php service PHP syntax
+- CashBoxManagement.php view PHP syntax
+- CashBoxManagement.js JavaScript syntax
+- Cash-box management MariaDB integration test:
+  - branch/account validation
+  - one GL asset account per cashbox within branch
+  - duplicate box name prevention
+  - payment-method mapping and unmapping
+  - account change blocked after historical movements
+  - deactivation blocked while balance is non-zero
+  - reactivation does not recreate payment mappings automatically
+
+CI uses temporary test schemas and does not deploy or alter testar/production.
+
+
+Accounting + GL Financial Vouchers + Cash-box Management CI — 2026-11-08
+Commit: 75f139a2975feae6173bc5f434940bcde22748d5
+Workflow run: 42455369801
+Result: PASS — 4/4 matrix jobs
+
+[PASS] PHP 8.0 / MariaDB 10.5.29
+[PASS] PHP 8.0 / MariaDB 10.11
+[PASS] PHP 8.4 / MariaDB 10.5.29
+[PASS] PHP 8.4 / MariaDB 10.11
+
+Coverage includes PHP/JavaScript syntax, import of both full installers, supplier schema compatibility, migration-runner integration, accounting static regressions, financial-event integration, supplier payment/reversal integration, cash-box management integration, and GL financial-voucher integration.
+
+Scope verified in isolated CI databases only. No SQL was run on testar or production. Browser E2E, real account mapping, live balance reconciliation, and operational acceptance on testar remain for the project owner to test before any production release.

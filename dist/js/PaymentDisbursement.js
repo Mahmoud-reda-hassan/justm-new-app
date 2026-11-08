@@ -638,17 +638,48 @@ async function loadMarketerPaymentMethods() {
     });
 }
 /*==================================================
+=            MARKETER COMMISSION CASH BOX
+==================================================*/
+async function loadMarketerCommissionCashBoxes() {
+    const paymentMethodId = Number($('#marketer-payment-method').val() || 0);
+    const $select = $('#marketer-cash-box').empty();
+    if (!paymentMethodId) {
+        $select.append($('<option>', { value: '', text: 'اختر طريقة الدفع أولًا' })).prop('disabled', true);
+        return;
+    }
+    $select.append($('<option>', { value: '', text: 'جارٍ تحميل الخزائن...' })).prop('disabled', true);
+    try {
+        const response = await request(API_FINANCE, {
+            CONTROL: 'GetDeliverySettlementCashBoxes',
+            payment_method_id: paymentMethodId
+        }, 'POST');
+        $select.empty().append($('<option>', { value: '', text: 'اختر الخزينة' }));
+        if (!response || response.success !== true || !(response.cash_boxes || []).length) {
+            $select.append($('<option>', { value: '', text: 'لا توجد خزائن نشطة في الفرع' })).prop('disabled', true);
+            return;
+        }
+        response.cash_boxes.forEach(box => $select.append($('<option>', { value: box.id, text: box.name })));
+        $select.prop('disabled', false);
+    } catch (error) {
+        $select.empty().append($('<option>', { value: '', text: 'تعذر تحميل الخزائن' })).prop('disabled', true);
+        showAlert('error', 'خطأ', error.message);
+    }
+}
+
+/*==================================================
 =            SAVE MARKETER PAYMENT
 ==================================================*/
 
 async function saveMarketerPayment() {
     const marketerId = Number($('#select-masouq').val() || 0);
     const paymentMethodId = Number($('#marketer-payment-method').val() || 0);
+    const cashBoxId = Number($('#marketer-cash-box').val() || 0);
     const amount = Number($('#amount-masouq').val() || 0);
     const available = Number($('#total-masouq').text() || 0);
 
     if (!marketerId) return showAlert('warning', 'تنبيه', 'قم بإختيار المسوق');
     if (!paymentMethodId) return showAlert('warning', 'تنبيه', 'اختر طريقة صرف العمولة');
+    if (!cashBoxId) return showAlert('warning', 'تنبيه', 'اختر الخزينة التي سيتم الصرف منها');
     if (!Number.isFinite(amount) || amount <= 0) return showAlert('warning', 'تنبيه', 'قم بإدخال مبلغ صحيح');
     if (amount - available > 0.009) {
         $('#amount-masouq').val(formatMoney(available));
@@ -662,6 +693,7 @@ async function saveMarketerPayment() {
         CONTROL: 'PayMarketerCommission',
         partner_id: marketerId,
         payment_method_id: paymentMethodId,
+        cash_box_id: cashBoxId,
         amount: amount.toFixed(2),
         request_key: requestKey
     };
@@ -773,6 +805,7 @@ $(function() {
     // تهيئة المندوب والمسوق والمورد
     loadMarketerPaymentMethods();
     $('#delivery-payment-method').on('change', loadDeliveryCommissionCashBoxes);
+    $('#marketer-payment-method').on('change', loadMarketerCommissionCashBoxes);
     initPartnerSelect2('#select-mandob', 'GetDeliveryData', 'اختر المندوب');
     initPartnerSelect2('#select-masouq', 'GetMasouqData', 'اختر المسوق');
     initPartnerSelect2('#select-morad', 'GetMoradData', 'اختر المورد');

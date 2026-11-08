@@ -283,6 +283,14 @@ public function app_request($loginType = 0,$pageType = 0){
     $this->Pagelink = "DatabaseMigrations";
     $this->title = "إدارة تحديثات قاعدة البيانات";
     array_push($this->js_footer,"DatabaseMigrations.js");
+} else if (isset($_GET["Go"]) && $_GET["Go"] === "CashBoxManagement" && (int)($_SESSION["ADMIN_TYPE"] ?? 0) === 1) {
+    $this->Pagelink = "CashBoxManagement";
+    $this->title = "إدارة الخزائن وربط طرق الدفع";
+    array_push($this->js_footer,"CashBoxManagement.js");
+} else if (isset($_GET["Go"]) && $_GET["Go"] === "FinancialVouchers" && (int)($_SESSION["ADMIN_TYPE"] ?? 0) === 1) {
+    $this->Pagelink = "FinancialVouchers";
+    $this->title = "سندات القبض والصرف — الأستاذ العام";
+    array_push($this->js_footer,"FinancialVouchers.js");
 } else if(isset($_GET["Go"]) && isset($usc['Admin'])){
 	    		    	if ($usc['Admin']['Countries']['View'] == "true" && $_GET["Go"] === "Countries"){
 	        				    $this->Pagelink = "Countries";
