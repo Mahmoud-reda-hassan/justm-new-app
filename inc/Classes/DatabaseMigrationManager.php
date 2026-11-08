@@ -361,7 +361,7 @@ class DatabaseMigrationManager
         } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
             $required = ['branches', 'cash_boxes', 'payment_methods', 'payment_method_accounts', 'accounts', 'account_settings', 'journal_entries', 'accounting_events', 'accounting_line_allocations', 'journal_entry_details'];
         } elseif ($file === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
-            $required = ['customer_refund_payments', 'financial_transactions', 'invoices', 'journal_entries', 'journal_entry_details', 'account_settings', 'orders', 'branches', 'payment_methods', 'client'];
+            $required = ['customer_refund_payments', 'financial_transactions', 'invoices', 'journal_entries', 'journal_entry_details', 'account_settings', 'orders', 'branches', 'payment_methods', 'client', 'transaction_categories'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
@@ -386,6 +386,31 @@ class DatabaseMigrationManager
             $postedRefundJournals = (int)$this->db->query(
                 "SELECT COUNT(*) FROM journal_entries WHERE reference_type = 'SALES_RETURN_PAYMENT' AND status = 'POSTED'"
             )->fetchColumn();
+
+            // A completed legacy refund without a posted/reversed GL journal is ambiguous: do not risk paying it twice.
+            $unpostedLegacyRefunds = (int)$this->db->query("
+                SELECT COUNT(*)
+                FROM financial_transactions ft
+                INNER JOIN transaction_categories tc ON tc.id = ft.category_id
+                INNER JOIN invoices i ON i.INVO_ID = ft.invoice_id AND i.REFERENCE_TYPE = 'SALES'
+                INNER JOIN orders o ON o.ORDER_ID = i.REFERENCE_ID AND o.ORDER_STATUS IN (6,7)
+                WHERE ft.status = 'COMPLETED'
+                  AND ft.entity_type = 'CLIENT'
+                  AND ft.amount > 0
+                  AND tc.name = 'مدفوعات مرتجع مبيعات'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM journal_entries h
+                      WHERE h.reference_type = 'SALES_RETURN_PAYMENT'
+                        AND h.reference_id = ft.id
+                        AND h.status IN ('POSTED','REVERSED')
+                  )
+            ")->fetchColumn();
+            if ($unpostedLegacyRefunds > 0) {
+                throw new RuntimeException(
+                    'تم إيقاف ترحيل ردود العملاء: توجد ' . $unpostedLegacyRefunds
+                    . ' عملية رد مكتملة بلا قيد GL منشور أو معكوس. يجب مطابقتها يدويًا قبل إغلاق المسار القديم.'
+                );
+            }
 
             // Fresh databases have no legacy refunds to bridge and do not need legacy account mappings.
             if ($postedRefundJournals > 0) {
