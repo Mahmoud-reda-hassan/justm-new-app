@@ -57,10 +57,10 @@
 
             <div class="card card-outline card-info">
                 <div class="card-header">
-                    <h3 class="card-title">ربط طريقة الدفع النقدي بخزينة الفرع</h3>
+                    <h3 class="card-title">الخزينة الافتراضية لطريقة الدفع النقدي</h3>
                 </div>
                 <div class="card-body">
-                    <p class="text-muted">طريقة الدفع النقدي فقط تُربط بخزينة الفرع. التحويل البنكي والبطاقات والمحافظ لا تُربط بخزائن نقدية؛ ستُدار بحسابات بنكية/تسوية منفصلة.</p>
+                    <p class="text-muted">يمكن تحديد خزينة افتراضية اختيارية لطريقة الدفع النقدي. جميع خزائن الفرع النشطة تظل متاحة للاختيار عند تسجيل الحركة؛ التحويل البنكي والبطاقات والمحافظ لا تُربط بخزائن نقدية.</p>
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped" id="paymentMethodCashBoxTable">
                             <thead>
