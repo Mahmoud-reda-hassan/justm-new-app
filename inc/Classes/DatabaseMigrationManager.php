@@ -350,7 +350,7 @@ class DatabaseMigrationManager
         } elseif ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
             $required = ['journal_entry_details', 'cash_boxes', 'branches'];
         } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
-            $required = ['branches', 'cash_boxes', 'payment_methods', 'accounts', 'journal_entries', 'accounting_events', 'journal_entry_details'];
+            $required = ['branches', 'cash_boxes', 'payment_methods', 'payment_method_accounts', 'accounts', 'account_settings', 'journal_entries', 'accounting_events', 'accounting_line_allocations', 'journal_entry_details'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
@@ -478,9 +478,9 @@ class DatabaseMigrationManager
         $dependencies = $this->db->query(
             "SELECT COUNT(*) FROM information_schema.TABLES
              WHERE TABLE_SCHEMA = DATABASE()
-               AND TABLE_NAME IN ('branches','cash_boxes','payment_methods','accounts','journal_entries','accounting_events','journal_entry_details')"
+               AND TABLE_NAME IN ('branches','cash_boxes','payment_methods','payment_method_accounts','accounts','account_settings','journal_entries','accounting_events','accounting_line_allocations','journal_entry_details')"
         );
-        $dependenciesExist = (int)$dependencies->fetchColumn() === 7;
+        $dependenciesExist = (int)$dependencies->fetchColumn() === 10;
         $dependencies->closeCursor();
         if (!$dependenciesExist || $this->cashBoxReferenceSchemaState() !== 'COMPLETE') {
             return 'BLOCKED';
@@ -501,8 +501,8 @@ class DatabaseMigrationManager
         }
 
         $requiredColumns = [
-            'financial_vouchers' => ['voucher_no','voucher_type','voucher_subtype','branch_id','cash_box_id','payment_method_id','voucher_date','total_amount','status','journal_entry_id','accounting_event_id','reversal_event_id','idempotency_key','payload_hash','created_by'],
-            'financial_voucher_lines' => ['voucher_id','line_no','account_id','partner_type','partner_id','amount'],
+            'financial_vouchers' => ['voucher_no','voucher_type','voucher_subtype','branch_id','cash_box_id','payment_method_id','voucher_date','total_amount','status','journal_entry_id','accounting_event_id','reversal_event_id','reversal_journal_entry_id','reversed_by','reversed_at','reversal_reason','idempotency_key','payload_hash','created_by'],
+            'financial_voucher_lines' => ['voucher_id','line_no','account_id','partner_type','partner_id','cost_center_id','amount','line_description'],
         ];
         foreach ($requiredColumns as $tableName => $columns) {
             $placeholders = implode(',', array_fill(0, count($columns), '?'));
