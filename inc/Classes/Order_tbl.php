@@ -1728,15 +1728,9 @@ class Order_tbl {
 								$qty = explode(',',$qty)[0];
 								$stopro[$code] -= (double)$qty;
 							}
-							$finance = new finance_BE($this->conn);
-			            	$resultFinal = $finance->restClientdebt($record['ORDER_ID']);
-				            if($resultFinal['statuse']){
-								$osucceeded[] = $record['ORDER_ID'];
-								unset($ordersISNotConditions[$record['ORDER_ID']]);
-				            }else{
-				            	$orejected[] = $record['ORDER_ID'];
-								$ecode[] = $record['ORDER_ID']."E P B";
-				            }
+							// اعتماد حالة الطلب التشغيلية لا ينشئ مديونية؛ القيد المالي ينشأ عند التسليم الفعلي فقط.
+							$osucceeded[] = $record['ORDER_ID'];
+							unset($ordersISNotConditions[$record['ORDER_ID']]);
 						}else{
 							$orejected[] = $record['ORDER_ID'];
 							$ecode[] = $record['ORDER_ID']."E1";
