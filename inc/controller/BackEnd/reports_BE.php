@@ -421,12 +421,11 @@ class reports_BE {
 			LEFT JOIN delivery_customer_collections dcc ON dcc.id = h.reference_id
 				AND h.reference_type = 'DELIVERY_CUSTOMER_COLLECTION'
 			LEFT JOIN delivery_collection_order_allocations dca ON dca.collection_id = dcc.id
-			LEFT JOIN customer_refund_payments crp ON crp.id = h.reference_id
-				AND h.reference_type = 'CUSTOMER_RETURN_REFUND'
+			LEFT JOIN customer_refund_payments crp ON crp.journal_id = h.id
 			LEFT JOIN orders o ON
 				(h.reference_type IN ('DIRECT_SALE','ORDER_SHIPPING','SALES_RETURN') AND o.ORDER_ID = h.reference_id)
 				OR (h.reference_type = 'DELIVERY_CUSTOMER_COLLECTION' AND o.ORDER_ID = dca.order_id)
-				OR (h.reference_type = 'CUSTOMER_RETURN_REFUND' AND o.ORDER_ID = crp.order_id)
+				OR (crp.id IS NOT NULL AND o.ORDER_ID = crp.order_id)
 			LEFT JOIN (
 				SELECT ORDER_ID, SUM(QTY) AS QTY, SUM(DELIVERED_QTY) AS DELIVERED_QTY,
 					SUM(RETURNED_QTY) AS RETURNED_QTY
