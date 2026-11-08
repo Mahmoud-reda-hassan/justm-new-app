@@ -127,7 +127,7 @@ for sql_rel in ['JUSTM_DATABASE_INSTALL.sql', 'inc/Databases/JUSTM_DATABASE_INST
 # 4) Syntax checks: all PHP outside vendor; all JS except source fragments intentionally concatenated by jQuery build.
 php_files = [p for p in ROOT.rglob('*.php') if p.is_file() and 'vendor' not in p.parts]
 def lint_php(p):
-    r = subprocess.run(['php', '-l', str(p)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    r = subprocess.run(['php', '-l', str(p)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return (str(p.relative_to(ROOT)), (r.stdout + '\\n' + r.stderr).strip()) if r.returncode else None
 with ThreadPoolExecutor(max_workers=12) as pool:
     php_bad = [x for x in pool.map(lint_php, php_files) if x]
