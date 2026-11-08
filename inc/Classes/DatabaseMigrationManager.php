@@ -390,6 +390,14 @@ class DatabaseMigrationManager
             if ($this->cashBoxReferenceSchemaState() !== 'COMPLETE') {
                 throw new RuntimeException('لا يمكن تنفيذ المرحلة 24 قبل اكتمال مرجع الخزينة والفرع في المرحلة 22.');
             }
+            $customerCreditAccount = $this->db->query(
+                "SELECT COUNT(*) FROM accounts WHERE account_code = '1152' AND is_active = 1 AND allow_posting = 1"
+            );
+            $hasCustomerCreditAccount = (int)$customerCreditAccount->fetchColumn() === 1;
+            $customerCreditAccount->closeCursor();
+            if (!$hasCustomerCreditAccount) {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 24 قبل استيراد شجرة الحسابات المعتمدة التي تتضمن حساب أرصدة العملاء الدائنة 1152.');
+            }
         }
 
         if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
@@ -516,6 +524,18 @@ class DatabaseMigrationManager
             if ($found !== count($columns)) {
                 return 'PARTIAL';
             }
+        }
+
+        $customerCreditMapping = $this->db->query(
+            "SELECT COUNT(*) FROM account_settings s
+             INNER JOIN accounts a ON a.id = s.account_id
+             WHERE s.setting_key = 'CUSTOMER_CREDITS'
+               AND a.account_code = '1152' AND a.is_active = 1 AND a.allow_posting = 1"
+        );
+        $mappingIsValid = (int)$customerCreditMapping->fetchColumn() === 1;
+        $customerCreditMapping->closeCursor();
+        if (!$mappingIsValid) {
+            return 'PARTIAL';
         }
 
         return 'COMPLETE';
