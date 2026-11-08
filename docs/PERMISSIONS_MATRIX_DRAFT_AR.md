@@ -135,6 +135,57 @@
 - الصلاحيات النهائية للتكاملات والمهام الآلية.
 - تفاصيل مفاتيح إدارة الحسابات والأستاذ العام وفق وثائق المجال المالي على الفرع المرجعي.
 
+
+## 7.1 قاموس مفاتيح الصلاحيات — اتجاه مبدئي
+
+> وافق المستخدم مبدئيًا على نمط التسمية وفصل الأفعال والاتجاه العام. المفاتيح أدناه مسودة للمراجعة وليست اعتمادًا نهائيًا أو قائمة مكتملة، ولا يبدأ تنفيذها قبل مراجعة كل وحدة واعتماد القاموس.
+
+### نمط التسمية
+
+النمط المقترح: `module.resource.action`
+
+أمثلة: `sales.orders.view`، `sales.orders.create`، `inventory.stock.receive`، `custody.shortage.approve_inventory`، `custody.shortage.approve_financial`.
+
+- مفاتيح ثابتة باللغة الإنجليزية، والفعل محدد وواضح.
+- المشاهدة والتعديل والتنفيذ والمراجعة والاعتماد والترحيل أفعال مستقلة.
+- مجموعات الصلاحيات تجمع المفاتيح؛ ولا يستمد المستخدم صلاحية تلقائيًا من المسمى الوظيفي أو نوع الحساب.
+- لا تستخدم أرقام حالات النظام القديم في أسماء المفاتيح؛ الحالات والانتقالات قاموس مستقل.
+- المفتاح يخضع أيضًا لنطاق الوصول وحالة السجل وصحة الانتقال وفصل المهام.
+
+### قاموس أولي حسب المجال
+
+| المجال | المفاتيح المقترحة |
+|---|---|
+| المستخدمون | `users.view`, `users.view_details`, `users.create`, `users.update`, `users.activate`, `users.reset_password`, `users.assign_groups` |
+| مجموعات الصلاحيات | `permissions.groups.view`, `permissions.groups.create`, `permissions.groups.update`, `permissions.groups.assign` |
+| المؤسسة والفروع والمخازن | `organization.view`, `organization.update`, `organization.branches.view`, `organization.branches.create`, `organization.branches.update`, `organization.branches.disable`, `organization.warehouses.view`, `organization.warehouses.create`, `organization.warehouses.update`, `organization.warehouses.disable` |
+| العملاء والموردون | `partners.customers.view`, `partners.customers.create`, `partners.customers.update`, `partners.customers.manage_contacts`, `partners.suppliers.view`, `partners.suppliers.create`, `partners.suppliers.update`, `partners.suppliers.manage_contacts` |
+| أوامر البيع | `sales.orders.view`, `sales.orders.view_details`, `sales.orders.create`, `sales.orders.update`, `sales.orders.cancel`, `sales.orders.submit`, `sales.orders.review`, `sales.orders.approve`, `sales.orders.reject`, `sales.orders.return_for_correction` |
+| التأكيد والتجهيز | `sales.confirmation.view`, `sales.confirmation.review`, `sales.confirmation.update`, `sales.confirmation.complete`, `sales.preparation.view`, `sales.preparation.start`, `sales.preparation.confirm`, `sales.preparation.unconfirm` |
+| المخزون | `inventory.stock.view`, `inventory.stock.receive`, `inventory.stock.receive_approve`, `inventory.stock.issue`, `inventory.stock.issue_approve`, `inventory.movements.view`, `inventory.transfers.create`, `inventory.transfers.execute`, `inventory.transfers.receive`, `inventory.counts.create`, `inventory.counts.execute`, `inventory.counts.review`, `inventory.counts.approve`, `inventory.scrap.create`, `inventory.scrap.approve`, `inventory.reservations.view`, `inventory.reservations.manage` |
+| المشتريات والتوريد | `purchasing.orders.view`, `purchasing.orders.create`, `purchasing.orders.update`, `purchasing.orders.submit`, `purchasing.orders.approve`, `purchasing.orders.cancel`, `purchasing.receipts.record`, `purchasing.receipts.inspect`, `purchasing.receipts.approve`, `purchasing.returns.create`, `purchasing.returns.execute`, `purchasing.returns.approve` |
+| الشحن والعهدة | `custody.view`, `custody.issue`, `custody.receive`, `custody.delivery_result.record`, `custody.delivery_result.correct`, `custody.returns.record_received`, `custody.returns.inspect`, `custody.review`, `custody.correct`, `custody.return_for_correction` |
+| العجز | `custody.shortage.record`, `custody.shortage.approve_inventory`, `custody.shortage.request_financial_charge`, `custody.shortage.approve_financial`, `custody.shortage.settle`, `custody.shortage.reverse`, `custody.shortage.waive` |
+| الحسابات والأستاذ العام | `accounting.accounts.view`, `accounting.accounts.manage`, `accounting.journals.view`, `accounting.journals.create`, `accounting.journals.update`, `accounting.journals.review`, `accounting.journals.approve`, `accounting.journals.post`, `accounting.journals.reverse` |
+| القبض والصرف والتسويات | `accounting.receipts.create`, `accounting.receipts.approve`, `accounting.receipts.post`, `accounting.payments.create`, `accounting.payments.approve`, `accounting.payments.execute`, `accounting.reconciliation.execute`, `accounting.settlements.create`, `accounting.settlements.approve` |
+| التحصيل وشركات الشحن | `collections.customers.record`, `collections.customers.allocate`, `collections.customers.approve`, `collections.customers.refund`, `collections.agents.record`, `collections.agents.remit`, `collections.agents.reconcile`, `shipping_companies.cod.import_statement`, `shipping_companies.cod.reconcile`, `shipping_companies.cod.confirm_remittance` |
+| المرتجعات والجودة | `returns.requests.view`, `returns.requests.create`, `returns.requests.record_item_reason`, `returns.inspection.inspect`, `returns.inspection.approve`, `returns.exchange.execute`, `returns.refunds.approve`, `returns.refunds.execute`, `quality.reports.view`, `quality.suppliers.evaluate` |
+| التقارير والتدقيق | `reports.sales.view`, `reports.inventory.view`, `reports.financial.view`, `reports.suppliers.view`, `reports.quality.view`, `reports.export`, `audit.logs.view`, `audit.logs.export` |
+| الإعدادات | `settings.system.view`, `settings.system.update`, `settings.shipping.view`, `settings.shipping.update`, `settings.inventory.view`, `settings.inventory.update`, `settings.accounting.view`, `settings.accounting.update` |
+
+### قيود لا تختزل إلى مفتاح صلاحية
+
+- نطاق الشركة والفرع والمخزن والشريك وصاحب العهدة والحساب/الخزينة والسجل يطبق على القراءة والكتابة والاعتماد والتصدير.
+- حالة المستند وانتقالاته تتحقق في الخادم.
+- فصل المهام يطبق وفق سياسة العملية؛ ومن أمثلته فصل اعتماد العجز المخزني عن اعتماد التحميل المالي.
+- التصدير مستقل عن المشاهدة، ويخضع لنطاق البيانات وضوابط الحقول الحساسة.
+- الإعدادات الحساسة قد تحتاج اعتمادًا إضافيًا؛ من يملك الاعتماد وحدوده ما زال سؤالًا مفتوحًا.
+
+### حالة الموافقة
+
+الموافقة الحالية مبدئية على الاتجاه والنمط والفصل بين الأفعال فقط. لا تعني اعتماد كل مفتاح أو اكتمال القائمة. تراجع المفاتيح مع كل وحدة قبل اعتماد النسخة النهائية. لم يتم إنشاء جداول أو migrations أو Policies أو شاشات، ولم تتغير قاعدة البيانات أو بيئة النشر.
+
+
 ## 8. حالة هذه الوثيقة
 
 - تجمع نتائج جرد ساكن لعدة جولات على المشروع القديم، وقرارات تشغيلية وتصميمية صرح بها المستخدم.
