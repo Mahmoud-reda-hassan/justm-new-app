@@ -8,6 +8,7 @@ include_once(ABSPATH.'/inc/Classes/Accounting/CashBox.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/ShippingConfigurationManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/DeliveryRejectedShippingReviewManager.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/CustomerRefundManager.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/FinancialVoucherManager.php');
 
 $DBconn        	= new dbconn();
 $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
@@ -16,6 +17,7 @@ $CBE 	= new finance_BE($db);
 $deliveryAccounting = new DeliverySettlementManager($db);
 $cashBoxes = new CashBox($db);
 $customerRefunds = new CustomerRefundManager($db);
+$financialVouchers = new FinancialVoucherManager($db);
 $shippingConfiguration = new ShippingConfigurationManager($db);
 $http_RQM = $_SERVER['REQUEST_METHOD'];
 /*===================================================
@@ -158,6 +160,73 @@ try {
                 'success' => true,
                 'cash_boxes' => $cashBoxes->listForPaymentMethod($branchId, $paymentMethodId),
             ], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'GetFinancialVoucherCashBoxes':
+            $requireFinanceAdmin();
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            echo json_encode(['success' => true, 'cash_boxes' => $financialVouchers->listCashBoxes($branchId)], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'GetFinancialVoucherPartners':
+            $requireFinanceAdmin();
+            $partnerType = strtoupper(trim((string)($_POST['partner_type'] ?? '')));
+            echo json_encode(['success' => true, 'partners' => $financialVouchers->listPartners($partnerType)], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'GetFinancialVoucherAccounts':
+            $requireFinanceAdmin();
+            $voucherType = strtoupper(trim((string)($_POST['voucher_type'] ?? '')));
+            echo json_encode(['success' => true, 'accounts' => $financialVouchers->listGeneralAccounts($voucherType)], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'GetFinancialVoucherPartnerBalance':
+            $requireFinanceAdmin();
+            $partnerType = strtoupper(trim((string)($_POST['partner_type'] ?? '')));
+            $partnerId = (int)($_POST['partner_id'] ?? 0);
+            $balance = $financialVouchers->getPartnerBalance($partnerType, $partnerId);
+            $credit = $partnerType === 'CLIENT' ? $financialVouchers->getCustomerCreditBalance($partnerId) : 0.0;
+            echo json_encode(['success' => true, 'balance' => $balance, 'customer_credit' => $credit], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'GetFinancialVouchers':
+            $requireFinanceAdmin();
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            echo json_encode(['success' => true, 'vouchers' => $financialVouchers->listVouchers($branchId)], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'PostFinancialVoucher':
+            $requireFinanceAdmin();
+            if ($branchId <= 0) throw new RuntimeException('الفرع الحالي غير محدد في الجلسة.');
+            $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+            if ($actorId <= 0) throw new RuntimeException('تعذر تحديد المستخدم المنفذ للعملية.');
+            $voucherInput = [
+                'voucher_subtype' => (string)($_POST['voucher_subtype'] ?? ''),
+                'branch_id' => $branchId,
+                'cash_box_id' => (int)($_POST['cash_box_id'] ?? 0),
+                'payment_method_id' => (int)($_POST['payment_method_id'] ?? 1),
+                'voucher_date' => (string)($_POST['voucher_date'] ?? date('Y-m-d H:i:s')),
+                'partner_id' => (int)($_POST['partner_id'] ?? 0),
+                'amount' => $_POST['amount'] ?? 0,
+                'lines' => $readArray($_POST['lines'] ?? [], 'lines'),
+                'description' => trim((string)($_POST['description'] ?? '')),
+                'idempotency_key' => trim((string)($_POST['idempotency_key'] ?? '')),
+                'created_by' => $actorId,
+            ];
+            $postedVoucher = $financialVouchers->post($voucherInput);
+            echo json_encode(['success' => true, 'voucher' => $postedVoucher], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'ReverseFinancialVoucher':
+            $requireFinanceAdmin();
+            $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+            if ($actorId <= 0) throw new RuntimeException('تعذر تحديد المستخدم المنفذ للعملية.');
+            $result = $financialVouchers->reverse(
+                (int)($_POST['voucher_id'] ?? 0),
+                trim((string)($_POST['reason'] ?? '')),
+                $actorId
+            );
+            echo json_encode(['success' => true, 'voucher' => $result], JSON_UNESCAPED_UNICODE);
             break;
 
         case 'GetCashBoxManagementData':
