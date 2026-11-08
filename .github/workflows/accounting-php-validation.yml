@@ -131,6 +131,7 @@ jobs:
         run: |
           php tests/accounting/direct_sale_static_test.php
           php tests/accounting/supplier_gl_static_test.php
+          php tests/accounting/gl_only_cutover_static_test.php
 
       - name: Financial event MariaDB integration tests
         env:
