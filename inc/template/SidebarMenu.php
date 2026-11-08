@@ -500,6 +500,14 @@ if ($loginType === 1 && $pageType > 0) {
                                     </a>
                                 </li>
                                 <?php } ?>
+                                <?php if((int)($_SESSION["ADMIN_TYPE"] ?? 0) === 1){ ?>
+                                <li class="nav-item">
+                                    <a href="?Go=FinancialVouchers" class="nav-link">
+                                        <i class="fas fa-file-invoice-dollar nav-icon"></i>
+                                        <p>سندات القبض والصرف — الأستاذ العام</p>
+                                    </a>
+                                </li>
+                                <?php } ?>
                                 <?php if(isset($usm["PaymentsReceipt"]["view"]) && $usm["PaymentsReceipt"]["view"]  == "true" && 1==2){?>
                                 <li class="badge badge-red0 pt-1 pb-1 pl-2 pr-2 nav-header" style="font-size: 10px;">الموظفين والشركاء</li>
                                 <hr class="badge-red0 mb-3" style="margin: -11px 0px 5px 0px;">
