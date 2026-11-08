@@ -613,9 +613,26 @@ final class FinancialVoucherManager
         }
         $account->closeCursor();
 
-        if (in_array($data['voucher_subtype'], ['CUSTOMER_RECEIPT', 'SUPPLIER_REFUND'], true)) {
+        if ($data['voucher_subtype'] === 'SUPPLIER_REFUND') {
             if (count($data['lines']) !== 1 || empty($data['partner_id'])) {
-                throw new InvalidArgumentException('سند الطرف يجب أن يحتوي بندًا واحدًا وطرفًا محددًا.');
+                throw new InvalidArgumentException('سند رد المورد يجب أن يحتوي بندًا واحدًا وموردًا محددًا.');
+            }
+        } elseif ($data['voucher_subtype'] === 'CUSTOMER_RECEIPT') {
+            if (count($data['lines']) < 1 || empty($data['partner_id'])) {
+                throw new InvalidArgumentException('سند تحصيل العميل يجب أن يحتوي بنودًا وطرفًا محددًا.');
+            }
+            $allowedAccounts = [$this->accountSettings->customers(), $this->accountSettings->customerCredits()];
+            $lineTotal = 0.0;
+            foreach ($data['lines'] as $line) {
+                if (!in_array((int)$line['account_id'], $allowedAccounts, true)
+                    || strtoupper((string)$line['partner_type']) !== 'CLIENT'
+                    || (int)$line['partner_id'] !== (int)$data['partner_id']) {
+                    throw new InvalidArgumentException('بنود تحصيل العميل يجب أن ترتبط بحسابات 1151/1152 وبنفس العميل.');
+                }
+                $lineTotal += (float)$line['amount'];
+            }
+            if (abs(round($lineTotal, 2) - (float)$data['total_amount']) > 0.009) {
+                throw new InvalidArgumentException('إجمالي بنود تحصيل العميل لا يساوي إجمالي السند.');
             }
         }
     }
