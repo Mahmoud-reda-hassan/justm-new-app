@@ -130,6 +130,7 @@ try {
     $cashBoxes->setPaymentMethodMapping(1, 1, $boxId);
     $methodBoxes = $cashBoxes->listForPaymentMethod(1, 1);
     cashBoxAssert(count($methodBoxes) === 1 && (int)$methodBoxes[0]['id'] === $boxId, 'يجب إتاحة الخزينة لطريقة الدفع المرتبطة بها.');
+    cashBoxAssert(count($cashBoxes->listForPaymentMethod(1, 2)) === 0, 'لا يجب إظهار خزائن نقدية للتحويل البنكي.');
 
     $methods = $cashBoxes->listPaymentMethods(1);
     cashBoxAssert(count($methods) === 1 && (int)$methods[0]['id'] === 1, 'إدارة الخزائن يجب أن تعرض طريقة الدفع النقدي فقط.');
