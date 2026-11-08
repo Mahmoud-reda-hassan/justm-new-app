@@ -236,7 +236,7 @@ try {
     has($accountStatement, 'courier_custody_account_id', 'كشف حساب المندوب لا يضم حساب العهدة.');
     has($accountStatement, 'courier_commission_payable_account_id', 'كشف حساب المندوب لا يضم مستحقات العمولة.');
     has($accountStatement, "strtoupper((string)\$partnerType) === 'CLIENT'", 'كشف حساب العميل لا يقرأ الأستاذ العام.');
-    has($accountStatement, "aset.setting_key = 'CUSTOMERS'", 'كشف حساب العميل لا يستخدم حساب العملاء المعتمد.');
+    has($accountStatement, "aset.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')", 'كشف حساب العميل لا يشمل حساب العملاء ورصيد العملاء الدائن.');
     lacks(substr($accountStatement, strpos($accountStatement, "if (strtoupper((string)\$partnerType) === 'CLIENT')"), strpos($accountStatement, "if (strtoupper((string)\$partnerType) === 'SUPPLIER')") - strpos($accountStatement, "if (strtoupper((string)\$partnerType) === 'CLIENT')")), 'partners_balance', 'فرع كشف حساب العميل ما زال يعتمد على دفتر الأرصدة القديم.');
     $marketerDailyReport = methodBody($reportsBackend, 'public function marketerDailyReport(');
     $marketerDailyDetails = methodBody($reportsBackend, 'public function marketerDailyDetails(');
