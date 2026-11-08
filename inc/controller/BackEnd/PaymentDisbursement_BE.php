@@ -98,12 +98,18 @@ class PaymentDisbursement {
 			INNER JOIN client C ON C.CLIENT_ID = T.CLIENT_ID
 			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
 			INNER JOIN (
-				SELECT D.journal_entry_id, D.partner_id, SUM(D.credit) AS return_credit
+				SELECT D.journal_entry_id, D.partner_id,
+					SUM(D.credit - COALESCE(A.allocated_amount,0)) AS return_credit
 				FROM journal_entry_details D
 				INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
 					AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+				LEFT JOIN (
+					SELECT credit_line_id, SUM(amount) AS allocated_amount
+					FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
+				) A ON A.credit_line_id = D.id
 				WHERE D.partner_type = 'CLIENT' AND D.credit > 0
 				GROUP BY D.journal_entry_id, D.partner_id
+				HAVING SUM(D.credit - COALESCE(A.allocated_amount,0)) > 0
 			) RC ON RC.journal_entry_id = H.id AND RC.partner_id = C.CLIENT_ID
 			LEFT JOIN (
 				SELECT order_id, SUM(amount) AS refunded
@@ -129,12 +135,18 @@ class PaymentDisbursement {
 			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
 			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
 			INNER JOIN (
-				SELECT D.journal_entry_id, D.partner_id, SUM(D.credit) AS return_credit
+				SELECT D.journal_entry_id, D.partner_id,
+					SUM(D.credit - COALESCE(A.allocated_amount,0)) AS return_credit
 				FROM journal_entry_details D
 				INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
 					AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+				LEFT JOIN (
+					SELECT credit_line_id, SUM(amount) AS allocated_amount
+					FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
+				) A ON A.credit_line_id = D.id
 				WHERE D.partner_type = 'CLIENT' AND D.credit > 0
 				GROUP BY D.journal_entry_id, D.partner_id
+				HAVING SUM(D.credit - COALESCE(A.allocated_amount,0)) > 0
 			) RC ON RC.journal_entry_id = H.id AND RC.partner_id = T.CLIENT_ID
 			LEFT JOIN (
 				SELECT order_id, SUM(amount) AS refunded
@@ -155,11 +167,15 @@ class PaymentDisbursement {
 	public function GetRefundBalance($orderId){
 		if (!$orderId) return [['total_balance' => 0]];
 		$query = "SELECT GREATEST(
-				COALESCE((SELECT SUM(D.credit)
+				COALESCE((SELECT SUM(D.credit - COALESCE(A.allocated_amount,0))
 					FROM journal_entry_details D
 					INNER JOIN journal_entries H ON H.id = D.journal_entry_id AND H.status = 'POSTED'
 					INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
 						AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+					LEFT JOIN (
+						SELECT credit_line_id, SUM(amount) AS allocated_amount
+						FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
+					) A ON A.credit_line_id = D.id
 					WHERE H.id = O.RETURN_ENTRY_ID AND D.partner_type = 'CLIENT'
 						AND D.partner_id = T.CLIENT_ID AND D.credit > 0),0)
 				- COALESCE((SELECT SUM(R.amount) FROM customer_refund_payments R
