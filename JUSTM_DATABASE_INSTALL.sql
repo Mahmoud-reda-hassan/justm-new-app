@@ -2616,6 +2616,7 @@ CREATE TABLE IF NOT EXISTS financial_vouchers (
     status ENUM('PROCESSING','POSTED','REVERSED','FAILED') NOT NULL DEFAULT 'PROCESSING',
     journal_entry_id BIGINT UNSIGNED NULL,
     accounting_event_id BIGINT UNSIGNED NULL,
+    reversal_event_id BIGINT UNSIGNED NULL,
     reversal_journal_entry_id BIGINT UNSIGNED NULL,
     idempotency_key VARCHAR(128) NOT NULL,
     payload_hash CHAR(64) NOT NULL,
@@ -2630,6 +2631,7 @@ CREATE TABLE IF NOT EXISTS financial_vouchers (
     UNIQUE KEY uq_financial_voucher_idempotency (idempotency_key),
     UNIQUE KEY uq_financial_voucher_journal (journal_entry_id),
     UNIQUE KEY uq_financial_voucher_event (accounting_event_id),
+    UNIQUE KEY uq_financial_voucher_reversal_event (reversal_event_id),
     KEY idx_financial_voucher_branch_date (branch_id, voucher_date, id),
     KEY idx_financial_voucher_partner (partner_type, partner_id, voucher_date),
     KEY idx_financial_voucher_status (status, voucher_type, voucher_date),
@@ -2647,6 +2649,9 @@ CREATE TABLE IF NOT EXISTS financial_vouchers (
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_financial_voucher_event
         FOREIGN KEY (accounting_event_id) REFERENCES accounting_events (id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_financial_voucher_reversal_event
+        FOREIGN KEY (reversal_event_id) REFERENCES accounting_events (id)
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_financial_voucher_reversal_journal
         FOREIGN KEY (reversal_journal_entry_id) REFERENCES journal_entries (id)
