@@ -15,6 +15,7 @@ if (!$dsn) {
 
 require_once dirname(__DIR__, 2) . '/inc/Classes/Accounting/FinancialVoucherManager.php';
 require_once dirname(__DIR__, 2) . '/inc/Classes/Accounting/AccountingEvents.php';
+require_once dirname(__DIR__, 2) . '/inc/Classes/Accounting/CustomerRefundManager.php';
 
 class VoucherAccountingEventsTest extends AccountingEvents
 {
@@ -140,6 +141,34 @@ try {
             KEY idx_allocation_credit (credit_line_id, status)
         ) ENGINE=InnoDB",
         "CREATE TEMPORARY TABLE client (CLIENT_ID BIGINT UNSIGNED PRIMARY KEY) ENGINE=InnoDB",
+        "CREATE TEMPORARY TABLE orders (
+            ORDER_ID BIGINT UNSIGNED PRIMARY KEY,
+            SUB_ORDER_ID VARCHAR(50) NOT NULL,
+            ORDER_STATUS INT NOT NULL,
+            RETURN_ENTRY_ID BIGINT UNSIGNED NULL,
+            TEL_ID BIGINT UNSIGNED NOT NULL,
+            STO_ID BIGINT UNSIGNED NOT NULL
+        ) ENGINE=InnoDB",
+        "CREATE TEMPORARY TABLE telephones (TEL_ID BIGINT UNSIGNED PRIMARY KEY, CLIENT_ID BIGINT UNSIGNED NOT NULL) ENGINE=InnoDB",
+        "CREATE TEMPORARY TABLE stores (STO_ID BIGINT UNSIGNED PRIMARY KEY, BRANCH_ID INT NOT NULL) ENGINE=InnoDB",
+        "CREATE TEMPORARY TABLE invoices (INVO_ID BIGINT UNSIGNED PRIMARY KEY, reference_id BIGINT UNSIGNED NOT NULL) ENGINE=InnoDB",
+        "CREATE TEMPORARY TABLE financial_transactions (id BIGINT UNSIGNED PRIMARY KEY, invoice_id BIGINT UNSIGNED NOT NULL) ENGINE=InnoDB",
+        "CREATE TEMPORARY TABLE customer_refund_payments (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            refund_no VARCHAR(40) NULL UNIQUE,
+            order_id BIGINT UNSIGNED NOT NULL,
+            customer_id BIGINT UNSIGNED NOT NULL,
+            branch_id INT NOT NULL,
+            payment_method_id INT NOT NULL,
+            refund_date DATETIME NOT NULL,
+            amount DECIMAL(18,2) NOT NULL,
+            status VARCHAR(20) NOT NULL,
+            created_by BIGINT UNSIGNED NOT NULL,
+            request_key VARCHAR(64) NOT NULL UNIQUE,
+            request_hash CHAR(64) NOT NULL,
+            journal_id BIGINT UNSIGNED NULL,
+            posted_at DATETIME NULL
+        ) ENGINE=InnoDB",
         "CREATE TEMPORARY TABLE suppliers (SUP_ID BIGINT UNSIGNED PRIMARY KEY) ENGINE=InnoDB",
         "CREATE TEMPORARY TABLE payment_methods (
             id INT PRIMARY KEY,
@@ -216,6 +245,9 @@ try {
     $db->exec("INSERT INTO account_settings (setting_key, account_id) VALUES
         ('CUSTOMERS', 2), ('CUSTOMER_CREDITS', 3), ('SUPPLIERS', 4)");
     $db->exec("INSERT INTO client (CLIENT_ID) VALUES (10), (11), (12)");
+    $db->exec("INSERT INTO orders (ORDER_ID, SUB_ORDER_ID, ORDER_STATUS, TEL_ID, STO_ID) VALUES (12, 'TEST-12', 6, 120, 1)");
+    $db->exec("INSERT INTO telephones (TEL_ID, CLIENT_ID) VALUES (120, 12)");
+    $db->exec("INSERT INTO stores (STO_ID, BRANCH_ID) VALUES (1, 1)");
     $db->exec("INSERT INTO suppliers (SUP_ID) VALUES (20)");
     $db->exec("INSERT INTO payment_methods (id, name, is_active) VALUES (1, 'نقدي', 1), (2, 'تحويل بنكي', 1)");
     $db->exec("INSERT INTO cash_boxes (id, branch_id, account_id, box_name, name, is_active) VALUES (1, 1, 1, 'الخزينة الرئيسية', 'الخزينة الرئيسية', 1)");
@@ -344,6 +376,41 @@ try {
     voucherAssert((int)$shippingAllocation->fetchColumn() === 0, 'لا يجوز تحويل تحصيل الشحن إلى مديونية المنتجات.');
     voucherAssert(abs($manager->getPartnerBalance('CLIENT', 12) - 100.0) < 0.001,
         'بعد تحصيل الشحن يظل رصيد المنتجات فقط مفتوحًا.');
+
+    // مرتجع العميل يخصم المديونية أولًا (1151)، والزيادة فقط تصبح قابلة للرد من 1152.
+    $returnJournal = (new JournalManager($db))->create([
+        'branch_id' => 1, 'entry_date' => '2026-11-03 11:00:00',
+        'reference_type' => 'SALES_RETURN', 'reference_id' => 12,
+        'description' => 'مرتجع اختبار للعميل 12', 'created_by' => 7, 'status' => 'POSTED'
+    ]);
+    $returnJournal->addLine(['account_id' => 5, 'debit' => 150]);
+    $returnJournal->addLine(['account_id' => 2, 'partner_type' => 'CLIENT', 'partner_id' => 12, 'credit' => 100]);
+    $returnJournal->addLine(['account_id' => 3, 'partner_type' => 'CLIENT', 'partner_id' => 12, 'credit' => 50]);
+    $returnJournalId = $returnJournal->post();
+    $db->prepare('UPDATE orders SET RETURN_ENTRY_ID = ? WHERE ORDER_ID = 12')->execute([$returnJournalId]);
+    $returnCustomerCreditLine = (int)$db->query("SELECT id FROM journal_entry_details WHERE journal_entry_id = {$returnJournalId} AND account_id = 2")->fetchColumn();
+    $manager->allocatePartnerCreditLineToOldestDebits(
+        $returnJournalId, $returnCustomerCreditLine, 'CLIENT', 12, 100, 7, 'تخصيص مرتجع اختبار على مديونية العميل'
+    );
+    $refundManager = new CustomerRefundManager($db);
+    $refundHash = hash('sha256', 'test-customer-refund-12');
+    $refundResult = $refundManager->refund(12, 1, 50, 'TEST-RETURN-REFUND-12', $refundHash);
+    voucherAssert($refundResult['success'] === true && abs((float)$refundResult['amount'] - 50.0) < 0.001,
+        'يجب السماح برد الزيادة فقط بعد تسوية مديونية العميل.');
+    $refundDebit = $db->prepare("SELECT COUNT(*) FROM journal_entry_details
+        WHERE journal_entry_id = ? AND account_id = 3 AND partner_type = 'CLIENT'
+          AND partner_id = 12 AND debit = 50 AND cash_box_id IS NULL");
+    $refundDebit->execute([(int)$refundResult['journal_id']]);
+    voucherAssert((int)$refundDebit->fetchColumn() === 1,
+        'يجب أن يخفض رد المرتجع حساب رصيد العميل الدائن 1152.');
+    $refundCashBox = $db->prepare("SELECT COUNT(*) FROM journal_entry_details
+        WHERE journal_entry_id = ? AND account_id = 1 AND credit = 50 AND cash_box_id = 1");
+    $refundCashBox->execute([(int)$refundResult['journal_id']]);
+    voucherAssert((int)$refundCashBox->fetchColumn() === 1,
+        'يجب ربط رد المرتجع بالخزينة الفعلية في سطر القيد.');
+    voucherExpectFailure(fn() => $refundManager->refund(
+        12, 1, 1, 'TEST-RETURN-REFUND-OVER', hash('sha256', 'test-customer-refund-over')
+    ), 'يجب رفض رد مبلغ يتجاوز رصيد المرتجع المتاح.');
 
     // عميل آخر بلا مديونية: كامل المبلغ يصبح رصيدًا دائنًا.
     $creditOnly = $manager->post([
