@@ -152,9 +152,12 @@ class DatabaseMigrationManager
                 if ($schemaState === 'COMPLETE' && !$row) {
                     $status = 'SCHEMA_PRESENT';
                     $warning = 'جداول مستندات القبض والصرف موجودة بالفعل في Installer؛ لا حاجة لإعادة تنفيذ الترحيل.';
+                } elseif ($schemaState === 'MAPPING_MISSING') {
+                    $status = 'PENDING';
+                    $warning = 'الجداول موجودة لكن ربط حساب أرصدة العملاء الدائنة 1152 ناقص؛ يمكن إعادة تنفيذ المرحلة لإصلاح الربط بأمان.';
                 } elseif ($schemaState === 'PARTIAL') {
                     $status = 'SCHEMA_DRIFT';
-                    $warning = 'جداول مستندات القبض والصرف موجودة بصورة جزئية أو بأعمدة ناقصة؛ يلزم فحص المخطط.';
+                    $warning = 'جداول مستندات القبض والصرف موجودة بصورة جزئية أو بأعمدة ناقصة أو ربط حساب 1152 متعارض؛ يلزم فحص المخطط.';
                 } elseif ($schemaState === 'BLOCKED') {
                     $status = 'BLOCKED';
                     $warning = 'يتطلب الترحيل وجود الفروع والخزائن وطرق الدفع والأستاذ العام مع اكتمال مرجع الخزينة في المرحلة 22.';
@@ -527,14 +530,20 @@ class DatabaseMigrationManager
         }
 
         $customerCreditMapping = $this->db->query(
-            "SELECT COUNT(*) FROM account_settings s
+            "SELECT a.account_code, a.is_active, a.allow_posting
+             FROM account_settings s
              INNER JOIN accounts a ON a.id = s.account_id
              WHERE s.setting_key = 'CUSTOMER_CREDITS'
-               AND a.account_code = '1152' AND a.is_active = 1 AND a.allow_posting = 1"
+             LIMIT 1"
         );
-        $mappingIsValid = (int)$customerCreditMapping->fetchColumn() === 1;
+        $mapping = $customerCreditMapping->fetch(PDO::FETCH_ASSOC) ?: null;
         $customerCreditMapping->closeCursor();
-        if (!$mappingIsValid) {
+        if (!$mapping) {
+            return 'MAPPING_MISSING';
+        }
+        if ($mapping['account_code'] !== '1152'
+            || (int)$mapping['is_active'] !== 1
+            || (int)$mapping['allow_posting'] !== 1) {
             return 'PARTIAL';
         }
 
