@@ -95,18 +95,19 @@ final class CashBox
 
         $stmt = $this->db->prepare(
             "SELECT cb.id, cb.account_id,
-                    COALESCE(NULLIF(cb.box_name, ''), NULLIF(cb.name, ''), CONCAT('خزينة #', cb.id)) AS name
+                    COALESCE(NULLIF(cb.box_name, ''), NULLIF(cb.name, ''), CONCAT('خزينة #', cb.id)) AS name,
+                    CASE WHEN pma.id IS NULL THEN 0 ELSE 1 END AS is_default
              FROM cash_boxes cb
-             INNER JOIN payment_method_accounts pma
+             INNER JOIN payment_methods pm ON pm.id = ? AND pm.is_active = 1
+             LEFT JOIN payment_method_accounts pma
                 ON pma.branch_id = cb.branch_id
                AND pma.account_id = cb.account_id
-               AND pma.payment_method_id = ?
+               AND pma.payment_method_id = pm.id
                AND pma.is_active = 1
-             INNER JOIN payment_methods pm ON pm.id = pma.payment_method_id AND pm.is_active = 1
              INNER JOIN accounts a ON a.id = cb.account_id
              WHERE cb.branch_id = ? AND cb.is_active = 1
                AND a.is_active = 1 AND a.allow_posting = 1 AND a.account_type = 'ASSET'
-             ORDER BY cb.id"
+             ORDER BY is_default DESC, cb.id"
         );
         $stmt->execute([$paymentMethodId, $branchId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
