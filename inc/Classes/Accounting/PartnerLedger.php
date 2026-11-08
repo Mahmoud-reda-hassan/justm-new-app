@@ -29,7 +29,7 @@ final class PartnerLedger
             "SELECT COALESCE(SUM(d.debit - d.credit), 0)
              FROM journal_entry_details d
              INNER JOIN journal_entries h ON h.id = d.journal_entry_id
-             WHERE h.status = 'POSTED'
+             WHERE h.status IN ('POSTED', 'REVERSED')
                AND d.account_id = ? AND d.partner_type = ? AND d.partner_id = ?"
         );
         $stmt->execute([$accountId, strtoupper($partnerType), $partnerId]);
@@ -56,7 +56,7 @@ final class PartnerLedger
                 "SELECT COALESCE(SUM(d.debit - d.credit), 0)
                  FROM journal_entry_details d
                  INNER JOIN journal_entries h ON h.id = d.journal_entry_id
-                 WHERE h.status = 'POSTED'
+                 WHERE h.status IN ('POSTED', 'REVERSED')
                    AND d.account_id = ? AND d.partner_type = ? AND d.partner_id = ?
                    AND h.entry_date < ?"
             );
@@ -70,7 +70,7 @@ final class PartnerLedger
                        d.debit, d.credit
                 FROM journal_entry_details d
                 INNER JOIN journal_entries h ON h.id = d.journal_entry_id
-                WHERE h.status = 'POSTED'
+                WHERE h.status IN ('POSTED', 'REVERSED')
                   AND d.account_id = ? AND d.partner_type = ? AND d.partner_id = ?";
         $params = [$accountId, strtoupper($partnerType), $partnerId];
         if ($fromDate !== null) {
