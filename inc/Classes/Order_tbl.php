@@ -358,13 +358,13 @@ class Order_tbl {
 							A.ORDER_SUCCESS,
 							A.LAST_UPDATE,
 							A.PRINT,
-							P.INVO_ID,
+							A.SALE_ENTRY_ID AS INVO_ID,
 							T.OS_END_COUNT,
 							CASE WHEN Q.OS_ID IS NOT NULL AND Q.OS_STATUSE IS NOT NULL AND Q.OS_ID >0 AND Q.OS_STATUSE=0 THEN 1 
                                  WHEN Q.OS_ID IS NOT NULL AND Q.OS_STATUSE IS NOT NULL AND R.MSG_COUNT IS NOT NULL AND Q.OS_ID >0 AND Q.OS_STATUSE=1 AND R.MSG_COUNT > 0 THEN 1 ELSE 0 END  AS MSGCS,
 							CASE WHEN Q.OS_ID IS NOT NULL AND Q.OS_STATUSE = 0 THEN Q.OS_ID ELSE 0 END AS OS_ID,
 							CASE WHEN Q.OS_STATUSE IS NOT NULL THEN Q.OS_STATUSE  ELSE 0 END AS OS_STATUSE,
-							CASE WHEN P.INVO_ID IS NOT NULL THEN P.INVO_ID ELSE 0 END AS ORDER_INVO,
+							CASE WHEN A.SALE_ENTRY_ID IS NOT NULL THEN A.SALE_ENTRY_ID ELSE 0 END AS ORDER_INVO,
 						    CASE WHEN R.MSG_COUNT IS NOT NULL THEN R.MSG_COUNT ELSE 0 END AS MSG_COUNT,
 							mh.movement_history
 					FROM ".$this->ordersTbl." A
@@ -378,7 +378,6 @@ class Order_tbl {
 							LEFT JOIN TELEPHONES    J ON A.TEL_ID = J.TEL_ID
 							LEFT JOIN CITY          K ON G.CITY_ID = K.CI_ID
 							LEFT JOIN ZONES         L ON K.ZONE_ID=L.ZONE_ID
-							LEFT JOIN invoices      P ON A.ORDER_ID = P.REFERENCE_ID AND P.REFERENCE_TYPE = 'SALES'
 							LEFT JOIN ORDER_SERVICE Q ON A.ORDER_ID = Q.ORDER_ID AND OS_DATE_CLOSE IS NULL
 							LEFT JOIN ( SELECT OS_ID, COUNT(OS_ID) AS MSG_COUNT  FROM  order_service_text WHERE  OSTX_READ = 0 AND USER_ID <> ".$_SESSION['USER_ID'] ." GROUP BY OS_ID ) R ON Q.OS_ID = R.OS_ID 
 							LEFT JOIN (SELECT ORDER_ID, COUNT(OS_ID) AS OS_END_COUNT FROM ORDER_SERVICE WHERE OS_STATUSE = 1 GROUP BY ORDER_ID) T ON A.ORDER_ID = T.ORDER_ID AND T.ORDER_ID IS NOT NULL  
@@ -1042,6 +1041,17 @@ class Order_tbl {
 				
 				// ✅ نجح في أخذ القفل - ابدأ Transaction
 	            $this->conn->beginTransaction();
+
+                // لا نسمح بتعديل أمر سبق ترحيله إلى الأستاذ العام؛ التعديل بعد الترحيل يحتاج مستند عكس/تسوية مستقل.
+                $postedCheck = $this->conn->prepare("SELECT o.SALE_ENTRY_ID, o.RETURN_ENTRY_ID,
+                    EXISTS(SELECT 1 FROM journal_entries j WHERE j.reference_type IN ('DIRECT_SALE','ORDER_SHIPPING','SALES_RETURN')
+                        AND j.reference_id = o.ORDER_ID AND j.status = 'POSTED') AS HAS_GL_POSTING
+                    FROM ORDERS o WHERE o.ORDER_ID = ? FOR UPDATE");
+                $postedCheck->execute([$this->order_id]);
+                $postedState = $postedCheck->fetch(PDO::FETCH_ASSOC) ?: [];
+                if (!empty($postedState['SALE_ENTRY_ID']) || !empty($postedState['RETURN_ENTRY_ID']) || !empty($postedState['HAS_GL_POSTING'])) {
+                    throw new RuntimeException('لا يمكن تعديل أمر بيع تم ترحيله محاسبيًا. استخدم مسار المرتجع أو عكس القيد المعتمد.');
+                }
 	
 	            //==================check qty and discount======================
 	                $queryOItem = 'SELECT PRO_CODE,QTY FROM ORDER_PRODUCT WHERE ORDER_ID = ?';
@@ -1175,19 +1185,13 @@ class Order_tbl {
 	                                    $stmt4->bindValue(3, $this->logStr, PDO::PARAM_STR);
 	                                    if ($stmt4->execute() && $stmt4->rowCount() > 0) {
 	                                        //===================Success Update Order====================
-	         					         	$finance = new finance_BE($this->conn);
-			                            	$resultFinal = $finance->restClientdebt($this->order_id);
-				                            if($resultFinal['result']){
-			                                	$this->conn->commit();
-			                                    if ($err2 === 0) {
-			                                    	echo json_encode(array('s', 'تم تحديث بيانات امر البيع  - '.$this->sub_order_id));
-			                                    } else {
-			                                        echo json_encode(array('s', '<a> تم تحديث بيانات امر البيع - '.$this->sub_order_id .'<br>ولكن هناك تغيرات حدثة فى الخلفية عند الحفظ </a><hr>'.$msgerr));
-			                                    }
-				                            }else{
-				                                $this->conn->rollback();
-		                                        echo json_encode(array('e', 'لم يتم حفظ امر البيع لاسباب غير معروفة'));
-				                            }
+                                            // لم يرحّل البيع بعد؛ لا يوجد رصيد مستقل لتحديثه. الترحيل يتم عند التسليم إلى GL.
+                                            $this->conn->commit();
+                                            if ($err2 === 0) {
+                                                echo json_encode(array('s', 'تم تحديث بيانات امر البيع  - '.$this->sub_order_id));
+                                            } else {
+                                                echo json_encode(array('s', '<a> تم تحديث بيانات امر البيع - '.$this->sub_order_id .'<br>ولكن هناك تغيرات حدثة فى الخلفية عند الحفظ </a><hr>'.$msgerr));
+                                            }
 	                                    } else {
 	                                        $this->conn->rollback();
 	                                        echo json_encode(array('e', 'لم يتم حفظ امر البيع لاسباب غير معروفة'));
@@ -1262,18 +1266,15 @@ class Order_tbl {
             // لا يمكن إلغاء طلب عليه تحصيل/دفعة مقدمة قبل تنفيذ مسار رد المقدم وتسويته.
             // لا نفترض حساب رد الأموال؛ لذلك نوقف الإلغاء بدل ترك مبلغ محصل بلا تسوية.
             $financialCheck = $this->conn->prepare(
-                "SELECT
-                    EXISTS(SELECT 1 FROM invoices i WHERE i.REFERENCE_TYPE = 'SALES'
-                           AND i.REFERENCE_ID = o.ORDER_ID AND i.AMOUNT_PAID > 0) AS HAS_PAID_INVOICE,
-                    EXISTS(SELECT 1 FROM invoices i JOIN financial_transactions ft ON ft.invoice_id = i.INVO_ID
-                           WHERE i.REFERENCE_TYPE = 'SALES' AND i.REFERENCE_ID = o.ORDER_ID
-                             AND ft.status = 'COMPLETED' AND ft.amount > 0) AS HAS_COMPLETED_PAYMENT,
-                    o.SALE_ENTRY_ID IS NOT NULL AS HAS_SALE_ENTRY
+                "SELECT o.SALE_ENTRY_ID IS NOT NULL AS HAS_SALE_ENTRY,
+                        o.RETURN_ENTRY_ID IS NOT NULL AS HAS_RETURN_ENTRY,
+                        EXISTS(SELECT 1 FROM journal_entries j WHERE j.reference_type IN ('DIRECT_SALE','ORDER_SHIPPING','SALES_RETURN')
+                            AND j.reference_id = o.ORDER_ID AND j.status = 'POSTED') AS HAS_GL_POSTING
                  FROM ORDERS o WHERE o.ORDER_ID = ?"
             );
             $financialCheck->execute([$this->order_id]);
             $financialState = $financialCheck->fetch(PDO::FETCH_ASSOC) ?: [];
-            if (!empty($financialState['HAS_PAID_INVOICE']) || !empty($financialState['HAS_COMPLETED_PAYMENT']) || !empty($financialState['HAS_SALE_ENTRY'])) {
+            if (!empty($financialState['HAS_SALE_ENTRY']) || !empty($financialState['HAS_RETURN_ENTRY']) || !empty($financialState['HAS_GL_POSTING'])) {
                 throw new RuntimeException('لا يمكن إلغاء الطلب قبل تسوية أي مبلغ محصل أو قيد محاسبي. استخدم مسار رد المقدم/عكس القيد بعد تجهيزه.');
             }
 
