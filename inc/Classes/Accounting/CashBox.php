@@ -70,7 +70,7 @@ final class CashBox
             "SELECT cb.id, cb.branch_id, cb.account_id,
                     COALESCE(NULLIF(cb.box_name, ''), NULLIF(cb.name, ''), CONCAT('خزينة #', cb.id)) AS name,
                     cb.is_active, a.account_code, a.account_name,
-                    COALESCE(SUM(CASE WHEN je.status = 'POSTED' THEN jd.debit - jd.credit ELSE 0 END), 0) AS balance
+                    COALESCE(SUM(CASE WHEN je.status IN ('POSTED', 'REVERSED') THEN jd.debit - jd.credit ELSE 0 END), 0) AS balance
              FROM cash_boxes cb
              INNER JOIN accounts a ON a.id = cb.account_id
              LEFT JOIN journal_entry_details jd ON jd.cash_box_id = cb.id
@@ -301,7 +301,7 @@ final class CashBox
             "SELECT COALESCE(SUM(jd.debit - jd.credit), 0)
              FROM journal_entry_details jd
              INNER JOIN journal_entries je ON je.id = jd.journal_entry_id
-             WHERE jd.cash_box_id = ? AND je.status = 'POSTED'"
+             WHERE jd.cash_box_id = ? AND je.status IN ('POSTED', 'REVERSED')"
         );
         $stmt->execute([$boxId]);
         $balance = (float)$stmt->fetchColumn();
