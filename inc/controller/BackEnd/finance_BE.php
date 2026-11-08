@@ -933,10 +933,11 @@ private function releaseGlobalFinanceLock(): void {
             'amount' => number_format($amount, 2, '.', ''),
             'actor_id' => $actorId, 'note' => $note,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        return (new DeliverySettlementManager($this->conn))->payCommission(
+        $result = (new DeliverySettlementManager($this->conn))->payCommission(
             $deliveryid, $branchId, $paymentMethodId, $cashBoxId, $amount,
             $note, $requestKey, $requestHash
         );
+        return ['success', 'ناجح', 'تم صرف دفعة للمندوب بنجاح', $result];
     }
 
 
@@ -960,10 +961,11 @@ private function releaseGlobalFinanceLock(): void {
             'amount' => number_format($amount, 2, '.', ''),
             'actor_id' => $actorId, 'note' => $note,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        return (new DeliverySettlementManager($this->conn))->payMarketerCommission(
+        $result = (new DeliverySettlementManager($this->conn))->payMarketerCommission(
             $marketerId, $branchId, $paymentMethodId, $amount,
             $note, $requestKey, $requestHash, $cashBoxId
         );
+        return ['success', 'ناجح', 'تم صرف دفعة للمسوق بنجاح', $result];
     }
 
 
