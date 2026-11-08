@@ -49,7 +49,7 @@ $legacyFinanceMethods = [
     'PaymentOfCustomerDues',
 ];
 foreach ($legacyFinanceMethods as $method) {
-    $pattern = '/function\\s+' . preg_quote($method, '/') . '\\s*\\([^)]*\\)\\s*\\{\\s*throw new LogicException/s';
+    $pattern = '/function\\s+' . preg_quote($method, '/') . '\\s*\\([^)]*\\)\\s*[^\\{]*\\{\\s*throw new LogicException/s';
     $assert((bool)preg_match($pattern, $finance), 'Legacy finance API is not hard-disabled: ' . $method);
 }
 
@@ -66,7 +66,7 @@ foreach ([
     'salesReturnPayment',
     'salesReturnPaymentInternal',
 ] as $method) {
-    $pattern = '/function\\s+' . preg_quote($method, '/') . '\\s*\\([^)]*\\)\\s*\\{\\s*throw new LogicException/s';
+    $pattern = '/function\\s+' . preg_quote($method, '/') . '\\s*\\([^)]*\\)\\s*[^\\{]*\\{\\s*throw new LogicException/s';
     $assert((bool)preg_match($pattern, $accountingEvents), 'Legacy invoice-based accounting method is not hard-disabled: ' . $method);
 }
 
