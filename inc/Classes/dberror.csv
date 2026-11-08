@@ -1,4 +1,3 @@
-<?php
 1000,HY000,ER_HASHCHK,hashchk
 1001,HY000,ER_NISAMCHK,isamchk
 1002,HY000,ER_NO,NO
@@ -99,5 +98,3 @@
 <tr><td>1097</td><td>HY000</td><td>ER_TOO_BIG_SET</td><td>Too many strings for column %s and SET</td></tr>
 <tr><td>1098</td><td>HY000</td><td>ER_NO_UNIQUE_LOGFILE</td><td>Can't generate a unique log-filename %s.(1-999)</td></tr>
 <tr><td>1099</td><td>HY000</td><td>ER_TABLE_NOT_LOCKED_FOR_WRITE</td><td>Table '%s' was locked with a READ lock and can't be updated</td></tr>
-
-?>
