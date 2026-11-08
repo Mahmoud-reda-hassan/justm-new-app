@@ -23,6 +23,84 @@ final class CustomerRefundManager
         $this->accounts = new AccountSettings($db);
     }
 
+    /** مبلغ رد المرتجع المتاح بعد استبعاد ما سدد مديونية العميل وما سبق رده. */
+    public function getAvailableRefundAmount(int $orderId): float
+    {
+        if ($orderId <= 0) {
+            throw new InvalidArgumentException('رقم أمر المرتجع غير صحيح.');
+        }
+        $orderStmt = $this->db->prepare(
+            "SELECT o.RETURN_ENTRY_ID, o.ORDER_STATUS, t.CLIENT_ID, s.BRANCH_ID
+             FROM orders o
+             INNER JOIN telephones t ON t.TEL_ID = o.TEL_ID
+             INNER JOIN stores s ON s.STO_ID = o.STO_ID
+             WHERE o.ORDER_ID = ? LIMIT 1"
+        );
+        $orderStmt->execute([$orderId]);
+        $order = $orderStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$order || empty($order['RETURN_ENTRY_ID']) || !in_array((int)$order['ORDER_STATUS'], [6, 7], true)) {
+            return 0.0;
+        }
+
+        $customerAccountId = $this->accounts->customers();
+        $customerCreditAccountId = $this->accounts->customerCredits();
+        $creditStmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(d.credit - COALESCE(a.allocated_amount,0)),0)
+             FROM journal_entry_details d
+             INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+             LEFT JOIN (
+                SELECT credit_line_id, SUM(amount) AS allocated_amount
+                FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
+             ) a ON a.credit_line_id = d.id
+             WHERE h.id = ? AND d.account_id = ?
+               AND d.partner_type = 'CLIENT' AND d.partner_id = ? AND d.credit > 0"
+        );
+        $creditStmt->execute([(int)$order['RETURN_ENTRY_ID'], $customerCreditAccountId, (int)$order['CLIENT_ID']]);
+        $customerCredit = round((float)$creditStmt->fetchColumn(), 2);
+
+        $legacyCreditStmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(d.credit - COALESCE(a.allocated_amount,0)),0)
+             FROM journal_entry_details d
+             INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+             LEFT JOIN (
+                SELECT credit_line_id, SUM(amount) AS allocated_amount
+                FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
+             ) a ON a.credit_line_id = d.id
+             WHERE h.id = ? AND d.account_id = ?
+               AND d.partner_type = 'CLIENT' AND d.partner_id = ? AND d.credit > 0"
+        );
+        $legacyCreditStmt->execute([(int)$order['RETURN_ENTRY_ID'], $customerAccountId, (int)$order['CLIENT_ID']]);
+        $legacyReceivableCredit = round((float)$legacyCreditStmt->fetchColumn(), 2);
+
+        $alreadyRefundedStmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(amount),0) FROM customer_refund_payments
+             WHERE order_id = ? AND status = 'POSTED'"
+        );
+        $alreadyRefundedStmt->execute([$orderId]);
+        $alreadyRefunded = round((float)$alreadyRefundedStmt->fetchColumn(), 2);
+
+        $legacyRefundStmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(d.debit),0)
+             FROM journal_entries h
+             INNER JOIN financial_transactions ft ON h.reference_type = 'SALES_RETURN_PAYMENT'
+                AND ft.id = h.reference_id
+             INNER JOIN invoices i ON i.INVO_ID = ft.invoice_id AND i.reference_id = ?
+             INNER JOIN journal_entry_details d ON d.journal_entry_id = h.id
+                AND d.account_id = ? AND d.partner_type = 'CLIENT'
+                AND d.partner_id = ? AND d.debit > 0
+             WHERE h.status = 'POSTED'"
+        );
+        $legacyRefundStmt->execute([$orderId, $customerAccountId, (int)$order['CLIENT_ID']]);
+        $legacyRefunded = round((float)$legacyRefundStmt->fetchColumn(), 2);
+
+        $voucherManager = new FinancialVoucherManager($this->db);
+        $openDebt = $voucherManager->getOpenPartnerDebitAmount('CLIENT', (int)$order['CLIENT_ID']);
+        $legacyRefundable = max(0.0, round($legacyReceivableCredit - $legacyRefunded - $openDebt, 2));
+        $newCreditRefundable = max(0.0, round($customerCredit - $alreadyRefunded, 2));
+
+        return round($legacyRefundable + $newCreditRefundable, 2);
+    }
+
     public function refund(
         int $orderId,
         int $paymentMethodId,
