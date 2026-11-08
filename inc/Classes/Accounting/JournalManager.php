@@ -312,7 +312,8 @@ class JournalManager{
 	public function reverse(
 	    int $journalId,
 	    string $reason = '',
-	    ?string $coordinatedSupplierReference = null): int {
+	    ?string $coordinatedSupplierReference = null,
+	    ?int $reversedBy = null): int {
 	    if ($journalId <= 0) {
 	        throw new InvalidArgumentException("Journal ID is required.");
 	    }
@@ -367,7 +368,7 @@ class JournalManager{
 	            'reference_type' => 'JOURNAL_REVERSE',
 	            'reference_id'   => $journalId,
 	            'description'    => 'Reverse Entry : ' . $reason,
-	            'created_by'     => (int)$header['created_by']
+	            'created_by'     => ($reversedBy !== null && $reversedBy > 0) ? $reversedBy : (int)$header['created_by']
 	        ]);
 
 	        foreach ($lines as $line) {
