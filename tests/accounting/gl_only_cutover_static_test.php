@@ -80,6 +80,10 @@ $ordersList2 = $read('inc/controller/BackEnd/ordersList_BE2.php');
 $assert(strpos($ordersList, 'A.SALE_ENTRY_ID AS INVO_ID') !== false, 'Primary order list must use the GL sale-entry reference.');
 $assert(strpos($ordersList2, 'A.SALE_ENTRY_ID AS INVO_ID') !== false, 'Secondary order list must use the GL sale-entry reference.');
 
+$installer = $read('inc/Databases/JUSTM_DATABASE_INSTALL.sql');
+$assert(strpos($installer, 'CREATE TABLE IF NOT EXISTS `customer_refund_payments`') !== false,
+    'The full database installer must include the GL customer refund source-document table.');
+
 $refunds = $read('inc/Classes/Accounting/CustomerRefundManager.php');
 $assert(strpos($refunds, 'getRefundedAmountByAccount') !== false, 'Refund availability must be calculated from posted GL refund documents.');
 $assert(strpos($refunds, 'financial_transactions') === false && strpos($refunds, 'invoices') === false,
