@@ -95,6 +95,8 @@ $assert(isset($byFile['PHASE22_JOURNAL_CASHBOX_REFERENCE.sql']) && $byFile['PHAS
     'Phase 22 must be available when the branch ownership prerequisite exists and its schema objects are absent.');
 $assert(isset($byFile['PHASE24_FINANCIAL_VOUCHERS.sql']) && !$byFile['PHASE24_FINANCIAL_VOUCHERS.sql']['enabled'] && $byFile['PHASE24_FINANCIAL_VOUCHERS.sql']['status'] === 'BLOCKED',
     'Phase 24 must wait until Phase 22 cash-box references are complete.');
+$assert(isset($byFile['PHASE16_SUPPLIER_PAYMENT_MIXED_ALLOCATION.sql']) && !$byFile['PHASE16_SUPPLIER_PAYMENT_MIXED_ALLOCATION.sql']['enabled'],
+    'The legacy supplier allocation migration must stay disabled after the GL cutover.');
 $assert(isset($byFile['PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql']) && $byFile['PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql']['enabled'],
     'Phase 25 must be available when the refund documents, legacy sources, and customer GL mapping exist.');
 
