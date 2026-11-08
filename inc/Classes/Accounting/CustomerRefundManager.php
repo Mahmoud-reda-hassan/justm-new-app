@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/AccountSettings.php';
 require_once __DIR__ . '/JournalManager.php';
+require_once __DIR__ . '/CashBox.php';
 
 /**
  * صرف رصيد مردود المبيعات من الأستاذ العام فقط.
@@ -106,7 +107,26 @@ final class CustomerRefundManager
                 throw new RuntimeException('مبلغ الرد أكبر من رصيد المرتجع المتاح. المتاح: ' . number_format($available, 2, '.', ''));
             }
 
-            $cashAccountId = $this->accounts->transactionAccount($paymentMethodId, (int)$order['BRANCH_ID']);
+            if ($paymentMethodId !== 1) {
+                throw new RuntimeException('رد المبالغ غير النقدي متوقف حتى اكتمال الحسابات البنكية والتسويات.');
+            }
+            $cashBoxes = (new CashBox($this->db))->listForPaymentMethod((int)$order['BRANCH_ID'], 1);
+            if (!$cashBoxes) {
+                throw new RuntimeException('لا توجد خزينة نقدية نشطة في فرع المرتجع.');
+            }
+            $defaultBoxes = array_values(array_filter(
+                $cashBoxes,
+                static fn(array $box): bool => (int)($box['is_default'] ?? 0) === 1
+            ));
+            if (count($defaultBoxes) === 1) {
+                $selectedCashBox = $defaultBoxes[0];
+            } elseif (count($cashBoxes) === 1) {
+                $selectedCashBox = $cashBoxes[0];
+            } else {
+                throw new RuntimeException('يوجد أكثر من خزينة دون خزينة افتراضية؛ حدد الخزينة الافتراضية قبل رد المبلغ.');
+            }
+            $cashAccountId = (int)$selectedCashBox['account_id'];
+            $cashBoxId = (int)$selectedCashBox['id'];
             $insert = $this->db->prepare("INSERT INTO customer_refund_payments
                 (refund_no, order_id, customer_id, branch_id, payment_method_id, refund_date,
                  amount, status, created_by, request_key, request_hash)
@@ -139,6 +159,7 @@ final class CustomerRefundManager
             ]);
             $this->journal->addLine([
                 'account_id' => $cashAccountId,
+                'cash_box_id' => $cashBoxId,
                 'credit' => $amount,
                 'reference_type' => 'CUSTOMER_RETURN_REFUND',
                 'reference_id' => $refundId,
