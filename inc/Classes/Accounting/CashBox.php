@@ -53,7 +53,7 @@ final class CashBox
                ON cb.account_id = pma.account_id
               AND cb.branch_id = pma.branch_id
               AND cb.is_active = 1
-             WHERE pm.is_active = 1
+             WHERE pm.is_active = 1 AND pm.id = 1
              ORDER BY pm.id"
         );
         $stmt->execute([$branchId]);
@@ -200,6 +200,9 @@ final class CashBox
     {
         if ($branchId <= 0 || $paymentMethodId <= 0) {
             throw new InvalidArgumentException('الفرع وطريقة الدفع مطلوبان.');
+        }
+        if ($paymentMethodId !== 1) {
+            throw new InvalidArgumentException('ربط الخزائن مخصص لطريقة الدفع النقدي فقط؛ التحويلات والبطاقات والمحافظ لها حسابات تسوية منفصلة.');
         }
 
         $this->withinTransaction(function () use ($branchId, $paymentMethodId, $cashBoxId): void {
