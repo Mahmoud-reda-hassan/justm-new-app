@@ -291,10 +291,12 @@ final class FinancialVoucherManager
                     'original_journal_entry_id' => (int)$voucher['journal_entry_id'],
                     'reason' => trim($reason),
                 ],
-            ], function () use ($voucher, $reason): int {
+            ], function () use ($voucher, $reason, $reversedBy): int {
                 return (new JournalManager($this->db))->reverse(
                     (int)$voucher['journal_entry_id'],
-                    trim($reason)
+                    trim($reason),
+                    null,
+                    $reversedBy
                 );
             });
 
