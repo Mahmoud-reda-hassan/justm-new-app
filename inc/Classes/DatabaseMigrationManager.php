@@ -383,14 +383,20 @@ class DatabaseMigrationManager
         }
 
         if ($file === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
-            $stmt = $this->db->query("SELECT COUNT(*) FROM account_settings WHERE setting_key = 'CUSTOMERS'");
-            $customerAccountMapping = (int)$stmt->fetchColumn();
-            $stmt->closeCursor();
-            if ($customerAccountMapping !== 1) {
-                throw new RuntimeException('لا يمكن ترحيل مستندات الرد التاريخية قبل ضبط حساب العملاء CUSTOMERS في إعدادات الأستاذ العام.');
-            }
+            $postedRefundJournals = (int)$this->db->query(
+                "SELECT COUNT(*) FROM journal_entries WHERE reference_type = 'SALES_RETURN_PAYMENT' AND status = 'POSTED'"
+            )->fetchColumn();
 
-            $invalidRefunds = $this->db->query("
+            // Fresh databases have no legacy refunds to bridge and do not need legacy account mappings.
+            if ($postedRefundJournals > 0) {
+                $stmt = $this->db->query("SELECT COUNT(*) FROM account_settings WHERE setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')");
+                $customerAccountMappings = (int)$stmt->fetchColumn();
+                $stmt->closeCursor();
+                if ($customerAccountMappings < 1) {
+                    throw new RuntimeException('لا يمكن ترحيل مستندات الرد التاريخية قبل ضبط حساب العملاء أو رصيد العملاء الدائن في إعدادات الأستاذ العام.');
+                }
+
+                $invalidRefunds = $this->db->query("
                 SELECT COUNT(DISTINCT h.id)
                 FROM journal_entries h
                 LEFT JOIN financial_transactions ft
@@ -427,11 +433,12 @@ class DatabaseMigrationManager
             ");
             $invalidCount = (int)$invalidRefunds->fetchColumn();
             $invalidRefunds->closeCursor();
-            if ($invalidCount > 0) {
-                throw new RuntimeException(
-                    'تم إيقاف ترحيل ردود العملاء لحماية الأرصدة: يوجد ' . $invalidCount
-                    . ' قيد رد تاريخي لا يملك بيانات مصدر/عميل/فرع/طريقة دفع مكتملة. راجع السجلات قبل المتابعة.'
-                );
+                if ($invalidCount > 0) {
+                    throw new RuntimeException(
+                        'تم إيقاف ترحيل ردود العملاء لحماية الأرصدة: يوجد ' . $invalidCount
+                        . ' قيد رد تاريخي لا يملك بيانات مصدر/عميل/فرع/طريقة دفع مكتملة. راجع السجلات قبل المتابعة.'
+                    );
+                }
             }
         }
 
