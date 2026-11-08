@@ -70,7 +70,7 @@ final class CustomerRefundManager
                AND d.partner_type = 'CLIENT' AND d.partner_id = ? AND d.credit > 0"
         );
         $legacyCreditStmt->execute([(int)$order['RETURN_ENTRY_ID'], $customerAccountId, (int)$order['CLIENT_ID']]);
-        $legacyReceivableCredit = round((float)$legacyCreditStmt->fetchColumn(), 2);
+        $receivableCredit = round((float)$legacyCreditStmt->fetchColumn(), 2);
 
         $alreadyRefundedFromCustomerCredit = $this->getRefundedAmountByAccount($orderId, (int)$order['CLIENT_ID'], $customerCreditAccountId);
         $alreadyRefundedFromReceivable = $this->getRefundedAmountByAccount($orderId, (int)$order['CLIENT_ID'], $customerAccountId);
@@ -79,7 +79,7 @@ final class CustomerRefundManager
 
         $voucherManager = new FinancialVoucherManager($this->db);
         $openDebt = $voucherManager->getOpenPartnerDebitAmount('CLIENT', (int)$order['CLIENT_ID']);
-        $receivableRefundable = max(0.0, round($legacyReceivableCredit - $alreadyRefundedFromReceivable - $openDebt, 2));
+        $receivableRefundable = max(0.0, round($receivableCredit - $alreadyRefundedFromReceivable - $openDebt, 2));
         $customerCreditRefundable = max(0.0, round($customerCredit - $alreadyRefundedFromCustomerCredit, 2));
 
         return round($receivableRefundable + $customerCreditRefundable, 2);
@@ -162,7 +162,7 @@ final class CustomerRefundManager
                 $orderId, (int)$order['CLIENT_ID'], $customerAccountId
             );
 
-            $legacyReturnLinesStmt = $this->db->prepare(
+            $receivableReturnLinesStmt = $this->db->prepare(
                 "SELECT d.id, d.credit, COALESCE(SUM(a.amount),0) AS allocated_amount
                  FROM journal_entry_details d
                  INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
@@ -172,27 +172,27 @@ final class CustomerRefundManager
                    AND d.partner_type = 'CLIENT' AND d.partner_id = ? AND d.credit > 0
                  GROUP BY d.id, d.credit"
             );
-            $legacyReturnLinesStmt->execute([
+            $receivableReturnLinesStmt->execute([
                 (int)$order['RETURN_ENTRY_ID'],
                 $customerAccountId,
                 (int)$order['CLIENT_ID'],
             ]);
-            $legacyReturnLines = $legacyReturnLinesStmt->fetchAll(PDO::FETCH_ASSOC);
-            $legacyReturnLinesStmt->closeCursor();
+            $receivableReturnLines = $receivableReturnLinesStmt->fetchAll(PDO::FETCH_ASSOC);
+            $receivableReturnLinesStmt->closeCursor();
 
-            if ($legacyReturnLines) {
+            if ($receivableReturnLines) {
                 $voucherManager = new FinancialVoucherManager($this->db);
                 $openCustomerDebt = $voucherManager->getOpenPartnerDebitAmount('CLIENT', (int)$order['CLIENT_ID']);
-                $remainingLegacyRefunded = $alreadyRefundedFromReceivable;
-                foreach ($legacyReturnLines as $returnLine) {
+                $remainingRefundedReceivable = $alreadyRefundedFromReceivable;
+                foreach ($receivableReturnLines as $returnLine) {
                     if ($openCustomerDebt <= 0.009) break;
                     $unallocated = max(0.0, round(
                         (float)$returnLine['credit'] - (float)$returnLine['allocated_amount'],
                         2
                     ));
-                    $alreadyRefundedFromLine = min($unallocated, $remainingLegacyRefunded);
+                    $alreadyRefundedFromLine = min($unallocated, $remainingRefundedReceivable);
                     $unallocated = round($unallocated - $alreadyRefundedFromLine, 2);
-                    $remainingLegacyRefunded = round($remainingLegacyRefunded - $alreadyRefundedFromLine, 2);
+                    $remainingRefundedReceivable = round($remainingRefundedReceivable - $alreadyRefundedFromLine, 2);
                     $applyToDebt = min($unallocated, $openCustomerDebt);
                     if ($applyToDebt <= 0) continue;
                     $voucherManager->allocatePartnerCreditLineToOldestDebits(
@@ -228,7 +228,7 @@ final class CustomerRefundManager
             ]);
             $customerCreditAvailable = round((float)$returnCreditStmt->fetchColumn(), 2);
 
-            $legacyReceivableCreditStmt = $this->db->prepare(
+            $receivableCreditStmt = $this->db->prepare(
                 "SELECT COALESCE(SUM(d.credit - COALESCE(a.allocated_amount,0)),0)
                  FROM journal_entry_details d
                  INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
@@ -241,12 +241,12 @@ final class CustomerRefundManager
                  WHERE h.id = ? AND d.account_id = ?
                    AND d.partner_type = 'CLIENT' AND d.partner_id = ? AND d.credit > 0"
             );
-            $legacyReceivableCreditStmt->execute([
+            $receivableCreditStmt->execute([
                 (int)$order['RETURN_ENTRY_ID'],
                 $customerAccountId,
                 (int)$order['CLIENT_ID'],
             ]);
-            $legacyReceivableCredit = round((float)$legacyReceivableCreditStmt->fetchColumn(), 2);
+            $receivableCredit = round((float)$receivableCreditStmt->fetchColumn(), 2);
 
             $alreadyRefundedFromCustomerCredit = $this->getRefundedAmountByAccount(
                 $orderId, (int)$order['CLIENT_ID'], $customerCreditAccountId
@@ -256,7 +256,7 @@ final class CustomerRefundManager
             );
 
             $availableFromCustomerCredit = max(0.0, round($customerCreditAvailable - $alreadyRefundedFromCustomerCredit, 2));
-            $availableFromReceivable = max(0.0, round($legacyReceivableCredit - $alreadyRefundedFromReceivable, 2));
+            $availableFromReceivable = max(0.0, round($receivableCredit - $alreadyRefundedFromReceivable, 2));
             $available = round($availableFromCustomerCredit + $availableFromReceivable, 2);
             if ($amount - $available > 0.009) {
                 throw new RuntimeException('مبلغ الرد أكبر من رصيد المرتجع المتاح. المتاح: ' . number_format($available, 2, '.', ''));
