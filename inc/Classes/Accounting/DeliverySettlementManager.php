@@ -1129,21 +1129,22 @@ final class DeliverySettlementManager
                 return $existingPayment;
             }
             $payableAccountId = (int)$settings['courier_commission_payable_account_id'];
-            $cashAccountId = $this->accounts->transactionAccount($paymentMethodId, $branchId);
+            if ($paymentMethodId !== 1) {
+                throw new RuntimeException('صرف العمولة بطرق غير نقدية متوقف حتى اكتمال وحدة الحسابات البنكية والتسويات.');
+            }
             $cashBoxStmt = $this->db->prepare("SELECT cb.account_id
                 FROM cash_boxes cb
-                INNER JOIN payment_method_accounts pma
-                    ON pma.branch_id = cb.branch_id AND pma.account_id = cb.account_id
-                   AND pma.payment_method_id = ? AND pma.is_active = 1
-                INNER JOIN payment_methods pm ON pm.id = pma.payment_method_id AND pm.is_active = 1
-                INNER JOIN accounts a ON a.id = cb.account_id AND a.is_active = 1 AND a.allow_posting = 1
+                INNER JOIN payment_methods pm ON pm.id = ? AND pm.is_active = 1
+                INNER JOIN accounts a ON a.id = cb.account_id
+                    AND a.is_active = 1 AND a.allow_posting = 1 AND a.account_type = 'ASSET'
                 WHERE cb.id = ? AND cb.branch_id = ? AND cb.is_active = 1
                 LIMIT 1 FOR UPDATE");
             $cashBoxStmt->execute([$paymentMethodId, $cashBoxId, $branchId]);
             $cashBoxAccountId = $cashBoxStmt->fetchColumn();
-            if (!$cashBoxAccountId || (int)$cashBoxAccountId !== $cashAccountId) {
-                throw new RuntimeException('الخزينة المحددة غير نشطة أو لا تتبع الفرع أو لا تطابق حساب طريقة الدفع.');
+            if (!$cashBoxAccountId) {
+                throw new RuntimeException('الخزينة المحددة غير نشطة أو لا تتبع الفرع أو حسابها غير صالح.');
             }
+            $cashAccountId = (int)$cashBoxAccountId;
 
             $balanceStmt = $this->db->prepare("SELECT ROUND(COALESCE(SUM(d.credit - d.debit),0),2)
                 FROM journal_entry_details d
@@ -1210,10 +1211,11 @@ final class DeliverySettlementManager
         float $amount,
         string $note,
         string $requestKey,
-        string $requestHash
+        string $requestHash,
+        int $cashBoxId = 0
     ): array {
         $this->validateIdempotencyRequest($requestKey, $requestHash);
-        if ($marketerId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || !is_finite($amount) || $amount <= 0) {
+        if ($marketerId <= 0 || $branchId <= 0 || $paymentMethodId <= 0 || $cashBoxId <= 0 || !is_finite($amount) || $amount <= 0) {
             throw new InvalidArgumentException('المسوق أو الفرع أو طريقة الدفع أو مبلغ الصرف غير صالح.');
         }
         $amount = round($amount, 2);
@@ -1224,7 +1226,21 @@ final class DeliverySettlementManager
         try {
             $payableAccountId = $this->accounts->marketerCommissionPayable();
             $expenseAccountId = $this->accounts->marketerCommissionExpense();
-            $cashAccountId = $this->accounts->transactionAccount($paymentMethodId, $branchId);
+            if ($paymentMethodId !== 1) {
+                throw new RuntimeException('صرف العمولة بطرق غير نقدية متوقف حتى اكتمال وحدة الحسابات البنكية والتسويات.');
+            }
+            $cashBoxStmt = $this->db->prepare("SELECT cb.account_id
+                FROM cash_boxes cb
+                INNER JOIN payment_methods pm ON pm.id = ? AND pm.is_active = 1
+                INNER JOIN accounts a ON a.id = cb.account_id
+                    AND a.is_active = 1 AND a.allow_posting = 1 AND a.account_type = 'ASSET'
+                WHERE cb.id = ? AND cb.branch_id = ? AND cb.is_active = 1
+                LIMIT 1 FOR UPDATE");
+            $cashBoxStmt->execute([$paymentMethodId, $cashBoxId, $branchId]);
+            $cashAccountId = (int)$cashBoxStmt->fetchColumn();
+            if ($cashAccountId <= 0) {
+                throw new RuntimeException('الخزينة المحددة غير نشطة أو لا تتبع الفرع أو حسابها غير صالح.');
+            }
 
             $existingStmt = $this->db->prepare("SELECT id, payment_no, journal_id, amount
                 FROM marketer_commission_payments
@@ -1289,6 +1305,7 @@ final class DeliverySettlementManager
             ]);
             $this->journal->addLine([
                 'account_id' => $cashAccountId,
+                'cash_box_id' => $cashBoxId,
                 'credit' => $amount,
                 'reference_type' => 'MARKETER_COMMISSION_PAYMENT',
                 'reference_id' => $paymentId,
