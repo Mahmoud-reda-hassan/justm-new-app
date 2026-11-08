@@ -772,7 +772,7 @@ class finance_BE {
 							continue;
 						}
 						// اضافة المعامله
-						$transactionRecorded1 = $this->Add_transaction($invoice_id1, 'CLIENT',$orderData['CLIENT_ID'], $orderData['ACTUAL_TOTAL'],1, 9 ,'COMPLETED','');
+						$transactionRecorded1 = $this->Add_transaction($invoice_id1, 'CLIENT',$orderData['CLIENT_ID'], $orderData['ACTUAL_TOTAL'],1, 9 ,'COMPLETED','ORDER_PRODUCTS');
 						if(!$transactionRecorded1){
 							$error[] = "Unable to record financial1 transaction";
 							continue;
@@ -790,7 +790,7 @@ class finance_BE {
 						//تسجيل فاتورة خدمة الشحن
 						if($orderData['SHIPPING_VAL']>0){
 							// اضافة المعامله
-							$transactionRecorded2 = $this->Add_transaction($invoice_id1, 'CLIENT', $orderData['CLIENT_ID'], $orderData['SHIPPING_VAL'],1, 9 ,'COMPLETED','');
+							$transactionRecorded2 = $this->Add_transaction($invoice_id1, 'CLIENT', $orderData['CLIENT_ID'], $orderData['SHIPPING_VAL'],1, 9 ,'COMPLETED','ORDER_SHIPPING');
 							if(!$transactionRecorded2){
 								$error[] = "Unable to record financial2 transaction";
 								continue;
