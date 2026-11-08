@@ -1,7 +1,7 @@
 (function ($) {
     'use strict';
 
-    const endpoint = 'inc/controller/finance.control.php';
+    const endpoint = '/inc/controller/finance.control.php';
     let branches = [];
     let accounts = [];
     let cashBoxes = [];
