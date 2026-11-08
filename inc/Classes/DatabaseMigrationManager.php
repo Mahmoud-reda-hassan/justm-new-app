@@ -501,7 +501,7 @@ class DatabaseMigrationManager
         }
 
         $requiredColumns = [
-            'financial_vouchers' => ['voucher_no','voucher_type','voucher_subtype','branch_id','cash_box_id','payment_method_id','voucher_date','total_amount','status','journal_entry_id','accounting_event_id','idempotency_key','payload_hash','created_by'],
+            'financial_vouchers' => ['voucher_no','voucher_type','voucher_subtype','branch_id','cash_box_id','payment_method_id','voucher_date','total_amount','status','journal_entry_id','accounting_event_id','reversal_event_id','idempotency_key','payload_hash','created_by'],
             'financial_voucher_lines' => ['voucher_id','line_no','account_id','partner_type','partner_id','amount'],
         ];
         foreach ($requiredColumns as $tableName => $columns) {
