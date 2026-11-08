@@ -3,7 +3,6 @@
 **  orders Database Table
 **==============================================*/
 class Invoices_tbl {
-    private $invocesTbl = 'INVOICES';
     public $order_id;
     public $sub_invo_id;
     public $creation_date;
@@ -16,9 +15,6 @@ class Invoices_tbl {
     }
     private function Query($chose){
         switch ($chose) {
-          case "insert_inv": // انشاء فاتورة مبيعات مؤجلة التسديد
-            return  " INSERT INTO `invoices`(`SUB_INVO_ID`, `ORDER_ID`, `CREATION_DATE`, `PAYMENT_SUCCESS` ) VALUES ";
-            break;
           case "update_order": // استعلام تحديث بينات امر البيع
             return "UPDATE `ORDERS` SET PRINT = 1, LAST_UPDATE  = now(3) WHERE PRINT = FALSE AND FIND_IN_SET (ORDER_ID, ? )  ";
             break;
