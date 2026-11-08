@@ -21,3 +21,12 @@ Thumbs.db
 .idea/
 .vscode/
 __pycache__/
+
+/vendor/
+/node_modules/
+/public/build/
+/public/hot
+/.phpunit.cache/
+/.phpunit.result.cache
+/storage/*.key
+/storage/pail
