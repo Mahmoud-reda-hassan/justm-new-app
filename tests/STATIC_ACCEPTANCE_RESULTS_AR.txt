@@ -31,3 +31,27 @@ PASS: 31 FAIL: 0
 [PASS] inc/Databases/JUSTM_DATABASE_INSTALL.sql retains legacy tables
 [PASS] PHP syntax (774 files)
 [PASS] JavaScript syntax (1277 files)
+
+
+Accounting PHP Validation — 2026-11-08
+PR: #4 — Fix accounting migration runner Phase 22 handling
+Commit: ab80596b922344ba3a8a4373c7e6a5fa7c6f256e
+Workflow run: 42427722757
+Result: PASS — 4/4 matrix jobs
+
+[PASS] PHP 8.0 / MariaDB 10.11
+[PASS] PHP 8.4 / MariaDB 10.5.29
+[PASS] PHP 8.4 / MariaDB 10.11
+[PASS] PHP 8.0 / MariaDB 10.5.29
+
+All matrix jobs passed:
+- PHP syntax checks for accounting classes, controllers and tests
+- JavaScript syntax checks for converted finance screens
+- Import both full database installers
+- Supplier GL full-installer schema compatibility
+- Admin database migration runner MariaDB integration tests
+- Accounting static regression checks
+- Financial event MariaDB integration tests
+- Supplier GL payment and reversal MariaDB integration tests
+
+This CI result validates the repository test fixtures and isolated CI databases only. It does not mean SQL was executed on testar or that browser workflows and real balances were tested there.
