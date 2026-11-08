@@ -78,6 +78,7 @@ jobs:
           php -l inc/Classes/DatabaseMigrationManager.php
           php -l inc/Classes/Accounting/CashBox.php
           php -l inc/Views/CashBoxManagement.php
+          php -l inc/Views/FinancialVouchers.php
           php -l tests/accounting/cash_box_management_test.php
           php -l inc/Classes/user_permission.php
           php -l inc/template/SidebarMenu.php
@@ -91,6 +92,7 @@ jobs:
           node --check dist/js/ReceivePayments.js
           node --check dist/js/DatabaseMigrations.js
           node --check dist/js/CashBoxManagement.js
+          node --check dist/js/FinancialVouchers.js
 
       - name: Import both full database installers
         env:
