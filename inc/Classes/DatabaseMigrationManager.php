@@ -389,6 +389,47 @@ class DatabaseMigrationManager
             if ($customerAccountMapping !== 1) {
                 throw new RuntimeException('لا يمكن ترحيل مستندات الرد التاريخية قبل ضبط حساب العملاء CUSTOMERS في إعدادات الأستاذ العام.');
             }
+
+            $invalidRefunds = $this->db->query("
+                SELECT COUNT(DISTINCT h.id)
+                FROM journal_entries h
+                INNER JOIN financial_transactions ft
+                    ON ft.id = h.reference_id
+                   AND ft.status = 'COMPLETED'
+                   AND ft.entity_type = 'CLIENT'
+                LEFT JOIN invoices i
+                    ON i.INVO_ID = ft.invoice_id
+                   AND i.REFERENCE_TYPE = 'SALES'
+                LEFT JOIN orders o ON o.ORDER_ID = i.REFERENCE_ID
+                LEFT JOIN (
+                    SELECT d.journal_entry_id, d.partner_id, SUM(d.debit) AS amount
+                    FROM journal_entry_details d
+                    INNER JOIN account_settings aset
+                        ON aset.account_id = d.account_id
+                       AND aset.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+                    WHERE d.partner_type = 'CLIENT' AND d.debit > 0
+                    GROUP BY d.journal_entry_id, d.partner_id
+                ) posted_refund
+                    ON posted_refund.journal_entry_id = h.id
+                   AND posted_refund.partner_id = ft.entity_id
+                WHERE h.reference_type = 'SALES_RETURN_PAYMENT'
+                  AND h.status = 'POSTED'
+                  AND (
+                      ft.entity_id IS NULL OR ft.entity_id <= 0
+                      OR ft.branch_id IS NULL OR ft.branch_id <= 0
+                      OR ft.payment_method_id IS NULL OR ft.payment_method_id <= 0
+                      OR i.INVO_ID IS NULL OR o.ORDER_ID IS NULL
+                      OR posted_refund.amount IS NULL OR posted_refund.amount <= 0
+                  )
+            ");
+            $invalidCount = (int)$invalidRefunds->fetchColumn();
+            $invalidRefunds->closeCursor();
+            if ($invalidCount > 0) {
+                throw new RuntimeException(
+                    'تم إيقاف ترحيل ردود العملاء لحماية الأرصدة: يوجد ' . $invalidCount
+                    . ' قيد رد تاريخي لا يملك بيانات مصدر/عميل/فرع/طريقة دفع مكتملة. راجع السجلات قبل المتابعة.'
+                );
+            }
         }
 
         if ($file === 'PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql') {
