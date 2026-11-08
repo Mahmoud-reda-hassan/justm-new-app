@@ -14,6 +14,20 @@ if (!$dsn) {
 }
 
 require_once dirname(__DIR__, 2) . '/inc/Classes/Accounting/FinancialVoucherManager.php';
+require_once dirname(__DIR__, 2) . '/inc/Classes/Accounting/AccountingEvents.php';
+
+class VoucherAccountingEventsTest extends AccountingEvents
+{
+    public function openCustomerCredits(int $clientId): array
+    {
+        return $this->getOpenCustomerCreditLines($clientId, true);
+    }
+
+    public function allocateSaleCredit(int $journalId, int $clientId, float $amount, array $creditLines): void
+    {
+        $this->allocateCustomerCreditToSale($journalId, $clientId, $amount, $creditLines);
+    }
+}
 
 function voucherAssert(bool $condition, string $message): void
 {
@@ -242,6 +256,44 @@ try {
     $allocationCount = (int)$db->query("SELECT COUNT(*) FROM accounting_line_allocations WHERE status = 'ACTIVE'")->fetchColumn();
     voucherAssert($allocationCount === 1, 'يجب إنشاء تخصيص واحد للمديونية المسددة.');
 
+    // تطبيق رصيد العميل الدائن على بيع جديد، مع تخصيصه للمصدر الأصلي FIFO.
+    $_SESSION = ['USER_ID' => 7];
+    $creditEvents = new VoucherAccountingEventsTest($db);
+    $openCustomerCredits = $creditEvents->openCustomerCredits(10);
+    voucherAssert(count($openCustomerCredits) === 1 && abs((float)$openCustomerCredits[0]['credit'] - 200.0) < 0.001,
+        'يجب أن يكون سند الائتمان الأصلي متاحًا قبل استخدامه في البيع.');
+    $creditSale = (new JournalManager($db))->create([
+        'branch_id' => 1, 'entry_date' => '2026-11-08 09:05:00',
+        'reference_type' => 'TEST_CREDIT_SALE', 'reference_id' => 3001,
+        'description' => 'بيع باستخدام رصيد عميل', 'created_by' => 7, 'status' => 'POSTED'
+    ]);
+    $creditSale->addLine(['account_id' => 2, 'partner_type' => 'CLIENT', 'partner_id' => 10, 'debit' => 100]);
+    $creditSale->addLine(['account_id' => 5, 'credit' => 100]);
+    $creditSale->addLine(['account_id' => 3, 'partner_type' => 'CLIENT', 'partner_id' => 10, 'debit' => 100]);
+    $creditSale->addLine(['account_id' => 2, 'partner_type' => 'CLIENT', 'partner_id' => 10, 'credit' => 100]);
+    $creditSaleJournalId = $creditSale->post();
+    $creditEvents->allocateSaleCredit($creditSaleJournalId, 10, 100, $openCustomerCredits);
+    voucherAssert(abs($manager->getCustomerCreditBalance(10) - 100.0) < 0.001,
+        'استخدام 100 من الرصيد الدائن يجب أن يترك 100 متاحًا.');
+    $remainingCreditLines = $creditEvents->openCustomerCredits(10);
+    $remainingCredit = array_sum(array_map(
+        fn($line) => (float)$line['credit'] - (float)$line['allocated_amount'],
+        $remainingCreditLines
+    ));
+    voucherAssert(abs($remainingCredit - 100.0) < 0.001, 'يجب أن يتبقى 100 فقط غير مخصص من سند الائتمان الأصلي.');
+
+    // عكس البيع يعكس التخصيص ويعيد الرصيد الدائن الأصلي دون احتساب سطر القيد العكسي كمصدر جديد.
+    (new JournalManager($db))->reverse($creditSaleJournalId, 'عكس بيع اختبار', 99);
+    voucherAssert(abs($manager->getCustomerCreditBalance(10) - 200.0) < 0.001,
+        'عكس البيع يجب أن يعيد كامل الرصيد الدائن للعميل.');
+    $restoredCreditLines = $creditEvents->openCustomerCredits(10);
+    $restoredCredit = array_sum(array_map(
+        fn($line) => (float)$line['credit'] - (float)$line['allocated_amount'],
+        $restoredCreditLines
+    ));
+    voucherAssert(abs($restoredCredit - 200.0) < 0.001,
+        'يجب ألا يُحسب سطر قيد العكس كمصدر ائتمان إضافي.');
+
     // إعادة الطلب بالمفتاح نفسه لا تنشئ قيدًا أو مستندًا جديدًا.
     $retry = $manager->post($receiptInput);
     voucherAssert(!empty($retry['already_posted']) && (int)$retry['voucher_id'] === $voucherId, 'إعادة نفس طلب التحصيل يجب أن تعيد المستند السابق.');
@@ -316,7 +368,7 @@ try {
     voucherAssert(abs($manager->getPartnerBalance('CLIENT', 10) - 300.0) < 0.001, 'عكس التحصيل يجب أن يعيد مديونية العميل.');
     voucherAssert(abs($manager->getCustomerCreditBalance(10)) < 0.001, 'عكس التحصيل يجب أن يلغي الرصيد الدائن المثبت.');
     $reversedAllocationCount = (int)$db->query("SELECT COUNT(*) FROM accounting_line_allocations WHERE status = 'REVERSED'")->fetchColumn();
-    voucherAssert($reversedAllocationCount === 1, 'عكس سند العميل يجب أن يعكس تخصيصه.');
+    voucherAssert($reversedAllocationCount === 2, 'عكس البيع وسند التحصيل يجب أن يعكسا تخصيصاتهما.');
     $reversalJournal = $db->prepare('SELECT created_by FROM journal_entries WHERE id = ?');
     $reversalJournal->execute([(int)$reversal['reversal_journal_entry_id']]);
     voucherAssert((int)$reversalJournal->fetchColumn() === 99, 'يجب تسجيل المستخدم الذي نفذ العكس.');
