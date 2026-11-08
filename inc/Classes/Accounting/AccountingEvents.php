@@ -4,6 +4,7 @@ include_once(__dir__.'/../../Classes/Accounting/AccountSettings.php');
 include_once(__dir__.'/../../Classes/Accounting/FinancialEventManager.php');
 include_once(__dir__.'/../../Classes/Accounting/CashBox.php');
 include_once(__dir__.'/../../Classes/Accounting/FinancialVoucherManager.php');
+include_once(__dir__.'/../../Classes/Accounting/CustomerRefundManager.php');
 
 class AccountingEvents {
 
