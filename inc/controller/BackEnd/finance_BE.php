@@ -50,7 +50,27 @@ class finance_BE {
      * @return void
      * @throws Exception
      */
-    private function releaseGlobalFinanceLock(): void {
+        private function resolveCommissionCashBoxId(int $branchId, int $requestedCashBoxId = 0): int
+    {
+        if ($branchId <= 0) throw new InvalidArgumentException('الفرع الحالي غير محدد لصرف العمولة.');
+        $boxes = (new CashBox($this->conn))->listForPaymentMethod($branchId, 1);
+        if (!$boxes) throw new RuntimeException('لا توجد خزينة نقدية نشطة في الفرع المحدد.');
+        if ($requestedCashBoxId > 0) {
+            foreach ($boxes as $box) {
+                if ((int)$box['id'] === $requestedCashBoxId) return $requestedCashBoxId;
+            }
+            throw new RuntimeException('الخزينة المحددة غير نشطة أو لا تتبع الفرع الحالي.');
+        }
+        $defaults = array_values(array_filter(
+            $boxes,
+            static fn(array $box): bool => (int)($box['is_default'] ?? 0) === 1
+        ));
+        if (count($defaults) === 1) return (int)$defaults[0]['id'];
+        if (count($boxes) === 1) return (int)$boxes[0]['id'];
+        throw new RuntimeException('حدد خزينة افتراضية للفرع أو اختر الخزينة عند صرف العمولة.');
+    }
+
+private function releaseGlobalFinanceLock(): void {
         $stmt = $this->conn->prepare("SELECT RELEASE_LOCK('global_Finance_lock') AS released");
         $stmt->execute();
     }
@@ -894,92 +914,58 @@ class finance_BE {
 =========================================*/
 
 	// صرف عمولة المندوب
-	public function PaymentOfDeliveryDues(int $deliveryid, string $total_balance, string $total_amount): array {
-		if ($deliveryid <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار المندوب اولا");
-	    if ((float)$total_amount <= 0) throw new Exception("لم يتم الحفظ - من فضلك ادخل مبلغ صحيح لحفظ اذن الصرف ");
-		if ((float)$total_balance <= 0) throw new Exception("لم يتم الحفظ - رصيد المندوب صفر");
-	    if ((float)$total_balance < (float)$total_amount) throw new Exception("رصيد المندوب لا يكفى لصرف المبلغ الحالى");
-	    try {
-	        $this->conn->beginTransaction();
-			// الحصول على قفل عالمي لمنع التعارض مع حركات أخرى
-			$this->acquireGlobalFinanceLock();
-			
-	        // اضافة المعامله
-			$transactionRecorded = $this->Add_transaction(NULL, 'DELIVERY', $deliveryid, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مندوب');
-			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
-			
-			// تسجيل مبلغ المرتجع فى رصيد العميل
-			$resultFinal = $this->Add_partners_balance( 'DELIVERY', $deliveryid, NULL, 'DEBIT', $total_amount,'صرف مستحقات مندوب','17' );
-			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المندوب");
-			
-	        $this->conn->commit();
-	
-	        return [
-	            'success',
-	            'ناجح',
-	            'تم صرف دفعه للمندوب بنجاح'
-	        ];
-	
-	    } catch (PDOException $e) {
-	
-	        $this->conn->rollBack();
-	
-	        return [
-	            'success',
-	            'حدث خطأ أثناء حفظ السداد',
-	            $e->getMessage()
-	        ];
-	
-	    } finally {
-            // فك القفل بعد الانتهاء
-            $this->releaseGlobalFinanceLock();
+	public function PaymentOfDeliveryDues(int $deliveryid, string $total_balance, string $total_amount): array
+    {
+        $branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+        $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+        $amount = round((float)$total_amount, 2);
+        if ($deliveryid <= 0 || $amount <= 0 || $branchId <= 0 || $actorId <= 0) {
+            throw new InvalidArgumentException('المندوب والفرع والمستخدم ومبلغ الصرف بيانات إلزامية.');
         }
+        $paymentMethodId = 1;
+        $cashBoxId = $this->resolveCommissionCashBoxId($branchId, (int)($_POST['cash_box_id'] ?? 0));
+        $note = trim((string)($_POST['note'] ?? 'صرف مستحقات مندوب'));
+        $requestKey = 'DCPAY:' . $deliveryid . ':' . $branchId . ':'
+            . substr(hash('sha256', number_format($amount, 2, '.', '')), 0, 16);
+        $requestHash = hash('sha256', json_encode([
+            'delivery_id' => $deliveryid, 'branch_id' => $branchId,
+            'payment_method_id' => $paymentMethodId, 'cash_box_id' => $cashBoxId,
+            'amount' => number_format($amount, 2, '.', ''),
+            'actor_id' => $actorId, 'note' => $note,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return (new DeliverySettlementManager($this->conn))->payCommission(
+            $deliveryid, $branchId, $paymentMethodId, $cashBoxId, $amount,
+            $note, $requestKey, $requestHash
+        );
+    }
 
-	}
 
 	// صرف مستحقات مسوق
-	public function PaymentOfMarketerDues(int $marketerId, string $total_balance, string $total_amount): array {
-		if ($marketerId <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار المسوق اولا");
-	    if ((float)$total_amount <= 0) throw new Exception("لم يتم الحفظ - من فضلك ادخل مبلغ صحيح لحفظ اذن الصرف ");
-		if ((float)$total_balance <= 0) throw new Exception("لم يتم الحفظ - رصيد المسوق صفر");
-	    if ((float)$total_balance < (float)$total_amount) throw new Exception("رصيد المسوق لا يكفى لصرف المبلغ الحالى");
-	    try {
-	        $this->conn->beginTransaction();
-			
-			// الحصول على قفل عالمي لمنع التعارض مع حركات أخرى
-			$this->acquireGlobalFinanceLock();
-			
-	        // اضافة المعامله
-			$transactionRecorded = $this->Add_transaction(NULL, 'MARKETER', $marketerId, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مسوق');
-			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
-			
-			// تسجيل مبلغ المرتجع فى رصيد العميل
-			$resultFinal = $this->Add_partners_balance( 'MARKETER', $marketerId, NULL, 'DEBIT', $total_amount,'صرف مستحقات مسوق','17' );
-			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المسوق");
-			
-	        $this->conn->commit();
-	
-	        return [
-	            'success',
-	            'ناجح',
-	            'تم صرف دفعه للمسوق بنجاح'
-	        ];
-	
-	    } catch (PDOException $e) {
-	
-	        $this->conn->rollBack();
-	
-	        return [
-	            'success',
-	            'حدث خطأ أثناء حفظ السداد',
-	            $e->getMessage()
-	        ];
-	
-	    } finally {
-            // فك القفل بعد الانتهاء
-            $this->releaseGlobalFinanceLock();
+	public function PaymentOfMarketerDues(int $marketerId, string $total_balance, string $total_amount): array
+    {
+        $branchId = (int)($_SESSION['BRANCH_ID'] ?? 0);
+        $actorId = (int)($_SESSION['USER_ID'] ?? 0);
+        $amount = round((float)$total_amount, 2);
+        if ($marketerId <= 0 || $amount <= 0 || $branchId <= 0 || $actorId <= 0) {
+            throw new InvalidArgumentException('المسوق والفرع والمستخدم ومبلغ الصرف بيانات إلزامية.');
         }
-	}
+        $paymentMethodId = 1;
+        $cashBoxId = $this->resolveCommissionCashBoxId($branchId, (int)($_POST['cash_box_id'] ?? 0));
+        $note = trim((string)($_POST['note'] ?? 'صرف مستحقات مسوق'));
+        $requestKey = 'MCPAY:' . $marketerId . ':' . $branchId . ':'
+            . substr(hash('sha256', number_format($amount, 2, '.', '')), 0, 16);
+        $requestHash = hash('sha256', json_encode([
+            'marketer_id' => $marketerId, 'branch_id' => $branchId,
+            'payment_method_id' => $paymentMethodId, 'cash_box_id' => $cashBoxId,
+            'amount' => number_format($amount, 2, '.', ''),
+            'actor_id' => $actorId, 'note' => $note,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return (new DeliverySettlementManager($this->conn))->payMarketerCommission(
+            $marketerId, $branchId, $paymentMethodId, $amount,
+            $note, $requestKey, $requestHash, $cashBoxId
+        );
+    }
+
 
 	// صرف مستحقات المورد: الترحيل الجديد في الأستاذ العام دون تعديل الأرصدة التاريخية.
 	public function PaymentOfSupplierDues(int $supplier_id, string $total_amount, array $orders = [], int $payment_method_id = 1, string $request_key = ''): array {
