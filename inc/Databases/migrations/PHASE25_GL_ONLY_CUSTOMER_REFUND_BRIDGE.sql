@@ -40,7 +40,7 @@ INNER JOIN (
     FROM journal_entry_details d
     INNER JOIN account_settings aset
         ON aset.account_id = d.account_id
-       AND aset.setting_key = 'CUSTOMERS'
+       AND aset.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
     WHERE d.partner_type = 'CLIENT' AND d.debit > 0
     GROUP BY d.journal_entry_id, d.partner_id
 ) posted_refund
