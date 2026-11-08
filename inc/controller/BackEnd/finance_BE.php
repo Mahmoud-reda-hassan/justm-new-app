@@ -779,12 +779,7 @@ class finance_BE {
 						}
 						// ترحيل التحصيل إلى دفتر الأستاذ وتخصيصه على مديونية أمر البيع.
 						$this->Accounting->directSalePayment((int)$transactionRecorded1);
-						// تسجيل مبلغ السداد فى رصيد العميل
-						$resultFinal = $this->addClientCredit($orderData['CLIENT_ID'], $orderId,  $orderData['ACTUAL_TOTAL']+$orderData['SHIPPING_VAL']);
-						if(!$resultFinal['statuse']){
-							$error[] = "An error occurred while add ORDERS_LOG.";
-							continue;
-						}
+						// لا نكتب رصيد العميل في partners_balance؛ قيد سند القبض في GL هو مصدر الرصيد الوحيد.
 						//===============================================
 						
 						//تسجيل فاتورة خدمة الشحن
