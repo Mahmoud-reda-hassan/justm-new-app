@@ -995,7 +995,7 @@ final class DeliverySettlementManager
             // لا تخصم عمولة سبق صرفها أو تسويتها؛ الرصيد الحقيقي من دفتر الأستاذ هو المرجع.
             $commissionBalanceStmt = $this->db->prepare("SELECT ROUND(COALESCE(SUM(d.credit - d.debit),0),2)
                 FROM journal_entry_details d
-                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
                 WHERE d.account_id = ? AND d.partner_type = 'DELIVERY' AND d.partner_id = ?");
             $commissionBalanceStmt->execute([$commissionPayableAccountId, $deliveryId]);
             $commissionPayableAvailable = max(0.0, round((float)$commissionBalanceStmt->fetchColumn(), 2));
@@ -1247,7 +1247,7 @@ final class DeliverySettlementManager
             // اقفل كل سطور المستحقات لهذا الشريك لمنع صرف متزامن يتجاوز الرصيد.
             $balanceStmt = $this->db->prepare("SELECT d.id, d.credit, d.debit
                 FROM journal_entry_details d
-                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
                 WHERE d.account_id = ? AND d.partner_type = 'MARKETER' AND d.partner_id = ?
                 ORDER BY d.id FOR UPDATE");
             $balanceStmt->execute([$payableAccountId, $marketerId]);
