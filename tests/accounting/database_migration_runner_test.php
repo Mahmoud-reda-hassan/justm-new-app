@@ -56,6 +56,7 @@ foreach ([
 ] as $account) {
     $seedAccount->execute([$account[0], $account[1], $account[2], $account[3], $account[0]]);
 }
+$seedAccount->execute(['1152', 'Test customer credit control', 'ASSET', 'DEBIT', '1152']);
 
 $seedParentAccount = $pdo->prepare(
     "INSERT INTO accounts (account_code, account_name, account_type, normal_balance, account_level, is_active, allow_posting, system_account, is_system_created, description)
