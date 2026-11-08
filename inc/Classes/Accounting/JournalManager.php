@@ -390,6 +390,51 @@ class JournalManager{
 
 	        $reversalId = $this->post();
 
+            // أي تخصيص يمس أحد سطور القيد الأصلي يجب عكسه مع القيد نفسه؛
+            // وإلا يظل رصيد العميل/المورد محجوزًا رغم إنشاء القيد العكسي.
+            $lineIds = array_values(array_filter(array_map(
+                static fn(array $line): int => (int)($line['id'] ?? 0),
+                $lines
+            )));
+            if ($lineIds) {
+                $allocationTable = $this->db->query(
+                    "SELECT COUNT(*) FROM information_schema.TABLES
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounting_line_allocations'"
+                );
+                $hasAllocationTable = (int)$allocationTable->fetchColumn() === 1;
+                $allocationTable->closeCursor();
+
+                if ($hasAllocationTable) {
+                    $placeholders = implode(',', array_fill(0, count($lineIds), '?'));
+                    $allocationSql = "SELECT id FROM accounting_line_allocations
+                        WHERE status = 'ACTIVE'
+                          AND (debit_line_id IN ($placeholders) OR credit_line_id IN ($placeholders))
+                        ORDER BY id FOR UPDATE";
+                    $allocationStmt = $this->db->prepare($allocationSql);
+                    $allocationStmt->execute(array_merge($lineIds, $lineIds));
+                    $allocationIds = array_map('intval', $allocationStmt->fetchAll(PDO::FETCH_COLUMN));
+                    $allocationStmt->closeCursor();
+
+                    if ($allocationIds) {
+                        require_once __DIR__ . '/PartnerLedger.php';
+                        $partnerLedger = new PartnerLedger($this->db);
+                        $allocationReason = trim($reason) !== ''
+                            ? trim($reason)
+                            : 'عكس القيد رقم ' . $journalId;
+                        $allocationActor = ($reversedBy !== null && $reversedBy > 0)
+                            ? $reversedBy
+                            : (int)$original['created_by'];
+                        foreach ($allocationIds as $allocationId) {
+                            $partnerLedger->reverseAllocation(
+                                $allocationId,
+                                $allocationActor,
+                                'عكس القيد رقم ' . $journalId . ': ' . $allocationReason
+                            );
+                        }
+                    }
+                }
+            }
+
 	        $markOriginal = $this->db->prepare(
 	            "UPDATE journal_entries SET status = 'REVERSED'
 	             WHERE id = ? AND status = 'POSTED'"
