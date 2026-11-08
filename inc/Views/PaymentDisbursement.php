@@ -109,6 +109,13 @@
             </div>
 
             <div class="mt-3">
+                <label for="marketer-cash-box" class="fw-bold">الخزينة:</label>
+                <select class="form-control form-control-lg mt-1" id="marketer-cash-box" disabled>
+                    <option value="">اختر طريقة الدفع أولًا</option>
+                </select>
+            </div>
+
+            <div class="mt-3">
                 <label for="amount-masouq" class="fw-bold">المبلغ المراد صرفه:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-masouq" min="0" step="0.01">
             </div>
