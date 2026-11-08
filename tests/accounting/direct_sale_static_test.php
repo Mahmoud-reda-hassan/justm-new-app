@@ -123,7 +123,7 @@ try {
     has($marketerPayout, 'marketer_commission_payments', 'صرف عمولة المسوق لا ينشئ مستند صرف GL.');
     has($marketerPayout, 'marketerCommissionPayable()', 'صرف عمولة المسوق لا يخفض حساب المستحقات المستقل.');
     has($marketerPayout, '$cashBoxId', 'صرف عمولة المسوق لا يتحقق من الخزينة الفعلية المحددة.');
-    has($marketerPayout, "'cash_box_id' => \\$cashBoxId", 'قيد صرف عمولة المسوق لا يحفظ مرجع الخزينة الفعلية.');
+    has($marketerPayout, "'cash_box_id' => " . '$cashBoxId', 'قيد صرف عمولة المسوق لا يحفظ مرجع الخزينة الفعلية.');
     lacks($marketerPayout, 'transactionAccount($paymentMethodId, $branchId)', 'صرف عمولة المسوق يعتمد على ربط طريقة دفع قديم بدل الخزينة الفعلية.');
     has($marketerPayout, "'partner_type' => 'MARKETER'", 'قيد صرف عمولة المسوق لا يربط الشريك.');
     has($marketerPayout, "'reference_type' => 'MARKETER_COMMISSION_PAYMENT'", 'قيد صرف عمولة المسوق بلا مرجع واضح.');
