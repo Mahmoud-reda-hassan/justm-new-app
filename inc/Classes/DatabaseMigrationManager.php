@@ -382,6 +382,15 @@ class DatabaseMigrationManager
             }
         }
 
+        if ($file === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
+            $stmt = $this->db->query("SELECT COUNT(*) FROM account_settings WHERE setting_key = 'CUSTOMERS'");
+            $customerAccountMapping = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($customerAccountMapping !== 1) {
+                throw new RuntimeException('لا يمكن ترحيل مستندات الرد التاريخية قبل ضبط حساب العملاء CUSTOMERS في إعدادات الأستاذ العام.');
+            }
+        }
+
         if ($file === 'PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql') {
             $stmt = $this->db->query(
                 "SELECT COUNT(*) FROM accounts
