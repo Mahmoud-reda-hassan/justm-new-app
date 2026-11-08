@@ -188,13 +188,11 @@ class crmOrderLog {
 	    // التحقق هنا يغطي مسار إلغاء خدمة العملاء (CRM)، وليس زر إلغاء الطلب فقط.
 	    if ($result === 'cancelled') {
 	        $check = $this->conn->prepare("
-	            SELECT
-	                EXISTS(SELECT 1 FROM invoices i WHERE i.REFERENCE_TYPE = 'SALES'
-	                       AND i.REFERENCE_ID = o.ORDER_ID AND i.AMOUNT_PAID > 0) AS HAS_PAID_INVOICE,
-	                EXISTS(SELECT 1 FROM invoices i JOIN financial_transactions ft ON ft.invoice_id = i.INVO_ID
-	                       WHERE i.REFERENCE_TYPE = 'SALES' AND i.REFERENCE_ID = o.ORDER_ID
-	                         AND ft.status = 'COMPLETED' AND ft.amount > 0) AS HAS_COMPLETED_PAYMENT,
-	                o.SALE_ENTRY_ID IS NOT NULL AS HAS_SALE_ENTRY
+	            SELECT o.SALE_ENTRY_ID IS NOT NULL AS HAS_SALE_ENTRY,
+	                   o.RETURN_ENTRY_ID IS NOT NULL AS HAS_RETURN_ENTRY,
+	                   EXISTS(SELECT 1 FROM journal_entries j
+	                       WHERE j.reference_type IN ('DIRECT_SALE','ORDER_SHIPPING','SALES_RETURN')
+	                         AND j.reference_id = o.ORDER_ID AND j.status = 'POSTED') AS HAS_GL_POSTING
 	            FROM ORDERS o WHERE o.ORDER_ID = ? FOR UPDATE
 	        ");
 	        $check->execute([$oId]);
@@ -202,7 +200,7 @@ class crmOrderLog {
 	        if (!$financial) {
 	            throw new Exception('أمر البيع غير موجود');
 	        }
-	        if (!empty($financial['HAS_PAID_INVOICE']) || !empty($financial['HAS_COMPLETED_PAYMENT']) || !empty($financial['HAS_SALE_ENTRY'])) {
+	        if (!empty($financial['HAS_SALE_ENTRY']) || !empty($financial['HAS_RETURN_ENTRY']) || !empty($financial['HAS_GL_POSTING'])) {
 	            throw new Exception('لا يمكن إلغاء أمر البيع قبل تسوية المبلغ المحصل أو القيد المحاسبي. يلزم تنفيذ مسار رد المقدم/عكس القيد أولًا.');
 	        }
 	    }
