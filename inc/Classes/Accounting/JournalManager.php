@@ -397,19 +397,15 @@ class JournalManager{
                 $lines
             )));
             if ($lineIds) {
-                $allocationTable = $this->db->query(
-                    "SELECT COUNT(*) FROM information_schema.TABLES
-                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'accounting_line_allocations'"
-                );
-                $hasAllocationTable = (int)$allocationTable->fetchColumn() === 1;
-                $allocationTable->closeCursor();
+                $placeholders = implode(',', array_fill(0, count($lineIds), '?'));
+                $allocationSql = "SELECT id FROM accounting_line_allocations
+                    WHERE status = 'ACTIVE'
+                      AND (debit_line_id IN ($placeholders) OR credit_line_id IN ($placeholders))
+                    ORDER BY id FOR UPDATE";
 
-                if ($hasAllocationTable) {
-                    $placeholders = implode(',', array_fill(0, count($lineIds), '?'));
-                    $allocationSql = "SELECT id FROM accounting_line_allocations
-                        WHERE status = 'ACTIVE'
-                          AND (debit_line_id IN ($placeholders) OR credit_line_id IN ($placeholders))
-                        ORDER BY id FOR UPDATE";
+                try {
+                    // الاستعلام المباشر يعمل أيضًا مع الجداول المؤقتة في اختبارات CI؛
+                    // information_schema لا يعرض الجداول المؤقتة في بعض إصدارات MariaDB.
                     $allocationStmt = $this->db->prepare($allocationSql);
                     $allocationStmt->execute(array_merge($lineIds, $lineIds));
                     $allocationIds = array_map('intval', $allocationStmt->fetchAll(PDO::FETCH_COLUMN));
@@ -431,6 +427,10 @@ class JournalManager{
                                 'عكس القيد رقم ' . $journalId . ': ' . $allocationReason
                             );
                         }
+                    }
+                } catch (PDOException $allocationError) {
+                    if ($allocationError->getCode() !== '42S02') {
+                        throw $allocationError;
                     }
                 }
             }
