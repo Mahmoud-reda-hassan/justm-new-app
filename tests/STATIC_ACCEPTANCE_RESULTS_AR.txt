@@ -55,3 +55,29 @@ All matrix jobs passed:
 - Supplier GL payment and reversal MariaDB integration tests
 
 This CI result validates the repository test fixtures and isolated CI databases only. It does not mean SQL was executed on testar or that browser workflows and real balances were tested there.
+
+
+Accounting + Cash-box Management CI — 2026-11-08
+Commit: daa965208582289704b601e74648dbd0907af2dc
+Workflow run: 42428497475
+Result: PASS — 4/4 matrix jobs
+
+[PASS] PHP 8.0 / MariaDB 10.5.29
+[PASS] PHP 8.0 / MariaDB 10.11
+[PASS] PHP 8.4 / MariaDB 10.5.29
+[PASS] PHP 8.4 / MariaDB 10.11
+
+Additional coverage:
+- CashBox.php service PHP syntax
+- CashBoxManagement.php view PHP syntax
+- CashBoxManagement.js JavaScript syntax
+- Cash-box management MariaDB integration test:
+  - branch/account validation
+  - one GL asset account per cashbox within branch
+  - duplicate box name prevention
+  - payment-method mapping and unmapping
+  - account change blocked after historical movements
+  - deactivation blocked while balance is non-zero
+  - reactivation does not recreate payment mappings automatically
+
+CI uses temporary test schemas and does not deploy or alter testar/production.
