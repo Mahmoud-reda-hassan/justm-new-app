@@ -126,6 +126,16 @@ public function furl(){
     return $urllink."/";
 }
 
+/**
+ * Returns the last-modified timestamp for a local asset.
+ * Filesystem paths are anchored to ABSPATH, independent of PHP's working directory.
+ */
+public function assetVersion($webPath){
+    $relativePath = ltrim(str_replace(array('/', '\\\\'), DIRECTORY_SEPARATOR, (string)$webPath), DIRECTORY_SEPARATOR);
+    $filePath = rtrim(ABSPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $relativePath;
+    return is_file($filePath) ? (string)filemtime($filePath) : '0';
+}
+
 
 
 public function app_request($loginType = 0,$pageType = 0){
@@ -746,17 +756,17 @@ public function app_request($loginType = 0,$pageType = 0){
 public function header_CSS(){
     $dirRoot=$this->furl();
     echo '
-    <link rel="stylesheet" href="/libraries/fontawesome/css/all.min.css">
-    <link rel="stylesheet" href="/libraries/dataTables/dataTables.min.css">
-    <link rel="stylesheet" href="/libraries/overlayScrollbars/css/OverlayScrollbars.min.css">
-    <link rel="stylesheet" href="/libraries/select2/css/select2.min.css">
-    <link rel="stylesheet" href="/libraries/sweetalert2/sweetalert2.min.css">
-	<link rel="stylesheet" href="/libraries/bootstrap-treeview/dist/css/bstreeview.min.css">
-	<link rel="stylesheet" href="/libraries/daterangepicker-master/daterangepicker.css">
-	<link rel="stylesheet" href="/libraries/DropdownTree-master/dropdowntree.css">
-	<link rel="stylesheet" href="/dist/css/adminlte.min.css">
-	<link rel="stylesheet" href="/libraries/bootstrap/4.2.1/css/rtl/bootstrap-4.2.1-rtl.css">
-	<link rel="stylesheet" href="/dist/css/custom.css?v='. filemtime('dist/css/custom.css').'">
+    <link rel="stylesheet" href="/libraries/fontawesome/css/all.min.css?v='.$this->assetVersion('/libraries/fontawesome/css/all.min.css').'">
+    <link rel="stylesheet" href="/libraries/dataTables/dataTables.min.css?v='.$this->assetVersion('/libraries/dataTables/dataTables.min.css').'">
+    <link rel="stylesheet" href="/libraries/overlayScrollbars/css/OverlayScrollbars.min.css?v='.$this->assetVersion('/libraries/overlayScrollbars/css/OverlayScrollbars.min.css').'">
+    <link rel="stylesheet" href="/libraries/select2/css/select2.min.css?v='.$this->assetVersion('/libraries/select2/css/select2.min.css').'">
+    <link rel="stylesheet" href="/libraries/sweetalert2/sweetalert2.min.css?v='.$this->assetVersion('/libraries/sweetalert2/sweetalert2.min.css').'">
+	<link rel="stylesheet" href="/libraries/bootstrap-treeview/dist/css/bstreeview.min.css?v='.$this->assetVersion('/libraries/bootstrap-treeview/dist/css/bstreeview.min.css').'">
+	<link rel="stylesheet" href="/libraries/daterangepicker-master/daterangepicker.css?v='.$this->assetVersion('/libraries/daterangepicker-master/daterangepicker.css').'">
+	<link rel="stylesheet" href="/libraries/DropdownTree-master/dropdowntree.css?v='.$this->assetVersion('/libraries/DropdownTree-master/dropdowntree.css').'">
+	<link rel="stylesheet" href="/dist/css/adminlte.min.css?v='.$this->assetVersion('/dist/css/adminlte.min.css').'">
+	<link rel="stylesheet" href="/libraries/bootstrap/4.2.1/css/rtl/bootstrap-4.2.1-rtl.css?v='.$this->assetVersion('/libraries/bootstrap/4.2.1/css/rtl/bootstrap-4.2.1-rtl.css').'">
+	<link rel="stylesheet" href="/dist/css/custom.css?v='.$this->assetVersion('/dist/css/custom.css').'">
 	';
 }
 
@@ -788,7 +798,7 @@ public function array_CSS(){
     $dr ="";
     foreach($this->css as $val){
        // $dr .= '<link rel="stylesheet" href="'.realpath($val).'?v='.filemtime(realpath($val)).'">';
-        $dr .= '<link rel="stylesheet" href="/dist/css/'.$val.'?ver='.filemtime('dist/css/'.$val).'">';
+        $dr .= '<link rel="stylesheet" href="/dist/css/'.$val.'?ver='.$this->assetVersion('/dist/css/'.$val).'">';
     }
     echo $dr;
 }
@@ -797,7 +807,7 @@ public function array_headr_js(){
     //$dirRoot=$this->furl();
     $dr ="";
     foreach ($this->js_header as $val){
-        $dr .= '<script src="/dist/js/'.$val.'?v='.filemtime('dist/js/'.$val).'"></script>';
+        $dr .= '<script src="/dist/js/'.$val.'?v='.$this->assetVersion('/dist/js/'.$val).'"></script>';
     }
     echo $dr;
 }
@@ -808,14 +818,14 @@ public function array_body_JS(){
     $dr ='
     <!------------ body_JS() ------------>
 
-		<script src="../../dist/js/model/connection-monitor.js?ver='.filemtime($_SERVER["DOCUMENT_ROOT"]."/dist/js/model/connection-monitor.js").'"></script>
+		<script src="../../dist/js/model/connection-monitor.js?ver='.$this->assetVersion('/dist/js/model/connection-monitor.js').'"></script>
 		
 		<!-- Popper.js (مطلوب للقوائم المنسدلة في Bootstrap -->
 		<script src="../../libraries/popper/umd/popper.min.js"></script> 
 		
 		<!-- select2 -->
-		<script src="../../libraries/select2/js/select2.min.js?ver=' . filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/select2/js/select2.min.js") . '"></script>
-		<script src="../../libraries/select2/js/i18n/ar.js?v=' . filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/select2/js/i18n/ar.js") . '"></script>
+		<script src="../../libraries/select2/js/select2.min.js?ver=' . $this->assetVersion('/libraries/select2/js/select2.min.js') . '"></script>
+		<script src="../../libraries/select2/js/i18n/ar.js?v=' . $this->assetVersion('/libraries/select2/js/i18n/ar.js') . '"></script>
 		
 		<!-- Bootstrap -->
 		<script src="../../libraries/bootstrap/4.2.1/js/bootstrap.bundle.min.js"></script>
@@ -826,24 +836,24 @@ public function array_body_JS(){
 		
 		
 		<!-- Overlay Scrollbars -->
-		<script src="../../libraries/overlayScrollbars/js/jquery.overlayScrollbars.min.js?ver=' . filemtime($_SERVER["DOCUMENT_ROOT"]."/dist/js/custom.js") . '"></script>
+		<script src="../../libraries/overlayScrollbars/js/jquery.overlayScrollbars.min.js?ver=' . $this->assetVersion('/dist/js/custom.js') . '"></script>
 		
 			
 		<!-- Dropdown Tree -->
-		<script src="../../libraries/DropdownTree-master/dropdowntree.js?ver=' . filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/DropdownTree-master/dropdowntree.js") . '"></script>
+		<script src="../../libraries/DropdownTree-master/dropdowntree.js?ver=' . $this->assetVersion('/libraries/DropdownTree-master/dropdowntree.js') . '"></script>
 		
 		<!-- Bootstrap Treeview -->
-		<script src="../../libraries/bootstrap-treeview/dist/js/bstreeview.min.js?ver=' . filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/bootstrap-treeview/dist/js/bstreeview.min.js") . '"></script>
+		<script src="../../libraries/bootstrap-treeview/dist/js/bstreeview.min.js?ver=' . $this->assetVersion('/libraries/bootstrap-treeview/dist/js/bstreeview.min.js') . '"></script>
 		
 		<!-- HTML5 QR Code -->
-		<script src="../../libraries/html5-qrcode/html5-qrcode.min.js?ver=' . filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/html5-qrcode/html5-qrcode.min.js") . '"></script>
+		<script src="../../libraries/html5-qrcode/html5-qrcode.min.js?ver=' . $this->assetVersion('/libraries/html5-qrcode/html5-qrcode.min.js') . '"></script>
 		
 		<!-- SweetAlert2 -->
-		<script src="../../libraries/sweetalert2/sweetalert2.min.js?ver='.filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/sweetalert2/sweetalert2.min.js").'"></script>
+		<script src="../../libraries/sweetalert2/sweetalert2.min.js?ver='.$this->assetVersion('/libraries/sweetalert2/sweetalert2.min.js').'"></script>
 		
 		<!-- AdminLTE -->
-		<script src="../../libraries/dist/js/adminlte.min.js?ver='.filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/dist/js/adminlte.min.js").'"></script>
-		<script src="../../libraries/dist/js/demo.js?v='.filemtime($_SERVER["DOCUMENT_ROOT"]."/libraries/dist/js/demo.js").'"></script>
+		<script src="../../libraries/dist/js/adminlte.min.js?ver='.$this->assetVersion('/libraries/dist/js/adminlte.min.js').'"></script>
+		<script src="../../libraries/dist/js/demo.js?v='.$this->assetVersion('/libraries/dist/js/demo.js').'"></script>
 		
 		<!-- DataTables -->
 		<script src="../../libraries/datatables/datatables.min.js"></script>
@@ -858,7 +868,7 @@ public function array_body_JS(){
     
     foreach ($this->js_footer as $val){
         $dr .= '
-        	<script  src="/dist/js/'.$val.'?ver='.filemtime('dist/js/'.$val).'"></script>';
+        	<script  src="/dist/js/'.$val.'?ver='.$this->assetVersion('/dist/js/'.$val).'"></script>';
     }
     
   	$dr.="
