@@ -38,6 +38,8 @@ class AccountSettings
     }
 
     public function customers(): int { return $this->configuredAccount('CUSTOMERS'); }
+    /** حساب أرصدة العملاء الدائنة القابلة لإعادة الاستخدام (1152). */
+    public function customerCredits(): int { return $this->configuredAccount('CUSTOMER_CREDITS'); }
     public function sales(): int { return $this->configuredAccount('SALES'); }
     public function shippingRevenue(): int { return $this->configuredAccount('SHIPPING_REVENUE'); }
     public function cogs(): int { return $this->configuredAccount('COGS'); }
