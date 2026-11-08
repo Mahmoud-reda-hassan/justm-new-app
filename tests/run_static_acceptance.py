@@ -79,9 +79,11 @@ check('Courier settlement validates selected box against payment mapping',
       and 'الخزينة المحددة غير نشطة' in settlement_manager)
 check('Courier settlement stores cash-box ID on received cash journal line',
       "'cash_box_id' => $cashBoxId" in settlement_manager)
-check('Finance endpoint returns branch cash boxes and requires selected box',
-      'GetDeliverySettlementCashBoxes' in finance_controller and "'cash_box_id' => $cashBoxId" in finance_controller
-      and 'INNER JOIN cash_boxes cb' in finance_controller and 'SELECT DISTINCT pm.id' in finance_controller)
+check('Finance endpoint exposes branch cash boxes through the dedicated endpoint',
+      "case 'GetDeliverySettlementCashBoxes':" in finance_controller
+      and '$cashBoxes->listForPaymentMethod($branchId, $paymentMethodId)' in finance_controller
+      and "case 'GetDeliverySettlementPaymentMethods':" in finance_controller
+      and 'INNER JOIN cash_boxes cb' in finance_controller)
 check('Courier settlement UI requires and sends selected cash box',
       'id="dsCashBox"' in settlement_view and 'cash_box_id: cashBoxId' in settlement_js
       and 'GetDeliverySettlementCashBoxes' in settlement_js)
@@ -134,7 +136,7 @@ check('PHP syntax (' + str(len(php_files)) + ' files)', not php_bad, '; '.join(x
 js_files = [p for p in ROOT.rglob('*.js') if p.is_file() and 'vendor' not in p.parts and p.name not in {'intro.js','outro.js'}]
 def lint_js(p):
     r = subprocess.run(['node', '--check', str(p)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    return (str(p.relative_to(ROOT)), r.stderr.strip()) if r.returncode else None
+    return (str(p.relative_to(ROOT)), r.stderr.strip() or r.stdout.strip()) if r.returncode else None
 with ThreadPoolExecutor(max_workers=12) as pool:
     js_bad = [x for x in pool.map(lint_js, js_files) if x]
 check('JavaScript syntax (' + str(len(js_files)) + ' files)', not js_bad, '; '.join(x[0] for x in js_bad[:8]))
