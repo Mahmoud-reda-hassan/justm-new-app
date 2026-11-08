@@ -124,8 +124,10 @@ for sql_rel in ['JUSTM_DATABASE_INSTALL.sql', 'inc/Databases/JUSTM_DATABASE_INST
     sql = read(sql_rel).upper()
     check(sql_rel + ' retains legacy tables', all('DROP TABLE IF EXISTS `' + t + '`' not in sql for t in ['partners_balance','invoices','financial_transactions']))
 
-# 4) Syntax checks: all PHP outside vendor; all JS except source fragments intentionally concatenated by jQuery build.
-php_files = [p for p in ROOT.rglob('*.php') if p.is_file() and 'vendor' not in p.parts]
+# 4) Syntax checks: all application PHP; the bundled Illuminate 12 source requires PHP 8.2+.
+php_version = int(subprocess.run(['php', '-r', 'echo PHP_VERSION_ID;'], capture_output=True, text=True, check=True).stdout)
+php_files = [p for p in ROOT.rglob('*.php') if p.is_file() and 'vendor' not in p.parts
+             and ('database-master' not in p.parts or php_version >= 80200)]
 def lint_php(p):
     r = subprocess.run(['php', '-l', str(p)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return (str(p.relative_to(ROOT)), ((r.stdout or '') + '\\n' + (r.stderr or '')).strip()) if r.returncode else None
