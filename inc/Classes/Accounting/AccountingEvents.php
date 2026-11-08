@@ -2,6 +2,8 @@
 include_once(__dir__.'/../../Classes/Accounting/JournalManager.php');
 include_once(__dir__.'/../../Classes/Accounting/AccountSettings.php');
 include_once(__dir__.'/../../Classes/Accounting/FinancialEventManager.php');
+include_once(__dir__.'/../../Classes/Accounting/CashBox.php');
+include_once(__dir__.'/../../Classes/Accounting/FinancialVoucherManager.php');
 
 class AccountingEvents {
 
@@ -495,10 +497,18 @@ class AccountingEvents {
 	            FT.entity_id,
 	            FT.status,
 	            FT.accounting_posted,
+	            FT.accounting_entry_id,
+	            FT.note AS PAYMENT_COMPONENT,
 	            I.reference_id,
 	            I.reference_type,
 	            O.ORDER_TYPE_ID,
-	            O.SUB_ORDER_ID
+	            O.SUB_ORDER_ID,
+	            O.SALE_ENTRY_ID,
+	            (SELECT SH.id FROM journal_entries SH
+	             WHERE SH.reference_type = 'ORDER_SHIPPING'
+	               AND SH.reference_id = O.ORDER_ID
+	               AND SH.status = 'POSTED'
+	             ORDER BY SH.id DESC LIMIT 1) AS SHIPPING_ENTRY_ID
 	        FROM financial_transactions FT
 	        INNER JOIN invoices I
 	            ON I.INVO_ID = FT.invoice_id
@@ -624,51 +634,74 @@ class AccountingEvents {
         });
     }
 
-    private function directSalePaymentInternal(int $transactionId): int {
-	
-	    // جلب بيانات التحصيل
-	    $trx = $this->getDirectSalePayment($transactionId);
-	
-	    // التحقق
-	    $this->validateDirectSalePayment($trx);
-	
-	    // إنشاء القيد
-	    $this->journal->reset();
-	
-	    $this->journal->create([
-	        'branch_id'      => $trx['branch_id'],
-	        'entry_date'     => $trx['JOURNAL_DATE'],
-	        'reference_type' => 'SALE_PAYMENT',
-	        'reference_id'   => $transactionId,
-	        'description'    => 'تحصيل أمر بيع رقم '.$trx['SUB_ORDER_ID'],
-	        'created_by'     => $this->getCurrentUserId()
-	    ]);
-	
-	    // مدين الصندوق
-	    $this->journal->addLine([
-	        'account_id' => $this->settings->transactionAccount((int)$trx['payment_method_id'], (int)$trx['branch_id']),
-	        'debit'      => (float)$trx['amount']
-	    ]);
-	
-	    // دائن العملاء
-	    $this->journal->addLine([
-	        'account_id'   => $this->settings->customers(),
-	        'partner_type' => 'CLIENT',
-	        'partner_id'   => $trx['entity_id'],
-	        'credit'       => (float)$trx['amount']
-	    ]);
-	
-	    // ترحيل القيد
-	    $journalId = $this->journal->post();
-	
-	    // تخصيص التحصيل على مديونية أمر البيع قبل اعتماد الحركة.
-	    $this->allocateDirectSalePayment((int)$trx['reference_id'], (int)$trx['entity_id'], $journalId, (float)$trx['amount']);
+    private function directSalePaymentInternal(int $transactionId): int
+    {
+        $trx = $this->getDirectSalePayment($transactionId);
 
-	    // تحديث الحركة
-	    $this->markPaymentPosted($transactionId, $journalId);
-	
-	    return $journalId;
-	}
+        // إعادة الطلب بعد نجاح الترحيل تعيد القيد نفسه ولا تنشئ قيدًا ثانيًا.
+        if ((int)$trx['accounting_posted'] === 1) {
+            $existingJournalId = (int)($trx['accounting_entry_id'] ?? 0);
+            if ($existingJournalId <= 0) {
+                throw new RuntimeException('الحركة معلّمة كمرحّلة دون مرجع قيد؛ يلزم فحصها يدويًا.');
+            }
+            return $existingJournalId;
+        }
+
+        $this->validateDirectSalePayment($trx);
+        if ((int)$trx['payment_method_id'] !== 1) {
+            throw new RuntimeException('تحصيلات البيع غير النقدية متوقفة حتى اكتمال الحسابات البنكية والتسويات؛ لم يتم ترحيل الحركة.');
+        }
+
+        $component = strtoupper(trim((string)($trx['PAYMENT_COMPONENT'] ?? '')));
+        $targetJournalId = $component === 'ORDER_SHIPPING'
+            ? (int)($trx['SHIPPING_ENTRY_ID'] ?? 0)
+            : (int)($trx['SALE_ENTRY_ID'] ?? 0);
+        if ($targetJournalId <= 0) {
+            throw new RuntimeException(
+                $component === 'ORDER_SHIPPING'
+                    ? 'لا يوجد قيد إيراد شحن معتمد لتخصيص تحصيل الشحن عليه.'
+                    : 'لا يوجد قيد بيع معتمد لتخصيص تحصيل المنتجات عليه.'
+            );
+        }
+
+        $cashBoxService = new CashBox($this->db);
+        $availableBoxes = $cashBoxService->listForPaymentMethod((int)$trx['branch_id'], 1);
+        if (!$availableBoxes) {
+            throw new RuntimeException('لا توجد خزينة نقدية نشطة في فرع الطلب؛ أضف خزينة قبل ترحيل التحصيل.');
+        }
+
+        $defaults = array_values(array_filter(
+            $availableBoxes,
+            static fn(array $box): bool => (int)($box['is_default'] ?? 0) === 1
+        ));
+        if (count($defaults) === 1) {
+            $cashBoxId = (int)$defaults[0]['id'];
+        } elseif (count($availableBoxes) === 1) {
+            $cashBoxId = (int)$availableBoxes[0]['id'];
+        } else {
+            throw new RuntimeException('يوجد أكثر من خزينة للفرع دون خزينة افتراضية؛ حدد الخزينة الافتراضية من شاشة إدارة الخزائن.');
+        }
+
+        $voucherManager = new FinancialVoucherManager($this->db);
+        $voucher = $voucherManager->post([
+            'voucher_subtype' => 'CUSTOMER_RECEIPT',
+            'branch_id' => (int)$trx['branch_id'],
+            'cash_box_id' => $cashBoxId,
+            'payment_method_id' => 1,
+            'voucher_date' => (string)$trx['JOURNAL_DATE'],
+            'partner_id' => (int)$trx['entity_id'],
+            'amount' => (float)$trx['amount'],
+            'target_journal_entry_id' => $targetJournalId,
+            'description' => ($component === 'ORDER_SHIPPING' ? 'تحصيل رسوم شحن' : 'تحصيل قيمة منتجات')
+                . ' أمر بيع رقم ' . $trx['SUB_ORDER_ID'],
+            'idempotency_key' => 'DIRECT-SALE-PAYMENT:' . $transactionId,
+            'created_by' => $this->getCurrentUserId(),
+        ]);
+
+        $journalId = (int)$voucher['journal_entry_id'];
+        $this->markPaymentPosted($transactionId, $journalId);
+        return $journalId;
+    }
 
 /*****************************************************
 * مرتجع بيع
