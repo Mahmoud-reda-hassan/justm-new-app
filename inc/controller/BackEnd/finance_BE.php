@@ -7,6 +7,7 @@
 include_once(__dir__.'/../../configDateTimeFN.php');
 include_once(__dir__.'/../../Classes/Accounting/AccountingEvents.php');
 include_once(__dir__.'/../../Classes/Accounting/SupplierAccountingManager.php');
+include_once(__dir__.'/../../Classes/Accounting/DeliverySettlementManager.php');
 class finance_BE {
 
 	public $transaction_date;
@@ -777,8 +778,8 @@ class finance_BE {
                             continue;
                         }
 
-                        $collectionKey = 'FINANCE-COLLECTION:' . (int)$delivery_id . ':' . (int)$orderId . ':'
-                            . substr(hash('sha256', number_format($collectionAmount, 2, '.', '')), 0, 16);
+                        $collectionKey = 'FCOL:' . (int)$delivery_id . ':' . (int)$orderId . ':'
+                            . substr(hash('sha256', number_format($collectionAmount, 2, '.', '')), 0, 12);
                         $collectionManager = new DeliverySettlementManager($this->conn);
                         $collectionResult = $collectionManager->registerCustomerCollection(
                             (int)$delivery_id,
@@ -792,65 +793,59 @@ class finance_BE {
                             $error[] = 'فشل ترحيل تحصيل أمر البيع ' . $orderData['SUB_ORDER_ID'] . ' إلى GL.';
                             continue;
                         }
-                        $totalCHECK += (float)$orderData['ACTUAL_TOTAL'];
-                        $totatShipp += (float)$orderData['SHIPPING_VAL'];
+                        $totalCHECK += $collectionAmount;
                         $shippCommission += (float)($collectionResult['collections'][0]['commission'] ?? 0);
 
-						// تحديث حالة أمر البيع
-						$stmt = $this->conn->prepare("UPDATE orders SET ORDER_SUCCESS = 1 ,LAST_UPDATE = NOW(6) WHERE ORDER_ID = ?");
-						$stmt->execute([$orderData['ORDER_ID']]);
-						if(!$stmt->rowCount()){
-							$error[] = "An error occurred while updating the statuse order balance.";
-							continue;
-						}
-						// حذف العهده المخزنيه للمندوب
-						$delcustOrder = $this->delete_custody($orderData['ORDER_ID'], $orderData['DELIVERY_ID'],);
-						if(!$delcustOrder){
-							$error[] = "An error occurred while delete the custody order's balance.";
-							continue;
-						}
-						//=================insert ORDERS_LOG===================
-						$stratlogtext = " تم تحديث بيانات امر البيع من ";
-						$textRes = "تم استلام مبالغ التحصيل من المندوب بنجاح وتم اغلاق امر البيع ";
-						$logtext = $stratlogtext. $this->user_group."*". $textRes;
-						$stOLog = $this->conn->prepare("INSERT INTO ORDERS_LOG (`ORDER_ID`, `USER_ACTION`, `LOG_TEXT`) VALUES (:oid , :uauction, :log) ");
-						$stOLog->bindValue(':oid', $orderData['ORDER_ID'], PDO::PARAM_INT);
-						$stOLog->bindValue(':uauction', $this->transaction_user_id, PDO::PARAM_INT);
-						$stOLog->bindValue(':log', $logtext, PDO::PARAM_STR);
-						$stOLog->execute();
-						if (!$stOLog->rowCount()) {
-							$error[] = "An error occurred while add ORDERS_LOG.";
-							continue;
-						}
-						$totalCHECK += $orderData['ACTUAL_TOTAL'];
-						$totatShipp += $orderData['SHIPPING_VAL'];
-						$shippCommission += $orderData['DELIVERY_CIMMISSION'];
+                        // إغلاق العهدة التشغيلية بعد نجاح تسجيل التحصيل في GL.
+                        if ((int)$orderData['ORDER_SUCCESS'] !== 1) {
+                            $updateOrder = $this->conn->prepare(
+                                "UPDATE orders SET ORDER_SUCCESS = 1, LAST_UPDATE = NOW(6)
+                                 WHERE ORDER_ID = ? AND COALESCE(ORDER_SUCCESS,0) <> 1"
+                            );
+                            $updateOrder->execute([$orderData['ORDER_ID']]);
+                            if (!$updateOrder->rowCount()) {
+                                $checkSuccess = $this->conn->prepare("SELECT ORDER_SUCCESS FROM orders WHERE ORDER_ID = ?");
+                                $checkSuccess->execute([$orderData['ORDER_ID']]);
+                                if ((int)$checkSuccess->fetchColumn() !== 1) {
+                                    $error[] = "An error occurred while updating the order accounting status.";
+                                    continue;
+                                }
+                            }
 
-						//=============insert shipping_movement================
-								/*
-									0 = start Shipping 
-									1 = freeze
-									2 = Returned order and product
-									3 = Delivered
-									4 = Partial
-									5 = Rejected 
-									6 = Returned From Rejected or Partial
-									7 = تم السداد
-									8 = Return after sale
-								*/
-						$shtype = 7;
-						$shipquery = 'INSERT INTO `shipping_movement`( `movement_type`, `delivery_id`, `user_id`, `shipment_orders`) VALUES (:type, :deliveryid, :userid, :shipmentdata)';
-						
-						$stShMov = $this->conn->prepare($shipquery);
-						$stShMov->bindValue(':type', $shtype, PDO::PARAM_INT);
-						$stShMov->bindValue(':deliveryid', $orderData['DELIVERY_ID'], PDO::PARAM_INT);
-						$stShMov->bindValue(':userid', $this->transaction_user_id, PDO::PARAM_INT);
-						$stShMov->bindValue(':shipmentdata', $orderData['ORDER_ID'], PDO::PARAM_STR);
-						$stShMov->execute();
-						if (!$stShMov->rowCount()) {
-							$error[] = "An error occurred while add ORDERS_LOG.";
-							continue;
-						}
+                            $custodyCheck = $this->conn->prepare(
+                                "SELECT COUNT(*) FROM custody_orders WHERE ORDER_ID = ? AND USER_ID = ?"
+                            );
+                            $custodyCheck->execute([$orderData['ORDER_ID'], $orderData['DELIVERY_ID']]);
+                            if ((int)$custodyCheck->fetchColumn() > 0
+                                && !$this->delete_custody($orderData['ORDER_ID'], $orderData['DELIVERY_ID'])) {
+                                $error[] = "An error occurred while deleting the physical custody order.";
+                                continue;
+                            }
+
+                            $logText = "تم تسجيل تحصيل العميل وعهدة المندوب وعمولاته في الأستاذ العام.";
+                            $log = $this->conn->prepare(
+                                "INSERT INTO ORDERS_LOG (ORDER_ID, USER_ACTION, LOG_TEXT) VALUES (?, ?, ?)"
+                            );
+                            $log->execute([$orderData['ORDER_ID'], $this->transaction_user_id, $logText]);
+                            if (!$log->rowCount()) {
+                                $error[] = "An error occurred while adding the order log.";
+                                continue;
+                            }
+
+                            $shippingMovement = $this->conn->prepare(
+                                "INSERT INTO shipping_movement (movement_type, delivery_id, user_id, shipment_orders)
+                                 VALUES (7, ?, ?, ?)"
+                            );
+                            $shippingMovement->execute([
+                                $orderData['DELIVERY_ID'],
+                                $this->transaction_user_id,
+                                $orderData['ORDER_ID'],
+                            ]);
+                            if (!$shippingMovement->rowCount()) {
+                                $error[] = "An error occurred while adding the shipping movement.";
+                                continue;
+                            }
+                        }
 				}
 			}
 			// إذا تم تنفيذ كل شيء بنجاح، نقوم بتأكيد المعاملة
