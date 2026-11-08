@@ -183,7 +183,10 @@ try {
     $refundMethod = methodBody($refundManager, 'public function refund(');
     has($refundMethod, 'RETURN_ENTRY_ID', 'رد المبلغ لا يشترط ترحيل مردود البيع.');
     has($refundMethod, 'customer_refund_payments', 'رد المبلغ لا يسجل مستند GL مستقلًا.');
-    has($refundMethod, 'transactionAccount($paymentMethodId', 'رد المبلغ لا يستخدم حساب طريقة الدفع الفعلية.');
+    has($refundMethod, 'new CashBox($this->db)', 'رد المرتجع لا يختار خزينة فعلية للفرع.');
+    has($refundMethod, "'cash_box_id' => \$cashBoxId", 'قيد رد المرتجع لا يحفظ مرجع الخزينة.');
+    has($refundMethod, '$paymentMethodId !== 1', 'رد المرتجع يسمح بطريقة دفع غير نقدية قبل اكتمال البنوك.');
+    lacks($refundMethod, 'transactionAccount($paymentMethodId', 'رد المرتجع ما زال يستخدم حسابًا افتراضيًا بدل الخزينة الفعلية.');
     lacks($refundMethod, 'partners_balance', 'رد المبلغ ما زال يعتمد على دفتر الأرصدة القديم.');
     lacks($refundMethod, 'INSERT INTO financial_transactions', 'رد المبلغ الجديد ما زال ينشئ حركة مالية قديمة.');
     lacks($refundMethod, 'UPDATE financial_transactions', 'رد المبلغ الجديد ما زال يعدل الحركات المالية القديمة.');
