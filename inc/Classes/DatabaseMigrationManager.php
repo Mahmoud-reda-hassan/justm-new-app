@@ -401,6 +401,16 @@ class DatabaseMigrationManager
             if (!$hasCustomerCreditAccount) {
                 throw new RuntimeException('لا يمكن تنفيذ المرحلة 24 قبل استيراد شجرة الحسابات المعتمدة التي تتضمن حساب أرصدة العملاء الدائنة 1152.');
             }
+            $existingCreditMapping = $this->db->query(
+                "SELECT a.account_code FROM account_settings s
+                 INNER JOIN accounts a ON a.id = s.account_id
+                 WHERE s.setting_key = 'CUSTOMER_CREDITS' LIMIT 1"
+            );
+            $mappedCode = $existingCreditMapping->fetchColumn();
+            $existingCreditMapping->closeCursor();
+            if ($mappedCode !== false && (string)$mappedCode !== '1152') {
+                throw new RuntimeException('إعداد CUSTOMER_CREDITS مرتبط بحساب غير 1152. راجع الربط يدويًا قبل تنفيذ المرحلة 24؛ لن يتم استبدال ربط محاسبي قائم تلقائيًا.');
+            }
         }
 
         if ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
