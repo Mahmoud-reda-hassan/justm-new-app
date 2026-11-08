@@ -81,3 +81,18 @@ Additional coverage:
   - reactivation does not recreate payment mappings automatically
 
 CI uses temporary test schemas and does not deploy or alter testar/production.
+
+
+Accounting + GL Financial Vouchers + Cash-box Management CI — 2026-11-08
+Commit: 75f139a2975feae6173bc5f434940bcde22748d5
+Workflow run: 42455369801
+Result: PASS — 4/4 matrix jobs
+
+[PASS] PHP 8.0 / MariaDB 10.5.29
+[PASS] PHP 8.0 / MariaDB 10.11
+[PASS] PHP 8.4 / MariaDB 10.5.29
+[PASS] PHP 8.4 / MariaDB 10.11
+
+Coverage includes PHP/JavaScript syntax, import of both full installers, supplier schema compatibility, migration-runner integration, accounting static regressions, financial-event integration, supplier payment/reversal integration, cash-box management integration, and GL financial-voucher integration.
+
+Scope verified in isolated CI databases only. No SQL was run on testar or production. Browser E2E, real account mapping, live balance reconciliation, and operational acceptance on testar remain for the project owner to test before any production release.
