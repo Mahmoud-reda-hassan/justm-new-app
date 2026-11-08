@@ -132,7 +132,9 @@ try {
     cashBoxAssert(count($methodBoxes) === 1 && (int)$methodBoxes[0]['id'] === $boxId, 'يجب إتاحة الخزينة لطريقة الدفع المرتبطة بها.');
 
     $methods = $cashBoxes->listPaymentMethods(1);
+    cashBoxAssert(count($methods) === 1 && (int)$methods[0]['id'] === 1, 'إدارة الخزائن يجب أن تعرض طريقة الدفع النقدي فقط.');
     cashBoxAssert((int)$methods[0]['cash_box_id'] === $boxId, 'يجب عرض الخزينة الحالية في إعدادات طريقة الدفع.');
+    cashBoxExpectFailure(fn() => $cashBoxes->setPaymentMethodMapping(1, 2, $boxId), 'لا يجوز ربط التحويل البنكي بخزينة نقدية.');
 
     $cashBoxes->save(1, $boxId, 'الخزينة بعد تعديل الحساب', 101, true);
     $methodBoxes = $cashBoxes->listForPaymentMethod(1, 1);
