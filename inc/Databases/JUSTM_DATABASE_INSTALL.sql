@@ -2679,3 +2679,11 @@ CREATE TABLE IF NOT EXISTS financial_voucher_lines (
         FOREIGN KEY (account_id) REFERENCES accounts (id)
         ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Approved customer credit control account (1152), used for receipt amounts
+-- that exceed the customer's currently open receivable balance.
+INSERT INTO account_settings (setting_key, account_id, description)
+SELECT 'CUSTOMER_CREDITS', a.id, 'حساب رقابي لأرصدة العملاء الدائنة القابلة لإعادة الاستخدام'
+FROM accounts a
+WHERE a.account_code = '1152' AND a.is_active = 1 AND a.allow_posting = 1
+ON DUPLICATE KEY UPDATE account_id = VALUES(account_id), description = VALUES(description);
