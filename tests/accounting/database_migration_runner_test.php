@@ -72,6 +72,8 @@ foreach ([
 $pdo->exec('DROP TABLE IF EXISTS supplier_payment_allocations');
 $pdo->exec('DROP TABLE IF EXISTS marketer_commission_payments');
 $pdo->exec('DROP TABLE IF EXISTS customer_refund_payments');
+$pdo->exec('DROP TABLE IF EXISTS financial_voucher_lines');
+$pdo->exec('DROP TABLE IF EXISTS financial_vouchers');
 $pdo->exec('DROP TABLE IF EXISTS supplier_gl_advance_applications');
 $pdo->exec('DROP TABLE IF EXISTS supplier_gl_payment_allocations');
 $pdo->exec('DROP TABLE IF EXISTS supplier_gl_payments');
@@ -83,13 +85,15 @@ $pdo->exec('ALTER TABLE journal_entry_details DROP INDEX idx_journal_detail_cash
 $pdo->exec('ALTER TABLE journal_entry_details DROP COLUMN cash_box_id');
 
 $migrations = $manager->listMigrations();
-$assert(count($migrations) === 11, 'The approved migration registry must contain eleven numbered phases (11-20 and 22).');
+$assert(count($migrations) === 12, 'The approved migration registry must contain twelve numbered phases (11-20, 22 and 24).');
 $byFile = [];
 foreach ($migrations as $migration) $byFile[$migration['file']] = $migration;
 $assert(isset($byFile['PHASE13_SALES_RETURNS_ACCOUNT.sql']) && !$byFile['PHASE13_SALES_RETURNS_ACCOUNT.sql']['enabled'],
     'Phase 13 must remain blocked until its fixed account parent and open transaction are reviewed.');
 $assert(isset($byFile['PHASE22_JOURNAL_CASHBOX_REFERENCE.sql']) && $byFile['PHASE22_JOURNAL_CASHBOX_REFERENCE.sql']['enabled'],
     'Phase 22 must be available when the branch ownership prerequisite exists and its schema objects are absent.');
+$assert(isset($byFile['PHASE24_FINANCIAL_VOUCHERS.sql']) && !$byFile['PHASE24_FINANCIAL_VOUCHERS.sql']['enabled'] && $byFile['PHASE24_FINANCIAL_VOUCHERS.sql']['status'] === 'BLOCKED',
+    'Phase 24 must wait until Phase 22 cash-box references are complete.');
 
 $wrongConfirmationRejected = false;
 try {
@@ -101,6 +105,18 @@ $assert($wrongConfirmationRejected, 'Migration execution must require exact type
 
 foreach ($migrations as $migration) {
     if (!$migration['enabled']) continue;
+
+    // Refresh prerequisites after each migration so later phases can become enabled
+    // only after their dependencies (notably Phase 22 before Phase 24) are complete.
+    $current = null;
+    foreach ($manager->listMigrations() as $candidate) {
+        if ($candidate['file'] === $migration['file']) {
+            $current = $candidate;
+            break;
+        }
+    }
+    if (!$current || !$current['enabled']) continue;
+
     $result = $manager->run($migration['file'], $migration['file'], 1);
     $assert(!empty($result['message']), 'Migration must return an execution result: ' . $migration['file']);
 
