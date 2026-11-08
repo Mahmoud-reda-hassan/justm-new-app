@@ -102,6 +102,21 @@ try {
             $requireFinanceAdmin();
             $marketerId = (int)($_POST['partner_id'] ?? 0);
             $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $cashBoxId = (int)($_POST['cash_box_id'] ?? 0);
+            if ($paymentMethodId === 1 && $cashBoxId <= 0) {
+                $availableBoxes = $cashBoxes->listForPaymentMethod($branchId, 1);
+                $defaults = array_values(array_filter(
+                    $availableBoxes,
+                    static fn(array $box): bool => (int)($box['is_default'] ?? 0) === 1
+                ));
+                if (count($defaults) === 1) {
+                    $cashBoxId = (int)$defaults[0]['id'];
+                } elseif (count($availableBoxes) === 1) {
+                    $cashBoxId = (int)$availableBoxes[0]['id'];
+                } else {
+                    throw new RuntimeException('حدد خزينة افتراضية للفرع أو أرسل cash_box_id عند صرف عمولة المسوق.');
+                }
+            }
             $amount = (float)($_POST['amount'] ?? 0);
             $requestKey = trim((string)($_POST['request_key'] ?? ''));
             $note = trim((string)($_POST['note'] ?? ''));
@@ -116,11 +131,12 @@ try {
                 'marketer_id' => $marketerId,
                 'branch_id' => $branchId,
                 'payment_method_id' => $paymentMethodId,
+                'cash_box_id' => $cashBoxId,
                 'amount' => number_format(round($amount, 2), 2, '.', ''),
                 'note' => $note,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             $result = $deliveryAccounting->payMarketerCommission(
-                $marketerId, $branchId, $paymentMethodId, $amount, $note, $requestKey, $requestHash
+                $marketerId, $branchId, $paymentMethodId, $amount, $note, $requestKey, $requestHash, $cashBoxId
             );
             echo json_encode([
                 'success',
