@@ -414,11 +414,11 @@ class DatabaseMigrationManager
 
             // Fresh databases have no legacy refunds to bridge and do not need legacy account mappings.
             if ($postedRefundJournals > 0) {
-                $stmt = $this->db->query("SELECT COUNT(*) FROM account_settings WHERE setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')");
+                $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')");
                 $customerAccountMappings = (int)$stmt->fetchColumn();
                 $stmt->closeCursor();
-                if ($customerAccountMappings < 1) {
-                    throw new RuntimeException('لا يمكن ترحيل مستندات الرد التاريخية قبل ضبط حساب العملاء أو رصيد العملاء الدائن في إعدادات الأستاذ العام.');
+                if ($customerAccountMappings !== 2) {
+                    throw new RuntimeException('لا يمكن ترحيل مستندات الرد التاريخية قبل ضبط حساب العملاء CUSTOMERS وحساب رصيد العملاء الدائن CUSTOMER_CREDITS في إعدادات الأستاذ العام.');
                 }
 
                 $invalidRefunds = $this->db->query("
