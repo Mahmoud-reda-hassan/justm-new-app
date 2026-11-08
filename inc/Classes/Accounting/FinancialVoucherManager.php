@@ -218,7 +218,8 @@ final class FinancialVoucherManager
                             (float)$line['amount'],
                             (int)$data['created_by'],
                             false,
-                            $voucherNo
+                            $voucherNo,
+                            (int)($data['target_journal_entry_id'] ?? 0)
                         );
                     }
                 }
@@ -445,6 +446,11 @@ final class FinancialVoucherManager
             throw new InvalidArgumentException('وصف المستند مطلوب وبحد أقصى 500 حرف.');
         }
 
+        $targetJournalEntryId = (int)($input['target_journal_entry_id'] ?? 0);
+        if ($targetJournalEntryId < 0 || ($targetJournalEntryId > 0 && $subtype !== 'CUSTOMER_RECEIPT')) {
+            throw new InvalidArgumentException('مرجع قيد البيع مسموح فقط لسند تحصيل عميل صحيح.');
+        }
+
         $partnerId = null;
         $lines = [];
         if ($subtype === 'CUSTOMER_RECEIPT' || $subtype === 'SUPPLIER_REFUND') {
@@ -495,6 +501,7 @@ final class FinancialVoucherManager
             'voucher_date' => $voucherDate,
             'partner_type' => $partnerType,
             'partner_id' => $partnerId,
+            'target_journal_entry_id' => $targetJournalEntryId,
             'total_amount' => $totalAmount,
             'description' => $description,
             'idempotency_key' => $idempotencyKey,
@@ -509,6 +516,7 @@ final class FinancialVoucherManager
                 'voucher_date' => $voucherDate,
                 'partner_type' => $partnerType,
                 'partner_id' => $partnerId,
+                'target_journal_entry_id' => $targetJournalEntryId,
                 'total_amount' => $totalAmount,
                 'description' => $description,
                 'lines' => $lines,
@@ -529,7 +537,10 @@ final class FinancialVoucherManager
         $clientId = (int)$data['partner_id'];
         $receivableAccountId = $this->accountSettings->customers();
         $creditBalanceAccountId = $this->accountSettings->customerCredits();
-        $openReceivable = $this->getOpenDebitAmount($receivableAccountId, 'CLIENT', $clientId);
+        $targetJournalId = (int)($data['target_journal_entry_id'] ?? 0);
+        $openReceivable = $targetJournalId > 0
+            ? $this->getOpenDebitAmountForJournal($targetJournalId, $receivableAccountId, 'CLIENT', $clientId, (int)$data['branch_id'])
+            : $this->getOpenDebitAmount($receivableAccountId, 'CLIENT', $clientId);
         $receivableAmount = round(min((float)$data['total_amount'], $openReceivable), 2);
         $creditAmount = round((float)$data['total_amount'] - $receivableAmount, 2);
         $lines = [];
@@ -625,6 +636,43 @@ final class FinancialVoucherManager
         throw new RuntimeException('الخزينة المحددة غير نشطة أو غير مربوطة بطريقة الدفع النقدي لهذا الفرع.');
     }
 
+    private function getOpenDebitAmountForJournal(
+        int $journalId,
+        int $accountId,
+        string $partnerType,
+        int $partnerId,
+        int $branchId
+    ): float {
+        $header = $this->db->prepare(
+            "SELECT id FROM journal_entries
+             WHERE id = ? AND branch_id = ? AND status = 'POSTED'
+               AND reference_type IN ('DIRECT_SALE', 'ORDER_SHIPPING')
+             LIMIT 1"
+        );
+        $header->execute([$journalId, $branchId]);
+        $exists = (bool)$header->fetchColumn();
+        $header->closeCursor();
+        if (!$exists) {
+            throw new RuntimeException('قيد البيع/الشحن المرتبط بالتحصيل غير موجود أو غير مرحل في الفرع الحالي.');
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(open_amount), 0)
+             FROM (
+                SELECT d.id, GREATEST(d.debit - COALESCE(SUM(a.amount), 0), 0) AS open_amount
+                FROM journal_entry_details d
+                INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
+                LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
+                WHERE d.journal_entry_id = ? AND d.account_id = ?
+                  AND d.partner_type = ? AND d.partner_id = ?
+                  AND d.debit > 0 AND d.credit = 0
+                GROUP BY d.id, d.debit
+             ) open_lines"
+        );
+        $stmt->execute([$journalId, $accountId, $partnerType, $partnerId]);
+        return round((float)$stmt->fetchColumn(), 2);
+    }
+
     private function getOpenDebitAmount(int $accountId, string $partnerType, int $partnerId): float
     {
         $stmt = $this->db->prepare(
@@ -652,21 +700,26 @@ final class FinancialVoucherManager
         float $amount,
         int $createdBy,
         bool $allowCustomerCredit,
-        string $voucherNo
+        string $voucherNo,
+        int $targetJournalId = 0
     ): void {
-        $stmt = $this->db->prepare(
-            "SELECT d.id, d.debit, COALESCE(SUM(a.amount), 0) AS allocated_amount
+        $sql = "SELECT d.id, d.debit, COALESCE(SUM(a.amount), 0) AS allocated_amount
              FROM journal_entry_details d
              INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status = 'POSTED'
              LEFT JOIN accounting_line_allocations a ON a.debit_line_id = d.id AND a.status = 'ACTIVE'
              WHERE d.account_id = ? AND d.partner_type = ? AND d.partner_id = ?
-               AND d.debit > 0 AND d.credit = 0
-             GROUP BY d.id, d.debit, h.entry_date, h.id, d.line_no
+               AND d.debit > 0 AND d.credit = 0";
+        $params = [$accountId, $partnerType, $partnerId];
+        if ($targetJournalId > 0) {
+            $sql .= ' AND d.journal_entry_id = ?';
+            $params[] = $targetJournalId;
+        }
+        $sql .= " GROUP BY d.id, d.debit, h.entry_date, h.id, d.line_no
              HAVING d.debit > COALESCE(SUM(a.amount), 0)
              ORDER BY h.entry_date, h.id, d.line_no, d.id
-             FOR UPDATE"
-        );
-        $stmt->execute([$accountId, $partnerType, $partnerId]);
+             FOR UPDATE";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $remaining = round($amount, 2);
 
