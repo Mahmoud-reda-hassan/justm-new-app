@@ -97,7 +97,7 @@ check('Per-line delivered cost validation', 'INVALID_COST_LINES_COUNT' in accoun
 check('Sales journal idempotency marker', 'SALE_ENTRY_ID' in accounting and 'WHERE ORDER_ID = ? AND SALE_ENTRY_ID IS NULL' in accounting)
 check('Return stock receipt gate', 'assertSalesReturnStockReceived' in accounting and "IM_MOVE_TYPE = 'RETURN_SALES'" in accounting)
 check('Shipping revenue mapped separately', 'shippingRevenue()' in accounting and "'SHIPPING_REVENUE'" in read('inc/Classes/Accounting/AccountSettings.php'))
-check('Sales journal uses order branch', "'branch_id'      => (int)$order['BRANCH_ID']" in accounting)
+check('Sales journal uses order branch', "'branch_id' => (int)$order['BRANCH_ID']" in accounting)
 mailer = read('inc/Classes/Mailer.php')
 check('SMTP mailer uses server configuration', 'JUSTM_SMTP_HOST' in mailer and 'JUSTM_SMTP_PASSWORD' in mailer)
 check('SMTP credentials are not hard-coded in legacy mail files', 'pogy25502984' not in read('inc/public_functionsold_.php') and 'pogy25502984' not in read('inc/controller/BackEnd/sendMail_BE.php'))
@@ -126,7 +126,7 @@ for sql_rel in ['JUSTM_DATABASE_INSTALL.sql', 'inc/Databases/JUSTM_DATABASE_INST
 php_files = [p for p in ROOT.rglob('*.php') if p.is_file() and 'vendor' not in p.parts]
 def lint_php(p):
     r = subprocess.run(['php', '-l', str(p)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    return (str(p.relative_to(ROOT)), r.stderr.strip()) if r.returncode else None
+    return (str(p.relative_to(ROOT)), (r.stdout + '\\n' + r.stderr).strip()) if r.returncode else None
 with ThreadPoolExecutor(max_workers=12) as pool:
     php_bad = [x for x in pool.map(lint_php, php_files) if x]
 check('PHP syntax (' + str(len(php_files)) + ' files)', not php_bad, '; '.join(x[0] for x in php_bad[:8]))
