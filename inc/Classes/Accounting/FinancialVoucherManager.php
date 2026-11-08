@@ -273,30 +273,8 @@ final class FinancialVoucherManager
                 throw new RuntimeException('لا يمكن عكس مستند غير مرحل.');
             }
 
-            $lineStmt = $this->db->prepare(
-                'SELECT id FROM journal_entry_details
-                 WHERE journal_entry_id = ? AND partner_type IS NOT NULL AND partner_id IS NOT NULL'
-            );
-            $lineStmt->execute([(int)$voucher['journal_entry_id']]);
-            $partnerLineIds = array_map('intval', $lineStmt->fetchAll(PDO::FETCH_COLUMN));
-            $lineStmt->closeCursor();
+            // JournalManager::reverse يعكس جميع تخصيصات السطور المرتبطة بالقيد الأصلي داخل نفس المعاملة.
 
-            foreach ($partnerLineIds as $lineId) {
-                $allocations = $this->db->prepare(
-                    "SELECT id FROM accounting_line_allocations
-                     WHERE credit_line_id = ? AND status = 'ACTIVE'"
-                );
-                $allocations->execute([$lineId]);
-                $allocationIds = array_map('intval', $allocations->fetchAll(PDO::FETCH_COLUMN));
-                $allocations->closeCursor();
-                foreach ($allocationIds as $allocationId) {
-                    $this->partnerLedger->reverseAllocation(
-                        $allocationId,
-                        $reversedBy,
-                        'عكس سند قبض/صرف ' . $voucher['voucher_no'] . ': ' . trim($reason)
-                    );
-                }
-            }
 
             $event = $this->events->post([
                 'idempotency_key' => 'FV-REV:' . $voucherId,
