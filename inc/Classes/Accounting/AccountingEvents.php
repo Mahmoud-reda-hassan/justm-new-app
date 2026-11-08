@@ -942,6 +942,7 @@ class AccountingEvents {
 	            FT.entity_id,
 	            FT.status,
 	            FT.accounting_posted,
+	            FT.accounting_entry_id,
 	            I.reference_id,
 	            I.reference_type,
 	            O.ORDER_TYPE_ID,
@@ -1018,51 +1019,39 @@ class AccountingEvents {
         });
     }
 
-    private function salesReturnPaymentInternal(int $transactionId): int {
-	
-	    // جلب بيانات الحركة المالية
-	    $trx = $this->getSalesReturnPayment($transactionId);
-		
-	    // التحقق
-	    $this->validateSalesReturnPayment($trx);
-	
-	    // إنشاء القيد
-	    
-	    $this->journal->create([
-	        'branch_id'      => $trx['branch_id'],
-	        'entry_date'     => $trx['JOURNAL_DATE'],
-	        'reference_type' => 'SALES_RETURN_PAYMENT',
-	        'reference_id'   => $transactionId,
-	        'description'    => 'صرف قيمة مرتجع بيع رقم '.$trx['SUB_ORDER_ID'],
-	        'created_by'     => $this->getCurrentUserId()
-	    ]);
-		
-	    // مدين العملاء
-	    $this->journal->addLine([
-	        'account_id'   => $this->settings->customers(),
-	        'partner_type' => 'CLIENT',
-	        'partner_id'   => $trx['entity_id'],
-	        'debit'        => (float)$trx['amount']
-	    ]);
-		
-	    // دائن صندوق الفرع
-	    $this->journal->addLine([
-	        'account_id' => $this->settings->transactionAccount((int)$trx['payment_method_id'], (int)$trx['branch_id']),
-	        'credit'     => (float)$trx['amount']
-	    ]);
-	    
-	
-	    // ترحيل القيد
-	    $journalId = $this->journal->post();
-	    // تحديث الحركة
-	    $this->markPaymentPosted($transactionId, $journalId);
-	 	
-	    return $journalId;
-	}
-	
-    
-    
-    
-    
-    
+    private function salesReturnPaymentInternal(int $transactionId): int
+    {
+        $trx = $this->getSalesReturnPayment($transactionId);
+
+        if ((int)$trx['accounting_posted'] === 1) {
+            $existingJournalId = (int)($trx['accounting_entry_id'] ?? 0);
+            if ($existingJournalId <= 0) {
+                throw new RuntimeException('حركة رد المرتجع معلّمة كمرحّلة دون مرجع قيد؛ يلزم فحصها يدويًا.');
+            }
+            return $existingJournalId;
+        }
+
+        $this->validateSalesReturnPayment($trx);
+        $orderId = (int)$trx['reference_id'];
+        $requestKey = 'RETURN-TRANSACTION:' . $transactionId;
+        $requestHash = hash('sha256', json_encode([
+            'transaction_id' => $transactionId,
+            'order_id' => $orderId,
+            'client_id' => (int)$trx['entity_id'],
+            'payment_method_id' => (int)$trx['payment_method_id'],
+            'amount' => round((float)$trx['amount'], 2),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        $refund = (new CustomerRefundManager($this->db))->refund(
+            $orderId,
+            (int)$trx['payment_method_id'],
+            (float)$trx['amount'],
+            $requestKey,
+            $requestHash
+        );
+        $journalId = (int)$refund['journal_id'];
+        $this->markPaymentPosted($transactionId, $journalId);
+        return $journalId;
+    }
+
 }
