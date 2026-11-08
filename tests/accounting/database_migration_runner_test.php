@@ -182,6 +182,24 @@ $assert($voucherSchemaPresent !== null && $voucherSchemaPresent['status'] === 'S
 $recognizedVoucherSchema = $manager->run('PHASE24_FINANCIAL_VOUCHERS.sql', 'PHASE24_FINANCIAL_VOUCHERS.sql', 1);
 $assert(!empty($recognizedVoucherSchema['already_applied']), 'Existing Phase 24 schema must be recorded without rerunning DDL.');
 
+// A missing CUSTOMER_CREDITS mapping is safely repairable by rerunning Phase 24;
+// a conflicting mapping to another account remains a blocked schema-drift condition.
+$pdo->exec("DELETE FROM account_settings WHERE setting_key = 'CUSTOMER_CREDITS'");
+$deletePhase24Ledger->execute(['PHASE24_FINANCIAL_VOUCHERS.sql']);
+$mappingRepair = null;
+foreach ($manager->listMigrations() as $migration) {
+    if ($migration['file'] === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+        $mappingRepair = $migration;
+        break;
+    }
+}
+$assert($mappingRepair !== null && $mappingRepair['status'] === 'PENDING' && $mappingRepair['enabled'],
+    'Phase 24 must remain runnable when only the customer credit mapping is missing.');
+$repaired = $manager->run('PHASE24_FINANCIAL_VOUCHERS.sql', 'PHASE24_FINANCIAL_VOUCHERS.sql', 1);
+$assert(empty($repaired['already_applied']), 'Phase 24 must rerun its idempotent mapping repair when required.');
+$mappingRestored = (int)$pdo->query("SELECT COUNT(*) FROM account_settings s INNER JOIN accounts a ON a.id = s.account_id WHERE s.setting_key = 'CUSTOMER_CREDITS' AND a.account_code = '1152'")->fetchColumn();
+$assert($mappingRestored === 1, 'Phase 24 must restore the customer credit control mapping.');
+
 $final = $manager->listMigrations();
 foreach ($final as $migration) {
     if (!$migration['enabled']) continue;
