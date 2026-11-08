@@ -655,6 +655,7 @@ class finance_BE {
 						O.ORDER_SUCCESS,
 						O.LAST_UPDATE,
 						TE.CLIENT_ID,
+						sale_journal.branch_id AS BRANCH_ID,
 						CO.USER_ID AS DELIVERY_ID,
 						ROUND((if(CO.CUST_STAT = 'FREEZE' ,0,O.SHIPPING_VAL) * UD.PERCENT / 100),2) AS DELIVERY_CIMMISSION,
 						UA.AFFILIATEED_WITH AS LEADER_ID,
@@ -693,6 +694,7 @@ class finance_BE {
 					LEFT JOIN users_affiliate AS UB ON UA.AFFILIATEED_WITH = UB.USER_ID
 					LEFT JOIN users_delivery  AS UD ON CO.USER_ID = UD.USER_ID
 					LEFT JOIN telephones      AS TE ON TE.TEL_ID = O.TEL_ID
+					LEFT JOIN journal_entries AS sale_journal ON sale_journal.id = O.SALE_ENTRY_ID
 					LEFT JOIN 
 					(   SELECT  
 						 CP.ORDER_ID,
@@ -709,7 +711,7 @@ class finance_BE {
 						GROUP BY CP.ORDER_ID, CP.USER_ID, CP.PRO_CODE, PR.PRO_NAME
 					) AS VOP ON CP.ORDER_ID = VOP.ORDER_ID AND CP.PRO_CODE = VOP.PRO_CODE AND CP.USER_ID = VOP.USER_ID
 					WHERE FIND_IN_SET (CO.ORDER_ID ,:oids)
-				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE";
+				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE, sale_journal.branch_id";
 			$oIds = htmlspecialchars(strip_tags(trim(implode(',',array_keys($orderIds)))));
 			$this->conn->beginTransaction();
 			
@@ -764,59 +766,36 @@ class finance_BE {
 				}
 					//===============================================
 				if($err === 0){
-						// تسجيل فاتورة مبيعات المنتجات
-						$invoice_id1 = $this->Add_invoice($orderData['ORDER_ID'], 'SALES', $orderData['TOTAL_DELIVERED_PRICE'], $orderData['TOTAL_REJECTED_PRICE'], $orderData['ACTUAL_TOTAL'], 1);
+                        // تسجيل تحصيل العميل وعهدة المندوب وعمولاته في GL دون إنشاء فواتير/حركات مالية قديمة.
+                        $collectionAmount = round((float)$orderData['REQUIRED_PAYMENT'], 2);
+                        if ($collectionAmount <= 0) {
+                            $error[] = 'لا يوجد مبلغ مستحق للتحصيل في أمر البيع ' . $orderData['SUB_ORDER_ID'];
+                            continue;
+                        }
+                        if (empty($orderData['BRANCH_ID'])) {
+                            $error[] = 'لا يوجد فرع مرتبط بقيد البيع لأمر ' . $orderData['SUB_ORDER_ID'];
+                            continue;
+                        }
 
-						if(!$invoice_id1){
-							$error[] = "Invoice Record Number is null";
-							continue;
-						}
-						// اضافة المعامله
-						$transactionRecorded1 = $this->Add_transaction($invoice_id1, 'CLIENT',$orderData['CLIENT_ID'], $orderData['ACTUAL_TOTAL'],1, 9 ,'COMPLETED','ORDER_PRODUCTS');
-						if(!$transactionRecorded1){
-							$error[] = "Unable to record financial1 transaction";
-							continue;
-						}
-						// ترحيل التحصيل إلى دفتر الأستاذ وتخصيصه على مديونية أمر البيع.
-						$this->Accounting->directSalePayment((int)$transactionRecorded1);
-						// لا نكتب رصيد العميل في partners_balance؛ قيد سند القبض في GL هو مصدر الرصيد الوحيد.
-						//===============================================
-						
-						//تسجيل فاتورة خدمة الشحن
-						if($orderData['SHIPPING_VAL']>0){
-							// اضافة المعامله
-							$transactionRecorded2 = $this->Add_transaction($invoice_id1, 'CLIENT', $orderData['CLIENT_ID'], $orderData['SHIPPING_VAL'],1, 9 ,'COMPLETED','ORDER_SHIPPING');
-							if(!$transactionRecorded2){
-								$error[] = "Unable to record financial2 transaction";
-								continue;
-							}
-							// رسوم الشحن حركة تحصيل مستقلة لكنها تخص نفس مديونية أمر البيع.
-							$this->Accounting->directSalePayment((int)$transactionRecorded2);
-						}
-						// تحديث رصيد المندوب اذا كان الامر تم تسليمه عن طريق الشحن
-						if($orderData['DELIVERY_ID']){
-							$update_delevery_balance = $this->Add_partners_balance( 'DELIVERY', $orderData['DELIVERY_ID'], $orderData['ORDER_ID'], 'CREDIT', $orderData['DELIVERY_CIMMISSION'],'عمولة مستحقة للمندوب من خدمة الشحن','12');
-							if(!$update_delevery_balance){
-								$error[] = "An error occurred while updating the delegate's balance.";
-								continue;
-							}
-						}
-						// تحديث رصيد المسوق ان كان نوع الامر من المسوق
-						if($orderData['ORDER_TYPE_ID'] == 2  && $orderData['MARKETER_ID'] && $orderData['CUST_STAT'] !='FREEZE'){
-							$update_marketer_balance = $this->Add_partners_balance( 'MARKETER', $orderData['MARKETER_ID'], $orderData['ORDER_ID'], 'CREDIT', $orderData['MARKETER_COMMISSION'],'عمولة مستحقة للمسوق من امر البيع','12' );
-							if(!$update_marketer_balance){
-								$error[] = "An error occurred while updating the MARKETER's balance.";
-								continue;
-							}
-							// تحديث رصيد قائد المسوق ان وجد قائد للمسوق
-							if($update_marketer_balance && $orderData['ORDER_TYPE_ID'] == 2 && $orderData['LEADER_ID'] && $orderData['CUST_STAT'] !='FREEZE'){
-								$update_mleader_balance = $this->Add_partners_balance( 'MARKETER', $orderData['LEADER_ID'], $orderData['ORDER_ID'], 'CREDIT', $orderData['LEADER_COMMISSION'], 'عمولة مستحقة للمسوق من الفريق' ,'12');
-								if(!$update_mleader_balance){
-									$error[] = "An error occurred while updating the leader's balance.";
-									continue;
-								}
-							}
-						}
+                        $collectionKey = 'FINANCE-COLLECTION:' . (int)$delivery_id . ':' . (int)$orderId . ':'
+                            . substr(hash('sha256', number_format($collectionAmount, 2, '.', '')), 0, 16);
+                        $collectionManager = new DeliverySettlementManager($this->conn);
+                        $collectionResult = $collectionManager->registerCustomerCollection(
+                            (int)$delivery_id,
+                            (int)$orderData['BRANCH_ID'],
+                            1,
+                            [(int)$orderId => $collectionAmount],
+                            $collectionKey,
+                            'تحصيل أمر البيع من المندوب'
+                        );
+                        if (empty($collectionResult['success']) || empty($collectionResult['collections'][0])) {
+                            $error[] = 'فشل ترحيل تحصيل أمر البيع ' . $orderData['SUB_ORDER_ID'] . ' إلى GL.';
+                            continue;
+                        }
+                        $totalCHECK += (float)$orderData['ACTUAL_TOTAL'];
+                        $totatShipp += (float)$orderData['SHIPPING_VAL'];
+                        $shippCommission += (float)($collectionResult['collections'][0]['commission'] ?? 0);
+
 						// تحديث حالة أمر البيع
 						$stmt = $this->conn->prepare("UPDATE orders SET ORDER_SUCCESS = 1 ,LAST_UPDATE = NOW(6) WHERE ORDER_ID = ?");
 						$stmt->execute([$orderData['ORDER_ID']]);
