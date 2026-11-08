@@ -39,7 +39,7 @@ if(DEBUG === true || isset($_GET["debug"])){
 
 ?>
 <!-- FingerprintJS -->
-<script src="/libraries/fingerprint/fp.min.js"></script>
+<script src="/libraries/fingerprint/fp.min.js?v=<?= $perm->assetVersion('/libraries/fingerprint/fp.min.js') ?>"></script>
 <!-- <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>-->
 
 <script>
@@ -109,21 +109,21 @@ window.APP_CONFIG = {
 <script src="/dest/asassets/js/app.js"></script>-->
 
 <!-- jQuery -->
-<script src="/libraries/jQuery/jquery-3.6.1.min.js"></script>
+<script src="/libraries/jQuery/jquery-3.6.1.min.js?v=<?= $perm->assetVersion('/libraries/jQuery/jquery-3.6.1.min.js') ?>"></script>
 <!-- Cookies -->
-<script src="/libraries/jquery-cookie/jquery.cookie.min.js"></script>
+<script src="/libraries/jquery-cookie/jquery.cookie.min.js?v=<?= $perm->assetVersion('/libraries/jquery-cookie/jquery.cookie.min.js') ?>"></script>
 
-<script src="/libraries/inputmask/jquery.inputmask.min.js"></script>
-<script src="/libraries/ping-js/ping.min.js"></script>
+<script src="/libraries/inputmask/jquery.inputmask.min.js?v=<?= $perm->assetVersion('/libraries/inputmask/jquery.inputmask.min.js') ?>"></script>
+<script src="/libraries/ping-js/ping.min.js?v=<?= $perm->assetVersion('/libraries/ping-js/ping.min.js') ?>"></script>
 
 <!-- Raphael -->
-<script src="/libraries/raphael/raphael.min.js"></script>
+<script src="/libraries/raphael/raphael.min.js?v=<?= $perm->assetVersion('/libraries/raphael/raphael.min.js') ?>"></script>
 
 <!-- Mapael -->
-<script src="/libraries/jquery-mapael/jquery.mapael.min.js"></script>
+<script src="/libraries/jquery-mapael/jquery.mapael.min.js?v=<?= $perm->assetVersion('/libraries/jquery-mapael/jquery.mapael.min.js') ?>"></script>
 
 <!-- خرائط Mapael -->
-<script src="/libraries/jquery-mapael/maps/world_countries.min.js"></script>
+<script src="/libraries/jquery-mapael/maps/world_countries.min.js?v=<?= $perm->assetVersion('/libraries/jquery-mapael/maps/world_countries.min.js') ?>"></script>
 <!-- Select2 Library -->
 <!--<script src="/libraries/select2-4.1.0/select2.min.js"></script>-->
 <!--<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>-->
