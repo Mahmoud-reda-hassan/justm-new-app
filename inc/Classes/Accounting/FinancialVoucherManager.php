@@ -348,6 +348,20 @@ final class FinancialVoucherManager
         });
     }
 
+    public function listPartners(string $partnerType): array
+    {
+        $partnerType = strtoupper(trim($partnerType));
+        if ($partnerType === 'CLIENT') {
+            $stmt = $this->db->query('SELECT CLIENT_ID AS id, CLIENT_NAME AS name FROM client ORDER BY CLIENT_NAME, CLIENT_ID LIMIT 1000');
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        if ($partnerType === 'SUPPLIER') {
+            $stmt = $this->db->query('SELECT SUP_ID AS id, SUP_NAME AS name FROM suppliers ORDER BY SUP_NAME, SUP_ID LIMIT 1000');
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        throw new InvalidArgumentException('نوع الطرف غير مدعوم في سندات القبض والصرف.');
+    }
+
     public function listGeneralAccounts(string $voucherType): array
     {
         $voucherType = strtoupper(trim($voucherType));
