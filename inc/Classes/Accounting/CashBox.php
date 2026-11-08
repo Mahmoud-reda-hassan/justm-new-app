@@ -89,6 +89,9 @@ final class CashBox
         if ($branchId <= 0 || $paymentMethodId <= 0) {
             throw new InvalidArgumentException('الفرع وطريقة الدفع مطلوبان لعرض الخزائن.');
         }
+        if ($paymentMethodId !== 1) {
+            return [];
+        }
 
         $stmt = $this->db->prepare(
             "SELECT cb.id, cb.account_id,
