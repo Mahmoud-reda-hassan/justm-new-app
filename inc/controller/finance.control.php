@@ -160,6 +160,41 @@ try {
             ], JSON_UNESCAPED_UNICODE);
             break;
 
+        case 'GetCashBoxManagementData':
+            $requireFinanceAdmin();
+            $selectedBranchId = (int)($_POST['branch_id'] ?? 0);
+            echo json_encode([
+                'success' => true,
+                'branches' => $cashBoxes->listBranches(),
+                'accounts' => $cashBoxes->listPostingAccounts(),
+                'cash_boxes' => $selectedBranchId > 0 ? $cashBoxes->listForBranch($selectedBranchId) : [],
+                'payment_methods' => $selectedBranchId > 0 ? $cashBoxes->listPaymentMethods($selectedBranchId) : [],
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'SaveCashBox':
+            $requireFinanceAdmin();
+            $selectedBranchId = (int)($_POST['branch_id'] ?? 0);
+            $boxId = (int)($_POST['box_id'] ?? 0);
+            $accountId = (int)($_POST['account_id'] ?? 0);
+            $boxName = trim((string)($_POST['box_name'] ?? ''));
+            $activeRaw = (string)($_POST['is_active'] ?? '1');
+            if (!in_array($activeRaw, ['0', '1'], true)) {
+                throw new InvalidArgumentException('حالة الخزينة غير صحيحة.');
+            }
+            $savedId = $cashBoxes->save($selectedBranchId, $boxId, $boxName, $accountId, $activeRaw === '1');
+            echo json_encode(['success' => true, 'cash_box_id' => $savedId, 'message' => 'تم حفظ بيانات الخزينة.'], JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'SetCashBoxPaymentMethod':
+            $requireFinanceAdmin();
+            $selectedBranchId = (int)($_POST['branch_id'] ?? 0);
+            $paymentMethodId = (int)($_POST['payment_method_id'] ?? 0);
+            $cashBoxId = (int)($_POST['cash_box_id'] ?? 0);
+            $cashBoxes->setPaymentMethodMapping($selectedBranchId, $paymentMethodId, $cashBoxId);
+            echo json_encode(['success' => true, 'message' => $cashBoxId > 0 ? 'تم ربط طريقة الدفع بالخزينة.' : 'تم إلغاء ربط طريقة الدفع.'], JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'GetDeliveryCommissionMode':
             $requireFinanceAdmin();
             echo json_encode(['success' => true, 'mode' => $deliveryAccounting->getCommissionSettlementMode()], JSON_UNESCAPED_UNICODE);
