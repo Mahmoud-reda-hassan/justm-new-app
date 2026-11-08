@@ -363,6 +363,49 @@ final class FinancialVoucherManager
         return $this->cashBoxes->listForPaymentMethod($branchId, 1);
     }
 
+    /** رصيد المديونية المفتوحة على العميل/المورد وفق تخصيصات GL النشطة. */
+    public function getOpenPartnerDebitAmount(string $partnerType, int $partnerId): float
+    {
+        $partnerType = strtoupper(trim($partnerType));
+        $accountId = $partnerType === 'CLIENT'
+            ? $this->accountSettings->customers()
+            : ($partnerType === 'SUPPLIER' ? $this->accountSettings->suppliers() : 0);
+        if ($accountId <= 0 || $partnerId <= 0) {
+            throw new InvalidArgumentException('نوع الطرف أو رقمه غير صحيح.');
+        }
+        return $this->getOpenDebitAmount($accountId, $partnerType, $partnerId);
+    }
+
+    /** تخصيص دائن مرتجع على أقدم مديونيات الطرف داخل نفس معاملة الترحيل. */
+    public function allocatePartnerCreditLineToOldestDebits(
+        int $creditJournalId,
+        int $creditLineId,
+        string $partnerType,
+        int $partnerId,
+        float $amount,
+        int $createdBy,
+        string $description
+    ): void {
+        $partnerType = strtoupper(trim($partnerType));
+        $accountId = $partnerType === 'CLIENT'
+            ? $this->accountSettings->customers()
+            : ($partnerType === 'SUPPLIER' ? $this->accountSettings->suppliers() : 0);
+        if ($accountId <= 0 || $partnerId <= 0 || $creditJournalId <= 0 || $creditLineId <= 0 || $amount <= 0) {
+            throw new InvalidArgumentException('بيانات تخصيص رصيد الطرف غير صحيحة.');
+        }
+        $this->allocateReceiptToOldestDebits(
+            $creditJournalId,
+            $creditLineId,
+            $accountId,
+            $partnerType,
+            $partnerId,
+            $amount,
+            $createdBy,
+            false,
+            $description
+        );
+    }
+
     public function getPartnerBalance(string $partnerType, int $partnerId): float
     {
         $partnerType = strtoupper(trim($partnerType));
