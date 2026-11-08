@@ -80,6 +80,19 @@ final class CustomerRefundManager
 
             // توافق مع المرتجعات القديمة: أي رصيد مرتجع قديم على 1151 يخصم من أقدم المديونيات أولًا.
             // المرتجعات الجديدة تسجل الزيادة مباشرة على 1152 بعد إغلاق المديونية.
+            // احتساب الردود القديمة قبل توزيع أي رصيد مرتجع قديم على المديونية.
+            $legacyRefundStmt = $this->db->prepare("SELECT COALESCE(SUM(d.debit),0)
+                FROM journal_entries h
+                INNER JOIN financial_transactions ft ON h.reference_type = 'SALES_RETURN_PAYMENT'
+                    AND ft.id = h.reference_id
+                INNER JOIN invoices i ON i.INVO_ID = ft.invoice_id AND i.reference_id = ?
+                INNER JOIN journal_entry_details d ON d.journal_entry_id = h.id
+                    AND d.account_id = ? AND d.partner_type = 'CLIENT'
+                    AND d.partner_id = ? AND d.debit > 0
+                WHERE h.status = 'POSTED'");
+            $legacyRefundStmt->execute([$orderId, $customerAccountId, (int)$order['CLIENT_ID']]);
+            $legacyRefunded = round((float)$legacyRefundStmt->fetchColumn(), 2);
+
             $legacyReturnLinesStmt = $this->db->prepare(
                 "SELECT d.id, d.credit, COALESCE(SUM(a.amount),0) AS allocated_amount
                  FROM journal_entry_details d
@@ -101,12 +114,16 @@ final class CustomerRefundManager
             if ($legacyReturnLines) {
                 $voucherManager = new FinancialVoucherManager($this->db);
                 $openCustomerDebt = $voucherManager->getOpenPartnerDebitAmount('CLIENT', (int)$order['CLIENT_ID']);
+                $remainingLegacyRefunded = $legacyRefunded;
                 foreach ($legacyReturnLines as $returnLine) {
                     if ($openCustomerDebt <= 0.009) break;
                     $unallocated = max(0.0, round(
                         (float)$returnLine['credit'] - (float)$returnLine['allocated_amount'],
                         2
                     ));
+                    $alreadyRefundedFromLine = min($unallocated, $remainingLegacyRefunded);
+                    $unallocated = round($unallocated - $alreadyRefundedFromLine, 2);
+                    $remainingLegacyRefunded = round($remainingLegacyRefunded - $alreadyRefundedFromLine, 2);
                     $applyToDebt = min($unallocated, $openCustomerDebt);
                     if ($applyToDebt <= 0) continue;
                     $voucherManager->allocatePartnerCreditLineToOldestDebits(
@@ -168,19 +185,6 @@ final class CustomerRefundManager
             $refundedStmt->execute([$orderId]);
             $alreadyRefunded = round((float)$refundedStmt->fetchColumn(), 2);
 
-            // احتساب أي ردود قديمة سبق ترحيلها إلى GL عبر invoices/financial_transactions.
-            // هذه قراءة تاريخية فقط لمنع تكرار الصرف؛ كل الردود الجديدة تسجل في customer_refund_payments.
-            $legacyRefundStmt = $this->db->prepare("SELECT COALESCE(SUM(d.debit),0)
-                FROM journal_entries h
-                INNER JOIN financial_transactions ft ON h.reference_type = 'SALES_RETURN_PAYMENT'
-                    AND ft.id = h.reference_id
-                INNER JOIN invoices i ON i.INVO_ID = ft.invoice_id AND i.reference_id = ?
-                INNER JOIN journal_entry_details d ON d.journal_entry_id = h.id
-                    AND d.account_id = ? AND d.partner_type = 'CLIENT'
-                    AND d.partner_id = ? AND d.debit > 0
-                WHERE h.status = 'POSTED'");
-            $legacyRefundStmt->execute([$orderId, $customerAccountId, (int)$order['CLIENT_ID']]);
-            $legacyRefunded = round((float)$legacyRefundStmt->fetchColumn(), 2);
             $availableFromCustomerCredit = max(0.0, round($customerCreditAvailable - $alreadyRefunded, 2));
             $availableFromLegacyReceivable = max(0.0, round($legacyReceivableCredit - $legacyRefunded, 2));
             $available = round($availableFromCustomerCredit + $availableFromLegacyReceivable, 2);
