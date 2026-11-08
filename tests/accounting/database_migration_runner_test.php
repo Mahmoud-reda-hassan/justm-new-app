@@ -144,10 +144,12 @@ $voucherLines = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.TABLES
 $voucherCashBoxFk = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_vouchers' AND COLUMN_NAME = 'cash_box_id' AND REFERENCED_TABLE_NAME = 'cash_boxes' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
 $voucherLineHeaderFk = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_voucher_lines' AND COLUMN_NAME = 'voucher_id' AND REFERENCED_TABLE_NAME = 'financial_vouchers' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
 $voucherLineAccountFk = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_voucher_lines' AND COLUMN_NAME = 'account_id' AND REFERENCED_TABLE_NAME = 'accounts' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
+$voucherReversalEventFk = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'financial_vouchers' AND COLUMN_NAME = 'reversal_event_id' AND REFERENCED_TABLE_NAME = 'accounting_events' AND REFERENCED_COLUMN_NAME = 'id'")->fetchColumn();
 $assert($voucherHeader === 1 && $voucherLines === 1, 'Phase 24 must create both financial voucher tables.');
 $assert($voucherCashBoxFk === 1, 'Phase 24 must link vouchers to their actual cash box.');
 $assert($voucherLineHeaderFk === 1, 'Phase 24 must link voucher lines to their header.');
 $assert($voucherLineAccountFk === 1, 'Phase 24 must link voucher lines to GL accounts.');
+$assert($voucherReversalEventFk === 1, 'Phase 24 must retain the reversal event reference.');
 
 // The full installer may already contain Phase 22's schema without a migration-ledger row.
 // The runner must recognize that state and register it without trying to add the column again.
