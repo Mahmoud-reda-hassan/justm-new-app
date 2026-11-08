@@ -102,7 +102,7 @@ final class CashBox
              INNER JOIN payment_methods pm ON pm.id = pma.payment_method_id AND pm.is_active = 1
              INNER JOIN accounts a ON a.id = cb.account_id
              WHERE cb.branch_id = ? AND cb.is_active = 1
-               AND a.is_active = 1 AND a.allow_posting = 1
+               AND a.is_active = 1 AND a.allow_posting = 1 AND a.account_type = 'ASSET'
              ORDER BY cb.id"
         );
         $stmt->execute([$paymentMethodId, $branchId]);
@@ -133,7 +133,7 @@ final class CashBox
 
             $stmt = $this->db->prepare(
                 'SELECT id FROM cash_boxes
-                 WHERE branch_id = ? AND box_name = ? AND (? = 0 OR id <> ?)
+                 WHERE branch_id = ? AND COALESCE(NULLIF(box_name, ''), NULLIF(name, '')) = ? AND (? = 0 OR id <> ?)
                  LIMIT 1'
             );
             $stmt->execute([$branchId, $boxName, $boxId, $boxId]);
