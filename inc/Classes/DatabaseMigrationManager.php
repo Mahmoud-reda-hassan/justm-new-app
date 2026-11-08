@@ -76,6 +76,12 @@ class DatabaseMigrationManager
             'enabled' => true,
             'warning' => 'مرحلة بنيوية فقط؛ لا تعيّن خزائن للحركات القديمة ولا تغيّر مسارات القبض والصرف الحالية.'
         ],
+        'PHASE24_FINANCIAL_VOUCHERS.sql' => [
+            'title' => 'مستندات القبض والصرف العامة',
+            'description' => 'إنشاء مستندات قبض وصرف مرتبطة بالخزينة والفرع وقيد الأستاذ والحدث المالي.',
+            'enabled' => true,
+            'warning' => 'ينشئ مستندات المصدر فقط؛ الأرصدة تظل من الأستاذ العام. يتطلب اكتمال المرحلة 22.'
+        ],
     ];
 
     public function __construct($db, string $rootPath)
@@ -138,6 +144,23 @@ class DatabaseMigrationManager
                 } elseif ($schemaState === 'MISSING' && $row && $row['status'] === 'APPLIED') {
                     $status = 'SCHEMA_DRIFT';
                     $warning = 'المرحلة مسجلة كمطبقة لكن مراجع الخزينة غير موجودة. لا تعِد تنفيذها تلقائيًا؛ افحص القاعدة.';
+                }
+            }
+
+            if ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+                $schemaState = $this->financialVoucherSchemaState();
+                if ($schemaState === 'COMPLETE' && !$row) {
+                    $status = 'SCHEMA_PRESENT';
+                    $warning = 'جداول مستندات القبض والصرف موجودة بالفعل في Installer؛ لا حاجة لإعادة تنفيذ الترحيل.';
+                } elseif ($schemaState === 'PARTIAL') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'جداول مستندات القبض والصرف موجودة بصورة جزئية أو بأعمدة ناقصة؛ يلزم فحص المخطط.';
+                } elseif ($schemaState === 'BLOCKED') {
+                    $status = 'BLOCKED';
+                    $warning = 'يتطلب الترحيل وجود الفروع والخزائن وطرق الدفع والأستاذ العام مع اكتمال مرجع الخزينة في المرحلة 22.';
+                } elseif ($schemaState === 'MISSING' && $row && $row['status'] === 'APPLIED') {
+                    $status = 'SCHEMA_DRIFT';
+                    $warning = 'المرحلة مسجلة كمطبقة لكن جداول المستندات غير موجودة؛ افحص القاعدة قبل أي إعادة تنفيذ.';
                 }
             }
 
@@ -241,6 +264,22 @@ class DatabaseMigrationManager
                 ];
             }
 
+            if ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql'
+                && $this->financialVoucherSchemaState() === 'COMPLETE') {
+                $record = $this->db->prepare(
+                    'INSERT INTO ' . self::LEDGER_TABLE . ' (migration_key, checksum, status, applied_by, started_at, finished_at, error_text, statement_count)
+                     VALUES (?, ?, \'APPLIED\', ?, NOW(), NOW(), NULL, 0)
+                     ON DUPLICATE KEY UPDATE checksum = VALUES(checksum), status = \'APPLIED\',
+                        applied_by = VALUES(applied_by), finished_at = NOW(), error_text = NULL, statement_count = 0'
+                );
+                $record->execute([$file, $checksum, $userId]);
+                return [
+                    'already_applied' => true,
+                    'message' => 'جداول مستندات القبض والصرف موجودة بالفعل؛ تم تسجيل المرحلة دون إعادة تنفيذ DDL.',
+                    'statement_count' => 0,
+                ];
+            }
+
             $stmt = $this->db->prepare(
                 'INSERT INTO ' . self::LEDGER_TABLE . ' (migration_key, checksum, status, applied_by, started_at, finished_at, error_text, statement_count)
                  VALUES (?, ?, \'RUNNING\', ?, NOW(), NULL, NULL, 0)
@@ -310,6 +349,8 @@ class DatabaseMigrationManager
             }
         } elseif ($file === 'PHASE22_JOURNAL_CASHBOX_REFERENCE.sql') {
             $required = ['journal_entry_details', 'cash_boxes', 'branches'];
+        } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+            $required = ['financial_vouchers', 'financial_voucher_lines', 'branches', 'cash_boxes', 'payment_methods', 'accounts', 'journal_entries', 'accounting_events'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
@@ -342,6 +383,12 @@ class DatabaseMigrationManager
                 throw new RuntimeException(
                     'لا يمكن تنفيذ المرحلة 17: استورد شجرة الحسابات المعتمدة أولًا، وتأكد من وجود الحسابين الرئيسيين 2150 و5400 غير القابلين للترحيل.'
                 );
+            }
+        }
+
+        if ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
+            if ($this->cashBoxReferenceSchemaState() !== 'COMPLETE') {
+                throw new RuntimeException('لا يمكن تنفيذ المرحلة 24 قبل اكتمال مرجع الخزينة والفرع في المرحلة 22.');
             }
         }
 
@@ -418,6 +465,60 @@ class DatabaseMigrationManager
             return 'COMPLETE';
         }
         return $presentCount === 0 ? 'MISSING' : 'PARTIAL';
+    }
+
+    /**
+     * COMPLETE: جدولا المستندات وأعمدتهما الأساسية موجودة.
+     * MISSING: الجدولان غير موجودين ويمكن إنشاءهما.
+     * PARTIAL: جدول واحد أو أعمدة أساسية ناقصة.
+     * BLOCKED: متطلبات الأستاذ/الخزائن/الفروع غير مكتملة.
+     */
+    private function financialVoucherSchemaState(): string
+    {
+        $dependencies = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME IN ('branches','cash_boxes','payment_methods','accounts','journal_entries','accounting_events','journal_entry_details')"
+        );
+        $dependenciesExist = (int)$dependencies->fetchColumn() === 7;
+        $dependencies->closeCursor();
+        if (!$dependenciesExist || $this->cashBoxReferenceSchemaState() !== 'COMPLETE') {
+            return 'BLOCKED';
+        }
+
+        $tables = $this->db->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME IN ('financial_vouchers','financial_voucher_lines')"
+        );
+        $tableCount = (int)$tables->fetchColumn();
+        $tables->closeCursor();
+        if ($tableCount === 0) {
+            return 'MISSING';
+        }
+        if ($tableCount !== 2) {
+            return 'PARTIAL';
+        }
+
+        $requiredColumns = [
+            'financial_vouchers' => ['voucher_no','voucher_type','voucher_subtype','branch_id','cash_box_id','payment_method_id','voucher_date','total_amount','status','journal_entry_id','accounting_event_id','idempotency_key','payload_hash','created_by'],
+            'financial_voucher_lines' => ['voucher_id','line_no','account_id','partner_type','partner_id','amount'],
+        ];
+        foreach ($requiredColumns as $tableName => $columns) {
+            $placeholders = implode(',', array_fill(0, count($columns), '?'));
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME IN (' . $placeholders . ')'
+            );
+            $stmt->execute(array_merge([$tableName], $columns));
+            $found = (int)$stmt->fetchColumn();
+            $stmt->closeCursor();
+            if ($found !== count($columns)) {
+                return 'PARTIAL';
+            }
+        }
+
+        return 'COMPLETE';
     }
 
     private function getMigration(string $file): array
