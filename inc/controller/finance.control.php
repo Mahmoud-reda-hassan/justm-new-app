@@ -207,6 +207,7 @@ try {
                 'payment_method_id' => (int)($_POST['payment_method_id'] ?? 1),
                 'voucher_date' => (string)($_POST['voucher_date'] ?? date('Y-m-d H:i:s')),
                 'partner_id' => (int)($_POST['partner_id'] ?? 0),
+                'target_journal_entry_id' => (int)($_POST['target_journal_entry_id'] ?? 0),
                 'amount' => $_POST['amount'] ?? 0,
                 'lines' => $readArray($_POST['lines'] ?? [], 'lines'),
                 'description' => trim((string)($_POST['description'] ?? '')),
