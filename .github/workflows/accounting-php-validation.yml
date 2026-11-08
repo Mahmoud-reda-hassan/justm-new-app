@@ -132,6 +132,7 @@ jobs:
           php tests/accounting/direct_sale_static_test.php
           php tests/accounting/supplier_gl_static_test.php
           php tests/accounting/gl_only_cutover_static_test.php
+          python tests/run_static_acceptance.py
 
       - name: Financial event MariaDB integration tests
         env:
