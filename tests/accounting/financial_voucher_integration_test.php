@@ -283,7 +283,7 @@ try {
     voucherAssert(abs($remainingCredit - 100.0) < 0.001, 'يجب أن يتبقى 100 فقط غير مخصص من سند الائتمان الأصلي.');
 
     // عكس البيع يعكس التخصيص ويعيد الرصيد الدائن الأصلي دون احتساب سطر القيد العكسي كمصدر جديد.
-    (new JournalManager($db))->reverse($creditSaleJournalId, 'عكس بيع اختبار', 99);
+    (new JournalManager($db))->reverse($creditSaleJournalId, 'عكس بيع اختبار', null, 99);
     voucherAssert(abs($manager->getCustomerCreditBalance(10) - 200.0) < 0.001,
         'عكس البيع يجب أن يعيد كامل الرصيد الدائن للعميل.');
     $restoredCreditLines = $creditEvents->openCustomerCredits(10);
