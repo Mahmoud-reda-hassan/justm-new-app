@@ -45,6 +45,7 @@ try {
     $financeController = projectFile($root, 'inc/controller/finance.control.php');
 
     $sale = methodBody($accounting, 'public function directSale(int $orderId): int');
+    $directPayment = methodBody($accounting, 'private function directSalePaymentInternal(int $transactionId): int');
     $validation = methodBody($accounting, 'protected function validateDirectSale(array $order): void');
     $shipping = methodBody($accounting, 'private function postOrderShippingCharge(int $orderId): int');
     has($sale, 'new FinancialEventManager($this->db)', 'البيع المباشر لا يستخدم بوابة الأحداث.');
@@ -54,6 +55,14 @@ try {
     has($sale, '\'debit\' => $productsAmount', 'مديونية العميل لا تساوي قيمة المنتجات.');
     has($sale, '\'credit\' => $productsAmount', 'إيراد البيع لا يساوي قيمة المنتجات.');
     has($sale, 'FOR UPDATE', 'لا يوجد قفل للطلب وبنوده.');
+    has($sale, 'getOpenCustomerCreditLines', 'البيع الجديد لا يفحص رصيد العميل الدائن 1152.');
+    has($sale, 'allocateCustomerCreditToSale', 'استخدام رصيد العميل الدائن لا يُسجل كتخصيص قابل للعكس.');
+    has($directPayment, 'FinancialVoucherManager', 'تحصيل البيع المباشر لا يستخدم مستند قبض GL موحدًا.');
+    has($directPayment, 'target_journal_entry_id', 'تحصيل المنتجات/الشحن لا يخصص على القيد المصدر الصحيح.');
+    has($directPayment, 'DIRECT-SALE-PAYMENT:', 'تحصيل البيع المباشر لا يستخدم مفتاح منع التكرار.');
+    has($directPayment, 'ORDER_SHIPPING', 'تحصيل الشحن لا يميز قيد إيراد الشحن عن قيد المنتجات.');
+    has($directPayment, 'CashBox', 'تحصيل البيع المباشر لا يربط الخزينة الفعلية.');
+    lacks($directPayment, 'allocateDirectSalePayment(', 'تحصيل البيع المباشر ما زال يستخدم التخصيص القديم.');
     lacks($sale, 'SHIPPING_VAL', 'الشحن دخل في البيع المباشر.');
     lacks($sale, 'shippingRevenue', 'إيراد الشحن دخل في البيع المباشر.');
     lacks($validation, 'SHIPPING_VAL', 'التحقق من البيع المباشر يعتمد على الشحن.');
