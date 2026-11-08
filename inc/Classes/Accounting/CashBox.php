@@ -135,9 +135,9 @@ final class CashBox
             $stmt->closeCursor();
 
             $stmt = $this->db->prepare(
-                'SELECT id FROM cash_boxes
+                "SELECT id FROM cash_boxes
                  WHERE branch_id = ? AND COALESCE(NULLIF(box_name, ''), NULLIF(name, '')) = ? AND (? = 0 OR id <> ?)
-                 LIMIT 1'
+                 LIMIT 1"
             );
             $stmt->execute([$branchId, $boxName, $boxId, $boxId]);
             if ($stmt->fetchColumn()) {
