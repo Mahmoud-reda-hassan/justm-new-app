@@ -99,9 +99,9 @@
 | التجهيز للشحن | مشاهدة، بدء التجهيز، تثبيت التجهيز، إلغاء/فك تثبيت التجهيز، إعادة للمرحلة السابقة | فصل التثبيت عن الصرف الفعلي للمندوب/شركة الشحن |
 | الصرف وعهدة الشحن | مشاهدة العهدة، إنشاء صرف، تنفيذ الصرف، استرداد الأمر، إبقاء المنتجات بالعهدة أو إعادتها للمخزن | صلاحيات صرف مخزني وإدارة عهدة ونطاق مخزن/جهة عهدة |
 | نتائج التوصيل | تسجيل نتيجة التسليم، تسجيل التسليم الجزئي/الرفض، تسجيل تقرير شركة الشحن، تصحيح النتيجة | شركة الشحن الخارجية لا تنفذ Actions؛ الموظف المخول يسجل تقريرها |
-| استلام المرتجعات من الشحن | تسجيل المتوقع، تسجيل المستلم فعليًا، فحص، اعتماد الاستلام، إثبات فرق/عجز | لا يدخل المخزون إلا المستلم فعليًا والمعتمد مخزنيًا |
-| تصحيح العهدة | مراجعة، تصحيح بيانات العهدة، إعادة الإرسال للمراجعة، إعادة الأمر بالكامل للتصحيح | إعادة الأمر بالكامل من المسؤول المالي تتطلب سببًا وملاحظات؛ حفظ الاعتمادات السابقة |
-| تسوية العجز | إثبات العجز، اعتماد مخزني، طلب تحميل مالي، اعتماد تحميل مالي، تسوية/عكس، إعفاء إداري موثق | فصل اعتماد العجز المخزني عن اعتماد الأثر المالي |
+| استلام المرتجعات من الشحن | مراجعة وتصحيح نتيجة التوصيل، استلام كامل بإذن واحد، عكس التسوية قبل الإغلاق المالي | لا استلام جزئي ولا إذن ثانٍ؛ العكس يعيد المنتجات للمندوب بحركة موثقة |
+| تصحيح العهدة | مراجعة وتصحيح نتيجة التسليم، عكس التسوية المخزنية قبل الإغلاق المالي، إعادة الأمر للمراجعة | العكس يعيد المنتجات للمندوب ويتيح التصحيح وإعادة التسوية؛ سبب ومراجع إلزامية |
+
 | المشتريات | مشاهدة أوامر الشراء، إنشاء، تعديل، إرسال/اعتماد أمر الشراء، إلغاء | اعتماد الشراء منفصل عن استلامه الفعلي |
 | استلام التوريد | مشاهدة أوامر التوريد، تسجيل استلام، فحص، اعتماد الاستلام، تسجيل فروق | صلاحية مخزنية ونطاق مخزن؛ لا تمنح حق اعتماد فاتورة المورد تلقائيًا |
 | مرتجع المورد | إنشاء مرتجع، تنفيذ إخراج مخزني، مراجعة/اعتماد | التحقق من الاستلام الأصلي والكميات والدفعات |
@@ -143,7 +143,7 @@
 
 هذه ضوابط مرتبطة بالعملية وليست أدوارًا عامة ثابتة:
 
-- أمين المخزن يعتمد الاستلام الفعلي والعجز مخزنيًا.
+- أمين المخزن مسؤول عن الاستلام المخزني الكامل، ويمكنه عكس التسوية المخزنية قبل الإغلاق المالي وفق الضوابط المعتمدة.
 - المسؤول المالي يعتمد الأثر المالي والتحميل والتسويات المالية.
 - المسؤول المالي يستطيع إعادة أمر العهدة بالكامل للمسؤول المخزني للتصحيح بسبب إلزامي؛ وبعد التصحيح يعود الأمر للمراجعة المالية.
 - يمكن لمستخدم واحد الجمع بين صلاحيات المسؤول المخزني وأمين المخزن إذا أسندت له المجموعتان/الصلاحيات؛ لا نفرض فصلًا وظيفيًا مطلقًا.
@@ -155,7 +155,7 @@
 1. **أمر البيع:** تعديل البيانات لا يعني اعتمادها؛ يلزم مسار اعتماد بعد التعديل.
 2. **الحجز:** الحجز يبدأ عند إنشاء الطلب، لكن الاحتفاظ به وتأثير الحالة على المتاح تحددهما إعدادات المخزون المحتجز.
 3. **عهدة الشحن:** حالة الطلب منفصلة عن حيازة المنتجات؛ استرداد الطلب لا يعني بالضرورة عودة المنتجات للمخزن.
-4. **العجز:** اعتماد العجز مخزنيًا منفصل عن تحميل قيمته ماليًا؛ لا اعتراض مسبق لصاحب العهدة، مع بقاء التصحيح/العكس اللاحق الموثق.
+4. **عكس التسوية المخزنية:** مسار مستقل عن التصحيح العادي، متاح قبل الإغلاق المالي فقط، ويعيد المنتجات للمندوب بحركة صرف مرتبطة بعكس الاستلام.
 5. **شركة الشحن:** تقرير التوصيل لا ينشئ دخولًا مخزنيًا ولا يثبت قبض الشركة للمبالغ.
 6. **المرتجع:** لا يعاد المنتج للمتاح إلا بعد الاستلام الفعلي والفحص والاعتماد.
 7. **الإعدادات:** يجب حفظ نسخة السياسة/القيمة التي طبقت على المستند وقت إنشائه أو اعتماده عندما يكون للتغيير أثر تاريخي.
@@ -181,7 +181,7 @@
 
 النمط المقترح: `module.resource.action`
 
-أمثلة: `sales.orders.view`، `sales.orders.create`، `inventory.stock.receive`، `custody.shortage.approve_inventory`، `custody.shortage.approve_financial`.
+أمثلة: `sales.orders.view`، `sales.orders.create`، `inventory.stock.receive`، ، `custody.stock_settlement.reverse`.
 
 - مفاتيح ثابتة باللغة الإنجليزية، والفعل محدد وواضح.
 - المشاهدة والتعديل والتنفيذ والمراجعة والاعتماد والترحيل أفعال مستقلة.
@@ -202,7 +202,7 @@
 | المخزون | `inventory.stock.view`, `inventory.stock.receive`, `inventory.stock.receive_approve`, `inventory.stock.issue`, `inventory.stock.issue_approve`, `inventory.movements.view`, `inventory.transfers.create`, `inventory.transfers.execute`, `inventory.transfers.receive`, `inventory.counts.create`, `inventory.counts.execute`, `inventory.counts.review`, `inventory.counts.approve`, `inventory.scrap.create`, `inventory.scrap.approve`, `inventory.reservations.view`, `inventory.reservations.manage` |
 | المشتريات والتوريد | `purchasing.orders.view`, `purchasing.orders.create`, `purchasing.orders.update`, `purchasing.orders.submit`, `purchasing.orders.approve`, `purchasing.orders.cancel`, `purchasing.receipts.record`, `purchasing.receipts.inspect`, `purchasing.receipts.approve`, `purchasing.returns.create`, `purchasing.returns.execute`, `purchasing.returns.approve` |
 | الشحن والعهدة | `custody.view`, `custody.issue`, `custody.receive`, `custody.delivery_result.record`, `custody.delivery_result.correct`, `custody.returns.record_received`, `custody.returns.inspect`, `custody.review`, `custody.correct`, `custody.return_for_correction` |
-| العجز | `custody.shortage.record`, `custody.shortage.approve_inventory`, `custody.shortage.request_financial_charge`, `custody.shortage.approve_financial`, `custody.shortage.settle`, `custody.shortage.reverse`, `custody.shortage.waive` |
+
 | الحسابات والأستاذ العام | `accounting.accounts.view`, `accounting.accounts.manage`, `accounting.journals.view`, `accounting.journals.create`, `accounting.journals.update`, `accounting.journals.review`, `accounting.journals.approve`, `accounting.journals.post`, `accounting.journals.reverse` |
 | القبض والصرف والتسويات | `accounting.receipts.create`, `accounting.receipts.approve`, `accounting.receipts.post`, `accounting.payments.create`, `accounting.payments.approve`, `accounting.payments.execute`, `accounting.reconciliation.execute`, `accounting.settlements.create`, `accounting.settlements.approve` |
 | التحصيل وشركات الشحن | `collections.customers.record`, `collections.customers.allocate`, `collections.customers.approve`, `collections.customers.refund`, `collections.agents.record`, `collections.agents.remit`, `collections.agents.reconcile`, `shipping_companies.cod.import_statement`, `shipping_companies.cod.reconcile`, `shipping_companies.cod.confirm_remittance` |
@@ -214,7 +214,7 @@
 
 - نطاق الشركة والفرع والمخزن والشريك وصاحب العهدة والحساب/الخزينة والسجل يطبق على القراءة والكتابة والاعتماد والتصدير.
 - حالة المستند وانتقالاته تتحقق في الخادم.
-- فصل المهام يطبق وفق سياسة العملية؛ ومن أمثلته فصل اعتماد العجز المخزني عن اعتماد التحميل المالي.
+- فصل المهام يطبق وفق سياسة العملية، مع التحقق من أهلية منفذ عكس التسوية وحالة الإغلاق المالي.
 - التصدير مستقل عن المشاهدة، ويخضع لنطاق البيانات وضوابط الحقول الحساسة.
 - الإعدادات الحساسة قد تحتاج اعتمادًا إضافيًا؛ من يملك الاعتماد وحدوده ما زال سؤالًا مفتوحًا.
 
