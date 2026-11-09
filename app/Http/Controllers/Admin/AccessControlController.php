@@ -102,11 +102,11 @@ class AccessControlController extends Controller
     public function assignUserRoles(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate([
-            'roles' => ['present', 'array'],
+            'roles' => ['sometimes', 'array'],
             'roles.*' => ['integer', 'distinct', 'exists:roles,id'],
         ]);
 
-        $roleIds = $data['roles'];
+        $roleIds = $data['roles'] ?? [];
         $roles = Role::query()->with('permissions')->whereIn('id', $roleIds)->get();
         $actorPermissions = $request->user()->roles()
             ->where('roles.is_active', true)
@@ -178,11 +178,11 @@ class AccessControlController extends Controller
     public function assignRolePermissions(Request $request, Role $role): RedirectResponse
     {
         $data = $request->validate([
-            'permissions' => ['present', 'array'],
+            'permissions' => ['sometimes', 'array'],
             'permissions.*' => ['integer', 'distinct', 'exists:permissions,id'],
         ]);
 
-        $selected = Permission::query()->whereIn('id', $data['permissions'])->get();
+        $selected = Permission::query()->whereIn('id', $data['permissions'] ?? [])->get();
         $actorPermissions = $request->user()->roles()
             ->where('roles.is_active', true)
             ->with('permissions:id,key')
