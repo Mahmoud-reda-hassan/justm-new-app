@@ -1,8 +1,8 @@
 <?php
 
-namespace App\\Console\\Commands;
+namespace App\Console\Commands;
 
-use IlluminateConsoleCommand;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use PDO;
 use RuntimeException;
