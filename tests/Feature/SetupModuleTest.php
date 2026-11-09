@@ -53,7 +53,7 @@ class SetupModuleTest extends TestCase
 
     public function test_first_admin_provisioning_is_refused_when_any_user_exists(): void
     {
-        $this->seed();
+        app(DatabaseSeeder::class)->run();
         User::create([
             'name' => 'Existing User',
             'username' => 'existing-user',
