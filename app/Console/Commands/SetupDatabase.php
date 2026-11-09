@@ -36,8 +36,12 @@ class SetupDatabase extends Command
                 throw new RuntimeException('اسم قاعدة البيانات غير مضبوط في ملف البيئة.');
             }
 
-            // Force a fresh connection after a possible CREATE DATABASE operation.
-            app('db')->purge($connection);
+            // Reconnect only after CREATE DATABASE; purging SQLite in-memory connections
+            // would discard the active test database and any surrounding transaction.
+            if ($this->option('create-database')) {
+                app('db')->purge($connection);
+            }
+
             app('db')->connection($connection)->getPdo();
 
             $this->info("قاعدة البيانات جاهزة: {$database}");
