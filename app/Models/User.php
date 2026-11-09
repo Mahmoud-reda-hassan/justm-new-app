@@ -29,7 +29,7 @@ class User extends Authenticatable
         return $this->belongsToMany(Role::class);
     }
 
-    public function dataScopes(): HasMany: HasMany
+    public function dataScopes(): HasMany
     {
         return $this->hasMany(UserDataScope::class);
     }
