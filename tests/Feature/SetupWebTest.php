@@ -8,7 +8,7 @@ use Tests\TestCase;
 
 class SetupWebTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseMigrations;
 
     protected function setUp(): void
     {
