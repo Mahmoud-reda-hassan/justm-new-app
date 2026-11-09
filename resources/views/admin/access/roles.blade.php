@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>مجموعات الصلاحيات</title>
+    <style>
+        body{font-family:Tahoma,Arial,sans-serif;background:#f5f6f8;color:#222;margin:0;padding:24px}
+        main{max-width:1100px;margin:auto} section{background:#fff;padding:18px;margin:0 0 18px;border:1px solid #ddd;border-radius:8px}
+        input,button,textarea{padding:9px;margin:4px;border:1px solid #bbb;border-radius:5px} button{cursor:pointer}
+        .module{display:inline-block;vertical-align:top;min-width:220px;padding:8px;margin:5px;border:1px solid #ddd}
+        .status{padding:10px;background:#e8f5e9;margin-bottom:12px} h1,h2{margin-top:0}
+    </style>
+</head>
+<body><main>
+    <h1>مجموعات الصلاحيات</h1>
+    <p><a href="{{ route('admin.access.users') }}">إدارة المستخدمين</a> | <a href="{{ route('dashboard') }}">الرئيسية</a></p>
+    @if (session('status')) <div class="status">{{ session('status') }}</div> @endif
+    @if ($errors->any()) <section><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></section> @endif
+    <section><h2>إنشاء مجموعة</h2>
+        <form method="post" action="{{ route('admin.access.roles.store') }}">@csrf
+            <input name="name" placeholder="اسم المجموعة" required maxlength="100">
+            <input name="key" placeholder="مفتاح ثابت بالإنجليزية" required maxlength="100">
+            <textarea name="description" placeholder="الوصف"></textarea>
+            <button>إنشاء المجموعة</button>
+        </form>
+    </section>
+    @foreach ($roles as $role)
+        <section>
+            <h2>{{ $role->name }} <small>({{ $role->key }})</small></h2>
+            <form method="post" action="{{ route('admin.access.roles.update', $role) }}">@csrf @method('put')
+                <input name="name" value="{{ $role->name }}" required>
+                <input name="description" value="{{ $role->description }}">
+                <label><input type="checkbox" name="is_active" value="1" @checked($role->is_active)> نشطة</label>
+                <input type="hidden" name="is_active" value="0">
+                <button>حفظ بيانات المجموعة</button>
+            </form>
+            <form method="post" action="{{ route('admin.access.roles.permissions', $role) }}">@csrf @method('put')
+                <h3>الصلاحيات المتاحة</h3>
+                @foreach ($permissions->groupBy('module') as $module => $items)
+                    <div class="module"><strong>{{ $module }}</strong><br>
+                    @foreach ($items as $permission)
+                        <label><input type="checkbox" name="permissions[]" value="{{ $permission->id }}" @checked($role->permissions->contains('id', $permission->id))>
+                            {{ $permission->key }}</label><br>
+                    @endforeach
+                    </div>
+                @endforeach
+                <button>حفظ الصلاحيات</button>
+            </form>
+        </section>
+    @endforeach
+    {{ $roles->links() }}
+</main></body></html>
