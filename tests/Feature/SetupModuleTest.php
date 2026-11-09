@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Role;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -30,7 +32,7 @@ class SetupModuleTest extends TestCase
 
     public function test_first_admin_can_be_created_once_with_only_setup_permissions(): void
     {
-        $this->seed();
+        app(DatabaseSeeder::class)->run();
 
         $this->artisan('justm:provision-first-admin', [
             '--name' => 'First Admin',
