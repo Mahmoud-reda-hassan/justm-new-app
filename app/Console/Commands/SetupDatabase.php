@@ -11,12 +11,18 @@ use Throwable;
 class SetupDatabase extends Command
 {
     protected $signature = 'justm:setup
-        {--create-database : Create the configured MariaDB/MySQL database if it does not exist}';
+        {--create-database : Create the configured MariaDB/MySQL database if it does not exist}\n        {--force : Explicitly allow setup in production}';
 
     protected $description = 'Create the Just-M database schema and insert the approved initial data';
 
     public function handle(): int
     {
+        if (app()->environment('production') && ! $this->option('force')) {
+            $this->error('تم إيقاف التهيئة على بيئة الإنتاج. لاستخدامها يلزم تمرير --force بعد اعتماد التشغيل.');
+
+            return self::FAILURE;
+        }
+
         if ($this->option('create-database') && ! $this->createDatabaseIfMissing()) {
             return self::FAILURE;
         }
