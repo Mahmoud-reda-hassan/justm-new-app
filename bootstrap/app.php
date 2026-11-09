@@ -1,5 +1,7 @@
 <?php
 
+use App\Console\Commands\ProvisionFirstAdmin;
+use App\Console\Commands\SetupDatabase;
 use App\Http\Middleware\EnsureUserHasPermission;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
