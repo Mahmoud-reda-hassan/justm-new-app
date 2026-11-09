@@ -31,6 +31,20 @@ return new class extends Migration {
             $table->primary(['role_id', 'user_id']);
         });
 
+        \\Illuminate\\Support\\Facades\\DB::table('permissions')->insert([
+            ['key' => 'users.view', 'module' => 'users', 'action' => 'view', 'description' => 'مشاهدة المستخدمين'],
+            ['key' => 'users.view_details', 'module' => 'users', 'action' => 'view_details', 'description' => 'مشاهدة تفاصيل المستخدم'],
+            ['key' => 'users.create', 'module' => 'users', 'action' => 'create', 'description' => 'إنشاء مستخدم'],
+            ['key' => 'users.update', 'module' => 'users', 'action' => 'update', 'description' => 'تعديل بيانات المستخدم'],
+            ['key' => 'users.activate', 'module' => 'users', 'action' => 'activate', 'description' => 'تفعيل أو إيقاف مستخدم'],
+            ['key' => 'users.reset_password', 'module' => 'users', 'action' => 'reset_password', 'description' => 'إعادة تعيين كلمة المرور'],
+            ['key' => 'users.assign_groups', 'module' => 'users', 'action' => 'assign_groups', 'description' => 'إسناد مجموعات الصلاحيات للمستخدم'],
+            ['key' => 'permissions.groups.view', 'module' => 'permissions.groups', 'action' => 'view', 'description' => 'مشاهدة مجموعات الصلاحيات'],
+            ['key' => 'permissions.groups.create', 'module' => 'permissions.groups', 'action' => 'create', 'description' => 'إنشاء مجموعة صلاحيات'],
+            ['key' => 'permissions.groups.update', 'module' => 'permissions.groups', 'action' => 'update', 'description' => 'تعديل مجموعة صلاحيات'],
+            ['key' => 'permissions.groups.assign', 'module' => 'permissions.groups', 'action' => 'assign', 'description' => 'إسناد الصلاحيات للمجموعات'],
+        ]);
+
         Schema::create('permission_role', function (Blueprint $table): void {
             $table->foreignId('permission_id')->constrained()->cascadeOnDelete();
             $table->foreignId('role_id')->constrained()->cascadeOnDelete();
