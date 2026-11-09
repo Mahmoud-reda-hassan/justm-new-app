@@ -31,7 +31,7 @@ return new class extends Migration {
             $table->primary(['role_id', 'user_id']);
         });
 
-        \\Illuminate\\Support\\Facades\\DB::table('permissions')->insert([
+        \Illuminate\Support\Facades\DB::table('permissions')->insert([
             ['key' => 'users.view', 'module' => 'users', 'action' => 'view', 'description' => 'مشاهدة المستخدمين'],
             ['key' => 'users.view_details', 'module' => 'users', 'action' => 'view_details', 'description' => 'مشاهدة تفاصيل المستخدم'],
             ['key' => 'users.create', 'module' => 'users', 'action' => 'create', 'description' => 'إنشاء مستخدم'],
