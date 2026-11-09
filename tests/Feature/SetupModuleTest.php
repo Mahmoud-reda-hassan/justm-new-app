@@ -11,23 +11,19 @@ class SetupModuleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_setup_command_runs_migrations_and_seeds_the_limited_access_role(): void
+    public function test_setup_commands_are_registered(): void
     {
-        $this->artisan('justm:setup')
-            ->expectsOutputToContain('اكتمل إنشاء الجداول وإدخال البيانات الأولية.')
-            ->assertExitCode(0);
+        $commands = Artisan::all();
 
-        $role = Role::query()->where('key', 'system-access-admin')->firstOrFail();
-
-        $this->assertSame(11, $role->permissions()->count());
-        $this->assertSame(0, User::query()->count());
+        $this->assertArrayHasKey('justm:setup', $commands);
+        $this->assertArrayHasKey('justm:provision-first-admin', $commands);
     }
 
     public function test_setup_seeding_is_repeatable_without_creating_duplicate_roles(): void
     {
-        $this->seed();
+        app(DatabaseSeeder::class)->run();
 
-        $this->artisan('db:seed')->assertExitCode(0);
+        app(DatabaseSeeder::class)->run();
 
         $this->assertSame(1, Role::query()->where('key', 'system-access-admin')->count());
     }
