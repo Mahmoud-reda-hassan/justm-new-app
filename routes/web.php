@@ -2,9 +2,18 @@
 
 use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\SetupController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
+
+Route::prefix('setup')->name('setup.')->group(function (): void {
+    Route::get('/', [SetupController::class, 'show'])->name('show');
+    Route::post('/access', [SetupController::class, 'authorizeSetup'])->middleware('throttle:5,1')->name('authorize');
+    Route::post('/connection', [SetupController::class, 'testConnection'])->middleware('throttle:10,1')->name('connection');
+    Route::post('/database', [SetupController::class, 'installDatabase'])->middleware('throttle:3,1')->name('database');
+    Route::post('/admin', [SetupController::class, 'createFirstAdmin'])->middleware('throttle:3,1')->name('admin');
+});
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
