@@ -11,7 +11,8 @@ use Throwable;
 class SetupDatabase extends Command
 {
     protected $signature = 'justm:setup
-        {--create-database : Create the configured MariaDB/MySQL database if it does not exist}\n        {--force : Explicitly allow setup in production}';
+        {--create-database : Create the configured MariaDB/MySQL database if it does not exist}
+        {--force : Explicitly allow setup in production}';
 
     protected $description = 'Create the Just-M database schema and insert the approved initial data';
 
