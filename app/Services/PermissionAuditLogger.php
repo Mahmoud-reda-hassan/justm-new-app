@@ -1,10 +1,10 @@
 <?php
 
-namespace App\\Services;
+namespace App\Services;
 
-use App\\Models\\PermissionAudit;
-use App\\Models\\User;
-use Illuminate\\Support\\Facades\\Auth;
+use App\Models\PermissionAudit;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 class PermissionAuditLogger
 {
