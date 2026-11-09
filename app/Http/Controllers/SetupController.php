@@ -77,21 +77,18 @@ class SetupController extends Controller
         $this->ensureAuthorized($request);
 
         try {
-            DB::connection()->getPdo();
+            // The CLI setup command can create the configured database if it does not exist.
+            $setupExit = Artisan::call('justm:setup', [
+                '--create-database' => true,
+                '--force' => true,
+            ]);
 
-            $migrationExit = Artisan::call('migrate', ['--force' => true]);
-            if ($migrationExit !== 0) {
-                report(new \RuntimeException('Just-M setup migrations returned a non-zero exit code.'));
-                return back()->withErrors(['setup' => 'لم تكتمل إنشاءات قاعدة البيانات. راجع سجل التطبيق.']);
+            if ($setupExit !== 0) {
+                report(new \RuntimeException('Just-M browser setup command returned a non-zero exit code.'));
+                return back()->withErrors(['setup' => 'تعذر إنشاء قاعدة البيانات أو الجداول أو البيانات الأولية. راجع إعدادات الاتصال وصلاحية CREATE DATABASE وسجل التطبيق.']);
             }
 
-            $seedExit = Artisan::call('db:seed', ['--force' => true]);
-            if ($seedExit !== 0) {
-                report(new \RuntimeException('Just-M setup seeding returned a non-zero exit code.'));
-                return back()->withErrors(['setup' => 'تم إنشاء الجداول لكن تعذر إدخال البيانات الأولية. راجع سجل التطبيق.']);
-            }
-
-            return back()->with('setup_status', 'تم إنشاء الجداول وإدخال البيانات الأولية بنجاح.');
+            return back()->with('setup_status', 'تم تجهيز قاعدة البيانات والجداول وإدخال البيانات الأولية بنجاح.');
         } catch (Throwable $exception) {
             report($exception);
 
