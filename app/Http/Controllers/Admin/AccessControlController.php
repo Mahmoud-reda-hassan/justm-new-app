@@ -1,17 +1,17 @@
 <?php
 
-namespace App\\Http\\Controllers\\Admin;
+namespace App\Http\Controllers\Admin;
 
-use App\\Http\\Controllers\\Controller;
-use App\\Models\\Permission;
-use App\\Models\\Role;
-use App\\Models\\User;
-use App\\Services\\PermissionAuditLogger;
-use Illuminate\\Http\\RedirectResponse;
-use Illuminate\\Http\\Request;
-use Illuminate\\Support\\Facades\\Hash;
-use Illuminate\\View\\View;
-use Illuminate\\Validation\\Rule;
+use App\Http\Controllers\Controller;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use App\Services\PermissionAuditLogger;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\View\View;
+use Illuminate\Validation\Rule;
 
 class AccessControlController extends Controller
 {
