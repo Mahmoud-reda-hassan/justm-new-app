@@ -78,8 +78,9 @@ class SetupController extends Controller
 
         try {
             // The CLI setup command can create the configured database if it does not exist.
+            $driver = config('database.connections.'.config('database.default').'.driver');
             $setupExit = Artisan::call('justm:setup', [
-                '--create-database' => true,
+                '--create-database' => in_array($driver, ['mysql', 'mariadb'], true),
                 '--force' => true,
             ]);
 
