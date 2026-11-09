@@ -19,10 +19,21 @@ class SetupController extends Controller
     {
         abort_if($this->isCompleted(), 404);
 
+        $databaseReady = false;
+        $adminExists = false;
+
+        try {
+            $databaseReady = Schema::hasTable('users');
+            $adminExists = $databaseReady && User::query()->exists();
+        } catch (Throwable $exception) {
+            // The setup page must remain reachable when the configured database is not created yet.
+            report($exception);
+        }
+
         return view('setup', [
             'authorized' => $this->isAuthorized(),
-            'databaseReady' => Schema::hasTable('users'),
-            'adminExists' => Schema::hasTable('users') && User::query()->exists(),
+            'databaseReady' => $databaseReady,
+            'adminExists' => $adminExists,
             'tokenConfigured' => is_string(config('app.setup_token')) && strlen(config('app.setup_token')) >= 32,
         ]);
     }
@@ -112,14 +123,16 @@ class SetupController extends Controller
 
         try {
             DB::transaction(function () use ($validated): void {
-                if (User::query()->lockForUpdate()->exists()) {
-                    throw new \RuntimeException('First administrator setup is already closed.');
-                }
-
+                // Lock the single bootstrap role row so concurrent first-admin requests serialize.
                 $role = Role::query()
                     ->where('key', 'system-access-admin')
                     ->where('is_active', true)
+                    ->lockForUpdate()
                     ->firstOrFail();
+
+                if (User::query()->exists()) {
+                    throw new \RuntimeException('First administrator setup is already closed.');
+                }
 
                 User::create([
                     'name' => $validated['name'],
@@ -159,6 +172,13 @@ class SetupController extends Controller
 
     private function isCompleted(): bool
     {
-        return Schema::hasTable('users') && User::query()->exists();
+        try {
+            return Schema::hasTable('users') && User::query()->exists();
+        } catch (Throwable $exception) {
+            // An unavailable or not-yet-created database must not prevent the setup page from opening.
+            report($exception);
+
+            return false;
+        }
     }
 }
