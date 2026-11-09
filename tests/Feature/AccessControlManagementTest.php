@@ -57,13 +57,13 @@ class AccessControlManagementTest extends TestCase
 
         $this->actingAs($admin)->post(route('admin.access.users.store'), [
             'name' => 'New Operator',
-            'username' => 'new.operator',
+            'username' => 'new-operator',
             'email' => 'operator@example.test',
             'password' => 'long-secure-password',
             'password_confirmation' => 'long-secure-password',
         ])->assertSessionHasNoErrors();
 
-        $created = User::query()->where('username', 'new.operator')->firstOrFail();
+        $created = User::query()->where('username', 'new-operator')->firstOrFail();
 
         $this->assertSame(0, $created->roles()->count());
         $this->assertDatabaseHas('permission_audits', [
@@ -113,11 +113,10 @@ class AccessControlManagementTest extends TestCase
             'is_active' => true,
         ]);
         $role = Role::create(['name' => 'Read only', 'key' => 'read-only', 'is_active' => true]);
-        $allowed = Permission::create([
-            'key' => 'users.view',
-            'module' => 'users',
-            'action' => 'view',
-        ]);
+        $allowed = Permission::query()->firstOrCreate(
+            ['key' => 'users.view'],
+            ['module' => 'users', 'action' => 'view'],
+        );
         $role->permissions()->attach($allowed);
         $admin->roles()->first()->permissions()->attach($allowed);
 
