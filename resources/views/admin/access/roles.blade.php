@@ -31,8 +31,8 @@
             <form method="post" action="{{ route('admin.access.roles.update', $role) }}">@csrf @method('put')
                 <input name="name" value="{{ $role->name }}" required>
                 <input name="description" value="{{ $role->description }}">
-                <label><input type="checkbox" name="is_active" value="1" @checked($role->is_active)> نشطة</label>
                 <input type="hidden" name="is_active" value="0">
+                <label><input type="checkbox" name="is_active" value="1" @checked($role->is_active)> نشطة</label>
                 <button>حفظ بيانات المجموعة</button>
             </form>
             <form method="post" action="{{ route('admin.access.roles.permissions', $role) }}">@csrf @method('put')
