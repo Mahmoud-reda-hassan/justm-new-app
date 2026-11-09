@@ -11,6 +11,7 @@ return [
     'faker_locale' => env('APP_FAKER_LOCALE', 'ar_EG'),
     'cipher' => 'AES-256-CBC',
     'key' => env('APP_KEY'),
+    'setup_token' => env('SETUP_TOKEN'),
     'previous_keys' => array_filter(explode(',', (string) env('APP_PREVIOUS_KEYS', ''))),
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
