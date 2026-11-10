@@ -1,20 +1,11 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>إدارة المستخدمين</title>
-    <style>
-        body{font-family:Tahoma,Arial,sans-serif;background:#f5f6f8;color:#222;margin:0;padding:24px}
-        main{max-width:1100px;margin:auto} section{background:#fff;padding:18px;margin:0 0 18px;border:1px solid #ddd;border-radius:8px}
-        input,button,select{padding:9px;margin:4px;border:1px solid #bbb;border-radius:5px} button{cursor:pointer}
-        table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid #ddd;text-align:right;vertical-align:top}
-        .muted{color:#666;font-size:13px}.status{padding:10px;background:#e8f5e9;margin-bottom:12px}
-        form.inline{display:inline-block;margin:3px} h1,h2{margin-top:0}
-    </style>
-</head>
-<body><main>
-    <h1>إدارة المستخدمين</h1>
+@extends('layouts.app')
+
+@section('title', 'إدارة المستخدمين')
+@section('page-title', 'إدارة المستخدمين')
+@section('breadcrumb', 'إدارة المستخدمين')
+
+@section('content')
+<h1>إدارة المستخدمين</h1>
     <p><a href="{{ route('admin.access.roles') }}">إدارة مجموعات الصلاحيات</a> | <a href="{{ route('dashboard') }}">الرئيسية</a></p>
     @if (session('status')) <div class="status">{{ session('status') }}</div> @endif
     @if ($errors->any()) <section><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></section> @endif
@@ -89,4 +80,4 @@
         </tbody></table>
         {{ $users->links() }}
     </section>
-</main></body></html>
+@endsection
