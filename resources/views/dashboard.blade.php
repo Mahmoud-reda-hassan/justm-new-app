@@ -6,6 +6,7 @@
 
 @section('content')
 @php
+    $user = auth()->user();
     $hasOperations = $user->hasPermission('sales.orders.view') || $user->hasPermission('parties.view');
     $hasCatalog = ($user->hasPermission('products.view') || $user->hasPermission('product_categories.view') || $user->hasPermission('product_attributes.view') || $user->hasPermission('units.view')) && $user->hasPermission('structure.scope.manage_all');
     $hasAdministration = $user->hasPermission('users.view') || $user->hasPermission('permissions.groups.view') || $user->hasPermission('companies.view') || $user->hasPermission('branches.view') || $user->hasPermission('warehouses.view');
