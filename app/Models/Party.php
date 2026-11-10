@@ -8,13 +8,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Party extends Model
 {
-    public const LOGIN_ROLES = ['marketer', 'sales_intermediary', 'delivery_agent'];
+    // Customer accounts can enter the storefront; supplier and shipping company remain external records.
+    public const LOGIN_ROLES = ['customer', 'marketer', 'sales_intermediary', 'delivery_agent'];
+
+    // Only these roles open a dedicated operational workspace.
+    public const WORKSPACE_ROLES = ['marketer', 'sales_intermediary', 'delivery_agent'];
+
+    // sales_intermediary is retained only as a legacy database alias for marketer.
+    public const ROLE_ALIASES = ['sales_intermediary' => 'marketer'];
 
     public const ROLES = [
         'customer' => 'عميل',
         'supplier' => 'مورد',
-        'marketer' => 'مسوق',
-        'sales_intermediary' => 'وسيط بيع',
+        'marketer' => 'مسوق / وسيط',
         'delivery_agent' => 'مندوب داخلي',
         'shipping_company' => 'شركة شحن خارجية',
     ];
@@ -45,8 +51,18 @@ class Party extends Model
         return $this->hasMany(User::class);
     }
 
+    public static function canonicalRole(string $role): string
+    {
+        return self::ROLE_ALIASES[$role] ?? $role;
+    }
+
     public function assignedRoles(): array
     {
-        return $this->partyRoles()->pluck('role')->all();
+        return $this->partyRoles()
+            ->pluck('role')
+            ->map(fn (string $role): string => self::canonicalRole($role))
+            ->unique()
+            ->values()
+            ->all();
     }
 }
