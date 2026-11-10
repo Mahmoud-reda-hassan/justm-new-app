@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Permission;
 use App\Models\Product;
+use App\Models\ProductAttributeGroup;
+use App\Models\ProductAttributeValue;
+use App\Models\ProductVariant;
 use App\Models\ProductCategory;
 use App\Models\Role;
 use App\Models\Unit;
@@ -156,6 +159,97 @@ class ProductCatalogSettingsTest extends TestCase
             ->assertOk()
             ->assertSee('card card-outline card-secondary', false)
             ->assertSee('table table-bordered table-hover table-striped', false);
+    }
+
+    public function test_attribute_group_name_cannot_change_after_linking_it_to_a_product(): void
+    {
+        $user = $this->userWith(['product_attributes.update']);
+        $group = ProductAttributeGroup::query()->create(['name' => 'اللون']);
+        $category = ProductCategory::query()->create(['name' => 'ملابس']);
+        $unit = Unit::query()->create(['name' => 'قطعة']);
+        $product = Product::query()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'name' => 'قميص',
+            'is_active' => true,
+            'is_visible' => true,
+        ]);
+        $product->attributeGroups()->attach($group->id);
+
+        $this->actingAs($user)->put(route('admin.product-attributes.groups.update', $group), [
+            'name' => 'اللون الجديد',
+        ])->assertSessionHasErrors('group');
+
+        $this->assertSame('اللون', $group->fresh()->name);
+    }
+
+    public function test_attribute_value_cannot_be_renamed_or_deactivated_after_use_by_a_variant(): void
+    {
+        $user = $this->userWith(['product_attributes.update', 'product_attributes.activate']);
+        $group = ProductAttributeGroup::query()->create(['name' => 'المقاس']);
+        $value = ProductAttributeValue::query()->create(['group_id' => $group->id, 'value' => 'كبير']);
+        $category = ProductCategory::query()->create(['name' => 'ملابس']);
+        $unit = Unit::query()->create(['name' => 'قطعة']);
+        $product = Product::query()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'name' => 'بنطال',
+            'is_active' => true,
+            'is_visible' => true,
+        ]);
+        $product->attributeGroups()->attach($group->id);
+        $variant = ProductVariant::query()->create([
+            'product_id' => $product->id,
+            'sku' => 'PANTS-L-'.uniqid(),
+            'list_price' => 200,
+            'minimum_sale_price' => 150,
+            'is_active' => true,
+        ]);
+        $variant->attributeValues()->attach($value->id);
+
+        $this->actingAs($user)->put(route('admin.product-attributes.values.update', $value), [
+            'value' => 'كبير جدًا',
+        ])->assertSessionHasErrors('value');
+
+        $this->patch(route('admin.product-attributes.values.active', $value), [
+            'is_active' => 0,
+        ])->assertSessionHasErrors('value');
+
+        $this->assertSame('كبير', $value->fresh()->value);
+        $this->assertTrue($value->fresh()->is_active);
+    }
+
+    public function test_unused_attribute_value_can_be_deactivated_even_when_its_group_is_used(): void
+    {
+        $user = $this->userWith(['product_attributes.activate']);
+        $group = ProductAttributeGroup::query()->create(['name' => 'الخامة']);
+        $usedValue = ProductAttributeValue::query()->create(['group_id' => $group->id, 'value' => 'قطن']);
+        $unusedValue = ProductAttributeValue::query()->create(['group_id' => $group->id, 'value' => 'كتان']);
+        $category = ProductCategory::query()->create(['name' => 'ملابس']);
+        $unit = Unit::query()->create(['name' => 'قطعة']);
+        $product = Product::query()->create([
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'name' => 'تيشيرت',
+            'is_active' => true,
+            'is_visible' => true,
+        ]);
+        $product->attributeGroups()->attach($group->id);
+        $variant = ProductVariant::query()->create([
+            'product_id' => $product->id,
+            'sku' => 'SHIRT-COTTON-'.uniqid(),
+            'list_price' => 100,
+            'minimum_sale_price' => 80,
+            'is_active' => true,
+        ]);
+        $variant->attributeValues()->attach($usedValue->id);
+
+        $this->actingAs($user)->patch(route('admin.product-attributes.values.active', $unusedValue), [
+            'is_active' => 0,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertFalse($unusedValue->fresh()->is_active);
+        $this->assertTrue($usedValue->fresh()->is_active);
     }
 
     public function test_catalog_settings_routes_require_specific_permissions(): void
