@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
-use RuntimeException;
 
 class OperatingStructureController extends Controller
 {
@@ -85,7 +84,7 @@ class OperatingStructureController extends Controller
         $this->authorizePermission($request, 'branches.view');
         $companies = $this->visibleCompanies($request)->where('is_active', true)->orderBy('name')->get();
         $branches = Branch::query()->with('company', 'city')->withCount('warehouses')
-            ->when(! $request->user()->hasPermission('permissions.catalog.assign'), function (Builder $q) use ($request): void {
+            ->when(! $request->user()->hasPermission('structure.scope.manage_all'), function (Builder $q) use ($request): void {
                 $companyIds = $this->scopeIds($request, 'company');
                 $branchIds = $this->scopeIds($request, 'branch');
                 $q->where(fn (Builder $inner) => $inner->whereIn('company_id', $companyIds)->orWhereIn('id', $branchIds));
@@ -100,7 +99,7 @@ class OperatingStructureController extends Controller
         $data = $request->validate([
             'company_id' => ['required', 'integer', 'exists:companies,id'],
             'city_id' => ['nullable', 'integer', 'exists:cities,id'],
-            'name' => ['required', 'string', 'max:120'],
+            'name' => ['required', 'string', 'max:120', Rule::unique('branches', 'name')->where('company_id', $request->input('company_id'))],
             'address' => ['nullable', 'string', 'max:255'],
             'is_main' => ['sometimes', 'boolean'],
         ]);
@@ -118,7 +117,7 @@ class OperatingStructureController extends Controller
         $data = $request->validate([
             'company_id' => ['required', 'integer', 'exists:companies,id'],
             'city_id' => ['nullable', 'integer', 'exists:cities,id'],
-            'name' => ['required', 'string', 'max:120'],
+            'name' => ['required', 'string', 'max:120', Rule::unique('branches', 'name')->where('company_id', $request->input('company_id'))->ignore($branch->id)],
             'address' => ['nullable', 'string', 'max:255'],
             'is_main' => ['sometimes', 'boolean'],
         ]);
@@ -133,7 +132,10 @@ class OperatingStructureController extends Controller
         $this->authorizePermission($request, 'branches.activate');
         $this->assertBranchScope($request, $branch);
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
-        if (! $data['is_active'] && $branch->is_main && $branch->company->is_active) {\n            throw ValidationException::withMessages(['branch' => 'حدد فرعًا رئيسيًا بديلًا قبل إيقاف الفرع الرئيسي الحالي.']);\n        }\n        if (! $data['is_active'] && $branch->warehouses()->where('is_active', true)->exists()) {
+        if (! $data['is_active'] && $branch->is_main && $branch->company->is_active) {\n            throw ValidationException::withMessages(['branch' => 'حدد فرعًا رئيسيًا بديلًا قبل إيقاف الفرع الرئيسي الحالي.']);\n        }\n        if (! $data['is_active'] && $branch->is_main && $branch->company->is_active) {
+            throw ValidationException::withMessages(['branch' => 'حدد فرعًا رئيسيًا بديلًا قبل إيقاف الفرع الرئيسي الحالي.']);
+        }
+        if (! $data['is_active'] && $branch->warehouses()->where('is_active', true)->exists()) {
             throw ValidationException::withMessages(['branch' => 'لا يمكن إيقاف فرع لديه مخازن نشطة؛ أوقف المخازن أولًا.']);
         }
         $branch->update(['is_active' => (bool) $data['is_active']]);
@@ -145,7 +147,7 @@ class OperatingStructureController extends Controller
     {
         $this->authorizePermission($request, 'warehouses.view');
         $warehouses = Warehouse::query()->with('branch.company', 'type')
-            ->when(! $request->user()->hasPermission('permissions.catalog.assign'), function (Builder $q) use ($request): void {
+            ->when(! $request->user()->hasPermission('structure.scope.manage_all'), function (Builder $q) use ($request): void {
                 $companyIds = $this->scopeIds($request, 'company');
                 $branchIds = $this->scopeIds($request, 'branch');
                 $warehouseIds = $this->scopeIds($request, 'warehouse');
@@ -157,7 +159,7 @@ class OperatingStructureController extends Controller
 
         $branches = Branch::query()->where('is_active', true)
             ->whereHas('company', fn (Builder $q) => $q->where('is_active', true))
-            ->when(! $request->user()->hasPermission('permissions.catalog.assign'), function (Builder $q) use ($request): void {
+            ->when(! $request->user()->hasPermission('structure.scope.manage_all'), function (Builder $q) use ($request): void {
                 $companyIds = $this->scopeIds($request, 'company');
                 $branchIds = $this->scopeIds($request, 'branch');
                 $q->where(fn (Builder $inner) => $inner->whereIn('id', $branchIds)->orWhereIn('company_id', $companyIds));
@@ -176,7 +178,7 @@ class OperatingStructureController extends Controller
         $data = $request->validate([
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'warehouse_type_id' => ['required', 'integer', 'exists:warehouse_types,id'],
-            'name' => ['required', 'string', 'max:150'],
+            'name' => ['required', 'string', 'max:150', Rule::unique('warehouses', 'name')->where('branch_id', $request->input('branch_id'))],
         ]);
         $branch = Branch::query()->findOrFail($data['branch_id']);
         $this->assertBranchScope($request, $branch);
@@ -194,7 +196,7 @@ class OperatingStructureController extends Controller
         $data = $request->validate([
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'warehouse_type_id' => ['required', 'integer', 'exists:warehouse_types,id'],
-            'name' => ['required', 'string', 'max:150'],
+            'name' => ['required', 'string', 'max:150', Rule::unique('warehouses', 'name')->where('branch_id', $request->input('branch_id'))->ignore($warehouse->id)],
         ]);
         $branch = Branch::query()->findOrFail($data['branch_id']);
         $this->assertBranchScope($request, $branch);
@@ -228,21 +230,31 @@ class OperatingStructureController extends Controller
     private function visibleCompanies(Request $request): Builder
     {
         return Company::query()->when(
-            ! $request->user()->hasPermission('permissions.catalog.assign'),
-            fn (Builder $q) => $q->whereIn('id', $this->scopeIds($request, 'company')),
+            ! $request->user()->hasPermission('structure.scope.manage_all'),
+            function (Builder $q) use ($request): void {
+                $q->where(fn (Builder $inner) => $inner
+                    ->whereIn('id', $this->scopeIds($request, 'company'))
+                    ->orWhereHas('branches', fn (Builder $branches) => $branches->whereIn('id', $this->scopeIds($request, 'branch'))));
+            },
         );
     }
 
-    private function assertCompanyScope(Request $request, Company $company): void
+    private function assertCompanyScope(Request $request, Company $company, ?Branch $currentBranch = null): void
     {
-        abort_unless($request->user()->hasPermission('permissions.catalog.assign') || $request->user()->hasDataScope('company', (int) $company->id), 403);
+        $user = $request->user();
+        abort_unless(
+            $user->hasPermission('structure.scope.manage_all')
+            || $user->hasDataScope('company', (int) $company->id)
+            || ($currentBranch && (int) $currentBranch->company_id === (int) $company->id && $user->hasDataScope('branch', (int) $currentBranch->id)),
+            403,
+        );
     }
 
     private function assertBranchScope(Request $request, Branch $branch): void
     {
         $user = $request->user();
         abort_unless(
-            $user->hasPermission('permissions.catalog.assign')
+            $user->hasPermission('structure.scope.manage_all')
             || $user->hasDataScope('branch', (int) $branch->id)
             || $user->hasDataScope('company', (int) $branch->company_id),
             403,
@@ -253,7 +265,7 @@ class OperatingStructureController extends Controller
     {
         $user = $request->user();
         abort_unless(
-            $user->hasPermission('permissions.catalog.assign')
+            $user->hasPermission('structure.scope.manage_all')
             || $user->hasDataScope('warehouse', (int) $warehouse->id)
             || $user->hasDataScope('branch', (int) $warehouse->branch_id)
             || $user->hasDataScope('company', (int) $warehouse->branch->company_id),
