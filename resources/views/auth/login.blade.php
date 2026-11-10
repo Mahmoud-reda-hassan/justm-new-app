@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>تسجيل الدخول - Just-M</title>
+    <title>تسجيل الدخول - {{ config('app.name') }}</title>
     <style>
         body{font-family:Tahoma,Arial,sans-serif;background:#f4f6f9;display:grid;place-items:center;min-height:100vh;margin:0}
         main{background:#fff;padding:2rem;border-radius:12px;width:min(92vw,380px);box-shadow:0 4px 24px #0001}
