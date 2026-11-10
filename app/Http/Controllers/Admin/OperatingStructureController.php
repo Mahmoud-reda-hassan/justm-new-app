@@ -25,7 +25,8 @@ class OperatingStructureController extends Controller
         $companies = Company::query()
             ->withCount(['branches', 'branches as active_branches_count' => fn ($q) => $q->where('is_active', true)])
             ->when(! $request->user()->hasPermission('structure.scope.manage_all'), fn (Builder $q) => $q->whereIn('id', $this->scopeIds($request, 'company')))
-            ->orderBy('name')->paginate(20);
+            ->when($request->filled('q'), fn (Builder $q) => $q->where('name', 'like', '%'.$request->string('q').'%'))
+            ->orderBy('name')->paginate(20)->withQueryString();
 
         return view('admin.structure.companies', ['companies' => $companies, 'cities' => City::query()->where('is_active', true)->orderBy('name_ar')->get()]);
     }
@@ -90,7 +91,15 @@ class OperatingStructureController extends Controller
                 $companyIds = $this->scopeIds($request, 'company');
                 $branchIds = $this->scopeIds($request, 'branch');
                 $q->where(fn (Builder $inner) => $inner->whereIn('company_id', $companyIds)->orWhereIn('id', $branchIds));
-            })->orderBy('company_id')->orderBy('name')->paginate(20);
+            })
+            ->when($request->filled('q'), fn (Builder $q) => $q->where(function (Builder $search) use ($request): void {
+                $term = '%'.$request->string('q').'%';
+                $search->where('name', 'like', $term)
+                    ->orWhere('address', 'like', $term)
+                    ->orWhereHas('company', fn (Builder $company) => $company->where('name', 'like', $term))
+                    ->orWhereHas('city', fn (Builder $city) => $city->where('name_ar', 'like', $term));
+            }))
+            ->orderBy('company_id')->orderBy('name')->paginate(20)->withQueryString();
 
         return view('admin.structure.branches', ['branches' => $branches, 'companies' => $companies, 'cities' => City::query()->where('is_active', true)->orderBy('name_ar')->get()]);
     }
@@ -100,9 +109,9 @@ class OperatingStructureController extends Controller
         $this->authorizePermission($request, 'branches.create');
         $data = $request->validate([
             'company_id' => ['required', 'integer', 'exists:companies,id'],
-            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
+            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
             'name' => ['required', 'string', 'max:120', Rule::unique('branches', 'name')->where('company_id', $request->input('company_id'))],
-            'address' => ['nullable', 'string', 'max:255'],
+            'address' => ['required', 'string', 'max:255'],
             'is_main' => ['sometimes', 'boolean'],
         ]);
         $company = Company::query()->findOrFail($data['company_id']);
@@ -118,9 +127,9 @@ class OperatingStructureController extends Controller
         $this->assertBranchScope($request, $branch);
         $data = $request->validate([
             'company_id' => ['required', 'integer', 'exists:companies,id'],
-            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
+            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
             'name' => ['required', 'string', 'max:120', Rule::unique('branches', 'name')->where('company_id', $request->input('company_id'))->ignore($branch->id)],
-            'address' => ['nullable', 'string', 'max:255'],
+            'address' => ['required', 'string', 'max:255'],
             'is_main' => ['sometimes', 'boolean'],
         ]);
         $this->assertCompanyScope($request, Company::query()->findOrFail($data['company_id']), $branch);
@@ -161,7 +170,15 @@ class OperatingStructureController extends Controller
                     ->whereIn('id', $warehouseIds)
                     ->orWhereIn('branch_id', $branchIds)
                     ->orWhereHas('branch', fn (Builder $branch) => $branch->whereIn('company_id', $companyIds)));
-            })->orderBy('branch_id')->orderBy('name')->paginate(20);
+            })
+            ->when($request->filled('q'), fn (Builder $q) => $q->where(function (Builder $search) use ($request): void {
+                $term = '%'.$request->string('q').'%';
+                $search->where('name', 'like', $term)
+                    ->orWhereHas('type', fn (Builder $type) => $type->where('name', 'like', $term))
+                    ->orWhereHas('branch', fn (Builder $branch) => $branch->where('name', 'like', $term)
+                        ->orWhereHas('company', fn (Builder $company) => $company->where('name', 'like', $term)));
+            }))
+            ->orderBy('branch_id')->orderBy('name')->paginate(20)->withQueryString();
 
         $branches = Branch::query()->where('is_active', true)
             ->whereHas('company', fn (Builder $q) => $q->where('is_active', true))
