@@ -15,6 +15,7 @@ use App\Services\InitialOperatingSetup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -176,7 +177,6 @@ class SetupController extends Controller
     public function createFirstAdmin(Request $request, InitialOperatingSetup $setup): RedirectResponse
     {
         $this->ensureAuthorized($request);
-        abort_unless($this->isOperatingDataReady(), 409);
         abort_unless(Schema::hasTable('users') && Schema::hasTable('roles'), 409);
         abort_if(User::query()->exists(), 404);
 
@@ -251,6 +251,7 @@ class SetupController extends Controller
                         'city_name_en' => $validated['city_name_en'] ?: $validated['city_name_ar'],
                         'company_name' => $validated['company_name'],
                         'company_phone' => $validated['company_phone'],
+                        'company_address' => $validated['branch_address'],
                         'branch_name' => $validated['branch_name'],
                         'branch_address' => $validated['branch_address'],
                         'warehouse_name' => $validated['warehouse_name'],
@@ -292,11 +293,6 @@ class SetupController extends Controller
 
         return redirect()->route('verification.notice')
             ->with('status', 'تم إنشاء المدير والمؤسسة والفرع الرئيسي والمخزن. أرسلنا رسالة تحقق إلى بريدك الإلكتروني.');
-
-        $request->session()->forget('justm_setup_authorized_at');
-        $request->session()->regenerateToken();
-
-        return redirect()->route('login')->with('status', 'تم إنشاء أول مدير. يمكنك تسجيل الدخول الآن.');
     }
 
     private function ensureAuthorized(Request $request): void
