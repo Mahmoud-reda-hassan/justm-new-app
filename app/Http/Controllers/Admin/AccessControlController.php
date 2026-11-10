@@ -195,11 +195,12 @@ class AccessControlController extends Controller
         return back()->with('status', 'تم تحديث نطاق وصول المستخدم.');
     }
 
-    public function roles(): View
+    public function roles(Request $request): View
     {
         return view('admin.access.roles', [
             'roles' => Role::query()->with('permissions')->orderBy('name')->paginate(20),
             'permissions' => Permission::query()->orderBy('module')->orderBy('key')->get(),
+            'currentUserRoleIds' => $request->user()->roles()->pluck('roles.id'),
         ]);
     }
 
@@ -249,7 +250,11 @@ class AccessControlController extends Controller
             'permissions.*' => ['integer', 'distinct', 'exists:permissions,id'],
         ]);
 
-        abort_if($request->user()->roles()->whereKey($role->id)->exists(), 422, 'لا يمكن تعديل صلاحيات مجموعة مسندة لحسابك الحالي.');
+        if ($request->user()->roles()->whereKey($role->id)->exists()) {
+            return back()->withErrors([
+                'permissions' => 'هذه المجموعة مرتبطة بحسابك الحالي ومحمية. أنشئ مجموعة تشغيلية جديدة وعدّل صلاحياتها بدلًا منها.',
+            ]);
+        }
 
         $selected = Permission::query()->whereIn('id', $data['permissions'] ?? [])->get();
         $actorPermissions = $request->user()->roles()
