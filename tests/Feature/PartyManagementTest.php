@@ -130,6 +130,46 @@ class PartyManagementTest extends TestCase
             ->assertRedirect(route('dashboard'));
     }
 
+
+    public function test_shipping_company_party_cannot_be_linked_to_a_login_account(): void
+    {
+        $admin = $this->userWith(['users.create', 'structure.scope.manage_all']);
+        $party = Party::query()->create(['entity_type' => 'company', 'name' => 'شركة شحن خارجية']);
+        $party->partyRoles()->create(['role' => 'shipping_company']);
+
+        $this->actingAs($admin)->post(route('admin.access.users.store'), [
+            'name' => 'حساب شركة الشحن',
+            'username' => 'shipping-company-login',
+            'password' => 'long-secure-password',
+            'password_confirmation' => 'long-secure-password',
+            'party_id' => $party->id,
+        ])->assertStatus(422);
+
+        $this->assertDatabaseMissing('users', ['username' => 'shipping-company-login']);
+    }
+
+    public function test_legacy_intermediary_role_is_presented_as_the_shared_marketer_role(): void
+    {
+        $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'وسيط قديم']);
+        $party->partyRoles()->create(['role' => 'sales_intermediary']);
+
+        $this->assertSame(['marketer'], $party->assignedRoles());
+
+        $user = User::query()->create([
+            'name' => 'حساب وسيط قديم',
+            'username' => 'legacy-intermediary',
+            'password' => 'secure-password',
+            'account_type' => 'partner',
+            'party_id' => $party->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->get(route('workspaces.index'))
+            ->assertRedirect(route('workspaces.enter', ['workspace' => 'marketer']));
+        $this->actingAs($user)->get('/workspaces/intermediary')
+            ->assertOk()->assertSee('منطقة المسوقين والوسطاء');
+    }
+
     public function test_party_with_linked_login_cannot_lose_all_operational_roles(): void
     {
         $admin = $this->userWith(['parties.update']);
