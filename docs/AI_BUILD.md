@@ -3947,3 +3947,16 @@
 - أضيف اختبار للتحقق من البحث والفلاتر وعدم ظهور حساب داخلي غير مطابق.
 - **الملفات:** app/Http/Controllers/Admin/AccessControlController.php، resources/views/admin/access/users.blade.php، tests/Feature/AccessControlManagementTest.php، docs/AUTH_ACCESS_CONTROL_IMPLEMENTATION_AR.md.
 - نتيجة CI بعد التعديل لم تُراجع بعد، ولا توجد معاينة متصفح.
+
+
+## مطابقة شاشة المنتجات مع النموذج القديم وتحديث AdminLTE — 2026-11-11
+
+- تمت مراجعة `main:inc/Views/AddProduct.php` و`main:dist/js/products.js` و`main:inc/Views/ProductOption.php`، ومقارنة ذلك بمتطلبات الكتالوج وتسعير أوامر البيع والوثيقة المعمارية الحالية.
+- تم تحويل شاشة المنتجات إلى مكونات AdminLTE أصلية: Info Boxes، Cards، Callouts، نماذج Bootstrap، وجداول أكواد البيع. بقيت عمليات إنشاء المنتج وتعديله وصوره وأبعاده وصفاته وأسعار الأكواد والبحث والتصفية والتفعيل كما هي.
+- **تصحيح وظيفي:** إتاحة إضافة SKU إضافي حتى عندما لا يكون للمنتج مجموعات صفات؛ مسار الخادم كان يقبل ذلك بينما كانت الواجهة تخفي النموذج.
+- لم تُنقل حقول تكلفة المنتج أو حدود المخزون أو الحجز المسبق إلى شاشة الكتالوج؛ هذه تخص نواة المخزون والحجوزات وفق التصميم الجديد. سعر الجملة القديم لا يقابله حقل صريح حاليًا، لذلك وثق كسؤال مفتوح بدل افتراض مساواته بالحد الأدنى أو عمولة المسوق/الوسيط.
+- **اختبار مضاف:** `test_product_screen_uses_adminlte_and_allows_an_extra_sku_without_attributes`.
+- **الملفات:** `resources/views/admin/products/index.blade.php`، `tests/Feature/ProductManagementTest.php`، `docs/REBUILD_V2_ARCHITECTURE_AR.md`.
+- **التحقق:** نتيجة CI على HEAD الناتج لم تُراجع بعد. لا توجد معاينة متصفح.
+- **لم يحدث:** لا migrations أو seeders، ولا تعديل قاعدة بيانات فعلية، ولا نشر أو دمج إلى `main`.
+- **الخطوة التالية:** استكمال مطابقة شجرة تصنيفات المنتجات مع شجرة main التفاعلية، ثم مراجعة حقول التسعير المفتوحة قبل إضافة أي حقول جديدة.
