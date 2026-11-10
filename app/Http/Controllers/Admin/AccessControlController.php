@@ -67,16 +67,19 @@ class AccessControlController extends Controller
             'password' => ['required', 'string', 'min:12', 'confirmed'],
         ]);
 
+        $actor = $request->user();
+        $hasGlobalScope = $actor->hasPermission('structure.scope.manage_all');
+        if (! $hasGlobalScope) {
+            abort_unless($actor->dataScopes()->exists(), 403,
+                'لا يمكن إنشاء مستخدم قبل تحديد نطاق البيانات المسموح لك بإدارته.');
+        }
+
         $user = User::create($data + [
             'account_type' => 'admin',
             'is_active' => true,
         ]);
 
-        $actor = $request->user();
-        if (! $actor->hasPermission('structure.scope.manage_all')) {
-            abort_unless($actor->dataScopes()->exists(), 403,
-                'لا يمكن إنشاء مستخدم قبل تحديد نطاق البيانات المسموح لك بإدارته.');
-
+        if (! $hasGlobalScope) {
             $user->dataScopes()->createMany(
                 $actor->dataScopes()->get(['scope_type', 'scope_id'])->map(fn ($scope) => [
                     'scope_type' => $scope->scope_type,
