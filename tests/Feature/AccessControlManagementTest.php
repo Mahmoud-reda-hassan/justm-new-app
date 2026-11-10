@@ -185,7 +185,7 @@ class AccessControlManagementTest extends TestCase
         $role->update(['key' => 'system-access-admin']);
         $sensitive = Permission::query()->firstOrCreate(['key' => 'users.delete'], ['module' => 'users', 'action' => 'delete']);
 
-        $this->from(route('admin.access.roles'))->put(route('admin.access.roles.permissions', $role), ['permissions' => [$sensitive->id]])
+        $this->from(route('admin.access.roles'))->actingAs($admin)->put(route('admin.access.roles.permissions', $role), ['permissions' => [$sensitive->id]])
             ->assertRedirect(route('admin.access.roles'))->assertSessionHasErrors('permissions');
         $this->assertFalse($role->fresh()->permissions->contains('id', $sensitive->id));
     }
