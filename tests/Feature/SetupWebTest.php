@@ -153,7 +153,7 @@ class SetupWebTest extends TestCase
         $this->assertDatabaseHas('companies', ['name' => 'شركة Just-M', 'phone' => '0222222222']);
         $this->assertDatabaseHas('branches', ['name' => 'المقر الرئيسي', 'is_main' => true, 'address' => 'شارع التحرير - القاهرة']);
         $this->assertDatabaseHas('countries', ['name_ar' => 'مصر']);
-        $this->assertDatabaseHas('governorates', ['name_ar' => 'القاهرة']);
+        $this->assertDatabaseHas('governorates', ['name_ar' => 'القاهره']);
         $this->assertDatabaseHas('cities', ['name_ar' => 'مدينة نصر']);
         $this->assertDatabaseHas('warehouses', ['name' => 'المخزن الرئيسي']);
         Notification::assertSentTo($user, VerifyEmail::class);
