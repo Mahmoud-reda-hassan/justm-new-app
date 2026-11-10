@@ -112,6 +112,8 @@ class AccessControlController extends Controller
             'roles.*' => ['integer', 'distinct', Rule::exists('roles', 'id')->where('is_active', true)],
         ]);
 
+        abort_if($request->user()->is($user), 422, 'لا يمكن تغيير مجموعات حسابك الحالي من هذه الشاشة.');
+
         $roleIds = $data['roles'] ?? [];
         $roles = Role::query()->with('permissions')->whereIn('id', $roleIds)->get();
         $actorPermissions = $request->user()->roles()
@@ -119,10 +121,12 @@ class AccessControlController extends Controller
             ->with('permissions:id,key')
             ->get()->pluck('permissions')->flatten()->pluck('key')->unique()->all();
 
-        foreach ($roles as $role) {
-            foreach ($role->permissions as $permission) {
-                abort_unless(in_array($permission->key, $actorPermissions, true), 403,
-                    'لا يمكن إسناد مجموعة تتضمن صلاحيات لا تملكها.');
+        if (! $request->user()->hasPermission('permissions.catalog.assign')) {
+            foreach ($roles as $role) {
+                foreach ($role->permissions as $permission) {
+                    abort_unless(in_array($permission->key, $actorPermissions, true), 403,
+                        'لا يمكن إسناد مجموعة تتضمن صلاحيات لا تملكها.');
+                }
             }
         }
 
@@ -226,15 +230,19 @@ class AccessControlController extends Controller
             'permissions.*' => ['integer', 'distinct', 'exists:permissions,id'],
         ]);
 
+        abort_if($request->user()->roles()->whereKey($role->id)->exists(), 422, 'لا يمكن تعديل صلاحيات مجموعة مسندة لحسابك الحالي.');
+
         $selected = Permission::query()->whereIn('id', $data['permissions'] ?? [])->get();
         $actorPermissions = $request->user()->roles()
             ->where('roles.is_active', true)
             ->with('permissions:id,key')
             ->get()->pluck('permissions')->flatten()->pluck('key')->unique()->all();
 
-        foreach ($selected as $permission) {
-            abort_unless(in_array($permission->key, $actorPermissions, true), 403,
-                'لا يمكن إسناد صلاحية لا تملكها.');
+        if (! $request->user()->hasPermission('permissions.catalog.assign')) {
+            foreach ($selected as $permission) {
+                abort_unless(in_array($permission->key, $actorPermissions, true), 403,
+                    'لا يمكن إسناد صلاحية لا تملكها.');
+            }
         }
 
         $before = $role->permissions()->pluck('permissions.key')->all();
