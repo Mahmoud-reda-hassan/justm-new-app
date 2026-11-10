@@ -10,6 +10,7 @@ use App\Models\Governorate;
 use App\Models\Region;
 use App\Models\Warehouse;
 use App\Models\WarehouseType;
+use App\Services\BranchManager;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;

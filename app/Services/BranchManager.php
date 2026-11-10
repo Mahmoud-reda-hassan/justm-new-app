@@ -70,7 +70,7 @@ class BranchManager
             if ($isMain) {
                 Branch::query()
                     ->where('company_id', $companyId)
-                    ->whereKeyNot($current->id)
+                    ->where('id', '!=', $current->id)
                     ->update(['is_main' => false]);
             }
 
