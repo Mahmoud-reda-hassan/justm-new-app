@@ -129,9 +129,17 @@
                             @endforeach
                         </td>
                         <td>
-                            <div>{{ $party->phone ?: '—' }}</div>
-                            @if($party->mobile)<div class="text-muted small">{{ $party->mobile }}</div>@endif
+                            @forelse($party->phones->where('is_active', true) as $contact)
+                                <div>{{ $contact->number }} <small class="text-muted">{{ $contact->type === 'mobile' ? 'محمول' : 'أرضي' }}</small>
+                                    @if($contact->is_primary)<span class="badge badge-primary">رئيسي</span>@endif
+                                    @if($contact->is_whatsapp)<i class="fab fa-whatsapp text-success" title="واتساب"></i>@endif
+                                    @if($contact->is_telegram)<i class="fab fa-telegram text-info" title="تيليجرام"></i>@endif
+                                </div>
+                            @empty
+                                <div>{{ $party->phone ?: '—' }}</div>@if($party->mobile)<div>{{ $party->mobile }}</div>@endif
+                            @endforelse
                             @if($party->email)<div class="text-muted small">{{ $party->email }}</div>@endif
+                            @if($party->addresses->where('is_active', true)->count() > 1)<small class="text-muted">{{ $party->addresses->where('is_active', true)->count() }} عناوين محفوظة</small>@endif
                         </td>
                         <td>{{ $party->city?->name_ar ?: '—' }}</td>
                         <td>
@@ -200,13 +208,38 @@
                         <div class="form-group col-md-4"><label>نوع الطرف</label><select class="form-control" name="entity_type" required><option value="individual" @selected(old('entity_type', 'individual') === 'individual')>فرد</option><option value="company" @selected(old('entity_type') === 'company')>شركة / مؤسسة</option></select></div>
                         <div class="form-group col-md-4"><label>الاسم</label><input class="form-control" name="name" value="{{ old('name') }}" required maxlength="180"></div>
                         <div class="form-group col-md-6"><label>الشخص المسؤول</label><input class="form-control" name="contact_person" value="{{ old('contact_person') }}" maxlength="150"></div>
-                        <div class="form-group col-md-3"><label>الهاتف</label><input class="form-control" name="phone" value="{{ old('phone') }}" maxlength="40"></div>
-                        <div class="form-group col-md-3"><label>المحمول</label><input class="form-control" name="mobile" value="{{ old('mobile') }}" maxlength="40"></div>
+                        <div class="form-group col-12">
+                            <label>أرقام الاتصال</label>
+                            <div data-contact-rows="phones" data-next-index="1">
+                                <div class="border rounded p-2 mb-2" data-contact-row>
+                                    <div class="form-row align-items-end">
+                                        <div class="form-group col-md-4"><label>رقم الهاتف</label><input class="form-control" name="phones[0][number]" value="{{ old('phones.0.number') }}" maxlength="40"></div>
+                                        <div class="form-group col-md-2"><label>النوع</label><select class="form-control" name="phones[0][type]"><option value="mobile">محمول</option><option value="landline">أرضي</option></select></div>
+                                        <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="create-phone-wa" type="checkbox" name="phones[0][is_whatsapp]" value="1"><label class="custom-control-label" for="create-phone-wa">واتساب</label></div></div>
+                                        <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="create-phone-tg" type="checkbox" name="phones[0][is_telegram]" value="1"><label class="custom-control-label" for="create-phone-tg">تيليجرام</label></div></div>
+                                        <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="create-phone-primary" type="checkbox" name="phones[0][is_primary]" value="1" checked data-primary-choice="phones"><label class="custom-control-label" for="create-phone-primary">رئيسي</label></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-default btn-xs" data-contact-add="phones"><i class="fas fa-plus ml-1"></i> إضافة رقم آخر</button>
+                        </div>
                         <div class="form-group col-md-6"><label>البريد الإلكتروني</label><input class="form-control" name="email" type="email" value="{{ old('email') }}" maxlength="190"></div>
-                        <div class="form-group col-md-6"><label>المدينة</label><select class="form-control" name="city_id"><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected((string) old('city_id') === (string) $city->id)>{{ $city->name_ar }}</option>@endforeach</select></div>
+                        <div class="form-group col-12">
+                            <label>عناوين الطرف</label>
+                            <div data-contact-rows="addresses" data-next-index="1">
+                                <div class="border rounded p-2 mb-2" data-contact-row>
+                                    <div class="form-row align-items-end">
+                                        <div class="form-group col-md-3"><label>اسم العنوان</label><input class="form-control" name="addresses[0][title]" value="العنوان الرئيسي" required></div>
+                                        <div class="form-group col-md-3"><label>المدينة</label><select class="form-control" name="addresses[0][city_id]"><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}">{{ $city->name_ar }}</option>@endforeach</select></div>
+                                        <div class="form-group col-md-4"><label>العنوان بالتفصيل</label><input class="form-control" name="addresses[0][address]" value="{{ old('addresses.0.address') }}" maxlength="4000" required></div>
+                                        <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="create-address-primary" type="checkbox" name="addresses[0][is_primary]" value="1" checked data-primary-choice="addresses"><label class="custom-control-label" for="create-address-primary">رئيسي</label></div></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-default btn-xs" data-contact-add="addresses"><i class="fas fa-plus ml-1"></i> إضافة عنوان آخر</button>
+                        </div>
                         <div class="form-group col-md-6"><label>الرقم الضريبي</label><input class="form-control" name="tax_number" value="{{ old('tax_number') }}" maxlength="80"></div>
                         <div class="form-group col-md-6"><label>السجل التجاري</label><input class="form-control" name="commercial_register" value="{{ old('commercial_register') }}" maxlength="80"></div>
-                        <div class="form-group col-12"><label>العنوان</label><input class="form-control" name="address" value="{{ old('address') }}" maxlength="4000"></div>
                         <div class="form-group col-12"><label>ملاحظات</label><textarea class="form-control" name="notes" rows="2">{{ old('notes') }}</textarea></div>
                     </div>
                     <div class="form-group mb-0">
@@ -242,13 +275,59 @@
                                 <div class="form-group col-md-4"><label>نوع الطرف</label><select class="form-control" name="entity_type" required><option value="individual" @selected($party->entity_type === 'individual')>فرد</option><option value="company" @selected($party->entity_type === 'company')>شركة / مؤسسة</option></select></div>
                                 <div class="form-group col-md-4"><label>الاسم</label><input class="form-control" name="name" value="{{ $party->name }}" required maxlength="180"></div>
                                 <div class="form-group col-md-6"><label>الشخص المسؤول</label><input class="form-control" name="contact_person" value="{{ $party->contact_person }}" maxlength="150"></div>
-                                <div class="form-group col-md-3"><label>الهاتف</label><input class="form-control" name="phone" value="{{ $party->phone }}" maxlength="40"></div>
-                                <div class="form-group col-md-3"><label>المحمول</label><input class="form-control" name="mobile" value="{{ $party->mobile }}" maxlength="40"></div>
+                                <div class="form-group col-12">
+                                    <label>أرقام الاتصال</label>
+                                    @php($activePhones = $party->phones->where('is_active', true)->values())
+                                    <div data-contact-rows="phones" data-next-index="{{ max(2, $activePhones->count()) }}">
+                                        @forelse($activePhones as $index => $phone)
+                                            <div class="border rounded p-2 mb-2" data-contact-row>
+                                                <input type="hidden" name="phones[{{ $index }}][id]" value="{{ $phone->id }}">
+                                                <div class="form-row align-items-end">
+                                                    <div class="form-group col-md-4"><label>رقم الهاتف</label><input class="form-control" name="phones[{{ $index }}][number]" value="{{ $phone->number }}" required maxlength="40"></div>
+                                                    <div class="form-group col-md-2"><label>النوع</label><select class="form-control" name="phones[{{ $index }}][type]"><option value="mobile" @selected($phone->type === 'mobile')>محمول</option><option value="landline" @selected($phone->type === 'landline')>أرضي</option></select></div>
+                                                    <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="edit-phone-wa-{{ $party->id }}-{{ $index }}" type="checkbox" name="phones[{{ $index }}][is_whatsapp]" value="1" @checked($phone->is_whatsapp)><label class="custom-control-label" for="edit-phone-wa-{{ $party->id }}-{{ $index }}">واتساب</label></div></div>
+                                                    <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="edit-phone-tg-{{ $party->id }}-{{ $index }}" type="checkbox" name="phones[{{ $index }}][is_telegram]" value="1" @checked($phone->is_telegram)><label class="custom-control-label" for="edit-phone-tg-{{ $party->id }}-{{ $index }}">تيليجرام</label></div></div>
+                                                    <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="edit-phone-primary-{{ $party->id }}-{{ $index }}" type="checkbox" name="phones[{{ $index }}][is_primary]" value="1" @checked($phone->is_primary) data-primary-choice="phones"><label class="custom-control-label" for="edit-phone-primary-{{ $party->id }}-{{ $index }}">رئيسي</label></div></div>
+                                                </div>
+                                                <button type="button" class="btn btn-link btn-xs text-danger p-0" data-contact-remove>إزالة الرقم</button>
+                                            </div>
+                                        @empty
+                                            @if($party->mobile)
+                                            <div class="border rounded p-2 mb-2" data-contact-row><div class="form-row align-items-end"><div class="form-group col-md-4"><label>المحمول</label><input class="form-control" name="phones[0][number]" value="{{ $party->mobile }}" required></div><div class="form-group col-md-2"><label>النوع</label><select class="form-control" name="phones[0][type]"><option value="mobile">محمول</option><option value="landline">أرضي</option></select></div><div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="legacy-phone-primary-{{ $party->id }}" type="checkbox" name="phones[0][is_primary]" value="1" checked data-primary-choice="phones"><label class="custom-control-label" for="legacy-phone-primary-{{ $party->id }}">رئيسي</label></div></div></div><button type="button" class="btn btn-link btn-xs text-danger p-0" data-contact-remove>إزالة الرقم</button></div>
+                                            @endif
+                                            @if($party->phone)
+                                            <div class="border rounded p-2 mb-2" data-contact-row><div class="form-row align-items-end"><div class="form-group col-md-4"><label>الهاتف</label><input class="form-control" name="phones[1][number]" value="{{ $party->phone }}" required></div><div class="form-group col-md-2"><label>النوع</label><select class="form-control" name="phones[1][type]"><option value="landline">أرضي</option><option value="mobile">محمول</option></select></div><div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="legacy-phone-secondary-{{ $party->id }}" type="checkbox" name="phones[1][is_primary]" value="1" @checked(!$party->mobile) data-primary-choice="phones"><label class="custom-control-label" for="legacy-phone-secondary-{{ $party->id }}">رئيسي</label></div></div></div><button type="button" class="btn btn-link btn-xs text-danger p-0" data-contact-remove>إزالة الرقم</button></div>
+                                            @endif
+                                        @endforelse
+                                    </div>
+                                    <button type="button" class="btn btn-default btn-xs" data-contact-add="phones">إضافة رقم آخر</button>
+                                </div>
                                 <div class="form-group col-md-6"><label>البريد الإلكتروني</label><input class="form-control" name="email" type="email" value="{{ $party->email }}" maxlength="190"></div>
-                                <div class="form-group col-md-6"><label>المدينة</label><select class="form-control" name="city_id"><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected($party->city_id == $city->id)>{{ $city->name_ar }}</option>@endforeach</select></div>
+                                <div class="form-group col-12">
+                                    <label>عناوين الطرف</label>
+                                    @php($activeAddresses = $party->addresses->where('is_active', true)->values())
+                                    <div data-contact-rows="addresses" data-next-index="{{ max(1, $activeAddresses->count()) }}">
+                                        @forelse($activeAddresses as $index => $address)
+                                            <div class="border rounded p-2 mb-2" data-contact-row>
+                                                <input type="hidden" name="addresses[{{ $index }}][id]" value="{{ $address->id }}">
+                                                <div class="form-row align-items-end">
+                                                    <div class="form-group col-md-3"><label>اسم العنوان</label><input class="form-control" name="addresses[{{ $index }}][title]" value="{{ $address->title }}" required></div>
+                                                    <div class="form-group col-md-3"><label>المدينة</label><select class="form-control" name="addresses[{{ $index }}][city_id]"><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected($address->city_id == $city->id)>{{ $city->name_ar }}</option>@endforeach</select></div>
+                                                    <div class="form-group col-md-4"><label>العنوان بالتفصيل</label><input class="form-control" name="addresses[{{ $index }}][address]" value="{{ $address->address }}" required maxlength="4000"></div>
+                                                    <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="edit-address-primary-{{ $party->id }}-{{ $index }}" type="checkbox" name="addresses[{{ $index }}][is_primary]" value="1" @checked($address->is_primary) data-primary-choice="addresses"><label class="custom-control-label" for="edit-address-primary-{{ $party->id }}-{{ $index }}">رئيسي</label></div></div>
+                                                </div>
+                                                <button type="button" class="btn btn-link btn-xs text-danger p-0" data-contact-remove>إزالة العنوان</button>
+                                            </div>
+                                        @empty
+                                            @if($party->address || $party->city_id)
+                                            <div class="border rounded p-2 mb-2" data-contact-row><div class="form-row align-items-end"><div class="form-group col-md-3"><label>اسم العنوان</label><input class="form-control" name="addresses[0][title]" value="العنوان الرئيسي" required></div><div class="form-group col-md-3"><label>المدينة</label><select class="form-control" name="addresses[0][city_id]"><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected($party->city_id == $city->id)>{{ $city->name_ar }}</option>@endforeach</select></div><div class="form-group col-md-4"><label>العنوان بالتفصيل</label><input class="form-control" name="addresses[0][address]" value="{{ $party->address }}" required></div><div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="legacy-address-primary-{{ $party->id }}" type="checkbox" name="addresses[0][is_primary]" value="1" checked data-primary-choice="addresses"><label class="custom-control-label" for="legacy-address-primary-{{ $party->id }}">رئيسي</label></div></div></div><button type="button" class="btn btn-link btn-xs text-danger p-0" data-contact-remove>إزالة العنوان</button></div>
+                                            @endif
+                                        @endforelse
+                                    </div>
+                                    <button type="button" class="btn btn-default btn-xs" data-contact-add="addresses">إضافة عنوان آخر</button>
+                                </div>
                                 <div class="form-group col-md-6"><label>الرقم الضريبي</label><input class="form-control" name="tax_number" value="{{ $party->tax_number }}" maxlength="80"></div>
                                 <div class="form-group col-md-6"><label>السجل التجاري</label><input class="form-control" name="commercial_register" value="{{ $party->commercial_register }}" maxlength="80"></div>
-                                <div class="form-group col-12"><label>العنوان</label><input class="form-control" name="address" value="{{ $party->address }}" maxlength="4000"></div>
                                 <div class="form-group col-12"><label>ملاحظات</label><textarea class="form-control" name="notes" rows="2">{{ $party->notes }}</textarea></div>
                             </div>
                             <div class="form-group mb-0">
@@ -267,4 +346,48 @@
         </div>
     @endforeach
 @endif
+<script>
+(function () {
+    const phoneTemplate = `<div class="border rounded p-2 mb-2" data-contact-row>
+        <div class="form-row align-items-end">
+            <div class="form-group col-md-4"><label>رقم الهاتف</label><input class="form-control" name="phones[__INDEX__][number]" required maxlength="40"></div>
+            <div class="form-group col-md-2"><label>النوع</label><select class="form-control" name="phones[__INDEX__][type]"><option value="mobile">محمول</option><option value="landline">أرضي</option></select></div>
+            <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="phone-wa-__INDEX__" type="checkbox" name="phones[__INDEX__][is_whatsapp]" value="1"><label class="custom-control-label" for="phone-wa-__INDEX__">واتساب</label></div></div>
+            <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="phone-tg-__INDEX__" type="checkbox" name="phones[__INDEX__][is_telegram]" value="1"><label class="custom-control-label" for="phone-tg-__INDEX__">تيليجرام</label></div></div>
+            <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="phone-primary-__INDEX__" type="checkbox" name="phones[__INDEX__][is_primary]" value="1" data-primary-choice="phones"><label class="custom-control-label" for="phone-primary-__INDEX__">رئيسي</label></div></div>
+        </div><button type="button" class="btn btn-link btn-xs text-danger p-0" data-contact-remove>إزالة الرقم</button>
+    </div>`;
+    const addressTemplate = `<div class="border rounded p-2 mb-2" data-contact-row>
+        <div class="form-row align-items-end">
+            <div class="form-group col-md-3"><label>اسم العنوان</label><input class="form-control" name="addresses[__INDEX__][title]" value="عنوان جديد" required></div>
+            <div class="form-group col-md-3"><label>المدينة</label><select class="form-control" name="addresses[__INDEX__][city_id]"><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}">{{ $city->name_ar }}</option>@endforeach</select></div>
+            <div class="form-group col-md-4"><label>العنوان بالتفصيل</label><input class="form-control" name="addresses[__INDEX__][address]" required maxlength="4000"></div>
+            <div class="form-group col-md-2"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="address-primary-__INDEX__" type="checkbox" name="addresses[__INDEX__][is_primary]" value="1" data-primary-choice="addresses"><label class="custom-control-label" for="address-primary-__INDEX__">رئيسي</label></div></div>
+        </div><button type="button" class="btn btn-link btn-xs text-danger p-0" data-contact-remove>إزالة العنوان</button>
+    </div>`;
+
+    document.addEventListener('click', function (event) {
+        const add = event.target.closest('[data-contact-add]');
+        if (add) {
+            const kind = add.dataset.contactAdd;
+            const container = add.parentElement.querySelector('[data-contact-rows="' + kind + '"]');
+            const index = Number(container.dataset.nextIndex || 0);
+            container.dataset.nextIndex = String(index + 1);
+            container.insertAdjacentHTML('beforeend', (kind === 'phones' ? phoneTemplate : addressTemplate).replaceAll('__INDEX__', String(index)));
+            return;
+        }
+        const remove = event.target.closest('[data-contact-remove]');
+        if (remove) remove.closest('[data-contact-row]')?.remove();
+    });
+
+    document.addEventListener('change', function (event) {
+        const checkbox = event.target.closest('[data-primary-choice]');
+        if (!checkbox || !checkbox.checked) return;
+        const form = checkbox.closest('form');
+        form?.querySelectorAll('[data-primary-choice="' + checkbox.dataset.primaryChoice + '"]').forEach(function (other) {
+            if (other !== checkbox) other.checked = false;
+        });
+    });
+})();
+</script>
 @endsection
