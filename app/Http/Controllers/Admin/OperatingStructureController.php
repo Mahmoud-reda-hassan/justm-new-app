@@ -26,7 +26,7 @@ class OperatingStructureController extends Controller
 
         $companies = Company::query()
             ->withCount(['branches', 'branches as active_branches_count' => fn ($q) => $q->where('is_active', true)])
-            ->when(! $request->user()->hasPermission('permissions.catalog.assign'), fn (Builder $q) => $q->whereIn('id', $this->scopeIds($request, 'company')))
+            ->when(! $request->user()->hasPermission('structure.scope.manage_all'), fn (Builder $q) => $q->whereIn('id', $this->scopeIds($request, 'company')))
             ->orderBy('name')->paginate(20);
 
         return view('admin.structure.companies', ['companies' => $companies, 'cities' => City::query()->where('is_active', true)->orderBy('name_ar')->get()]);
