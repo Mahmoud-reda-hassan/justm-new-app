@@ -113,13 +113,30 @@
                     <h3>الفرع الرئيسي والعنوان</h3>
                     <div class="grid">
                         <div><label for="branch_name">اسم الفرع الرئيسي</label><input id="branch_name" name="branch_name" value="{{ old('branch_name', 'الفرع الرئيسي') }}" maxlength="120" required></div>
-                        <div><label for="country_name_ar">الدولة</label><input id="country_name_ar" name="country_name_ar" value="{{ old('country_name_ar') }}" maxlength="100" required></div>
-                        <div><label for="country_name_en">اسم الدولة بالإنجليزية (اختياري)</label><input id="country_name_en" name="country_name_en" value="{{ old('country_name_en') }}" maxlength="100"></div>
-                        <div><label for="region_name">المنطقة (اختياري)</label><input id="region_name" name="region_name" value="{{ old('region_name') }}" maxlength="100"></div>
-                        <div><label for="governorate_name_ar">المحافظة</label><input id="governorate_name_ar" name="governorate_name_ar" value="{{ old('governorate_name_ar') }}" maxlength="100" required></div>
-                        <div><label for="governorate_name_en">اسم المحافظة بالإنجليزية (اختياري)</label><input id="governorate_name_en" name="governorate_name_en" value="{{ old('governorate_name_en') }}" maxlength="100"></div>
-                        <div><label for="city_name_ar">المدينة</label><input id="city_name_ar" name="city_name_ar" value="{{ old('city_name_ar') }}" maxlength="120" required></div>
-                        <div><label for="city_name_en">اسم المدينة بالإنجليزية (اختياري)</label><input id="city_name_en" name="city_name_en" value="{{ old('city_name_en') }}" maxlength="120"></div>
+                        <div><label for="country_id">الدولة</label>
+                            <select id="country_id" name="country_id" required>
+                                <option value="">اختر الدولة</option>
+                                @foreach ($countries as $country)
+                                    <option value="{{ $country->id }}" @selected((string) old('country_id', $defaultCountryId) === (string) $country->id)>{{ $country->name_ar }} — {{ $country->name_en }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div><label for="governorate_id">المحافظة</label>
+                            <select id="governorate_id" name="governorate_id" required>
+                                <option value="">اختر المحافظة</option>
+                                @foreach ($governorates as $governorate)
+                                    <option value="{{ $governorate->id }}" data-country-id="{{ $governorate->country_id }}" @selected((string) old('governorate_id') === (string) $governorate->id)>{{ $governorate->name_ar }} — {{ $governorate->name_en }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div><label for="city_id">المدينة</label>
+                            <select id="city_id" name="city_id" required>
+                                <option value="">اختر المدينة</option>
+                                @foreach ($cities as $city)
+                                    <option value="{{ $city->id }}" data-governorate-id="{{ $city->governorate_id }}" @selected((string) old('city_id') === (string) $city->id)>{{ $city->name_ar }} — {{ $city->name_en }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="full"><label for="branch_address">العنوان التفصيلي للفرع</label><textarea id="branch_address" name="branch_address" maxlength="255" required>{{ old('branch_address') }}</textarea></div>
                     </div>
 
@@ -144,13 +161,30 @@
                 <form method="post" action="{{ route('setup.operating-data') }}">
                     @csrf
                     <div class="grid">
-                        <div><label for="country_name_ar">الدولة</label><input id="country_name_ar" name="country_name_ar" value="{{ old('country_name_ar') }}" required></div>
-                        <div><label for="country_name_en">الدولة بالإنجليزية</label><input id="country_name_en" name="country_name_en" value="{{ old('country_name_en') }}" required></div>
-                        <div><label for="region_name">المنطقة (اختياري)</label><input id="region_name" name="region_name" value="{{ old('region_name') }}"></div>
-                        <div><label for="governorate_name_ar">المحافظة</label><input id="governorate_name_ar" name="governorate_name_ar" value="{{ old('governorate_name_ar') }}" required></div>
-                        <div><label for="governorate_name_en">المحافظة بالإنجليزية</label><input id="governorate_name_en" name="governorate_name_en" value="{{ old('governorate_name_en') }}" required></div>
-                        <div><label for="city_name_ar">المدينة</label><input id="city_name_ar" name="city_name_ar" value="{{ old('city_name_ar') }}" required></div>
-                        <div><label for="city_name_en">المدينة بالإنجليزية</label><input id="city_name_en" name="city_name_en" value="{{ old('city_name_en') }}" required></div>
+                        <div><label for="country_id">الدولة</label>
+                            <select id="country_id" name="country_id" required>
+                                <option value="">اختر الدولة</option>
+                                @foreach ($countries as $country)
+                                    <option value="{{ $country->id }}" @selected((string) old('country_id', $defaultCountryId) === (string) $country->id)>{{ $country->name_ar }} — {{ $country->name_en }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div><label for="governorate_id">المحافظة</label>
+                            <select id="governorate_id" name="governorate_id" required>
+                                <option value="">اختر المحافظة</option>
+                                @foreach ($governorates as $governorate)
+                                    <option value="{{ $governorate->id }}" data-country-id="{{ $governorate->country_id }}" @selected((string) old('governorate_id') === (string) $governorate->id)>{{ $governorate->name_ar }} — {{ $governorate->name_en }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div><label for="city_id">المدينة</label>
+                            <select id="city_id" name="city_id" required>
+                                <option value="">اختر المدينة</option>
+                                @foreach ($cities as $city)
+                                    <option value="{{ $city->id }}" data-governorate-id="{{ $city->governorate_id }}" @selected((string) old('city_id') === (string) $city->id)>{{ $city->name_ar }} — {{ $city->name_en }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="full"><label for="company_name">اسم الشركة / المؤسسة</label><input id="company_name" name="company_name" value="{{ old('company_name') }}" required></div>
                         <div><label for="company_phone">رقم هاتف المؤسسة الأول</label><input id="company_phone" name="company_phone" value="{{ old('company_phone') }}" required></div>
                         <div><label for="branch_name">اسم الفرع الرئيسي</label><input id="branch_name" name="branch_name" value="{{ old('branch_name', 'الفرع الرئيسي') }}" required></div>
@@ -182,5 +216,44 @@
 
     <footer>{{ config('app.name') }} · التهيئة الأولية</footer>
 </div>
+
+<script>
+(() => {
+    const country = document.getElementById('country_id');
+    const governorate = document.getElementById('governorate_id');
+    const city = document.getElementById('city_id');
+    if (!country || !governorate || !city) return;
+
+    const filterOptions = (select, attribute, selectedParent) => {
+        Array.from(select.options).forEach((option, index) => {
+            if (index === 0) return;
+            const visible = Boolean(selectedParent) && option.dataset[attribute] === selectedParent;
+            option.hidden = !visible;
+            option.disabled = !visible;
+        });
+        const selected = select.selectedOptions[0];
+        if (selected && selected.disabled) select.value = '';
+        select.disabled = !selectedParent;
+    };
+
+    const refreshGovernorates = (reset = false) => {
+        if (reset) {
+            governorate.value = '';
+            city.value = '';
+        }
+        filterOptions(governorate, 'countryId', country.value);
+        filterOptions(city, 'governorateId', governorate.value);
+    };
+
+    country.addEventListener('change', () => refreshGovernorates(true));
+    governorate.addEventListener('change', () => {
+        city.value = '';
+        filterOptions(city, 'governorateId', governorate.value);
+    });
+
+    refreshGovernorates(false);
+})();
+</script>
+
 </body>
 </html>
