@@ -9,7 +9,7 @@
         main{max-width:1100px;margin:auto} section{background:#fff;padding:18px;margin:0 0 18px;border:1px solid #ddd;border-radius:8px}
         input,button,textarea{padding:9px;margin:4px;border:1px solid #bbb;border-radius:5px} button{cursor:pointer}
         .module{display:inline-block;vertical-align:top;min-width:220px;padding:8px;margin:5px;border:1px solid #ddd}
-        .status{padding:10px;background:#e8f5e9;margin-bottom:12px} h1,h2{margin-top:0}
+        .status{padding:10px;background:#e8f5e9;margin-bottom:12px}.notice{padding:12px;background:#fff4d6;border:1px solid #ead18b;border-radius:6px;margin-top:12px} h1,h2{margin-top:0}
     </style>
 </head>
 <body><main>
@@ -35,18 +35,25 @@
                 <label><input type="checkbox" name="is_active" value="1" @checked($role->is_active)> نشطة</label>
                 <button>حفظ بيانات المجموعة</button>
             </form>
-            <form method="post" action="{{ route('admin.access.roles.permissions', $role) }}">@csrf @method('put')
-                <h3>الصلاحيات المتاحة</h3>
-                @foreach ($permissions->groupBy('module') as $module => $items)
-                    <div class="module"><strong>{{ $module }}</strong><br>
-                    @foreach ($items as $permission)
-                        <label><input type="checkbox" name="permissions[]" value="{{ $permission->id }}" @checked($role->permissions->contains('id', $permission->id))>
-                            {{ $permission->key }}</label><br>
+            @if ($currentUserRoleIds->contains($role->id))
+                <div class="notice">
+                    <strong>مجموعة حسابك الحالي محمية.</strong>
+                    لا يمكن تعديل صلاحياتها من نفس الحساب؛ لتجهيز شاشات التشغيل أنشئ مجموعة جديدة من أعلى الصفحة، ثم اضبط صلاحيات المجموعة الجديدة.
+                </div>
+            @else
+                <form method="post" action="{{ route('admin.access.roles.permissions', $role) }}">@csrf @method('put')
+                    <h3>الصلاحيات المتاحة</h3>
+                    @foreach ($permissions->groupBy('module') as $module => $items)
+                        <div class="module"><strong>{{ $module }}</strong><br>
+                        @foreach ($items as $permission)
+                            <label><input type="checkbox" name="permissions[]" value="{{ $permission->id }}" @checked($role->permissions->contains('id', $permission->id))>
+                                {{ $permission->key }}</label><br>
+                        @endforeach
+                        </div>
                     @endforeach
-                    </div>
-                @endforeach
-                <button>حفظ الصلاحيات</button>
-            </form>
+                    <button>حفظ الصلاحيات</button>
+                </form>
+            @endif
         </section>
     @endforeach
     {{ $roles->links() }}
