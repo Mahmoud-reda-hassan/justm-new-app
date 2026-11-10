@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\ProductCatalogController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductAttributeController;
 use App\Http\Controllers\Admin\SalesOrderController;
+use App\Http\Controllers\Admin\ShippingZoneController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
