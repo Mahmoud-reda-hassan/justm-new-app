@@ -34,6 +34,10 @@ class ProductAttributeController extends Controller
     public function updateGroup(Request $request, ProductAttributeGroup $group): RedirectResponse
     {
         $this->authorizePermission($request, 'product_attributes.update');
+        if ($group->products()->exists()) {
+            throw ValidationException::withMessages(['group' => 'لا يمكن تغيير اسم مجموعة مرتبطة بمنتجات؛ أوقف استخدامها في منتج جديد وأنشئ مجموعة بديلة للحفاظ على بيانات الأكواد السابقة.']);
+        }
+
         $data = $request->validate(['name' => ['required', 'string', 'max:120', Rule::unique('product_attribute_groups', 'name')->ignore($group->id)]]);
         $group->update($data);
 
@@ -67,6 +71,10 @@ class ProductAttributeController extends Controller
     public function updateValue(Request $request, ProductAttributeValue $value): RedirectResponse
     {
         $this->authorizePermission($request, 'product_attributes.update');
+        if ($value->variants()->exists()) {
+            throw ValidationException::withMessages(['value' => 'لا يمكن تغيير قيمة صفة مرتبطة بأكواد منتجات؛ أنشئ قيمة بديلة للحفاظ على دلالة الأكواد السابقة.']);
+        }
+
         $data = $request->validate(['value' => ['required', 'string', 'max:120', Rule::unique('product_attribute_values', 'value')->where('group_id', $value->group_id)->ignore($value->id)]]);
         $value->update($data);
 
@@ -78,7 +86,7 @@ class ProductAttributeController extends Controller
         $this->authorizePermission($request, 'product_attributes.activate');
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
 
-        if (! $data['is_active'] && ($value->variants()->exists() || $value->group->products()->exists())) {
+        if (! $data['is_active'] && $value->variants()->exists()) {
             throw ValidationException::withMessages(['value' => 'لا يمكن إيقاف قيمة صفة مستخدمة في منتج أو كود منتج.']);
         }
 
