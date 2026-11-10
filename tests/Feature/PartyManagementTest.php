@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\City;
 use App\Models\Party;
 use App\Models\Permission;
 use App\Models\Role;
@@ -46,6 +47,58 @@ class PartyManagementTest extends TestCase
 
         $party = Party::query()->where('name', 'شركة تجمع أكثر من صفة')->firstOrFail();
         $this->assertEqualsCanonicalizing(['supplier', 'shipping_company'], $party->assignedRoles());
+    }
+
+    public function test_party_can_keep_multiple_phones_and_addresses_with_one_primary_each(): void
+    {
+        $user = $this->userWith(['parties.create', 'parties.update']);
+        $city = City::query()->firstOrFail();
+
+        $this->actingAs($user)->post(route('admin.parties.store'), [
+            'contacts_schema' => 1,
+            'entity_type' => 'individual',
+            'name' => 'عميل بعناوين متعددة',
+            'roles' => ['customer'],
+            'phones' => [
+                ['number' => '01011111111', 'type' => 'mobile', 'is_whatsapp' => 1, 'is_primary' => 1],
+                ['number' => '0222222222', 'type' => 'landline', 'is_telegram' => 1],
+            ],
+            'addresses' => [
+                ['title' => 'المنزل', 'city_id' => $city->id, 'address' => 'عنوان المنزل', 'is_primary' => 1],
+                ['title' => 'العمل', 'city_id' => $city->id, 'address' => 'عنوان العمل'],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $party = Party::query()->where('name', 'عميل بعناوين متعددة')->firstOrFail();
+        $this->assertSame('01011111111', $party->mobile);
+        $this->assertSame('0222222222', $party->phone);
+        $this->assertSame('عنوان المنزل', $party->address);
+        $this->assertDatabaseCount('party_phones', 2);
+        $this->assertDatabaseCount('party_addresses', 2);
+        $this->assertSame(1, $party->phones()->where('is_primary', true)->count());
+        $this->assertSame(1, $party->addresses()->where('is_primary', true)->count());
+
+        $phones = $party->phones()->orderBy('id')->get();
+        $addresses = $party->addresses()->orderBy('id')->get();
+        $this->put(route('admin.parties.update', $party), [
+            'contacts_schema' => 1,
+            'entity_type' => 'individual',
+            'name' => $party->name,
+            'roles' => ['customer'],
+            'phones' => [
+                ['id' => $phones[0]->id, 'number' => $phones[0]->number, 'type' => 'mobile'],
+                ['id' => $phones[1]->id, 'number' => $phones[1]->number, 'type' => 'landline', 'is_primary' => 1],
+            ],
+            'addresses' => [
+                ['id' => $addresses[0]->id, 'title' => 'المنزل', 'city_id' => $city->id, 'address' => 'عنوان المنزل'],
+                ['id' => $addresses[1]->id, 'title' => 'العمل', 'city_id' => $city->id, 'address' => 'عنوان العمل الجديد', 'is_primary' => 1],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('0222222222', $party->fresh()->phone);
+        $this->assertSame('عنوان العمل الجديد', $party->fresh()->address);
+        $this->assertSame(1, $party->phones()->where('is_primary', true)->count());
+        $this->assertSame(1, $party->addresses()->where('is_primary', true)->count());
     }
 
     public function test_party_list_can_be_filtered_by_role_and_search_term(): void
