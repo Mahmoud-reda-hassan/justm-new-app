@@ -201,6 +201,19 @@ class ProductManagementTest extends TestCase
         $this->assertSame($product->id, $value->variants()->firstOrFail()->product_id);
     }
 
+
+    public function test_attribute_groups_screen_renders_and_lists_values(): void
+    {
+        $user = $this->userWith(['product_attributes.view']);
+        $group = ProductAttributeGroup::query()->create(['name' => 'اللون']);
+        $group->values()->create(['value' => 'أخضر']);
+
+        $this->actingAs($user)->get(route('admin.product-attributes.index'))
+            ->assertOk()
+            ->assertSee('اللون')
+            ->assertSee('أخضر');
+    }
+
     public function test_product_and_attribute_screens_require_specific_permissions(): void
     {
         $user = $this->userWith([]);
