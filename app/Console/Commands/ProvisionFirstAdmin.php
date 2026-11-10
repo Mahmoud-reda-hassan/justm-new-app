@@ -118,7 +118,8 @@ class ProvisionFirstAdmin extends Command
 
         try {
             $user->sendEmailVerificationNotification();
-            $this->info('تم إنشاء أول مدير وإرسال رسالة تحقق البريد الإلكتروني.');
+            $this->info('تم إنشاء أول مدير بنجاح.');
+            $this->line('تم إرسال رسالة تحقق البريد الإلكتروني.');
         } catch (Throwable $exception) {
             report($exception);
             $this->warn('تم إنشاء المدير، لكن تعذر إرسال رسالة التحقق. راجع إعدادات البريد ثم أعد الإرسال من صفحة التحقق بعد تسجيل الدخول.');
