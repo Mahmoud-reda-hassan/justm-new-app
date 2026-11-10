@@ -43,6 +43,9 @@
         @if (auth()->user()->hasPermission('parties.view'))
             <a href="{{ route('admin.parties.index') }}">إدارة الأطراف</a>
         @endif
+        @if (auth()->user()->hasPermission('sales.orders.view'))
+            <a href="{{ route('admin.sales.orders.index') }}">أوامر البيع</a>
+        @endif
     </nav>
     <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">تسجيل الخروج</button></form>
 </body>
