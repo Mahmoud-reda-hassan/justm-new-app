@@ -96,6 +96,22 @@ class SetupWebTest extends TestCase
         $this->get('/setup')->assertNotFound();
     }
 
+    public function test_first_admin_cannot_be_created_before_operating_data(): void
+    {
+        $this->installDatabase();
+
+        $this->withSession(['justm_setup_authorized_at' => now()->timestamp])
+            ->post('/setup/admin', [
+                'name' => 'مدير النظام',
+                'username' => 'premature-admin',
+                'password' => 'secure-password-123',
+                'password_confirmation' => 'secure-password-123',
+            ])
+            ->assertStatus(409);
+
+        $this->assertDatabaseCount('users', 0);
+    }
+
     public function test_first_admin_is_created_only_after_operating_data_and_has_limited_role(): void
     {
         $this->installDatabase();
