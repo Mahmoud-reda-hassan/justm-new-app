@@ -118,7 +118,7 @@ class ProductCatalogSettingsTest extends TestCase
     {
         $user = User::query()->create(['name' => 'Manager', 'username' => 'cat-manager-'.uniqid(), 'password' => 'secure-password', 'account_type' => 'admin', 'is_active' => true]);
         $role = Role::query()->create(['name' => 'Category role', 'key' => 'category-role-'.uniqid(), 'is_active' => true]);
-        $role->permissions()->sync(Permission::query()->whereIn('key', ['product_categories.activate'])->pluck('id'));
+        $role->permissions()->sync(Permission::query()->whereIn('key', ['product_categories.activate', 'structure.scope.manage_all'])->pluck('id'));
         $user->roles()->attach($role);
         $category = ProductCategory::query()->create(['name' => 'تصنيف مرتبط']);
         $unit = Unit::query()->create(['name' => 'وحدة مرتبطة']);
