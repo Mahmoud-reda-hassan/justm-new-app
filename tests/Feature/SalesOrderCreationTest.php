@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\City;
 use App\Models\Party;
 use App\Models\Permission;
 use App\Models\Product;
@@ -101,6 +102,26 @@ class SalesOrderCreationTest extends TestCase
         $this->assertSame('20.00', $order->discount_total);
         $this->assertSame('90.00', $order->items->first()->sale_price);
         $this->assertSame('20.00', $order->items->first()->discount_amount);
+    }
+
+    public function test_order_creation_can_choose_a_saved_customer_address(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $city = City::query()->firstOrFail();
+        $customer->addresses()->create([
+            'city_id' => $city->id,
+            'title' => 'عنوان العمل',
+            'address' => 'شارع الاختبار، عمارة 10',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->get(route('admin.sales.orders.create'))
+            ->assertOk()
+            ->assertSee('customer-address-select', false)
+            ->assertSee('شارع الاختبار، عمارة 10')
+            ->assertSee('عنوان العمل');
     }
 
     public function test_order_rejects_sale_price_below_variant_minimum_and_saves_nothing(): void
