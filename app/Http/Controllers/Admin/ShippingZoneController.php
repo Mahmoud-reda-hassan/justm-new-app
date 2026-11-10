@@ -24,15 +24,21 @@ class ShippingZoneController extends Controller
             ->with(['warehouse.branch.company', 'cities.governorate'])
             ->withCount('cities')
             ->whereHas('warehouse', fn (Builder $query) => $this->applyWarehouseScope($query, $request))
-            ->when($request->filled('q'), fn (Builder $query) => $query->where(function (Builder $search) use ($request): void {
+            ->when($request->filled('q'), function (Builder $query) use ($request): void {
                 $term = '%'.$request->string('q').'%';
-                $search->where('name_ar', 'like', $term)
-                    ->orWhere('name_en', 'like', $term)
-                    ->orWhereHas('cities', fn (Builder $city) => $city->where('name_ar', 'like', $term))
-                    ->orWhereHas('warehouse', fn (Builder $warehouse) => $warehouse->where('name', 'like', $term)
-                        ->orWhereHas('branch', fn (Builder $branch) => $branch->where('name', 'like', $term)
-                            ->orWhereHas('company', fn (Builder $company) => $company->where('name', 'like', $term)));
-            }))
+                $query->where(function (Builder $search) use ($term): void {
+                    $search->where('name_ar', 'like', $term)
+                        ->orWhere('name_en', 'like', $term)
+                        ->orWhereHas('cities', fn (Builder $city) => $city->where('name_ar', 'like', $term))
+                        ->orWhereHas('warehouse', function (Builder $warehouse) use ($term): void {
+                            $warehouse->where('name', 'like', $term)
+                                ->orWhereHas('branch', function (Builder $branch) use ($term): void {
+                                    $branch->where('name', 'like', $term)
+                                        ->orWhereHas('company', fn (Builder $company) => $company->where('name', 'like', $term));
+                                });
+                        });
+                });
+            })
             ->orderBy('name_ar')
             ->paginate(20)
             ->withQueryString();
