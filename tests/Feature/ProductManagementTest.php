@@ -12,6 +12,8 @@ use App\Models\Unit;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ProductManagementTest extends TestCase
@@ -212,6 +214,42 @@ class ProductManagementTest extends TestCase
             ->assertOk()
             ->assertSee('اللون')
             ->assertSee('أخضر');
+    }
+
+
+    public function test_internal_product_codes_are_unique_thirteen_digit_ean13_values(): void
+    {
+        $user = $this->userWith(['products.create']);
+
+        $firstResponse = $this->actingAs($user)->postJson(route('admin.products.generate-codes'), ['count' => 2])->assertOk()->assertJsonCount(2, 'codes');
+        $firstCodes = $firstResponse->json('codes');
+        $secondCodes = $this->postJson(route('admin.products.generate-codes'), ['count' => 2])->assertOk()->json('codes');
+
+        $this->assertCount(2, array_unique($firstCodes));
+        $this->assertEmpty(array_intersect($firstCodes, $secondCodes));
+
+        foreach ($firstCodes as $code) {
+            $this->assertMatchesRegularExpression('/^29\d{11}$/', $code);
+            $body = substr($code, 0, 12);
+            $sum = 0;
+            for ($index = 0; $index < 12; $index++) {
+                $digit = (int) $body[$index];
+                $sum += $index % 2 === 0 ? $digit : $digit * 3;
+            }
+            $this->assertSame((10 - ($sum % 10)) % 10, (int) substr($code, -1));
+        }
+    }
+
+    public function test_product_image_is_stored_on_the_public_disk(): void
+    {
+        Storage::fake('public');
+        $user = $this->userWith(['products.create']);
+        $product = $this->createProduct($user, [
+            'image' => UploadedFile::fake()->image('product.jpg'),
+        ]);
+
+        $this->assertNotEmpty($product->image_path);
+        Storage::disk('public')->assertExists($product->image_path);
     }
 
     public function test_product_and_attribute_screens_require_specific_permissions(): void
