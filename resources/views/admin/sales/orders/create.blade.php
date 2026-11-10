@@ -205,7 +205,7 @@
             fee.min = address.feeMin;
             fee.max = address.feeMax;
             fee.value = address.feeMin;
-            hint.textContent = 'منطقة الشحن: ' + address.zone + ' — الرسوم من ' + money(address.feeMin) + ' إلى ' + money(address.feeMax) + ' جنيه — مدة التوصيل المتوقعة: ' + address.deliveryDays + ' يوم';
+            hint.textContent = 'منطقة الشحن: ' + address.zone + ' — الرسوم من ' + Number(address.feeMin).toFixed(2) + ' إلى ' + Number(address.feeMax).toFixed(2) + ' جنيه — مدة التوصيل المتوقعة: ' + address.deliveryDays + ' يوم';
         } else {
             fee.value = 0;
             fee.min = 0;
