@@ -110,6 +110,20 @@ class ProductCatalogSettingsTest extends TestCase
             ->assertSee(route('admin.catalog.units'));
     }
 
+    public function test_active_category_with_active_product_cannot_be_deactivated(): void
+    {
+        $user = User::query()->create(['name' => 'Manager', 'username' => 'cat-manager-'.uniqid(), 'password' => 'secure-password', 'account_type' => 'admin', 'is_active' => true]);
+        $role = Role::query()->create(['name' => 'Category role', 'key' => 'category-role-'.uniqid(), 'is_active' => true]);
+        $role->permissions()->sync(Permission::query()->whereIn('key', ['product_categories.activate'])->pluck('id'));
+        $user->roles()->attach($role);
+        $category = ProductCategory::query()->create(['name' => 'تصنيف مرتبط']);
+        $unit = Unit::query()->create(['name' => 'وحدة مرتبطة']);
+        Product::query()->create(['category_id' => $category->id, 'unit_id' => $unit->id, 'name' => 'منتج مرتبط', 'is_visible' => true, 'is_active' => true]);
+
+        $this->actingAs($user)->patch(route('admin.catalog.categories.active', $category), ['is_active' => 0])->assertSessionHasErrors('category');
+        $this->assertTrue($category->fresh()->is_active);
+    }
+
     public function test_catalog_settings_routes_require_specific_permissions(): void
     {
         $user = $this->userWith([]);

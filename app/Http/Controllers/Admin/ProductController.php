@@ -131,6 +131,9 @@ class ProductController extends Controller
     {
         $this->authorizePermission($request, 'products.activate');
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
+        if ($data['is_active'] && (! $product->category->is_active || ! $product->unit->is_active)) {
+            throw ValidationException::withMessages(['product' => 'لا يمكن تفعيل المنتج قبل تفعيل تصنيفه ووحدة قياسه.']);
+        }
         $product->update(['is_active' => (bool) $data['is_active']]);
 
         return back()->with('status', 'تم تحديث حالة المنتج.');
@@ -140,6 +143,9 @@ class ProductController extends Controller
     {
         $this->authorizePermission($request, 'products.update');
         $data = $request->validate(['is_visible' => ['required', 'boolean']]);
+        if ($data['is_visible'] && (! $product->is_active || ! $product->category->is_active || ! $product->unit->is_active)) {
+            throw ValidationException::withMessages(['product' => 'لا يمكن إتاحة منتج موقوف أو تابع لتصنيف/وحدة قياس موقوفة.']);
+        }
         $product->update(['is_visible' => (bool) $data['is_visible']]);
 
         return back()->with('status', 'تم تحديث إتاحة المنتج للبيع.');
