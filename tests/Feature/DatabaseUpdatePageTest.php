@@ -11,10 +11,21 @@ class DatabaseUpdatePageTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function createUser(): User
+    {
+        return User::create([
+            'name' => 'Database Update Tester',
+            'username' => 'database-update-'.uniqid(),
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+    }
+
     public function test_database_update_page_is_available_to_access_admin(): void
     {
         $role = Role::query()->create(['name' => 'مدير الوصول', 'key' => 'system-access-admin', 'is_active' => true]);
-        $user = User::factory()->create(['is_active' => true]);
+        $user = $this->createUser();
         $user->roles()->attach($role);
 
         $this->actingAs($user)->get(route('admin.system.database-updates'))
@@ -24,7 +35,7 @@ class DatabaseUpdatePageTest extends TestCase
 
     public function test_database_update_page_is_forbidden_to_other_users(): void
     {
-        $user = User::factory()->create(['is_active' => true]);
+        $user = $this->createUser();
 
         $this->actingAs($user)->get(route('admin.system.database-updates'))->assertForbidden();
     }
@@ -32,7 +43,7 @@ class DatabaseUpdatePageTest extends TestCase
     public function test_update_requires_exact_database_name_and_confirmation(): void
     {
         $role = Role::query()->create(['name' => 'مدير الوصول', 'key' => 'system-access-admin', 'is_active' => true]);
-        $user = User::factory()->create(['is_active' => true]);
+        $user = $this->createUser();
         $user->roles()->attach($role);
 
         $this->actingAs($user)->post(route('admin.system.database-updates.run'), [
