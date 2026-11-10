@@ -150,7 +150,7 @@ class AccessControlController extends Controller
             ...collect($data['warehouse_ids'] ?? [])->map(fn ($id) => ['scope_type' => 'warehouse', 'scope_id' => (int) $id]),
         ]);
 
-        if (! $request->user()->hasPermission('permissions.catalog.assign')) {
+        if (! $request->user()->hasPermission('structure.scope.manage_all')) {
             foreach ($scopes as $scope) {
                 abort_unless($request->user()->hasDataScope($scope['scope_type'], $scope['scope_id']), 403,
                     'لا يمكنك إسناد نطاق بيانات خارج نطاقك.');
