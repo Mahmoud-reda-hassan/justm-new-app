@@ -47,12 +47,26 @@ class SetupController extends Controller
             report($exception);
         }
 
+        $countries = collect();
+        $governorates = collect();
+        $cities = collect();
+
+        if ($databaseReady && Schema::hasTable('countries') && Schema::hasTable('governorates') && Schema::hasTable('cities')) {
+            $countries = Country::query()->where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar', 'name_en']);
+            $governorates = Governorate::query()->where('is_active', true)->orderBy('name_ar')->get(['id', 'country_id', 'name_ar', 'name_en']);
+            $cities = City::query()->where('is_active', true)->orderBy('name_ar')->get(['id', 'governorate_id', 'name_ar', 'name_en']);
+        }
+
         return view('setup', [
             'authorized' => $this->isAuthorized(),
             'databaseReady' => $databaseReady,
             'adminExists' => $adminExists,
             'operatingDataReady' => $this->isOperatingDataReady(),
             'siteName' => $siteName,
+            'countries' => $countries,
+            'governorates' => $governorates,
+            'cities' => $cities,
+            'defaultCountryId' => $countries->count() === 1 ? $countries->first()->id : null,
             'tokenConfigured' => is_string(config('app.setup_token')) && strlen(config('app.setup_token')) >= 32,
         ]);
     }
@@ -123,13 +137,9 @@ class SetupController extends Controller
 
         $validated = $request->validate([
             'site_name' => ['nullable', 'string', 'max:150'],
-            'country_name_ar' => ['required', 'string', 'max:100'],
-            'country_name_en' => ['required', 'string', 'max:100'],
-            'region_name' => ['nullable', 'string', 'max:100'],
-            'governorate_name_ar' => ['required', 'string', 'max:100'],
-            'governorate_name_en' => ['required', 'string', 'max:100'],
-            'city_name_ar' => ['required', 'string', 'max:120'],
-            'city_name_en' => ['required', 'string', 'max:120'],
+            'country_id' => ['required', 'integer', Rule::exists('countries', 'id')->where(fn ($query) => $query->where('is_active', true))],
+            'governorate_id' => ['required', 'integer', Rule::exists('governorates', 'id')->where(fn ($query) => $query->where('country_id', $request->input('country_id'))->where('is_active', true))],
+            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where(fn ($query) => $query->where('governorate_id', $request->input('governorate_id'))->where('is_active', true))],
             'company_name' => ['required', 'string', 'max:150'],
             'company_phone' => ['required', 'string', 'max:40'],
             'company_mobile' => ['nullable', 'string', 'max:40'],
@@ -144,12 +154,9 @@ class SetupController extends Controller
             ],
         ], [
             'site_name.required' => 'اسم الموقع مطلوب.',
-            'country_name_ar.required' => 'اسم الدولة بالعربية مطلوب.',
-            'country_name_en.required' => 'اسم الدولة بالإنجليزية مطلوب.',
-            'governorate_name_ar.required' => 'اسم المحافظة بالعربية مطلوب.',
-            'governorate_name_en.required' => 'اسم المحافظة بالإنجليزية مطلوب.',
-            'city_name_ar.required' => 'اسم المدينة بالعربية مطلوب.',
-            'city_name_en.required' => 'اسم المدينة بالإنجليزية مطلوب.',
+            'country_id.required' => 'الدولة مطلوبة.',
+            'governorate_id.required' => 'المحافظة مطلوبة.',
+            'city_id.required' => 'المدينة مطلوبة.',
             'company_name.required' => 'اسم الشركة مطلوب.',
             'branch_name.required' => 'اسم الفرع الأول مطلوب.',
             'warehouse_name.required' => 'اسم المخزن الأول مطلوب.',
@@ -194,13 +201,9 @@ class SetupController extends Controller
             'company_phone' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:40'],
             'branch_name' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:120'],
             'branch_address' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:255'],
-            'country_name_ar' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:100'],
-            'country_name_en' => ['nullable', 'string', 'max:100'],
-            'region_name' => ['nullable', 'string', 'max:100'],
-            'governorate_name_ar' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:100'],
-            'governorate_name_en' => ['nullable', 'string', 'max:100'],
-            'city_name_ar' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:120'],
-            'city_name_en' => ['nullable', 'string', 'max:120'],
+            'country_id' => [Rule::requiredIf($needsOperatingData), 'nullable', 'integer', Rule::exists('countries', 'id')->where(fn ($query) => $query->where('is_active', true))],
+            'governorate_id' => [Rule::requiredIf($needsOperatingData), 'nullable', 'integer', Rule::exists('governorates', 'id')->where(fn ($query) => $query->where('country_id', $request->input('country_id'))->where('is_active', true))],
+            'city_id' => [Rule::requiredIf($needsOperatingData), 'nullable', 'integer', Rule::exists('cities', 'id')->where(fn ($query) => $query->where('governorate_id', $request->input('governorate_id'))->where('is_active', true))],
             'warehouse_name' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:150'],
             'warehouse_type' => [
                 Rule::requiredIf($needsOperatingData),
@@ -221,9 +224,9 @@ class SetupController extends Controller
             'company_phone.required' => 'رقم هاتف المؤسسة الأول مطلوب.',
             'branch_name.required' => 'اسم الفرع الرئيسي مطلوب.',
             'branch_address.required' => 'عنوان الفرع الرئيسي مطلوب.',
-            'country_name_ar.required' => 'الدولة مطلوبة.',
-            'governorate_name_ar.required' => 'المحافظة مطلوبة.',
-            'city_name_ar.required' => 'المدينة مطلوبة.',
+            'country_id.required' => 'الدولة مطلوبة.',
+            'governorate_id.required' => 'المحافظة مطلوبة.',
+            'city_id.required' => 'المدينة مطلوبة.',
             'warehouse_name.required' => 'اسم المخزن الأول مطلوب.',
             'warehouse_type.required' => 'نوع المخزن مطلوب.',
         ]);
@@ -245,13 +248,9 @@ class SetupController extends Controller
                 if ($needsOperatingData) {
                     $setup->configure([
                         'site_name' => $validated['company_name'],
-                        'country_name_ar' => $validated['country_name_ar'],
-                        'country_name_en' => ($validated['country_name_en'] ?? null) ?: $validated['country_name_ar'],
-                        'region_name' => $validated['region_name'] ?? null,
-                        'governorate_name_ar' => $validated['governorate_name_ar'],
-                        'governorate_name_en' => ($validated['governorate_name_en'] ?? null) ?: $validated['governorate_name_ar'],
-                        'city_name_ar' => $validated['city_name_ar'],
-                        'city_name_en' => ($validated['city_name_en'] ?? null) ?: $validated['city_name_ar'],
+                        'country_id' => $validated['country_id'],
+                        'governorate_id' => $validated['governorate_id'],
+                        'city_id' => $validated['city_id'],
                         'company_name' => $validated['company_name'],
                         'company_phone' => $validated['company_phone'],
                         'company_address' => $validated['branch_address'],
