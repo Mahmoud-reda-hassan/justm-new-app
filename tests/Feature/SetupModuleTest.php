@@ -63,6 +63,8 @@ class SetupModuleTest extends TestCase
         $this->assertFalse($user->hasPermission('companies.view'));
         $this->assertFalse($user->hasPermission('branches.view'));
         $this->assertFalse($user->hasPermission('warehouses.view'));
+        $this->assertFalse($user->hasPermission('sales.orders.view'));
+        $this->assertFalse($user->hasPermission('sales.orders.create'));
     }
 
     private function createOperatingData(): void
