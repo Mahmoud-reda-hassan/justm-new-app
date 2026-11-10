@@ -20,7 +20,7 @@ class WorkspaceController extends Controller
         $workspaces = $this->availableWorkspaces($request);
 
         if (count($workspaces) === 0) {
-            return redirect()->route('dashboard')->with('status', 'لا يوجد لهذا الحساب دور تشغيلي مخصص حتى الآن.');
+            return redirect()->route('home')->with('status', 'لا توجد مساحة عمل خاصة لهذا الحساب؛ يمكنك متابعة المتجر وحساب العميل.');
         }
 
         if (count($workspaces) === 1) {
