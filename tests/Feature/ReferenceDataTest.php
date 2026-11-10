@@ -56,7 +56,7 @@ class ReferenceDataTest extends TestCase
         ]);
 
         $this->assertSame('Egypt', $governorate->fresh()->country->name_en);
-        $this->assertSame('القاهرة الكبرى', $city->fresh()->governorate->region->name);
+        $this->assertSame('إقليم القاهرة الكبرى', $city->fresh()->governorate->region->name);
         $this->assertSame('Just-M', $branch->fresh()->company->name);
         $this->assertSame('المقر الرئيسي', $warehouse->fresh()->branch->name);
         $this->assertSame('sales_dispatch', $warehouse->fresh()->type->key);
