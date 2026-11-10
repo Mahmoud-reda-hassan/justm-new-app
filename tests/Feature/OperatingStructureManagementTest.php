@@ -93,6 +93,7 @@ class OperatingStructureManagementTest extends TestCase
 
     public function test_branch_cannot_be_moved_to_another_company_when_it_has_warehouses(): void
     {
+        app(DatabaseSeeder::class)->run();
         $first = $this->company('الأولى');
         $second = $this->company('الثانية');
         $branch = app(BranchManager::class)->create([
