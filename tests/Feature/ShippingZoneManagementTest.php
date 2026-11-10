@@ -86,7 +86,7 @@ class ShippingZoneManagementTest extends TestCase
             ->assertOk()
             ->assertSee('table table-bordered table-hover table-striped', false)
             ->assertSee('منطقة القاهرة للاختبار')
-            ->assertSee('shipping_zones.index', false);
+            ->assertSee('ابحث باسم المنطقة', false);
     }
 
     public function test_shipping_zone_creation_links_only_unassigned_active_cities(): void
