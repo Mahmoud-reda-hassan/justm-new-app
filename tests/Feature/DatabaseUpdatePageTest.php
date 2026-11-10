@@ -43,7 +43,7 @@ class DatabaseUpdatePageTest extends TestCase
             ->assertOk()
             ->assertSee('card card-outline card-primary', false)
             ->assertSee('table table-bordered table-striped table-hover', false)
-            ->assertSee('RUN MIGRATIONS');
+            ->assertSee('حالة تحديثات قاعدة البيانات');
     }
 
     public function test_database_update_page_is_forbidden_to_other_users(): void
