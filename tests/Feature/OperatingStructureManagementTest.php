@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Branch;
+use App\Models\City;
 use App\Models\Company;
 use App\Models\Permission;
 use App\Models\Role;
@@ -105,9 +106,12 @@ class OperatingStructureManagementTest extends TestCase
         $company = $this->company();
         UserDataScope::create(['user_id' => $user->id, 'scope_type' => 'company', 'scope_id' => $company->id]);
 
+        $city = City::query()->where('is_active', true)->firstOrFail();
         $this->actingAs($user)->post(route('admin.structure.branches.store'), [
             'company_id' => $company->id,
+            'city_id' => $city->id,
             'name' => 'الفرع الرئيسي',
+            'address' => 'عنوان الفرع',
             'is_main' => 1,
         ])->assertSessionHasNoErrors();
 
@@ -116,6 +120,59 @@ class OperatingStructureManagementTest extends TestCase
             'name' => 'الفرع الرئيسي',
             'is_main' => true,
         ]);
+    }
+
+    public function test_branch_creation_requires_a_city_and_address(): void
+    {
+        $user = $this->userWith(['branches.create', 'structure.scope.manage_all']);
+        $company = $this->company('شركة الفرع');
+        $this->actingAs($user)->from(route('admin.structure.branches'))
+            ->post(route('admin.structure.branches.store'), [
+                'company_id' => $company->id,
+                'name' => 'فرع بلا عنوان',
+            ])->assertSessionHasErrors(['city_id', 'address']);
+
+        $this->assertDatabaseMissing('branches', ['name' => 'فرع بلا عنوان']);
+    }
+
+    public function test_branch_search_filters_by_company_and_keeps_data_scope(): void
+    {
+        $user = $this->userWith(['branches.view']);
+        $visible = $this->company('شركة ظاهرة');
+        $hidden = $this->company('شركة مخفية');
+        $city = City::query()->where('is_active', true)->firstOrFail();
+        $visibleBranch = app(BranchManager::class)->create([
+            'company_id' => $visible->id, 'city_id' => $city->id,
+            'name' => 'فرع القاهرة', 'address' => 'وسط البلد', 'is_main' => true, 'is_active' => true,
+        ]);
+        app(BranchManager::class)->create([
+            'company_id' => $hidden->id, 'city_id' => $city->id,
+            'name' => 'فرع القاهرة الآخر', 'address' => 'مدينة نصر', 'is_main' => true, 'is_active' => true,
+        ]);
+        UserDataScope::create(['user_id' => $user->id, 'scope_type' => 'company', 'scope_id' => $visible->id]);
+
+        $this->actingAs($user)->get(route('admin.structure.branches', ['q' => 'القاهرة']))
+            ->assertOk()->assertSee('فرع القاهرة')->assertDontSee('فرع القاهرة الآخر');
+    }
+
+    public function test_warehouse_search_matches_branch_company_and_type(): void
+    {
+        $user = $this->userWith(['warehouses.view', 'structure.scope.manage_all']);
+        app(DatabaseSeeder::class)->run();
+        $company = $this->company('شركة مستودعات');
+        $city = City::query()->where('is_active', true)->firstOrFail();
+        $branch = app(BranchManager::class)->create([
+            'company_id' => $company->id, 'city_id' => $city->id,
+            'name' => 'فرع التوزيع', 'address' => 'عنوان التوزيع', 'is_main' => true, 'is_active' => true,
+        ]);
+        $type = WarehouseType::query()->where('is_active', true)->firstOrFail();
+        Warehouse::create([
+            'branch_id' => $branch->id, 'warehouse_type_id' => $type->id,
+            'name' => 'مخزن البضائع', 'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->get(route('admin.structure.warehouses', ['q' => 'شركة مستودعات']))
+            ->assertOk()->assertSee('مخزن البضائع');
     }
 
     public function test_branch_cannot_be_moved_to_another_company_when_it_has_warehouses(): void
