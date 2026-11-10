@@ -30,69 +30,27 @@ class InitialOperatingSetup
             }
 
             $country = Country::query()
-                ->where('name_ar', $data['country_name_ar'])
-                ->orWhere('name_en', $data['country_name_en'])
+                ->whereKey($data['country_id'])
+                ->where('is_active', true)
                 ->first();
-
-            if ($country && ($country->name_ar !== $data['country_name_ar'] || $country->name_en !== $data['country_name_en'])) {
-                throw ValidationException::withMessages([
-                    'country_name_ar' => 'الدولة موجودة مسبقًا ببيانات مختلفة؛ راجع البيانات الجغرافية.',
-                ]);
-            }
-
-            $country ??= Country::create([
-                'name_ar' => $data['country_name_ar'],
-                'name_en' => $data['country_name_en'],
-                'is_active' => true,
-            ]);
-
-            $region = null;
-            if (! empty($data['region_name'])) {
-                $region = Region::query()->firstOrCreate(['name' => $data['region_name']]);
-            }
 
             $governorate = Governorate::query()
-                ->where('country_id', $country->id)
-                ->where(function ($query) use ($data): void {
-                    $query->where('name_ar', $data['governorate_name_ar'])
-                        ->orWhere('name_en', $data['governorate_name_en']);
-                })
+                ->whereKey($data['governorate_id'])
+                ->where('country_id', $country?->id)
+                ->where('is_active', true)
                 ->first();
-
-            if ($governorate && ($governorate->name_ar !== $data['governorate_name_ar'] || $governorate->name_en !== $data['governorate_name_en'])) {
-                throw ValidationException::withMessages([
-                    'governorate_name_ar' => 'المحافظة موجودة مسبقًا ببيانات مختلفة.',
-                ]);
-            }
-
-            $governorate ??= Governorate::create([
-                'country_id' => $country->id,
-                'region_id' => $region?->id,
-                'name_ar' => $data['governorate_name_ar'],
-                'name_en' => $data['governorate_name_en'],
-                'is_active' => true,
-            ]);
 
             $city = City::query()
-                ->where('governorate_id', $governorate->id)
-                ->where(function ($query) use ($data): void {
-                    $query->where('name_ar', $data['city_name_ar'])
-                        ->orWhere('name_en', $data['city_name_en']);
-                })
+                ->whereKey($data['city_id'])
+                ->where('governorate_id', $governorate?->id)
+                ->where('is_active', true)
                 ->first();
 
-            if ($city && ($city->name_ar !== $data['city_name_ar'] || $city->name_en !== $data['city_name_en'])) {
+            if (! $country || ! $governorate || ! $city) {
                 throw ValidationException::withMessages([
-                    'city_name_ar' => 'المدينة موجودة مسبقًا ببيانات مختلفة.',
+                    'city_id' => 'اختر دولة ومحافظة ومدينة صحيحة ومتوافقة من القوائم.',
                 ]);
             }
-
-            $city ??= City::create([
-                'governorate_id' => $governorate->id,
-                'name_ar' => $data['city_name_ar'],
-                'name_en' => $data['city_name_en'],
-                'is_active' => true,
-            ]);
 
             $company = Company::create([
                 'name' => $data['company_name'],
