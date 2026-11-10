@@ -61,7 +61,7 @@ class OperatingStructureController extends Controller
             'mobile' => ['nullable', 'string', 'max:40'],
             'fax' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:190'],
-            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
+            'city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
             'address' => ['nullable', 'string', 'max:2000'],
         ]);
         $company->update($data);
