@@ -34,7 +34,7 @@ class AccessControlController extends Controller
 
         $allUsers = User::query()->with(['roles', 'dataScopes'])->orderByDesc('id')->get();
         $visibleUsers = $allUsers->filter(fn (User $user): bool =>
-            $actor->is($user) || $this->userIsWithinActorScope($actor, $user, true)
+            $actor->is($user) || $this->userIsWithinActorScope($actor, $user)
         )->values();
         $page = LengthAwarePaginator::resolveCurrentPage();
         $users = new LengthAwarePaginator(
@@ -71,6 +71,16 @@ class AccessControlController extends Controller
             'account_type' => 'admin',
             'is_active' => true,
         ]);
+
+        $actor = $request->user();
+        if (! $actor->hasPermission('structure.scope.manage_all')) {
+            $user->dataScopes()->createMany(
+                $actor->dataScopes()->get(['scope_type', 'scope_id'])->map(fn ($scope) => [
+                    'scope_type' => $scope->scope_type,
+                    'scope_id' => $scope->scope_id,
+                ])->all()
+            );
+        }
 
         $this->audit->record('users.created', $user, [
             'username' => $user->username,
@@ -188,7 +198,7 @@ class AccessControlController extends Controller
         ]);
 
         if (! $request->user()->hasPermission('structure.scope.manage_all')) {
-            $this->assertUserTargetInScope($request, $user, true);
+            $this->assertUserTargetInScope($request, $user);
             foreach ($scopes as $scope) {
                 abort_unless($this->scopeIsWithinActor($request->user(), $scope['scope_type'], (int) $scope['scope_id']), 403,
                     'لا يمكنك إسناد نطاق بيانات خارج نطاقك.');
