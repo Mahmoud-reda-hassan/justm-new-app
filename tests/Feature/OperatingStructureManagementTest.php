@@ -171,9 +171,9 @@ class OperatingStructureManagementTest extends TestCase
         $this->assertTrue($target->fresh()->hasPermission('companies.view'));
 
         $ownRole = $admin->roles()->firstOrFail();
-        $this->put(route('admin.access.roles.permissions', $ownRole), [
+        $this->from(route('admin.access.roles'))->put(route('admin.access.roles.permissions', $ownRole), [
             'permissions' => [$permission->id],
-        ])->assertStatus(422);
+        ])->assertSessionHasErrors('permissions');
 
         $this->put(route('admin.access.users.roles', $admin), [
             'roles' => [$role->id],
