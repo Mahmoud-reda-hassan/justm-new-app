@@ -10,6 +10,9 @@
         <p>البريد الإلكتروني غير مؤكد. <a href="{{ route('verification.notice') }}">تأكيد البريد لاستعادة كلمة المرور</a></p>
     @endif
     <nav>
+        @if (auth()->user()->roles()->where('roles.key', 'system-access-admin')->where('roles.is_active', true)->exists())
+            <a href="{{ route('admin.system.database-updates') }}">تحديث قاعدة البيانات</a>
+        @endif
         @if (auth()->user()->hasPermission('users.view'))
             <a href="{{ route('admin.access.users') }}">إدارة المستخدمين</a>
         @endif
