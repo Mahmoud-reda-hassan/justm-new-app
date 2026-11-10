@@ -46,6 +46,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/email/verification-notification', [EmailVerificationController::class, 'resend'])
         ->middleware('throttle:6,1')->name('verification.send');
     Route::view('/dashboard', 'dashboard')->name('dashboard');
+    Route::view('/admin/seo-audit', 'admin.seo-audit.index')->name('admin.seo-audit.design');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
     Route::get('/admin/system/database-updates', [DatabaseUpdateController::class, 'index'])->name('admin.system.database-updates');
