@@ -1,14 +1,14 @@
 <?php
 
-namespace App\\Http\\Controllers\\Admin;
+namespace App\Http\Controllers\Admin;
 
-use App\\Http\\Controllers\\Controller;
-use Illuminate\\Http\\RedirectResponse;
-use Illuminate\\Http\\Request;
-use Illuminate\\Support\\Facades\\Artisan;
-use Illuminate\\Support\\Facades\\DB;
-use Illuminate\\Support\\Facades\\Schema;
-use Illuminate\\View\\View;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\View\View;
 use Throwable;
 
 class DatabaseUpdateController extends Controller
@@ -35,7 +35,6 @@ class DatabaseUpdateController extends Controller
     public function index(Request $request): View
     {
         $this->ensureManager($request);
-
         $connection = config('database.default');
         $settings = config("database.connections.{$connection}", []);
         $migrations = $this->migrationState();
@@ -52,12 +51,11 @@ class DatabaseUpdateController extends Controller
     public function run(Request $request): RedirectResponse
     {
         $this->ensureManager($request);
-
         $connection = config('database.default');
         $settings = config("database.connections.{$connection}", []);
         $database = (string) ($settings['database'] ?? '');
 
-        $data = $request->validate([
+        $request->validate([
             'database_confirmation' => ['required', 'string', 'in:'.$database],
             'run_confirmation' => ['required', 'in:RUN MIGRATIONS'],
         ], [
@@ -79,8 +77,7 @@ class DatabaseUpdateController extends Controller
                 abort_unless($lockAcquired, 409, 'يوجد تحديث آخر قيد التنفيذ. حاول لاحقًا.');
             }
 
-            $before = collect($this->migrationState())->where('ran', false)->count();
-            if ($before === 0) {
+            if (collect($this->migrationState())->where('ran', false)->isEmpty()) {
                 return back()->with('status', 'قاعدة البيانات محدثة بالفعل، لا توجد migrations معلقة.');
             }
 
@@ -90,7 +87,7 @@ class DatabaseUpdateController extends Controller
             ]);
 
             if ($exitCode !== 0) {
-                report(new \\RuntimeException('Browser database migration command failed.'));
+                report(new \RuntimeException('Browser database migration command failed.'));
                 return back()->withErrors(['update' => 'توقف تحديث قاعدة البيانات بسبب خطأ. راجع سجل التطبيق قبل إعادة المحاولة.']);
             }
 
@@ -101,7 +98,6 @@ class DatabaseUpdateController extends Controller
                 : 'انتهى الأمر، لكن ما زالت هناك migrations معلقة؛ راجع سجل التطبيق.');
         } catch (Throwable $exception) {
             report($exception);
-
             return back()->withErrors(['update' => 'تعذر تنفيذ التحديث. لم يتم تشغيل أي Seeder أو إنشاء قاعدة بيانات جديدة. راجع سجل التطبيق.']);
         } finally {
             if ($lockAcquired) {
