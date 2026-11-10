@@ -115,7 +115,7 @@
     @if(auth()->user()->hasPermission('users.assign_scopes'))
     <div class="modal fade" id="userScopesModal{{ $user->id }}" tabindex="-1" role="dialog" aria-hidden="true"><div class="modal-dialog modal-lg" role="document"><div class="modal-content">
         <form method="post" action="{{ route('admin.access.users.scopes', $user) }}">@csrf @method('put')
-            <div class="modal-header"><h5 class="modal-title">نطاق بيانات: {{ $user->name }}</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+            <div class="modal-header"><h5 class="modal-title">نطاق البيانات: {{ $user->name }}</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
             <div class="modal-body">
                 <div class="alert alert-info">نطاق الشركة يشمل فروعها ومخازنها، ونطاق الفرع يشمل مخازنه. لا تمنح صلاحية الشاشة وحدها وصولًا إلى كل البيانات.</div>
                 <div class="form-row">
