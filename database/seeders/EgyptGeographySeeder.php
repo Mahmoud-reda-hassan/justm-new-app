@@ -1,12 +1,12 @@
 <?php
 
-namespace Database\Seeders;
+namespace Database\\Seeders;
 
-use App\Models\City;
-use App\Models\Country;
-use App\Models\Governorate;
-use App\Models\Region;
-use Illuminate\Database\Seeder;
+use App\\Models\\City;
+use App\\Models\\Country;
+use App\\Models\\Governorate;
+use App\\Models\\Region;
+use Illuminate\\Database\\Seeder;
 use RuntimeException;
 
 class EgyptGeographySeeder extends Seeder
@@ -21,17 +21,34 @@ class EgyptGeographySeeder extends Seeder
             throw new RuntimeException('The Egypt geography data file is invalid.');
         }
 
-        $country = Country::query()->updateOrCreate(
-            ['name_ar' => $countryData['name_ar']],
-            ['name_en' => $countryData['name_en'], 'is_active' => true],
-        );
+        $countryMatches = Country::query()
+            ->where('name_ar', $countryData['name_ar'])
+            ->orWhere('name_en', $countryData['name_en'])
+            ->get();
+
+        if ($countryMatches->count() > 1) {
+            throw new RuntimeException('Multiple country records match the Egypt reference data.');
+        }
+
+        $country = $countryMatches->first() ?? new Country();
+        $country->fill([
+            'name_ar' => $countryData['name_ar'],
+            'name_en' => $countryData['name_en'],
+            'is_active' => true,
+        ])->save();
 
         $regions = [];
         foreach ($data['regions'] as $row) {
-            $region = Region::query()->updateOrCreate(
-                ['name' => $row['name']],
-                [],
-            );
+            $shortName = preg_replace('/^إقليم\\s*/u', '', $row['name']);
+            $matches = Region::query()->whereIn('name', array_unique([$row['name'], $shortName]))->get();
+
+            if ($matches->count() > 1) {
+                throw new RuntimeException('Multiple region records match a legacy region.');
+            }
+
+            $region = $matches->first() ?? new Region();
+            $region->name = $row['name'];
+            $region->save();
             $regions[$row['source_id']] = $region->id;
         }
 
@@ -45,14 +62,26 @@ class EgyptGeographySeeder extends Seeder
                 throw new RuntimeException('A governorate references a missing legacy region.');
             }
 
-            $governorate = Governorate::query()->updateOrCreate(
-                ['country_id' => $country->id, 'name_ar' => $row['name_ar']],
-                [
-                    'region_id' => $regionId,
-                    'name_en' => $row['name_en'],
-                    'is_active' => true,
-                ],
-            );
+            $matches = Governorate::query()
+                ->where('country_id', $country->id)
+                ->where(fn ($query) => $query
+                    ->where('name_ar', $row['name_ar'])
+                    ->orWhere('name_en', $row['name_en']))
+                ->get();
+
+            if ($matches->count() > 1) {
+                throw new RuntimeException('Multiple governorates match a legacy geographic record.');
+            }
+
+            $governorate = $matches->first() ?? new Governorate();
+            $governorate->fill([
+                'country_id' => $country->id,
+                'region_id' => $regionId,
+                'name_ar' => $row['name_ar'],
+                'name_en' => $row['name_en'],
+                'is_active' => true,
+            ])->save();
+
             $governorates[$row['source_id']] = $governorate->id;
         }
 
@@ -62,10 +91,24 @@ class EgyptGeographySeeder extends Seeder
                 throw new RuntimeException('A city references a missing legacy governorate.');
             }
 
-            City::query()->updateOrCreate(
-                ['governorate_id' => $governorateId, 'name_ar' => $row['name_ar']],
-                ['name_en' => $row['name_en'], 'is_active' => true],
-            );
+            $matches = City::query()
+                ->where('governorate_id', $governorateId)
+                ->where(fn ($query) => $query
+                    ->where('name_ar', $row['name_ar'])
+                    ->orWhere('name_en', $row['name_en']))
+                ->get();
+
+            if ($matches->count() > 1) {
+                throw new RuntimeException('Multiple cities match a legacy geographic record.');
+            }
+
+            $city = $matches->first() ?? new City();
+            $city->fill([
+                'governorate_id' => $governorateId,
+                'name_ar' => $row['name_ar'],
+                'name_en' => $row['name_en'],
+                'is_active' => true,
+            ])->save();
         }
     }
 }
