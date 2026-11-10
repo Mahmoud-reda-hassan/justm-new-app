@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\View\View;
 use Illuminate\Validation\Rule;
 
@@ -31,8 +32,21 @@ class AccessControlController extends Controller
         $branchIds = $actor->dataScopes()->where('scope_type', 'branch')->pluck('scope_id');
         $warehouseIds = $actor->dataScopes()->where('scope_type', 'warehouse')->pluck('scope_id');
 
+        $allUsers = User::query()->with(['roles', 'dataScopes'])->orderByDesc('id')->get();
+        $visibleUsers = $allUsers->filter(fn (User $user): bool =>
+            $actor->is($user) || $this->userIsWithinActorScope($actor, $user, true)
+        )->values();
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $users = new LengthAwarePaginator(
+            $visibleUsers->forPage($page, 20)->values(),
+            $visibleUsers->count(),
+            20,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
         return view('admin.access.users', [
-            'users' => User::query()->with(['roles', 'dataScopes'])->orderByDesc('id')->paginate(20),
+            'users' => $users,
             'roles' => Role::query()->where('is_active', true)->orderBy('name')->get(),
             'companies' => Company::query()->when(! $globalScope, fn ($q) => $q->whereIn('id', $companyIds))->orderBy('name')->get(['id', 'name']),
             'branches' => Branch::query()->with('company')->when(! $globalScope, fn ($q) => $q->whereIn('company_id', $companyIds)->orWhereIn('id', $branchIds))->orderBy('name')->get(['id', 'company_id', 'name']),
@@ -69,6 +83,7 @@ class AccessControlController extends Controller
     public function updateUser(Request $request, User $user): RedirectResponse
     {
         abort_if($request->user()->is($user), 422, 'لا يمكن تعديل حسابك من هذه الشاشة.');
+        $this->assertUserTargetInScope($request, $user);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:150'],
@@ -90,6 +105,7 @@ class AccessControlController extends Controller
     public function setUserActive(Request $request, User $user): RedirectResponse
     {
         abort_if($request->user()->is($user), 422, 'لا يمكن إيقاف حسابك الحالي.');
+        $this->assertUserTargetInScope($request, $user);
 
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
         $user->is_active = (bool) $data['is_active'];
@@ -104,6 +120,9 @@ class AccessControlController extends Controller
 
     public function resetUserPassword(Request $request, User $user): RedirectResponse
     {
+        abort_if($request->user()->is($user), 422, 'لا يمكن إعادة تعيين كلمة مرور حسابك من هذه الشاشة.');
+        $this->assertUserTargetInScope($request, $user);
+
         $data = $request->validate([
             'password' => ['required', 'string', 'min:12', 'confirmed'],
         ]);
@@ -118,6 +137,7 @@ class AccessControlController extends Controller
 
     public function assignUserRoles(Request $request, User $user): RedirectResponse
     {
+        $this->assertUserTargetInScope($request, $user);
         $data = $request->validate([
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['integer', 'distinct', Rule::exists('roles', 'id')->where('is_active', true)],
@@ -169,12 +189,9 @@ class AccessControlController extends Controller
         ]);
 
         if (! $request->user()->hasPermission('structure.scope.manage_all')) {
-            foreach ($user->dataScopes as $existingScope) {
-                abort_unless($request->user()->hasDataScope($existingScope->scope_type, (int) $existingScope->scope_id), 403,
-                    'لا يمكنك تعديل نطاق بيانات خارج نطاقك.');
-            }
+            $this->assertUserTargetInScope($request, $user, true);
             foreach ($scopes as $scope) {
-                abort_unless($request->user()->hasDataScope($scope['scope_type'], $scope['scope_id']), 403,
+                abort_unless($this->scopeIsWithinActor($request->user(), $scope['scope_type'], (int) $scope['scope_id']), 403,
                     'لا يمكنك إسناد نطاق بيانات خارج نطاقك.');
             }
         }
@@ -193,6 +210,62 @@ class AccessControlController extends Controller
         ]);
 
         return back()->with('status', 'تم تحديث نطاق وصول المستخدم.');
+    }
+
+
+    private function assertUserTargetInScope(Request $request, User $user, bool $allowUnassigned = false): void
+    {
+        abort_unless(
+            $this->userIsWithinActorScope($request->user(), $user, $allowUnassigned),
+            403,
+            'المستخدم المستهدف خارج نطاق البيانات المسموح لك بإدارته.'
+        );
+    }
+
+    private function userIsWithinActorScope(User $actor, User $target, bool $allowUnassigned = false): bool
+    {
+        if ($actor->hasPermission('structure.scope.manage_all')) {
+            return true;
+        }
+
+        $targetScopes = $target->dataScopes()->get(['scope_type', 'scope_id']);
+        if ($targetScopes->isEmpty()) {
+            return $allowUnassigned;
+        }
+
+        foreach ($targetScopes as $scope) {
+            if (! $this->scopeIsWithinActor($actor, $scope->scope_type, (int) $scope->scope_id)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function scopeIsWithinActor(User $actor, string $type, int $id): bool
+    {
+        if ($type === 'company') {
+            return $actor->hasDataScope('company', $id);
+        }
+
+        if ($type === 'branch') {
+            $branch = Branch::query()->find($id);
+            return $branch !== null && (
+                $actor->hasDataScope('branch', $id)
+                || $actor->hasDataScope('company', (int) $branch->company_id)
+            );
+        }
+
+        if ($type === 'warehouse') {
+            $warehouse = Warehouse::query()->with('branch')->find($id);
+            return $warehouse !== null && (
+                $actor->hasDataScope('warehouse', $id)
+                || $actor->hasDataScope('branch', (int) $warehouse->branch_id)
+                || $actor->hasDataScope('company', (int) $warehouse->branch->company_id)
+            );
+        }
+
+        return $actor->hasDataScope($type, $id);
     }
 
     public function roles(Request $request): View
