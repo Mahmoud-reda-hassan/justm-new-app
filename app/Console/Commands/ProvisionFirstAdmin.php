@@ -25,7 +25,7 @@ class ProvisionFirstAdmin extends Command
     protected $signature = 'justm:provision-first-admin
         {--name= : Administrator display name}
         {--username= : Unique login username}
-        {--email= : Optional email address}';
+        {--email= : Required email address for verification and password recovery}';
 
     protected $description = 'Safely create the first Just-M administrator with setup-only permissions';
 
@@ -55,11 +55,7 @@ class ProvisionFirstAdmin extends Command
 
         $name = $this->option('name') ?: $this->ask('اسم المدير');
         $username = $this->option('username') ?: $this->ask('اسم المستخدم');
-        $email = $this->option('email') ?: $this->ask('البريد الإلكتروني (اختياري)');
-
-        if ($email === '') {
-            $email = null;
-        }
+        $email = $this->option('email') ?: $this->ask('البريد الإلكتروني (مطلوب للتحقق واستعادة كلمة المرور)');
 
         $password = $this->secret('كلمة المرور (12 حرفًا على الأقل)');
         $confirmation = $this->secret('تأكيد كلمة المرور');
@@ -73,7 +69,7 @@ class ProvisionFirstAdmin extends Command
         ], [
             'name' => ['required', 'string', 'max:150'],
             'username' => ['required', 'string', 'max:100', 'alpha_dash', 'unique:users,username'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'confirmed', Password::min(12)],
         ]);
 
@@ -85,8 +81,10 @@ class ProvisionFirstAdmin extends Command
             return self::FAILURE;
         }
 
+        $user = null;
+
         try {
-            DB::transaction(function () use ($name, $username, $email, $password): void {
+            DB::transaction(function () use ($name, $username, $email, $password, &$user): void {
                 // Re-check the bootstrap prerequisites and user state inside the transaction.
                 if (! Country::query()->exists() || ! Governorate::query()->exists() || ! City::query()->exists()
                     || ! Company::query()->exists() || ! Branch::query()->where('is_main', true)->exists() || ! Warehouse::query()->exists()
@@ -118,7 +116,13 @@ class ProvisionFirstAdmin extends Command
             return self::FAILURE;
         }
 
-        $this->info('تم إنشاء أول مدير بنجاح.');
+        try {
+            $user->sendEmailVerificationNotification();
+            $this->info('تم إنشاء أول مدير وإرسال رسالة تحقق البريد الإلكتروني.');
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->warn('تم إنشاء المدير، لكن تعذر إرسال رسالة التحقق. راجع إعدادات البريد ثم أعد الإرسال من صفحة التحقق بعد تسجيل الدخول.');
+        }
         $this->warn('صلاحياته تقتصر على إدارة المستخدمين ومجموعات الصلاحيات، ولا تمنحه صلاحيات تشغيلية أو مالية.');
 
         return self::SUCCESS;
