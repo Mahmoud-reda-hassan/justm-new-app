@@ -46,7 +46,7 @@
                     <select class="form-control select2" name="customer_id" id="customer_id" required>
                         <option value="">اختر العميل</option>
                         @foreach($customers as $customer)
-                            <option value="{{ $customer->id }}" data-address="{{ e($customer->address ?? '') }}">{{ $customer->name }} — {{ $customer->mobile ?: $customer->phone }}</option>
+                            <option value="{{ $customer->id }}" data-address="{{ e($customer->address ?? '') }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -54,8 +54,12 @@
                     <label for="shipping_fee">رسوم الشحن</label>
                     <input class="form-control" type="number" name="shipping_fee" id="shipping_fee" min="0" step="0.01" value="0">
                 </div>
-                <div class="form-group col-12">
-                    <label for="shipping_address">عنوان التوصيل</label>
+                <div class="form-group col-md-5">
+                    <label for="customer-address-select">العناوين المحفوظة للعميل</label>
+                    <select class="form-control" id="customer-address-select" disabled><option value="">اختر العميل أولًا</option></select>
+                </div>
+                <div class="form-group col-md-7">
+                    <label for="shipping_address">عنوان التوصيل (يمكن تعديله لهذا الطلب)</label>
                     <textarea class="form-control" name="shipping_address" id="shipping_address" rows="2" maxlength="2000"></textarea>
                 </div>
             </div>
@@ -134,6 +138,41 @@
 @push('scripts')
 <script>
 (() => {
+    const customerAddresses = @json($customers->mapWithKeys(fn ($customer) => [$customer->id => $customer->addresses->map(fn ($address) => ['title' => $address->title, 'address' => $address->address, 'city' => $address->city?->name_ar])->values()])->all());
+    const renderCustomerAddresses = () => {
+        const select = $('customer-address-select');
+        const selectedCustomer = $('customer_id').selectedOptions[0];
+        const addresses = customerAddresses[$('customer_id').value] || [];
+        select.innerHTML = '';
+        if (addresses.length) {
+            select.disabled = false;
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'اختر عنوان التوصيل';
+            select.appendChild(placeholder);
+            addresses.forEach((address, index) => {
+                const option = document.createElement('option');
+                option.value = address.address;
+                option.textContent = address.title + (address.city ? ' — ' + address.city : '');
+                select.appendChild(option);
+                if (index === 0) option.selected = true;
+            });
+            $('shipping_address').value = addresses[0].address;
+        } else {
+            select.disabled = true;
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'لا توجد عناوين محفوظة';
+            select.appendChild(option);
+            $('shipping_address').value = selectedCustomer?.dataset.address || '';
+        }
+    };
+    $('customer_id').addEventListener('change', renderCustomerAddresses);
+    $('customer-address-select').addEventListener('change', function () {
+        if (this.value) $('shipping_address').value = this.value;
+    });
+    renderCustomerAddresses();
+
     const $ = id => document.getElementById(id);
     const steps = ['step-customer', 'step-products', 'step-review'];
     const items = [];
