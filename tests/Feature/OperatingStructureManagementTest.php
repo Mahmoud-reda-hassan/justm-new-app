@@ -149,7 +149,7 @@ class OperatingStructureManagementTest extends TestCase
 
     public function test_access_administrator_can_delegate_catalog_permissions_but_not_to_own_role(): void
     {
-        $admin = $this->userWith(['permissions.catalog.assign', 'permissions.groups.assign', 'users.assign_groups']);
+        $admin = $this->userWith(['permissions.catalog.assign', 'permissions.groups.assign', 'users.assign_groups', 'structure.scope.manage_all']);
         $target = User::create([
             'name' => 'Scoped Operator',
             'username' => 'delegated-operator',
