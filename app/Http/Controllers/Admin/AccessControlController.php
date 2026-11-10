@@ -137,13 +137,12 @@ class AccessControlController extends Controller
 
     public function assignUserRoles(Request $request, User $user): RedirectResponse
     {
+        abort_if($request->user()->is($user), 422, 'لا يمكن تغيير مجموعات حسابك الحالي من هذه الشاشة.');
         $this->assertUserTargetInScope($request, $user);
         $data = $request->validate([
             'roles' => ['sometimes', 'array'],
             'roles.*' => ['integer', 'distinct', Rule::exists('roles', 'id')->where('is_active', true)],
         ]);
-
-        abort_if($request->user()->is($user), 422, 'لا يمكن تغيير مجموعات حسابك الحالي من هذه الشاشة.');
 
         $roleIds = $data['roles'] ?? [];
         $roles = Role::query()->with('permissions')->whereIn('id', $roleIds)->get();
