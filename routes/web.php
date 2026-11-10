@@ -12,6 +12,7 @@ Route::prefix('setup')->name('setup.')->group(function (): void {
     Route::post('/access', [SetupController::class, 'authorizeSetup'])->middleware('throttle:5,1')->name('authorize');
     Route::post('/connection', [SetupController::class, 'testConnection'])->middleware('throttle:10,1')->name('connection');
     Route::post('/database', [SetupController::class, 'installDatabase'])->middleware('throttle:3,1')->name('database');
+    Route::post('/operating-data', [SetupController::class, 'saveOperatingData'])->middleware('throttle:3,1')->name('operating-data');
     Route::post('/admin', [SetupController::class, 'createFirstAdmin'])->middleware('throttle:3,1')->name('admin');
 });
 
