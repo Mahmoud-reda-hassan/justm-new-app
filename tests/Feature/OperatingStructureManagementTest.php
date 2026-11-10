@@ -204,6 +204,32 @@ class OperatingStructureManagementTest extends TestCase
         $this->assertSame($first->id, $branch->fresh()->company_id);
     }
 
+    public function test_branch_cannot_have_more_than_one_sales_dispatch_warehouse(): void
+    {
+        $user = $this->userWith(['warehouses.create', 'structure.scope.manage_all']);
+        $company = $this->company('شركة مخزن البيع');
+        $city = City::query()->where('is_active', true)->firstOrFail();
+        $branch = app(BranchManager::class)->create([
+            'company_id' => $company->id, 'city_id' => $city->id,
+            'name' => 'فرع البيع', 'address' => 'عنوان الفرع',
+            'is_main' => true, 'is_active' => true,
+        ]);
+        $salesType = WarehouseType::query()->where('key', 'sales_dispatch')->firstOrFail();
+        Warehouse::create([
+            'branch_id' => $branch->id, 'warehouse_type_id' => $salesType->id,
+            'name' => 'مخزن البيع الأول', 'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->from(route('admin.structure.warehouses'))
+            ->post(route('admin.structure.warehouses.store'), [
+                'branch_id' => $branch->id,
+                'warehouse_type_id' => $salesType->id,
+                'name' => 'مخزن البيع الثاني',
+            ])->assertSessionHasErrors('warehouse_type_id');
+
+        $this->assertDatabaseMissing('warehouses', ['name' => 'مخزن البيع الثاني']);
+    }
+
     public function test_company_cannot_be_disabled_while_it_has_active_branches(): void
     {
         $company = $this->company();
