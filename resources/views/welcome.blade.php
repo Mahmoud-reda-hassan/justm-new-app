@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Just-M | إعادة البناء</title>
+    <title>{{ config('app.name') }}</title>
     <style>
         body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f6f9; color: #202938; font-family: Tahoma, Arial, sans-serif; }
         main { max-width: 620px; margin: 24px; padding: 36px; background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; text-align: center; }
