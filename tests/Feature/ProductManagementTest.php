@@ -81,6 +81,20 @@ class ProductManagementTest extends TestCase
         $this->actingAs($user)->get(route('admin.products.index'))->assertOk()->assertSee('منتج تجريبي');
     }
 
+    public function test_product_screen_uses_adminlte_and_allows_an_extra_sku_without_attributes(): void
+    {
+        $user = $this->userWith(['products.view', 'products.create']);
+        $product = $this->createProduct($user);
+
+        $this->actingAs($user)->get(route('admin.products.index'))
+            ->assertOk()
+            ->assertSee('info-box', false)
+            ->assertSee('card card-outline card-primary', false)
+            ->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('إضافة كود / تركيبة جديدة')
+            ->assertSee(route('admin.products.variants.store', $product), false);
+    }
+
     public function test_product_variant_must_select_one_value_from_each_assigned_attribute_group(): void
     {
         $user = $this->userWith(['products.create', 'products.view']);
