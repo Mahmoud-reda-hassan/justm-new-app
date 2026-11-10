@@ -90,4 +90,12 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/warehouses/{warehouse}', [OperatingStructureController::class, 'updateWarehouse'])->middleware('permission:warehouses.update')->name('warehouses.update');
         Route::patch('/warehouses/{warehouse}/active', [OperatingStructureController::class, 'setWarehouseActive'])->middleware('permission:warehouses.activate')->name('warehouses.active');
     });
+
+    Route::prefix('admin/parties')->name('admin.parties.')->group(function (): void {
+        Route::get('/', [\App\Http\Controllers\Admin\PartyController::class, 'index'])->middleware('permission:parties.view')->name('index');
+        Route::post('/', [\App\Http\Controllers\Admin\PartyController::class, 'store'])->middleware('permission:parties.create')->name('store');
+        Route::put('/{party}', [\App\Http\Controllers\Admin\PartyController::class, 'update'])->middleware('permission:parties.update')->name('update');
+        Route::patch('/{party}/active', [\App\Http\Controllers\Admin\PartyController::class, 'setActive'])->middleware('permission:parties.activate')->name('active');
+    });
+
 });
