@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Permission;
+use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Role;
 use App\Models\Unit;
