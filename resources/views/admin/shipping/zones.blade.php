@@ -23,6 +23,10 @@
         <div class="card-tools"><span class="badge badge-secondary">{{ number_format($zones->total()) }} منطقة</span></div>
     </div>
     <div class="card-body">
+        <form method="get" class="form-row mb-3">
+            <div class="col-md-6 mb-2"><input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="ابحث باسم المنطقة أو المدينة أو المخزن أو الفرع"></div>
+            <div class="col-auto mb-2"><button class="btn btn-default" type="submit"><i class="fas fa-search ml-1"></i> بحث</button> <a class="btn btn-outline-secondary" href="{{ route('admin.shipping.zones.index') }}">مسح</a></div>
+        </form>
         <div class="table-responsive">
             <table class="table table-bordered table-hover table-striped">
                 <thead><tr><th>المنطقة</th><th>المدن</th><th>رسوم الشحن</th><th>مدة التوصيل</th><th>نوع الشحن</th><th>مخزن الصرف</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
