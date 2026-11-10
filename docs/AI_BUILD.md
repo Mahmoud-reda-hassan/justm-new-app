@@ -3971,3 +3971,16 @@
 - **الملفات:** `app/Http/Controllers/Admin/ProductCatalogController.php`، `resources/views/admin/catalog/categories.blade.php`، `tests/Feature/ProductCatalogSettingsTest.php`، `docs/REBUILD_V2_ARCHITECTURE_AR.md`.
 - **التحقق:** CI على HEAD الحالي لم يُراجع بعد، ولا توجد معاينة متصفح.
 - **الخطوة التالية:** مراجعة شاشة وحدات القياس والمنتجات وصفات المنتج مع الاختبارات، ثم الانتقال إلى مطابقة شاشة العملاء/الموردين وتفاصيلها القديمة.
+
+
+## استكمال بيانات الاتصال المتعددة للأطراف وربط عناوين العميل بأمر البيع — 2026-11-11
+
+- مراجعة `main:inc/Classes/Client_tbl.php` و`dist/js/Clients.js` و`dist/js/Suppliers.js` أثبتت دعم عدة أرقام وعناوين، مع نوع الهاتف وWhatsApp/Telegram وتحديد الافتراضي.
+- **التغيير المنفذ:** إضافة جداول `party_phones` و`party_addresses` وعلاقاتهما، وتحديث شاشة الأطراف لإضافة/تعديل عدة أرقام وعناوين وتحديد الأساسي. إزالة سجل من الشاشة توقفه ولا تحذفه فعليًا.
+- تظل حقول الهاتف والمحمول والعنوان والمدينة القديمة متزامنة مع السجلات الرئيسية للتوافق مع أجزاء النظام الجديد الحالية.
+- **تحديث إنشاء أمر البيع:** تحميل عناوين العميل النشطة وعرضها للاختيار، مع إمكانية تعديل نص العنوان للطلب الحالي وتخزينه كـ snapshot داخل `sales_orders.shipping_address`.
+- **اختبارات مضافة:** عدة أرقام وعناوين مع سجل رئيسي واحد، وتغيير السجل الرئيسي، وظهور العنوان المحفوظ في شاشة إنشاء الطلب.
+- **الملفات:** `database/migrations/2026_11_11_000001_create_party_contacts_tables.php`، `app/Models/PartyPhone.php`، `app/Models/PartyAddress.php`، `app/Models/Party.php`، `app/Http/Controllers/Admin/PartyController.php`، `resources/views/admin/parties/index.blade.php`، `app/Http/Controllers/Admin/SalesOrderController.php`، `resources/views/admin/sales/orders/create.blade.php`، `tests/Feature/PartyManagementTest.php`، `tests/Feature/SalesOrderCreationTest.php`، والوثائق المتخصصة.
+- **التحقق:** نتيجة CI بعد هذه التغييرات لم تُراجع بعد. لم تتم معاينة المتصفح.
+- **لم يحدث:** لم تُشغّل migration على قاعدة بيانات الاستضافة، ولم يتم النشر أو الدمج إلى `main`.
+- **الخطوة التالية:** مراجعة شاشة العملاء/الموردين كاملة مع مسارات إضافة وتعديل وحذف جهات الاتصال القديمة، ثم مطابقة الشاشات المتبقية من الهيكل والإدارة.
