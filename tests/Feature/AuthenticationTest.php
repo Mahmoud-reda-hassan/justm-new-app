@@ -155,7 +155,7 @@ class AuthenticationTest extends TestCase
         $this->actingAs($user)
             ->get(route('workspaces.index'))
             ->assertOk()
-            ->assertSee('منطقة المسوقين')
+            ->assertSee('منطقة المسوقين والوسطاء')
             ->assertSee('منطقة المندوبين')
             ->assertDontSee('منطقة الوسطاء')
             ->assertDontSee('منطقة الإداريين');
