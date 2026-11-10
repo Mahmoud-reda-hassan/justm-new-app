@@ -64,9 +64,10 @@ class PartyController extends Controller
         $this->authorizePermission($request, 'parties.create');
         $data = $this->validatedData($request);
         $roles = $data['roles'];
-        $phones = $data['phones'] ?? $this->legacyPhones($data);
-        $addresses = $data['addresses'] ?? $this->legacyAddresses($data);
-        unset($data['roles'], $data['phones'], $data['addresses']);
+        $useContactCollections = $request->boolean('contacts_schema');
+        $phones = $useContactCollections ? ($data['phones'] ?? []) : ($data['phones'] ?? $this->legacyPhones($data));
+        $addresses = $useContactCollections ? ($data['addresses'] ?? []) : ($data['addresses'] ?? $this->legacyAddresses($data));
+        unset($data['roles'], $data['phones'], $data['addresses'], $data['contacts_schema']);
 
         $this->assertSinglePrimary($phones, 'phones');
         $this->assertSinglePrimary($addresses, 'addresses');
@@ -89,9 +90,10 @@ class PartyController extends Controller
         $this->authorizePermission($request, 'parties.update');
         $data = $this->validatedData($request, $party);
         $roles = $data['roles'];
-        $phones = $data['phones'] ?? null;
-        $addresses = $data['addresses'] ?? null;
-        unset($data['roles'], $data['phones'], $data['addresses']);
+        $useContactCollections = $request->boolean('contacts_schema');
+        $phones = $useContactCollections ? ($data['phones'] ?? []) : ($data['phones'] ?? null);
+        $addresses = $useContactCollections ? ($data['addresses'] ?? []) : ($data['addresses'] ?? null);
+        unset($data['roles'], $data['phones'], $data['addresses'], $data['contacts_schema']);
         abort_if(
             $party->users()->exists() && count(array_intersect($roles, Party::LOGIN_ROLES)) === 0,
             422,
@@ -149,14 +151,15 @@ class PartyController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['required', 'string', Rule::in(array_keys(Party::ROLES))],
-            'phones' => ['sometimes', 'array', 'max:20'],
+            'contacts_schema' => ['nullable', 'boolean'],
+            'phones' => ['sometimes', 'required_if:contacts_schema,1', 'array', 'min:1', 'max:20'],
             'phones.*.id' => ['nullable', 'integer'],
             'phones.*.number' => ['required', 'string', 'max:40'],
             'phones.*.type' => ['required', Rule::in(['mobile', 'landline'])],
             'phones.*.is_whatsapp' => ['nullable', 'boolean'],
             'phones.*.is_telegram' => ['nullable', 'boolean'],
             'phones.*.is_primary' => ['nullable', 'boolean'],
-            'addresses' => ['sometimes', 'array', 'max:30'],
+            'addresses' => ['sometimes', 'required_if:contacts_schema,1', 'array', 'min:1', 'max:30'],
             'addresses.*.id' => ['nullable', 'integer'],
             'addresses.*.city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
             'addresses.*.title' => ['required', 'string', 'max:80'],
