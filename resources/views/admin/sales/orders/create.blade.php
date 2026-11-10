@@ -36,6 +36,7 @@
 
 <form method="post" action="{{ route('admin.sales.orders.store') }}" id="order-form">
     @csrf
+    <input type="hidden" name="shipping_address_id" id="shipping_address_id">
     <section class="card card-outline card-primary order-step active" id="step-customer">
         <div class="card-header"><h3 class="card-title">1. بيانات العميل</h3></div>
         <div class="card-body">
@@ -53,7 +54,7 @@
                         @foreach($customers as $customer)
                             <div data-customer-id="{{ $customer->id }}">
                                 @foreach($customer->addresses as $address)
-                                    <span data-address data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}"></span>
+                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}"></span>
                                 @endforeach
                             </div>
                         @endforeach
@@ -150,6 +151,7 @@
     const $ = id => document.getElementById(id);
     const customerAddresses = Array.from(document.querySelectorAll('#customer-address-data [data-customer-id]')).reduce((map, group) => {
         map[group.dataset.customerId] = Array.from(group.querySelectorAll('[data-address]')).map(node => ({
+            id: node.dataset.id,
             title: node.dataset.title,
             address: node.dataset.addressText,
             city: node.dataset.city
@@ -169,11 +171,12 @@
             select.appendChild(placeholder);
             addresses.forEach((address, index) => {
                 const option = document.createElement('option');
-                option.value = address.address;
+                option.value = address.id;
                 option.textContent = address.title + (address.city ? ' — ' + address.city : '');
                 select.appendChild(option);
                 if (index === 0) option.selected = true;
             });
+            $('shipping_address_id').value = addresses[0].id;
             $('shipping_address').value = addresses[0].address;
         } else {
             select.disabled = true;
@@ -181,12 +184,17 @@
             option.value = '';
             option.textContent = 'لا توجد عناوين محفوظة';
             select.appendChild(option);
+            $('shipping_address_id').value = '';
             $('shipping_address').value = selectedCustomer?.dataset.address || '';
         }
     };
     $('customer_id').addEventListener('change', renderCustomerAddresses);
     $('customer-address-select').addEventListener('change', function () {
-        if (this.value) $('shipping_address').value = this.value;
+        const address = addresses.find(item => String(item.id) === this.value);
+        if (address) {
+            $('shipping_address_id').value = address.id;
+            $('shipping_address').value = address.address;
+        }
     });
     renderCustomerAddresses();
 
