@@ -30,6 +30,10 @@ class SetupModuleTest extends TestCase
         app(DatabaseSeeder::class)->run();
 
         $this->assertSame(1, Role::query()->where('key', 'system-access-admin')->count());
+        $this->assertDatabaseCount('countries', 1);
+        $this->assertDatabaseCount('regions', 7);
+        $this->assertDatabaseCount('governorates', 27);
+        $this->assertDatabaseCount('cities', 516);
     }
 
     public function test_first_admin_can_be_created_once_with_only_setup_permissions(): void
