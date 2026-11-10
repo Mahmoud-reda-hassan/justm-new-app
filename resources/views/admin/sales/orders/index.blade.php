@@ -5,11 +5,58 @@
 @section('breadcrumb', 'أوامر البيع')
 
 @section('content')
-<header class="head"><div><h1>أوامر البيع</h1><div class="muted">الأوامر المحفوظة كمسودات — لا يوجد حجز مخزون أو ترحيل مالي في هذه المرحلة.</div></div>@if(auth()->user()->hasPermission('sales.orders.create'))<a class="btn" href="{{ route('admin.sales.orders.create') }}">إنشاء أمر بيع جديد</a>@endif</header>
-@if(session('status'))<div class="alert">{{ session('status') }}</div>@endif
-<section class="panel"><table><thead><tr><th>رقم الأمر</th><th>العميل</th><th>منشئ الأمر</th><th>الإجمالي</th><th>الحالة</th><th>التاريخ</th></tr></thead><tbody>
-@forelse($orders as $order)
-<tr><td><strong>{{ $order->order_number }}</strong></td><td>{{ $order->customer?->name }}</td><td>{{ $order->creatorParty?->name ?? $order->creator?->name }}</td><td>{{ number_format((float) $order->total, 2) }}</td><td><span class="status">مسودة</span></td><td>{{ $order->created_at?->format('Y-m-d H:i') }}</td></tr>
-@empty<tr><td colspan="6" class="muted">لا توجد أوامر بيع حتى الآن.</td></tr>@endforelse
-</tbody></table><div>{{ $orders->links() }}</div></section>
+@if(session('status'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{ session('status') }}
+        <button type="button" class="close" data-dismiss="alert" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
+    </div>
+@endif
+
+<div class="card card-outline card-primary">
+    <div class="card-header">
+        <h3 class="card-title">قائمة أوامر البيع</h3>
+        <div class="card-tools">
+            @if(auth()->user()->hasPermission('sales.orders.create'))
+                <a class="btn btn-primary btn-sm" href="{{ route('admin.sales.orders.create') }}">
+                    <i class="fas fa-plus ml-1"></i> إنشاء أمر بيع
+                </a>
+            @endif
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle ml-1"></i>
+            تعرض هذه المرحلة المسودات المحفوظة فقط؛ لا يتم حجز المخزون أو ترحيل أثر مالي عند إنشاء المسودة.
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover table-striped">
+                <thead>
+                    <tr>
+                        <th>رقم الأمر</th>
+                        <th>العميل</th>
+                        <th>منشئ الأمر</th>
+                        <th>الإجمالي</th>
+                        <th>الحالة</th>
+                        <th>تاريخ الإنشاء</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @forelse($orders as $order)
+                    <tr>
+                        <td><strong>{{ $order->order_number }}</strong></td>
+                        <td>{{ $order->customer?->name ?: '—' }}</td>
+                        <td>{{ $order->creatorParty?->name ?? $order->creator?->name ?? '—' }}</td>
+                        <td class="text-nowrap">{{ number_format((float) $order->total, 2) }}</td>
+                        <td><span class="badge badge-secondary">مسودة</span></td>
+                        <td class="text-nowrap">{{ $order->created_at?->format('Y-m-d H:i') }}</td>
+                    </tr>
+                @empty
+                    <tr><td colspan="6" class="text-center text-muted py-4">لا توجد أوامر بيع محفوظة حتى الآن.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">{{ $orders->links() }}</div>
+    </div>
+</div>
 @endsection
