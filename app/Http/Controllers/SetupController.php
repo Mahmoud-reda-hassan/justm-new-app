@@ -285,6 +285,8 @@ class SetupController extends Controller
         $request->session()->regenerateToken();
 
         Auth::login($user);
+        $request->session()->regenerate();
+
         try {
             $user->sendEmailVerificationNotification();
         } catch (Throwable $exception) {
