@@ -97,6 +97,7 @@ Route::middleware('auth')->group(function (): void {
     Route::prefix('admin/products')->name('admin.products.')->group(function (): void {
         Route::get('/', [ProductController::class, 'index'])->middleware('permission:products.view')->name('index');
         Route::post('/', [ProductController::class, 'store'])->middleware('permission:products.create')->name('store');
+        Route::post('/generate-codes', [ProductController::class, 'generateCodes'])->middleware('permission:products.create')->name('generate-codes');
         Route::put('/{product}', [ProductController::class, 'update'])->middleware('permission:products.update')->name('update');
         Route::patch('/{product}/active', [ProductController::class, 'setActive'])->middleware('permission:products.activate')->name('active');
         Route::patch('/{product}/visible', [ProductController::class, 'setVisible'])->middleware('permission:products.update')->name('visible');

@@ -9,16 +9,27 @@ use App\Models\ProductAttributeValue;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\Unit;
+use App\Services\ProductCodeGenerator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProductController extends Controller
 {
+    public function generateCodes(Request $request, ProductCodeGenerator $generator): JsonResponse
+    {
+        $this->authorizePermission($request, 'products.create');
+        $data = $request->validate(['count' => ['required', 'integer', 'min:1', 'max:20']]);
+
+        return response()->json(['codes' => $generator->generate((int) $data['count'])]);
+    }
+
     public function index(Request $request): View
     {
         $this->authorizePermission($request, 'products.view');
@@ -69,6 +80,7 @@ class ProductController extends Controller
             'category_id' => ['required', 'integer', Rule::exists('product_categories', 'id')->where('is_active', true)],
             'unit_id' => ['required', 'integer', Rule::exists('units', 'id')->where('is_active', true)],
             'description' => ['nullable', 'string', 'max:20000'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'length_cm' => ['nullable', 'numeric', 'min:0'],
             'width_cm' => ['nullable', 'numeric', 'min:0'],
             'height_cm' => ['nullable', 'numeric', 'min:0'],
@@ -83,6 +95,11 @@ class ProductController extends Controller
             'initial_variant.attribute_value_ids' => ['nullable', 'array', 'max:12'],
             'initial_variant.attribute_value_ids.*' => ['integer', 'distinct', Rule::exists('product_attribute_values', 'id')->where('is_active', true)],
         ]);
+
+        if ($request->hasFile('image')) {
+            $data['image_path'] = $request->file('image')->store('products', 'public');
+        }
+        unset($data['image']);
 
         $groupIds = array_map('intval', $data['attribute_group_ids'] ?? []);
         $variantData = $data['initial_variant'];
@@ -115,6 +132,7 @@ class ProductController extends Controller
             'category_id' => ['required', 'integer', Rule::exists('product_categories', 'id')->where('is_active', true)],
             'unit_id' => ['required', 'integer', Rule::exists('units', 'id')->where('is_active', true)],
             'description' => ['nullable', 'string', 'max:20000'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
             'length_cm' => ['nullable', 'numeric', 'min:0'],
             'width_cm' => ['nullable', 'numeric', 'min:0'],
             'height_cm' => ['nullable', 'numeric', 'min:0'],
@@ -122,7 +140,15 @@ class ProductController extends Controller
             'is_visible' => ['nullable', 'boolean'],
         ]);
         $data['is_visible'] = $request->boolean('is_visible');
+        $oldImage = $product->image_path;
+        if ($request->hasFile('image')) {
+            $data['image_path'] = $request->file('image')->store('products', 'public');
+        }
+        unset($data['image']);
         $product->update($data);
+        if ($request->hasFile('image') && $oldImage) {
+            Storage::disk('public')->delete($oldImage);
+        }
 
         return back()->with('status', 'تم تحديث بيانات المنتج.');
     }
