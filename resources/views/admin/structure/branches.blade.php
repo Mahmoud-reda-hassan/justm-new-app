@@ -18,7 +18,12 @@
 
 <div class="card card-outline card-primary">
     <div class="card-header"><h3 class="card-title">دليل الفروع</h3><div class="card-tools"><span class="badge badge-secondary">{{ number_format($branches->total()) }} فرع</span></div></div>
-    <div class="card-body"><div class="table-responsive">
+    <div class="card-body">
+        <form method="get" class="form-row mb-3">
+            <div class="col-md-6 mb-2"><input class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="ابحث باسم الفرع أو الشركة أو المدينة أو العنوان"></div>
+            <div class="col-auto mb-2"><button class="btn btn-default" type="submit"><i class="fas fa-search ml-1"></i> بحث</button> <a class="btn btn-outline-secondary" href="{{ route('admin.structure.branches') }}">مسح</a></div>
+        </form>
+        <div class="table-responsive">
         <table class="table table-bordered table-hover table-striped">
             <thead><tr><th>الفرع</th><th>الشركة</th><th>المدينة / العنوان</th><th>المخازن</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
             <tbody>
