@@ -252,7 +252,7 @@ class OperatingStructureController extends Controller
             $duplicate = Warehouse::query()
                 ->where('branch_id', $branchId)
                 ->whereHas('type', fn (Builder $query) => $query->where('key', 'sales_dispatch'))
-                ->when($current, fn (Builder $query) => $query->whereKeyNot($current->id))
+                ->when($current, fn (Builder $query) => $query->where('id', '!=', $current->id))
                 ->exists();
 
             if ($duplicate) {
