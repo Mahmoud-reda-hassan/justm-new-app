@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AccessControlController;
+use App\Http\Controllers\Admin\DatabaseUpdateController;
 use App\Http\Controllers\Admin\OperatingStructureController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
@@ -42,6 +43,9 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:6,1')->name('verification.send');
     Route::view('/dashboard', 'dashboard')->name('dashboard');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+    Route::get('/admin/system/database-updates', [DatabaseUpdateController::class, 'index'])->name('admin.system.database-updates');
+    Route::post('/admin/system/database-updates', [DatabaseUpdateController::class, 'run'])->middleware('throttle:2,1')->name('admin.system.database-updates.run');
 
     Route::prefix('admin/access')->name('admin.access.')->group(function (): void {
         Route::get('/users', [AccessControlController::class, 'users'])
