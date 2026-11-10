@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Branch;
 use App\Models\City;
+use App\Models\Company;
 use App\Models\Party;
 use App\Models\Permission;
 use App\Models\Product;
@@ -10,6 +12,10 @@ use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\SalesOrder;
+use App\Models\ShippingZone;
+use App\Models\Warehouse;
+use App\Models\WarehouseType;
+use App\Services\BranchManager;
 use App\Models\Unit;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -77,15 +83,58 @@ class SalesOrderCreationTest extends TestCase
         ]);
     }
 
+    private function shippingAddress(Party $customer): \App\Models\PartyAddress
+    {
+        app(DatabaseSeeder::class)->run();
+        $city = City::query()->where('is_active', true)->firstOrFail();
+        $company = Company::query()->create(['name' => 'شركة الشحن '.uniqid(), 'is_active' => true]);
+        $branch = app(BranchManager::class)->create([
+            'company_id' => $company->id,
+            'city_id' => $city->id,
+            'name' => 'فرع الشحن '.uniqid(),
+            'address' => 'عنوان الفرع',
+            'is_main' => true,
+            'is_active' => true,
+        ]);
+        $type = WarehouseType::query()->where('key', 'sales_dispatch')->firstOrFail();
+        $warehouse = Warehouse::query()->create([
+            'branch_id' => $branch->id,
+            'warehouse_type_id' => $type->id,
+            'name' => 'مخزن البيع '.uniqid(),
+            'is_active' => true,
+        ]);
+        $zone = ShippingZone::query()->create([
+            'name_ar' => 'منطقة الاختبار '.uniqid(),
+            'name_en' => 'Test zone '.uniqid(),
+            'shipping_fee_min' => 5,
+            'shipping_fee_max' => 30,
+            'delivery_days' => 2,
+            'shipping_type' => 'internal',
+            'warehouse_id' => $warehouse->id,
+            'is_active' => true,
+        ]);
+        $city->update(['shipping_zone_id' => $zone->id]);
+
+        return $customer->addresses()->create([
+            'city_id' => $city->id,
+            'title' => 'عنوان الشحن',
+            'address' => 'شارع الاختبار، عمارة 10',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+    }
+
     public function test_order_is_saved_as_draft_with_price_discount_and_shipping_snapshots(): void
     {
         $user = $this->userWithSalesPermission();
         $customer = $this->customer();
         $variant = $this->variant();
+        $shippingAddress = $this->shippingAddress($customer);
 
         $this->actingAs($user)->post(route('admin.sales.orders.store'), [
             'customer_id' => $customer->id,
-            'shipping_address' => 'عنوان العميل',
+            'shipping_address_id' => $shippingAddress->id,
+            'shipping_address' => $shippingAddress->address,
             'shipping_fee' => 10,
             'items' => [[
                 'product_variant_id' => $variant->id,
@@ -102,6 +151,13 @@ class SalesOrderCreationTest extends TestCase
         $this->assertSame('20.00', $order->discount_total);
         $this->assertSame('90.00', $order->items->first()->sale_price);
         $this->assertSame('20.00', $order->items->first()->discount_amount);
+        $this->assertSame($shippingAddress->id, $order->shipping_address_id);
+        $this->assertSame($shippingAddress->city_id, $order->shipping_city_id);
+        $this->assertNotNull($order->shipping_zone_id);
+        $this->assertNotNull($order->shipping_warehouse_id);
+        $this->assertSame('مخزن البيع', mb_substr($order->shipping_warehouse_name, 0, mb_strlen('مخزن البيع')));
+        $this->assertSame(2, $order->shipping_days);
+        $this->assertSame(now()->addDays(2)->toDateString(), $order->shipping_date->toDateString());
     }
 
     public function test_order_creation_can_choose_a_saved_customer_address(): void
@@ -129,10 +185,14 @@ class SalesOrderCreationTest extends TestCase
         $user = $this->userWithSalesPermission();
         $customer = $this->customer();
         $variant = $this->variant();
+        $shippingAddress = $this->shippingAddress($customer);
 
         $this->actingAs($user)->from(route('admin.sales.orders.create'))
             ->post(route('admin.sales.orders.store'), [
                 'customer_id' => $customer->id,
+                'shipping_address_id' => $shippingAddress->id,
+                'shipping_address' => $shippingAddress->address,
+                'shipping_fee' => 10,
                 'items' => [[
                     'product_variant_id' => $variant->id,
                     'quantity' => 1,
