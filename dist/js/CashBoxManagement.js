@@ -1,8 +1,7 @@
 (function ($) {
     'use strict';
 
-    const endpoint = '../../inc/controller/finance.control.php';
-    const branchesEndpoint = '../../inc/Api.php';
+    const endpoint = '/inc/controller/finance.control.php';
     let branches = [];
     let accounts = [];
     let cashBoxes = [];
@@ -246,29 +245,17 @@
             mapPaymentMethod(Number($(this).data('method')), Number($(this).val() || 0));
         });
 
-        $.ajax({
-            url: branchesEndpoint,
-            type: 'GET',
-            dataType: 'json',
-            cache: false,
-            data: { CONTROL: 'getdropBranches' }
-        }).done(function (response) {
-            // getdropBranches يرجع كل فرع كمصفوفة: [BR_ID, COMPANIE_ID, BR_NAME].
-            branches = Array.isArray(response) ? response.map(function (branch) {
-                return {
-                    id: Number(branch[0]),
-                    company_id: Number(branch[1]),
-                    name: String(branch[2] || '')
-                };
-            }).filter(function (branch) {
-                return branch.id > 0 && branch.name !== '';
-            }) : [];
-
-            renderBranches();
-            if (selectedBranchId()) loadManagement();
-        }).fail(function (xhr) {
-            notify('error', 'تعذر تحميل بيانات الفروع',
-                xhr?.responseJSON?.message || 'تعذر جلب الفروع من واجهة النظام.');
-        });
+        request({ CONTROL: 'GetCashBoxManagementData', branch_id: 0 })
+            .done(function (response) {
+                branches = response.branches || [];
+                accounts = response.accounts || [];
+                renderBranches();
+                renderAccounts();
+                if (selectedBranchId()) loadManagement();
+                else if (branches.length) loadManagement();
+            })
+            .fail(function (xhr) {
+                notify('error', 'تعذر تحميل بيانات الفروع', errorMessage(xhr));
+            });
     });
 })(jQuery);
