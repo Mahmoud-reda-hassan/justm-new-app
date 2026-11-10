@@ -198,6 +198,7 @@
         <div class="modal-content">
             <form method="post" action="{{ route('admin.parties.store') }}">
                 @csrf
+                <input type="hidden" name="contacts_schema" value="1">
                 <div class="modal-header">
                     <h5 class="modal-title" id="createPartyModalLabel">إضافة طرف جديد</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
@@ -265,6 +266,7 @@
                 <div class="modal-content">
                     <form method="post" action="{{ route('admin.parties.update', $party) }}">
                         @csrf @method('put')
+                        <input type="hidden" name="contacts_schema" value="1">
                         <div class="modal-header">
                             <h5 class="modal-title" id="editPartyModalLabel{{ $party->id }}">تعديل بيانات: {{ $party->name }}</h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="إغلاق"><span aria-hidden="true">&times;</span></button>
