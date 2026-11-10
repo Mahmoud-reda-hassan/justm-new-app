@@ -71,10 +71,10 @@ class PartyManagementTest extends TestCase
         $this->actingAs($user)->put(route('admin.parties.update', $party), [
             'entity_type' => 'individual',
             'name' => 'اسم بعد التعديل',
-            'roles' => ['marketer', 'sales_intermediary'],
+            'roles' => ['marketer', 'delivery_agent'],
         ])->assertSessionHasNoErrors();
 
-        $this->assertEqualsCanonicalizing(['marketer', 'sales_intermediary'], $party->fresh()->assignedRoles());
+        $this->assertEqualsCanonicalizing(['marketer', 'delivery_agent'], $party->fresh()->assignedRoles());
 
         $this->patch(route('admin.parties.active', $party), ['is_active' => 0])->assertSessionHasNoErrors();
         $this->assertFalse($party->fresh()->is_active);
@@ -110,7 +110,7 @@ class PartyManagementTest extends TestCase
         $this->assertSame(0, $account->roles()->count());
     }
 
-    public function test_customer_party_cannot_be_linked_to_an_operational_login_account(): void
+    public function test_customer_party_can_be_linked_to_store_account_without_special_workspace(): void
     {
         $admin = $this->userWith(['users.create', 'structure.scope.manage_all']);
         $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'عميل فقط']);
@@ -122,9 +122,12 @@ class PartyManagementTest extends TestCase
             'password' => 'long-secure-password',
             'password_confirmation' => 'long-secure-password',
             'party_id' => $party->id,
-        ])->assertStatus(422);
+        ])->assertSessionHasNoErrors();
 
-        $this->assertDatabaseMissing('users', ['username' => 'customer-only-login']);
+        $account = User::query()->where('username', 'customer-only-login')->firstOrFail();
+        $this->assertSame($party->id, $account->party_id);
+        $this->actingAs($account)->get(route('workspaces.index'))
+            ->assertRedirect(route('dashboard'));
     }
 
     public function test_party_with_linked_login_cannot_lose_all_operational_roles(): void
@@ -144,7 +147,7 @@ class PartyManagementTest extends TestCase
         $this->actingAs($admin)->put(route('admin.parties.update', $party), [
             'entity_type' => 'individual',
             'name' => 'مسوق مرتبط',
-            'roles' => ['customer'],
+            'roles' => ['supplier'],
         ])->assertStatus(422);
 
         $this->assertSame(['marketer'], $party->fresh()->assignedRoles());
