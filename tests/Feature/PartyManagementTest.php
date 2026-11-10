@@ -267,6 +267,23 @@ class PartyManagementTest extends TestCase
         $this->assertFalse($account->fresh()->hasPermission('parties.view'));
     }
 
+    public function test_party_directory_uses_adminlte_table_and_preserves_legacy_marketer_account_action(): void
+    {
+        $user = $this->userWith(['parties.view', 'parties.update', 'users.create']);
+        $party = Party::query()->create([
+            'entity_type' => 'individual',
+            'name' => 'وسيط قديم في الدليل',
+        ]);
+        $party->partyRoles()->create(['role' => 'sales_intermediary']);
+
+        $this->actingAs($user)->get(route('admin.parties.index'))
+            ->assertOk()
+            ->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('إنشاء حساب دخول')
+            ->assertSee(route('admin.access.users', ['party_id' => $party->id]), false)
+            ->assertSee('تعديل بيانات: وسيط قديم في الدليل');
+    }
+
     public function test_party_must_have_at_least_one_valid_role(): void
     {
         $user = $this->userWith(['parties.create']);
