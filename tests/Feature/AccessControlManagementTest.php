@@ -159,34 +159,45 @@ class AccessControlManagementTest extends TestCase
 
         $this->assertSame(0, $target->fresh()->roles()->count());
     }
-    public function test_current_users_role_permissions_cannot_be_changed_and_screen_explains_why(): void
+    public function test_initial_access_admin_can_add_operational_permissions_to_own_role(): void
     {
-        $admin = $this->administratorWith([
-            'permissions.groups.view',
-            'permissions.groups.assign',
-            'permissions.catalog.assign',
-        ]);
+        $admin = $this->administratorWith(['permissions.groups.view', 'permissions.groups.assign', 'permissions.catalog.assign']);
         $role = $admin->roles()->firstOrFail();
-        $permission = Permission::query()->firstOrCreate(
-            ['key' => 'companies.view'],
-            ['module' => 'companies', 'action' => 'view'],
-        );
-        $originalPermissionIds = $role->permissions()->pluck('permissions.id')->all();
+        $role->update(['key' => 'system-access-admin']);
+        $permission = Permission::query()->firstOrCreate(['key' => 'companies.view'], ['module' => 'companies', 'action' => 'view']);
+        $protected = $role->permissions()->where('permissions.key', 'permissions.groups.view')->firstOrFail();
 
-        $this->actingAs($admin)
-            ->from(route('admin.access.roles'))
-            ->put(route('admin.access.roles.permissions', $role), [
-                'permissions' => [$permission->id],
-            ])
-            ->assertRedirect(route('admin.access.roles'))
-            ->assertSessionHasErrors('permissions');
+        $this->actingAs($admin)->put(route('admin.access.roles.permissions', $role), ['permissions' => [$permission->id]])
+            ->assertRedirect(route('admin.access.roles'))->assertSessionHasNoErrors();
 
-        $this->assertSame($originalPermissionIds, $role->fresh()->permissions()->pluck('permissions.id')->all());
+        $this->assertTrue($role->fresh()->permissions->contains('id', $permission->id));
+        $this->assertTrue($role->fresh()->permissions->contains('id', $protected->id));
+        $this->assertDatabaseHas('permission_audits', ['actor_user_id' => $admin->id, 'event' => 'permissions.groups.permissions_assigned']);
+        $this->get(route('admin.access.roles'))->assertOk()->assertSee('يمكنك إضافة صلاحيات التشغيل لمجموعتك.')->assertSee('companies.view');
+    }
 
-        $this->get(route('admin.access.roles'))
-            ->assertOk()
-            ->assertSee('مجموعة حسابك الحالي محمية.')
-            ->assertDontSee('action="' . route('admin.access.roles.permissions', $role) . '"');
+    public function test_initial_access_admin_cannot_add_new_sensitive_access_permissions_to_own_role(): void
+    {
+        $admin = $this->administratorWith(['permissions.groups.view', 'permissions.groups.assign']);
+        $role = $admin->roles()->firstOrFail();
+        $role->update(['key' => 'system-access-admin']);
+        $sensitive = Permission::query()->firstOrCreate(['key' => 'users.delete'], ['module' => 'users', 'action' => 'delete']);
+
+        $this->actingAs($admin)->from(route('admin.access.roles'))->put(route('admin.access.roles.permissions', $role), ['permissions' => [$sensitive->id]])
+            ->assertRedirect(route('admin.access.roles'))->assertSessionHasErrors('permissions');
+        $this->assertFalse($role->fresh()->permissions->contains('id', $sensitive->id));
+    }
+
+    public function test_initial_access_admin_cannot_remove_existing_access_protections(): void
+    {
+        $admin = $this->administratorWith(['permissions.groups.view', 'permissions.groups.assign']);
+        $role = $admin->roles()->firstOrFail();
+        $role->update(['key' => 'system-access-admin']);
+        $protected = $role->permissions()->where('permissions.key', 'permissions.groups.view')->firstOrFail();
+
+        $this->actingAs($admin)->put(route('admin.access.roles.permissions', $role), ['permissions' => []])
+            ->assertRedirect(route('admin.access.roles'))->assertSessionHasNoErrors();
+        $this->assertTrue($role->fresh()->permissions->contains('id', $protected->id));
     }
 
     public function test_access_admin_can_assign_catalog_permissions_to_a_new_operating_role(): void
