@@ -241,4 +241,4 @@
 - **إنشاء أمر البيع:** تُحمّل عناوين العميل النشطة، ويستطيع المستخدم اختيار العنوان المحفوظ ثم تعديله لهذا الطلب؛ يحفظ أمر البيع لقطة العنوان النصية في `shipping_address` حتى لا تتغير الطلبات القديمة عند تحديث عنوان العميل.
 - **الاختبارات:** اختبار إنشاء وتعديل عدة أرقام وعناوين والتحقق من سجل رئيسي واحد، واختبار ظهور عنوان العميل في شاشة إنشاء الأمر.
 - **الملفات:** `database/migrations/2026_11_11_000001_create_party_contacts_tables.php`، `app/Models/PartyPhone.php`، `app/Models/PartyAddress.php`، `app/Models/Party.php`، `app/Http/Controllers/Admin/PartyController.php`، `resources/views/admin/parties/index.blade.php`، `app/Http/Controllers/Admin/SalesOrderController.php`، `resources/views/admin/sales/orders/create.blade.php`، والاختبارات المرتبطة.
-- **حدود التنفيذ:** لم يتم تشغيل migration على قاعدة بيانات الاستضافة. نتيجة CI على HEAD النهائي لم تُراجع بعد، ولا توجد معاينة متصفح.
+- **حدود التنفيذ:** لم يتم تشغيل migration على قاعدة بيانات الاستضافة. نجح CI run 42924158041 على HEAD البرمجي 7ec5833bbedc95295bea3830a535d358da60806e: 116 اختبارًا و486 assertion. لا توجد معاينة متصفح.
