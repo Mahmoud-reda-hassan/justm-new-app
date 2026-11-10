@@ -2,8 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
