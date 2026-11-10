@@ -1,17 +1,17 @@
 <?php
 
-namespace App\\Http\\Controllers\\Admin;
+namespace App\Http\Controllers\Admin;
 
-use App\\Http\\Controllers\\Controller;
-use App\\Models\\Party;
-use App\\Models\\ProductVariant;
-use App\\Models\\SalesOrder;
-use Illuminate\\Database\\Eloquent\\Builder;
-use Illuminate\\Http\\RedirectResponse;
-use Illuminate\\Http\\Request;
-use Illuminate\\Support\\Facades\\DB;
-use Illuminate\\Validation\\ValidationException;
-use Illuminate\\View\\View;
+use App\Http\Controllers\Controller;
+use App\Models\Party;
+use App\Models\ProductVariant;
+use App\Models\SalesOrder;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class SalesOrderController extends Controller
 {
