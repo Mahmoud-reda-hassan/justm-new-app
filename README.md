@@ -18,9 +18,13 @@
 1. [قواعد العمل والاستكمال لوكلاء الذكاء الاصطناعي](docs/AI_WORK_RULES_AR.md)
 2. [AI BUILD — الحالة والقرارات وسجل العمل](docs/AI_BUILD.md)
 3. [معمارية إعادة البناء](docs/REBUILD_V2_ARCHITECTURE_AR.md)
-4. [تأسيس الهوية والصلاحيات](docs/AUTH_ACCESS_CONTROL_IMPLEMENTATION_AR.md)
-5. [حدود نواة المخزون والحسابات](docs/CORE_BOUNDARIES_INVENTORY_ACCOUNTING_AR.md)
-6. [دورة المخزون والشحن والعهدة](docs/INVENTORY_SHIPPING_CUSTODY_WORKFLOW_AR.md)
+4. [دليل التهيئة والتشغيل](docs/SETUP_GUIDE_AR.md)
+5. [تأسيس الهوية والصلاحيات](docs/AUTH_ACCESS_CONTROL_IMPLEMENTATION_AR.md)
+6. [مصفوفة الصلاحيات — مسودة وحدات الأعمال](docs/PERMISSIONS_MATRIX_DRAFT_AR.md)
+7. [حدود نواة المخزون والحسابات](docs/CORE_BOUNDARIES_INVENTORY_ACCOUNTING_AR.md)
+8. [دورة المخزون والشحن والعهدة](docs/INVENTORY_SHIPPING_CUSTODY_WORKFLOW_AR.md)
+9. [تدقيق المخزون في النظام القديم](docs/LEGACY_INVENTORY_AUDIT_AR.md)
+10. [تدقيق التسوية المالية القديمة](docs/LEGACY_DELIVERY_FINANCIAL_SETTLEMENT_AUDIT_AR.md)
 
 وثائق `LEGACY_*` تسجل مراجعة النظام القديم فقط. وملف `PERMISSIONS_MATRIX_DRAFT_AR.md` مسودة وليست اعتمادًا نهائيًا لمفاتيح صلاحيات كل الوحدات.
 
