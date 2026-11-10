@@ -4,7 +4,9 @@
 <body>
     <h1>لوحة {{ config('app.name') }}</h1>
     <p>مرحبًا {{ auth()->user()->name }}</p>
-    @if (!auth()->user()->hasVerifiedEmail())
+    @if (!auth()->user()->email)
+        <p>لا يوجد بريد إلكتروني لاستعادة كلمة المرور. <a href="{{ route('account.email.edit') }}">إضافة بريد إلكتروني وتأكيده</a></p>
+    @elseif (!auth()->user()->hasVerifiedEmail())
         <p>البريد الإلكتروني غير مؤكد. <a href="{{ route('verification.notice') }}">تأكيد البريد لاستعادة كلمة المرور</a></p>
     @endif
     <nav>
