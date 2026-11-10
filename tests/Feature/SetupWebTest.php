@@ -91,7 +91,7 @@ class SetupWebTest extends TestCase
         $this->withSession(['justm_setup_authorized_at' => now()->timestamp])
             ->get('/setup')
             ->assertOk()
-            ->assertSee('بيانات التشغيل الأولى')
+            ->assertSee('استكمال بيانات المؤسسة الحالية')
             ->assertDontSee('إنشاء أول مدير');
 
         $this->submitOperatingData()
