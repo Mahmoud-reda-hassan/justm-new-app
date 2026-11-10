@@ -17,10 +17,16 @@ class SalesOrderController extends Controller
 {
     public function index(): View
     {
-        $orders = SalesOrder::query()
-            ->with(['customer', 'creatorParty'])
-            ->latest('id')
-            ->paginate(20);
+        $query = SalesOrder::query()->with(['customer', 'creatorParty', 'creator']);
+        $user = request()->user();
+
+        // Operating partner accounts see only orders attributed to their own party.
+        if ($user->party_id && $user->party?->partyRoles()
+            ->whereIn('role', ['marketer', 'sales_intermediary'])->exists()) {
+            $query->where('created_by_party_id', $user->party_id);
+        }
+
+        $orders = $query->latest('id')->paginate(20);
 
         return view('admin.sales.orders.index', compact('orders'));
     }
@@ -146,6 +152,6 @@ class SalesOrderController extends Controller
             return $order;
         });
 
-        return redirect()->route('admin.sales.orders.index')->with('status', 'تم حفظ أمر البيع '.$order->order_number.' كمسودة. لم يتم حجز مخزون أو إنشاء قيد مالي.');
+        return redirect()->route('admin.sales.orders.create')->with('status', 'تم حفظ أمر البيع '.$order->order_number.' كمسودة. لم يتم حجز مخزون أو إنشاء قيد مالي.');
     }
 }
