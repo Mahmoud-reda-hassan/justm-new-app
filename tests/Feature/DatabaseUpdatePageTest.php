@@ -33,6 +33,19 @@ class DatabaseUpdatePageTest extends TestCase
             ->assertSee('تحديث قاعدة البيانات');
     }
 
+    public function test_database_update_page_uses_adminlte_cards_and_migration_table(): void
+    {
+        $role = Role::query()->create(['name' => 'مدير الوصول', 'key' => 'system-access-admin', 'is_active' => true]);
+        $user = $this->createUser();
+        $user->roles()->attach($role);
+
+        $this->actingAs($user)->get(route('admin.system.database-updates'))
+            ->assertOk()
+            ->assertSee('card card-outline card-primary', false)
+            ->assertSee('table table-bordered table-striped table-hover', false)
+            ->assertSee('RUN MIGRATIONS');
+    }
+
     public function test_database_update_page_is_forbidden_to_other_users(): void
     {
         $user = $this->createUser();
