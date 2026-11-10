@@ -86,7 +86,7 @@ $pdo->exec('ALTER TABLE journal_entry_details DROP INDEX idx_journal_detail_cash
 $pdo->exec('ALTER TABLE journal_entry_details DROP COLUMN cash_box_id');
 
 $migrations = $manager->listMigrations();
-$assert(count($migrations) === 12, 'The approved migration registry must contain twelve numbered phases (11-20, 22 and 24).');
+$assert(count($migrations) === 13, 'The approved migration registry must contain thirteen numbered phases (11-20, 22, 24 and 25).');
 $byFile = [];
 foreach ($migrations as $migration) $byFile[$migration['file']] = $migration;
 $assert(isset($byFile['PHASE13_SALES_RETURNS_ACCOUNT.sql']) && !$byFile['PHASE13_SALES_RETURNS_ACCOUNT.sql']['enabled'],
@@ -95,6 +95,10 @@ $assert(isset($byFile['PHASE22_JOURNAL_CASHBOX_REFERENCE.sql']) && $byFile['PHAS
     'Phase 22 must be available when the branch ownership prerequisite exists and its schema objects are absent.');
 $assert(isset($byFile['PHASE24_FINANCIAL_VOUCHERS.sql']) && !$byFile['PHASE24_FINANCIAL_VOUCHERS.sql']['enabled'] && $byFile['PHASE24_FINANCIAL_VOUCHERS.sql']['status'] === 'BLOCKED',
     'Phase 24 must wait until Phase 22 cash-box references are complete.');
+$assert(isset($byFile['PHASE16_SUPPLIER_PAYMENT_MIXED_ALLOCATION.sql']) && !$byFile['PHASE16_SUPPLIER_PAYMENT_MIXED_ALLOCATION.sql']['enabled'],
+    'The legacy supplier allocation migration must stay disabled after the GL cutover.');
+$assert(isset($byFile['PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql']) && $byFile['PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql']['enabled'],
+    'Phase 25 must be available when the refund documents, legacy sources, and customer GL mapping exist.');
 
 $wrongConfirmationRejected = false;
 try {
@@ -118,6 +122,11 @@ foreach ($migrations as $migration) {
 
     $result = $manager->run($migration['file'], $migration['file'], 1);
     $assert(!empty($result['message']), 'Migration must return an execution result: ' . $migration['file']);
+    if ($migration['file'] === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
+        $bridgeStatus = $pdo->prepare('SELECT status FROM app_schema_migrations WHERE migration_key = ?');
+        $bridgeStatus->execute(['PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql']);
+        $assert($bridgeStatus->fetchColumn() === 'APPLIED', 'Phase 25 refund bridge must be recorded as applied.');
+    }
 
     $repeat = $manager->run($migration['file'], $migration['file'], 1);
     $assert(!empty($repeat['already_applied']), 'An applied migration must not execute twice: ' . $migration['file']);

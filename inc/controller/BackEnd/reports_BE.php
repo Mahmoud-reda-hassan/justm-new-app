@@ -157,7 +157,6 @@ class reports_BE {
 				   LEFT JOIN product_options_view POV ON M.PRO_CODE = POV.PRO_CODE
 				   LEFT JOIN PRODUCT_CODES N ON M.PRO_CODE = N.PRO_CODE
 				   LEFT JOIN PRODUCTS O ON N.PRODUCT_ID = O.PRO_ID
-				   LEFT JOIN invoices P ON A.ORDER_ID = P.REFERENCE_ID AND REFERENCE_TYPE = "SALES"
 				   LEFT JOIN ORDERS AS EXO ON A.EXCHANGE = EXO.ORDER_ID
 				   LEFT JOIN (
 				   				SELECT ORDER_ID,
@@ -388,7 +387,7 @@ class reports_BE {
 			FROM journal_entry_details d
 			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
-				AND aset.setting_key = 'CUSTOMERS'
+				AND aset.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
 			WHERE d.partner_type = 'CLIENT' AND d.partner_id = ? AND h.entry_date < ?
 			UNION ALL
 			SELECT
@@ -418,20 +417,15 @@ class reports_BE {
 			FROM journal_entry_details d
 			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
-				AND aset.setting_key = 'CUSTOMERS'
-			LEFT JOIN financial_transactions ft ON ft.id = h.reference_id
-				AND h.reference_type IN ('SALE_PAYMENT','SALES_RETURN_PAYMENT')
-			LEFT JOIN invoices i ON i.INVO_ID = ft.invoice_id
+				AND aset.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
 			LEFT JOIN delivery_customer_collections dcc ON dcc.id = h.reference_id
 				AND h.reference_type = 'DELIVERY_CUSTOMER_COLLECTION'
 			LEFT JOIN delivery_collection_order_allocations dca ON dca.collection_id = dcc.id
-			LEFT JOIN customer_refund_payments crp ON crp.id = h.reference_id
-				AND h.reference_type = 'CUSTOMER_RETURN_REFUND'
+			LEFT JOIN customer_refund_payments crp ON crp.journal_id = h.id
 			LEFT JOIN orders o ON
 				(h.reference_type IN ('DIRECT_SALE','ORDER_SHIPPING','SALES_RETURN') AND o.ORDER_ID = h.reference_id)
-				OR (h.reference_type IN ('SALE_PAYMENT','SALES_RETURN_PAYMENT') AND o.ORDER_ID = i.reference_id)
 				OR (h.reference_type = 'DELIVERY_CUSTOMER_COLLECTION' AND o.ORDER_ID = dca.order_id)
-				OR (h.reference_type = 'CUSTOMER_RETURN_REFUND' AND o.ORDER_ID = crp.order_id)
+				OR (crp.id IS NOT NULL AND o.ORDER_ID = crp.order_id)
 			LEFT JOIN (
 				SELECT ORDER_ID, SUM(QTY) AS QTY, SUM(DELIVERED_QTY) AS DELIVERED_QTY,
 					SUM(RETURNED_QTY) AS RETURNED_QTY
@@ -450,7 +444,7 @@ class reports_BE {
 			FROM journal_entry_details d
 			INNER JOIN journal_entries h ON h.id = d.journal_entry_id AND h.status IN ('POSTED', 'REVERSED')
 			INNER JOIN account_settings aset ON aset.account_id = d.account_id
-				AND aset.setting_key = 'CUSTOMERS'
+				AND aset.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
 			WHERE d.partner_type = 'CLIENT' AND d.partner_id = ? AND h.entry_date <= ?";
 
 			$stmt = $this->conn->prepare($sql);
@@ -603,197 +597,13 @@ class reports_BE {
 			];
 		}
 
-		$where = "";
-		$limit = "";
-		$sql = "SELECT 
-				  'رصيد سابق' AS note,
-				  NULL AS id,
-				  NULL AS ORDER_ID,
-				  NULL AS QTY_ORDER,
-				  NULL AS QTY_SUPPLIED,
-				  NULL AS QTY_RETURN,
-				  NULL AS transaction_date,
-				  NULL AS TRANSACTION_TYPE,
-				  NULL AS BALANCE,
-				  NULL AS debit,
-				  NULL AS credit,
-				  COALESCE(SUM(
-				  	(CASE 
-				      WHEN TRANSACTION_TYPE = 'DEBIT' THEN -BALANCE
-				      ELSE 0
-				    END) +
-				    (CASE 
-				      WHEN TRANSACTION_TYPE = 'CREDIT' THEN BALANCE
-				      ELSE 0
-				    END)
-				  ),'0.00')  AS running_balance
-				FROM partners_balance
-				
-				WHERE 
-				  CREATE_AT < :start
-				  AND PARTNER_ID = :partnerId
-				  AND PARTNER_TYPE = :partnerType
-				
-				UNION ALL
-				
-				SELECT 
-				  NOTE,
-				  id,
-				  ORDER_ID,
-				  QTY_ORDER,
-				  QTY_SUPPLIED,
-				  QTY_RETURN,
-				  DATE(transaction_date) AS transaction_date,
-				  TRANSACTION_TYPE,
-				  BALANCE,
-				  CASE WHEN TRANSACTION_TYPE = 'DEBIT' THEN BALANCE ELSE NULL END AS debit,
-				  CASE WHEN TRANSACTION_TYPE = 'CREDIT' THEN BALANCE ELSE NULL END AS credit,
-				  running_balance
-				FROM (
-				  SELECT 
-				    pb.id,
-				    pb.PARTNER_TYPE,
-				    CASE WHEN pb.PARTNER_TYPE = 'SUPPLIER' THEN REFERENCE_ID ELSE o.SUB_ORDER_ID END AS ORDER_ID,
-				    
-				    CASE WHEN pb.PARTNER_TYPE = 'SUPPLIER' AND PB.TRANSACTION_CATEGORY_ID = 10 THEN PP.QTY
-				    	 WHEN pb.PARTNER_TYPE = 'SUPPLIER' AND PB.TRANSACTION_CATEGORY_ID = 15 THEN ''
-				    	 ELSE oq.qty 
-				    END AS QTY_ORDER , 
-				    
-				    CASE WHEN pb.PARTNER_TYPE = 'SUPPLIER' AND PB.TRANSACTION_CATEGORY_ID = 10 THEN pp.QTY_SUPPLIED
-				    	 WHEN pb.PARTNER_TYPE = 'SUPPLIER' AND PB.TRANSACTION_CATEGORY_ID = 15 THEN PRP.QTY_SUPPLIED 
-				    	 WHEN pb.PARTNER_TYPE = 'MARKETER' AND PB.TRANSACTION_CATEGORY_ID = 12 THEN oq.dqty  
-				    	 ELSE oq.dqty 
-				    END AS QTY_SUPPLIED,
-				    CASE WHEN pb.PARTNER_TYPE = 'SUPPLIER' AND PB.TRANSACTION_CATEGORY_ID = 15 THEN PRP.QTY_RETURN
-				    	 WHEN pb.PARTNER_TYPE = 'MARKETER' AND PB.TRANSACTION_CATEGORY_ID = 16 THEN rqty
-				    	 
-				    	 ELSE '' END AS QTY_RETURN,
-				    pb.CREATE_AT AS transaction_date,
-				    pb.TRANSACTION_TYPE,
-				    pb.BALANCE,
-				    pb.NOTE,
-				    CASE WHEN pb.TRANSACTION_TYPE = 'DEBIT' THEN pb.BALANCE ELSE '' END AS debit,
-				    CASE WHEN pb.TRANSACTION_TYPE = 'CREDIT' THEN pb.BALANCE ELSE '' END AS credit,
-				    SUM(
-				     CASE 
-				     	WHEN pb.TRANSACTION_TYPE = 'DEBIT' THEN -pb.BALANCE 
-				     	ELSE pb.BALANCE END
-				     ) 
-				     OVER (ORDER BY pb.CREATE_AT, pb.ID ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW ) 
-				     + ( SELECT Coalesce(SUM( 
-				     	CASE 
-				     		WHEN TRANSACTION_TYPE = 'DEBIT' THEN -BALANCE 
-				     		ELSE BALANCE END
-				     	),0.00)
-				      FROM partners_balance
-				      WHERE CREATE_AT < :start
-				        AND PARTNER_ID = :partnerId
-				        AND PARTNER_TYPE = :partnerType
-				    ) AS running_balance
-				  FROM partners_balance pb 
-				  LEFT JOIN orders o ON o.ORDER_ID = pb.REFERENCE_ID AND pb.PARTNER_TYPE <> 'SUPPLIER'
-				  
-				  LEFT JOIN ( SELECT  ORDER_ID,
-					  10  AS TRANSACTION_CATEGORY_ID,
-					  Sum(QTY)  AS QTY,
-					  Sum(QTY_SUPPLIED) AS QTY_SUPPLIED
-					 FROM   purchases_products
-					 GROUP BY ORDER_ID
-				  ) AS PP ON PB.REFERENCE_ID = PP.ORDER_ID AND pb.PARTNER_TYPE = 'SUPPLIER' AND pb.TRANSACTION_CATEGORY_ID = pp.TRANSACTION_CATEGORY_ID
-				  LEFT JOIN (SELECT  ORDER_ID,
-					   15  AS TRANSACTION_CATEGORY_ID,
-					   ''  AS QTY,
-					   Sum(QTY_SUPPLIED) AS QTY_SUPPLIED,
-					   Sum(QTY_RETURN)  AS QTY_RETURN
-					 FROM   purchases_return_products
-					 GROUP BY ORDER_ID 
-				  ) AS PRP ON PB.REFERENCE_ID = PRP.ORDER_ID AND pb.PARTNER_TYPE = 'SUPPLIER' AND pb.TRANSACTION_CATEGORY_ID = PRP.TRANSACTION_CATEGORY_ID
-				  LEFT JOIN (SELECT  ORDER_ID,
-				    Sum(QTY)   qty,
-				    Sum(DELIVERED_QTY) dqty,
-				    Sum(RETURNED_QTY) rqty
-				   FROM   order_product
-				   GROUP BY ORDER_ID) oq ON oq.ORDER_ID = o.ORDER_ID
-				  WHERE pb.CREATE_AT BETWEEN :start AND :end
-				   AND pb.PARTNER_ID = :partnerId
-				   AND pb.PARTNER_TYPE = :partnerType
-				) AS details
-				
-				UNION ALL
-				
-				SELECT 
-				  'رصيد حالي' AS note,
-				  NULL AS id,
-				  NULL AS ORDER_ID,
-				  NULL AS QTY_ORDER,
-				  NULL AS QTY_SUPPLIED,
-				  NULL AS QTY_RETURN,
-				  NULL AS transaction_date,
-				  NULL AS TRANSACTION_TYPE,
-				  NULL AS BALANCE,
-				  COALESCE(SUM(
-					  CASE 
-					    WHEN TRANSACTION_TYPE = 'DEBIT' THEN BALANCE
-					    ELSE 0
-					  END
-					), 0.00) AS debit,
-					
-					COALESCE(SUM(
-					  CASE 
-					    WHEN TRANSACTION_TYPE = 'CREDIT' THEN BALANCE
-					    ELSE 0
-					  END
-					), 0.00) AS credit,
-				  
-				  Coalesce(SUM(
-				  
-				    (CASE 
-				      WHEN TRANSACTION_TYPE = 'DEBIT' THEN -BALANCE
-				      ELSE 0
-				    END) +
-				    (CASE 
-				      WHEN TRANSACTION_TYPE = 'CREDIT' THEN BALANCE
-				      ELSE 0
-				    END)
-				  ),'0.00') AS running_balance
-				FROM partners_balance
-				
-				WHERE CREATE_AT <= :end
-				  AND PARTNER_ID = :partnerId
-				  AND PARTNER_TYPE = :partnerType ;"; 
-				  
-	/*	if(!empty($start) && !empty($length) && $length >0){
-			$limit = " LIMIT :start, :length";
-		}
-		// إضافة البحث
-		if (!empty($search)) {
-		   $where .= " WHERE (S.SUP_NAME LIKE '%".$search."%' OR POV.PRO_NAME LIKE '%".$search."%')";
-		}*/
-		
-	/*	$stmtAll = $this->conn->prepare($sql);
-		$stmtAll->execute();*/
-		
-		$stmt = $this->conn->prepare($sql);
-		$stmt->bindValue(':partnerType', $partnerType, PDO::PARAM_STR);
-		$stmt->bindValue(':partnerId', $partnerId, PDO::PARAM_INT);
-		$stmt->bindValue(':start', $start, PDO::PARAM_STR);
-		$stmt->bindValue(':end', $end, PDO::PARAM_STR);
-	/*	if(!empty($start) && !empty($length) && $length >0){
-			$stmt->bindValue(':start', (int)$start, PDO::PARAM_INT);
-			$stmt->bindValue(':length', (int)$length, PDO::PARAM_INT);
-		}*/
-		$stmt->execute();
-		
-		// إرجاع البيانات إلى DataTables
-		$response = array(
-		    "draw" => intval($_POST['draw']),
-		    "iTotalRecords" => $stmt->rowCount(),
-		    "iTotalDisplayRecords" => $stmt->rowCount(),
-		    "data" => $stmt->fetchAll(PDO::FETCH_ASSOC),
-		);
-		
-		return $response;
+		return [
+			'draw' => (int)($_POST['draw'] ?? 0),
+			'iTotalRecords' => 0,
+			'iTotalDisplayRecords' => 0,
+			'data' => [],
+			'error' => 'نوع الطرف غير مدعوم في دفتر الأستاذ العام.'
+		];
 		
 	}
 

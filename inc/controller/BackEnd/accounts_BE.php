@@ -27,7 +27,6 @@ class accounts_BE {
     //private $oProTbl 		= 'ORDER_PRODUCT';
     //private $proCodeTbl 	= 'PRODUCT_CODES';
     //private $prodTbl 		= 'PRODUCTS';
-    //private $invoTbl 		= 'invoices';
     //private $oservTbl 	= 'order_service';
     //private $osertexTbl 	= 'order_service_text';
     

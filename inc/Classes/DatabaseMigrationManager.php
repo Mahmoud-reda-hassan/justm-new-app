@@ -41,10 +41,10 @@ class DatabaseMigrationManager
             'warning' => 'تغييرات بنيوية غير هدامة. خذ نسخة احتياطية قبل التنفيذ.'
         ],
         'PHASE16_SUPPLIER_PAYMENT_MIXED_ALLOCATION.sql' => [
-            'title' => 'تخصيص دفعات الموردين',
-            'description' => 'إنشاء جدول توزيع الدفعات بين الفواتير والمقدم.',
-            'enabled' => true,
-            'warning' => 'إنشاء جدول جديد دون حذف بيانات قديمة.'
+            'title' => 'مرحلة تخصيص الموردين القديمة (متوقفة)',
+            'description' => 'مرحلة قديمة مرتبطة بجدول financial_transactions؛ تم استبدالها بتخصيصات الموردين المرتبطة بالأستاذ العام في المرحلة 20.',
+            'enabled' => false,
+            'warning' => 'لا تشغّل هذه المرحلة على قواعد جديدة. إذا كانت مطبقة سابقًا تبقى بياناتها للأرشفة فقط ولا يستخدمها التطبيق.'
         ],
         'PHASE17_MARKETER_COMMISSION_ACCOUNTS.sql' => [
             'title' => 'حسابات عمولات المسوقين',
@@ -81,6 +81,12 @@ class DatabaseMigrationManager
             'description' => 'إنشاء مستندات قبض وصرف مرتبطة بالخزينة والفرع وقيد الأستاذ والحدث المالي.',
             'enabled' => true,
             'warning' => 'ينشئ مستندات المصدر فقط؛ الأرصدة تظل من الأستاذ العام. يتطلب اكتمال المرحلة 22.'
+        ],
+        'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql' => [
+            'title' => 'ترحيل مستندات رد العملاء التاريخية إلى GL',
+            'description' => 'ربط الردود التاريخية التي لها قيود GL مرحلة بمستندات رد العملاء لمنع تكرار الصرف.',
+            'enabled' => true,
+            'warning' => 'ترحيل لمرة واحدة للقيود المرحلة فقط؛ لا ينشئ قيودًا ولا يقرأ الجداول القديمة أثناء التشغيل اليومي.'
         ],
     ];
 
@@ -354,6 +360,8 @@ class DatabaseMigrationManager
             $required = ['journal_entry_details', 'cash_boxes', 'branches'];
         } elseif ($file === 'PHASE24_FINANCIAL_VOUCHERS.sql') {
             $required = ['branches', 'cash_boxes', 'payment_methods', 'payment_method_accounts', 'accounts', 'account_settings', 'journal_entries', 'accounting_events', 'accounting_line_allocations', 'journal_entry_details'];
+        } elseif ($file === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
+            $required = ['customer_refund_payments', 'financial_transactions', 'invoices', 'journal_entries', 'journal_entry_details', 'account_settings', 'orders', 'branches', 'payment_methods', 'client', 'transaction_categories'];
         } elseif ($file === 'PHASE20_SUPPLIER_GL_CUTOVER.sql') {
             $required = ['purchases_payments', 'purchases_orders', 'suppliers', 'journal_entries', 'account_settings'];
             $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('SUPPLIERS','INVENTORY_IN_TRANSIT','SUPPLIER_ADVANCES')");
@@ -371,6 +379,91 @@ class DatabaseMigrationManager
             $stmt->closeCursor();
             if ($exists !== 1) {
                 throw new RuntimeException('لا يمكن تنفيذ الترحيل؛ الجدول المطلوب غير موجود: ' . $table);
+            }
+        }
+
+        if ($file === 'PHASE25_GL_ONLY_CUSTOMER_REFUND_BRIDGE.sql') {
+            $postedRefundJournals = (int)$this->db->query(
+                "SELECT COUNT(*) FROM journal_entries WHERE reference_type = 'SALES_RETURN_PAYMENT' AND status = 'POSTED'"
+            )->fetchColumn();
+
+            // A completed legacy refund without a posted/reversed GL journal is ambiguous: do not risk paying it twice.
+            $unpostedLegacyRefunds = (int)$this->db->query("
+                SELECT COUNT(*)
+                FROM financial_transactions ft
+                INNER JOIN transaction_categories tc ON tc.id = ft.category_id
+                INNER JOIN invoices i ON i.INVO_ID = ft.invoice_id AND i.REFERENCE_TYPE = 'SALES'
+                INNER JOIN orders o ON o.ORDER_ID = i.REFERENCE_ID AND o.ORDER_STATUS IN (6,7)
+                WHERE ft.status = 'COMPLETED'
+                  AND ft.entity_type = 'CLIENT'
+                  AND ft.amount > 0
+                  AND tc.name = 'مدفوعات مرتجع مبيعات'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM journal_entries h
+                      WHERE h.reference_type = 'SALES_RETURN_PAYMENT'
+                        AND h.reference_id = ft.id
+                        AND h.status IN ('POSTED','REVERSED')
+                  )
+            ")->fetchColumn();
+            if ($unpostedLegacyRefunds > 0) {
+                throw new RuntimeException(
+                    'تم إيقاف ترحيل ردود العملاء: توجد ' . $unpostedLegacyRefunds
+                    . ' عملية رد مكتملة بلا قيد GL منشور أو معكوس. يجب مطابقتها يدويًا قبل إغلاق المسار القديم.'
+                );
+            }
+
+            // Fresh databases have no legacy refunds to bridge and do not need legacy account mappings.
+            if ($postedRefundJournals > 0) {
+                $stmt = $this->db->query("SELECT COUNT(DISTINCT setting_key) FROM account_settings WHERE setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')");
+                $customerAccountMappings = (int)$stmt->fetchColumn();
+                $stmt->closeCursor();
+                if ($customerAccountMappings !== 2) {
+                    throw new RuntimeException('لا يمكن ترحيل مستندات الرد التاريخية قبل ضبط حساب العملاء CUSTOMERS وحساب رصيد العملاء الدائن CUSTOMER_CREDITS في إعدادات الأستاذ العام.');
+                }
+
+                $invalidRefunds = $this->db->query("
+                SELECT COUNT(DISTINCT h.id)
+                FROM journal_entries h
+                LEFT JOIN financial_transactions ft
+                    ON ft.id = h.reference_id
+                LEFT JOIN invoices i
+                    ON i.INVO_ID = ft.invoice_id
+                   AND i.REFERENCE_TYPE = 'SALES'
+                LEFT JOIN orders o ON o.ORDER_ID = i.REFERENCE_ID
+                LEFT JOIN branches b ON b.BR_ID = ft.branch_id
+                LEFT JOIN payment_methods pm ON pm.id = ft.payment_method_id
+                LEFT JOIN client cl ON cl.CLIENT_ID = ft.entity_id
+                LEFT JOIN (
+                    SELECT d.journal_entry_id, d.partner_id, SUM(d.debit) AS amount
+                    FROM journal_entry_details d
+                    INNER JOIN account_settings aset
+                        ON aset.account_id = d.account_id
+                       AND aset.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+                    WHERE d.partner_type = 'CLIENT' AND d.debit > 0
+                    GROUP BY d.journal_entry_id, d.partner_id
+                ) posted_refund
+                    ON posted_refund.journal_entry_id = h.id
+                   AND posted_refund.partner_id = ft.entity_id
+                WHERE h.reference_type = 'SALES_RETURN_PAYMENT'
+                  AND h.status = 'POSTED'
+                  AND (
+                      ft.id IS NULL OR ft.status <> 'COMPLETED' OR ft.entity_type <> 'CLIENT'
+                      OR ft.entity_id IS NULL OR ft.entity_id <= 0
+                      OR ft.branch_id IS NULL OR ft.branch_id <= 0
+                      OR ft.payment_method_id IS NULL OR ft.payment_method_id <= 0
+                      OR b.BR_ID IS NULL OR pm.id IS NULL OR cl.CLIENT_ID IS NULL
+                      OR i.INVO_ID IS NULL OR o.ORDER_ID IS NULL
+                      OR posted_refund.amount IS NULL OR posted_refund.amount <= 0
+                  )
+            ");
+            $invalidCount = (int)$invalidRefunds->fetchColumn();
+            $invalidRefunds->closeCursor();
+                if ($invalidCount > 0) {
+                    throw new RuntimeException(
+                        'تم إيقاف ترحيل ردود العملاء لحماية الأرصدة: يوجد ' . $invalidCount
+                        . ' قيد رد تاريخي لا يملك بيانات مصدر/عميل/فرع/طريقة دفع مكتملة. راجع السجلات قبل المتابعة.'
+                    );
+                }
             }
         }
 

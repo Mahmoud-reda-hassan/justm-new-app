@@ -225,11 +225,10 @@ class Suppliers_tbl {
 						 LEFT JOIN gov AS GO ON CI.GOV_ID = GO.GOV_ID
 						 LEFT JOIN countries CO ON CO.CO_ID = GO.GOV_ID 
 						 LEFT JOIN (
-						  	SELECT REFERENCE_ID,Count(INVO_ID) AS INVO_COUNT
-							FROM  invoices
-							WHERE REFERENCE_TYPE = 'PURCHASES'
-							GROUP BY REFERENCE_ID
- 						) AS INV ON SU.SUP_ID = INV.REFERENCE_ID
+						  	SELECT SUPPLIER_ID, COUNT(ORDER_ID) AS INVO_COUNT
+							FROM purchases_orders
+							GROUP BY SUPPLIER_ID
+ 						) AS INV ON SU.SUP_ID = INV.SUPPLIER_ID
 						) AS TBL ";
 		
 		

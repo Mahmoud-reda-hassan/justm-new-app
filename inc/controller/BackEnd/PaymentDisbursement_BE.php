@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../../Classes/Accounting/CustomerRefundManager.php';
+
 class PaymentDisbursement {
    	public $Requst;
     private $conn;
@@ -97,25 +99,25 @@ class PaymentDisbursement {
 			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
 			INNER JOIN client C ON C.CLIENT_ID = T.CLIENT_ID
 			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
-			INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
-			INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
-				AND ASET.setting_key = 'CUSTOMERS'
+			INNER JOIN (
+				SELECT D.journal_entry_id, D.partner_id,
+					SUM(D.credit - COALESCE(A.allocated_amount,0)) AS return_credit
+				FROM journal_entry_details D
+				INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
+					AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+				LEFT JOIN (
+					SELECT credit_line_id, SUM(amount) AS allocated_amount
+					FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
+				) A ON A.credit_line_id = D.id
+				WHERE D.partner_type = 'CLIENT' AND D.credit > 0
+				GROUP BY D.journal_entry_id, D.partner_id
+				HAVING SUM(D.credit - COALESCE(A.allocated_amount,0)) > 0
+			) RC ON RC.journal_entry_id = H.id AND RC.partner_id = C.CLIENT_ID
 			LEFT JOIN (
 				SELECT order_id, SUM(amount) AS refunded
 				FROM customer_refund_payments WHERE status = 'POSTED' GROUP BY order_id
 			) R ON R.order_id = O.ORDER_ID
-			LEFT JOIN (
-				SELECT I.reference_id AS order_id, SUM(D.debit) AS refunded
-				FROM journal_entries H
-				INNER JOIN financial_transactions FT ON H.reference_type = 'SALES_RETURN_PAYMENT' AND FT.id = H.reference_id
-				INNER JOIN invoices I ON I.INVO_ID = FT.invoice_id
-				INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id AND D.partner_type = 'CLIENT' AND D.debit > 0
-				INNER JOIN account_settings A ON A.account_id = D.account_id AND A.setting_key = 'CUSTOMERS'
-				WHERE H.status = 'POSTED'
-				GROUP BY I.reference_id
-			) LR ON LR.order_id = O.ORDER_ID
-			WHERE D.partner_type = 'CLIENT' AND D.partner_id = C.CLIENT_ID AND D.credit > 0
-				AND D.credit > COALESCE(R.refunded,0) + COALESCE(LR.refunded,0)";
+			WHERE RC.return_credit > COALESCE(R.refunded,0)";
 		$params = [];
 		if ($search !== '') {
 			$query .= " AND (C.CLIENT_NAME LIKE :search OR T.TEL_NUMBER LIKE :search)";
@@ -134,25 +136,25 @@ class PaymentDisbursement {
 			FROM orders O
 			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
 			INNER JOIN journal_entries H ON H.id = O.RETURN_ENTRY_ID AND H.status = 'POSTED'
-			INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
-			INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
-				AND ASET.setting_key = 'CUSTOMERS'
+			INNER JOIN (
+				SELECT D.journal_entry_id, D.partner_id,
+					SUM(D.credit - COALESCE(A.allocated_amount,0)) AS return_credit
+				FROM journal_entry_details D
+				INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
+					AND ASET.setting_key IN ('CUSTOMERS','CUSTOMER_CREDITS')
+				LEFT JOIN (
+					SELECT credit_line_id, SUM(amount) AS allocated_amount
+					FROM accounting_line_allocations WHERE status = 'ACTIVE' GROUP BY credit_line_id
+				) A ON A.credit_line_id = D.id
+				WHERE D.partner_type = 'CLIENT' AND D.credit > 0
+				GROUP BY D.journal_entry_id, D.partner_id
+				HAVING SUM(D.credit - COALESCE(A.allocated_amount,0)) > 0
+			) RC ON RC.journal_entry_id = H.id AND RC.partner_id = T.CLIENT_ID
 			LEFT JOIN (
 				SELECT order_id, SUM(amount) AS refunded
 				FROM customer_refund_payments WHERE status = 'POSTED' GROUP BY order_id
 			) R ON R.order_id = O.ORDER_ID
-			LEFT JOIN (
-				SELECT I.reference_id AS order_id, SUM(D.debit) AS refunded
-				FROM journal_entries H
-				INNER JOIN financial_transactions FT ON H.reference_type = 'SALES_RETURN_PAYMENT' AND FT.id = H.reference_id
-				INNER JOIN invoices I ON I.INVO_ID = FT.invoice_id
-				INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id AND D.partner_type = 'CLIENT' AND D.debit > 0
-				INNER JOIN account_settings A ON A.account_id = D.account_id AND A.setting_key = 'CUSTOMERS'
-				WHERE H.status = 'POSTED'
-				GROUP BY I.reference_id
-			) LR ON LR.order_id = O.ORDER_ID
-			WHERE T.CLIENT_ID = :client_id AND D.partner_type = 'CLIENT'
-				AND D.partner_id = T.CLIENT_ID AND D.credit > COALESCE(R.refunded,0) + COALESCE(LR.refunded,0)";
+			WHERE T.CLIENT_ID = :client_id AND RC.return_credit > COALESCE(R.refunded,0)";
 		$params = ['client_id' => $clientId];
 		if ($search !== '') {
 			$query .= " AND O.SUB_ORDER_ID LIKE :search";
@@ -165,34 +167,10 @@ class PaymentDisbursement {
 	}
 
 	public function GetRefundBalance($orderId){
-		if (!$orderId) return [['total_balance' => 0]];
-		$query = "SELECT GREATEST(
-				COALESCE((SELECT SUM(D.credit)
-					FROM journal_entry_details D
-					INNER JOIN journal_entries H ON H.id = D.journal_entry_id AND H.status = 'POSTED'
-					INNER JOIN account_settings ASET ON ASET.account_id = D.account_id
-						AND ASET.setting_key = 'CUSTOMERS'
-					WHERE H.id = O.RETURN_ENTRY_ID AND D.partner_type = 'CLIENT'
-						AND D.partner_id = T.CLIENT_ID AND D.credit > 0),0)
-				- COALESCE((SELECT SUM(R.amount) FROM customer_refund_payments R
-					WHERE R.order_id = O.ORDER_ID AND R.status = 'POSTED'),0)
-				- COALESCE((SELECT SUM(D.debit)
-					FROM journal_entries H
-					INNER JOIN financial_transactions FT ON H.reference_type = 'SALES_RETURN_PAYMENT' AND FT.id = H.reference_id
-					INNER JOIN invoices I ON I.INVO_ID = FT.invoice_id AND I.reference_id = O.ORDER_ID
-					INNER JOIN journal_entry_details D ON D.journal_entry_id = H.id
-					INNER JOIN account_settings ASET ON ASET.account_id = D.account_id AND ASET.setting_key = 'CUSTOMERS'
-					WHERE H.status = 'POSTED' AND D.partner_type = 'CLIENT'
-						AND D.partner_id = T.CLIENT_ID AND D.debit > 0),0), 0
-			) AS total_balance
-			FROM orders O
-			INNER JOIN telephones T ON T.TEL_ID = O.TEL_ID
-			WHERE O.ORDER_ID = ? AND O.RETURN_ENTRY_ID IS NOT NULL
-				AND O.ORDER_STATUS IN (6,7) LIMIT 1";
-		$stmt = $this->conn->prepare($query);
-		$stmt->execute([(int)$orderId]);
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
-		return [$row ?: ['total_balance' => 0]];
+		$orderId = (int)$orderId;
+		if ($orderId <= 0) return [['total_balance' => 0.0]];
+		$refundManager = new CustomerRefundManager($this->conn);
+		return [['total_balance' => $refundManager->getAvailableRefundAmount($orderId)]];
 	}
 
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
@@ -214,7 +192,7 @@ class PaymentDisbursement {
 			$glStmt = $this->conn->prepare($glSql);
 			$glStmt->execute($glParams);
 			$glBalance = round((float)$glStmt->fetchColumn(), 2);
-			return [['total_balance' => $glBalance, 'gl_balance' => $glBalance]];
+			return [['total_balance' => $glBalance]];
 		}
 		if ($partnerType === 'DELIVERY') {
 			if ($order_id) return [['total_balance' => 0]];
@@ -232,11 +210,25 @@ class PaymentDisbursement {
 				WHERE d.partner_type='MARKETER' AND d.partner_id=?");
 			$stmt->execute([(int)$partnerId]); return [['total_balance'=>round((float)$stmt->fetchColumn(),2)]];
 		}
-		$query = "SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE 0 END)-SUM(CASE WHEN TRANSACTION_TYPE='DEBIT' THEN BALANCE ELSE 0 END),0) AS total_balance
-			FROM partners_balance pb WHERE PARTNER_TYPE=:ptype AND PARTNER_ID=:pid";
-		$params=['ptype'=>$partnerType,'pid'=>$partnerId];
-		if($order_id){$query.=" AND pb.REFERENCE_ID=:oid";$params['oid']=$order_id;}
-		$stmt=$this->conn->prepare($query);$stmt->execute($params);return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if ($partnerType === 'CLIENT') {
+			$accountKeys = $order_id ? "'CUSTOMERS'" : "'CUSTOMERS','CUSTOMER_CREDITS'";
+			$glSql = "SELECT COALESCE(SUM(d.credit-d.debit),0)
+				FROM journal_entry_details d
+				INNER JOIN journal_entries h ON h.id=d.journal_entry_id AND h.status='POSTED'
+				INNER JOIN account_settings aset ON aset.account_id=d.account_id
+					AND aset.setting_key IN ($accountKeys)
+				WHERE d.partner_type='CLIENT' AND d.partner_id=?";
+			$params = [(int)$partnerId];
+			if ($order_id) {
+				$glSql .= " AND h.reference_type IN ('DIRECT_SALE','ORDER_SHIPPING','SALES_RETURN') AND h.reference_id=?";
+				$params[] = (int)$order_id;
+			}
+			$glStmt = $this->conn->prepare($glSql);
+			$glStmt->execute($params);
+			$glBalance = round((float)$glStmt->fetchColumn(), 2);
+			return [['total_balance' => $glBalance, 'gl_balance' => $glBalance]];
+		}
+		throw new InvalidArgumentException('نوع الطرف غير مدعوم في دفتر الأستاذ العام.');
 	}
 	public function GetSupplierOrderList($supplierId){
 

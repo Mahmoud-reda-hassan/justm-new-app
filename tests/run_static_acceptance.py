@@ -79,9 +79,11 @@ check('Courier settlement validates selected box against payment mapping',
       and 'الخزينة المحددة غير نشطة' in settlement_manager)
 check('Courier settlement stores cash-box ID on received cash journal line',
       "'cash_box_id' => $cashBoxId" in settlement_manager)
-check('Finance endpoint returns branch cash boxes and requires selected box',
-      'GetDeliverySettlementCashBoxes' in finance_controller and "'cash_box_id' => $cashBoxId" in finance_controller
-      and 'INNER JOIN cash_boxes cb' in finance_controller and 'SELECT DISTINCT pm.id' in finance_controller)
+check('Finance endpoint exposes branch cash boxes through the dedicated endpoint',
+      "case 'GetDeliverySettlementCashBoxes':" in finance_controller
+      and '$cashBoxes->listForPaymentMethod($branchId, $paymentMethodId)' in finance_controller
+      and "case 'GetDeliverySettlementPaymentMethods':" in finance_controller
+      and 'INNER JOIN cash_boxes cb' in finance_controller)
 check('Courier settlement UI requires and sends selected cash box',
       'id="dsCashBox"' in settlement_view and 'cash_box_id: cashBoxId' in settlement_js
       and 'GetDeliverySettlementCashBoxes' in settlement_js)
@@ -97,7 +99,7 @@ check('Per-line delivered cost validation', 'INVALID_COST_LINES_COUNT' in accoun
 check('Sales journal idempotency marker', 'SALE_ENTRY_ID' in accounting and 'WHERE ORDER_ID = ? AND SALE_ENTRY_ID IS NULL' in accounting)
 check('Return stock receipt gate', 'assertSalesReturnStockReceived' in accounting and "IM_MOVE_TYPE = 'RETURN_SALES'" in accounting)
 check('Shipping revenue mapped separately', 'shippingRevenue()' in accounting and "'SHIPPING_REVENUE'" in read('inc/Classes/Accounting/AccountSettings.php'))
-check('Sales journal uses order branch', "'branch_id'      => (int)$order['BRANCH_ID']" in accounting)
+check('Sales journal uses order branch', "'branch_id' => (int)$order['BRANCH_ID']" in accounting)
 mailer = read('inc/Classes/Mailer.php')
 check('SMTP mailer uses server configuration', 'JUSTM_SMTP_HOST' in mailer and 'JUSTM_SMTP_PASSWORD' in mailer)
 check('SMTP credentials are not hard-coded in legacy mail files', 'pogy25502984' not in read('inc/public_functionsold_.php') and 'pogy25502984' not in read('inc/controller/BackEnd/sendMail_BE.php'))
@@ -106,13 +108,14 @@ check('SMTP credentials are not hard-coded in legacy mail files', 'pogy25502984'
 supplier_finance = read('inc/controller/BackEnd/finance_BE.php')
 supplier_js = read('dist/js/PaymentDisbursement.js')
 supplier_view = read('inc/Views/PaymentDisbursement.php')
-supplier_migration = read('inc/Databases/migrations/PHASE16_SUPPLIER_PAYMENT_MIXED_ALLOCATION.sql')
-check('Supplier allocation migration exists', 'supplier_payment_allocations' in supplier_migration and "'INVOICE','ADVANCE'" in supplier_migration)
-check('Supplier payment records one financial transaction', "Add_transaction(null, 'SUPPLIER'" in supplier_finance and 'supplier_payment_allocations' in supplier_finance)
-check('Supplier invoice ownership and outstanding validation', "SUPPLIER_ID'] !== $supplier_id" in supplier_finance and '$value - $remaining > 0.009' in supplier_finance)
-check('Supplier invoice payment updates purchases_payments', 'INSERT INTO purchases_payments' in supplier_finance and 'TOTAL_PAYMENTS = ?' in supplier_finance)
-check('Supplier advance recorded separately', "'ADVANCE'" in supplier_finance and "'مقدم للمورد" in supplier_finance)
-check('Supplier payment uses credit side of partner ledger', "VALUES ('SUPPLIER', ?, ?, 'CREDIT'" in supplier_finance)
+supplier_migration = read('inc/Databases/migrations/PHASE20_SUPPLIER_GL_CUTOVER.sql')
+supplier_manager = read('inc/Classes/Accounting/SupplierAccountingManager.php')
+check('Supplier GL allocation migration exists', 'supplier_gl_payment_allocations' in supplier_migration and "'INVOICE','ADVANCE'" in supplier_migration)
+check('Supplier payment records one GL source document', 'SupplierAccountingManager' in supplier_finance and 'INSERT INTO supplier_gl_payments' in supplier_manager and 'INSERT INTO supplier_gl_payment_allocations' in supplier_manager)
+check('Supplier invoice ownership and outstanding validation', "SUPPLIER_ID']!==$supplierId" in supplier_manager and '$value-$remain>0.009' in supplier_manager)
+check('Supplier invoice payment updates purchases_payments', 'INSERT INTO purchases_payments' in supplier_manager and 'UPDATE purchases_orders SET TOTAL_PAYMENTS=?' in supplier_manager)
+check('Supplier advance recorded separately', "'ADVANCE'" in supplier_manager and 'دفعة مقدمة غير مخصصة للمورد' in supplier_manager and 'supplierAdvances()' in supplier_manager)
+check('Supplier payment posts debit to payable and credit to cash/bank in GL', "'partner_type'=>'SUPPLIER','partner_id'=>$supplierId" in supplier_manager and "'debit'=>$value" in supplier_manager and "'credit'=>$amount" in supplier_manager)
 check('Supplier UI exposes invoice allocation table', '<table id="supplierOrdersTable"' in supplier_view and '<!-- جدول أوامر الشراء' not in supplier_view)
 check('Supplier auto-distribution preserves excess as advance', 'function autoDistributeSupplierPayment(amount)' in supplier_js and "$('#supplier-advance-total')" in supplier_js)
 
@@ -121,11 +124,13 @@ for sql_rel in ['JUSTM_DATABASE_INSTALL.sql', 'inc/Databases/JUSTM_DATABASE_INST
     sql = read(sql_rel).upper()
     check(sql_rel + ' retains legacy tables', all('DROP TABLE IF EXISTS `' + t + '`' not in sql for t in ['partners_balance','invoices','financial_transactions']))
 
-# 4) Syntax checks: all PHP outside vendor; all JS except source fragments intentionally concatenated by jQuery build.
-php_files = [p for p in ROOT.rglob('*.php') if p.is_file() and 'vendor' not in p.parts]
+# 4) Syntax checks: all application PHP; the bundled Illuminate 12 source requires PHP 8.2+.
+php_version = int(subprocess.run(['php', '-r', 'echo PHP_VERSION_ID;'], capture_output=True, text=True, check=True).stdout)
+php_files = [p for p in ROOT.rglob('*.php') if p.is_file() and 'vendor' not in p.parts
+             and ('database-master' not in p.parts or php_version >= 80200)]
 def lint_php(p):
-    r = subprocess.run(['php', '-l', str(p)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    return (str(p.relative_to(ROOT)), r.stderr.strip()) if r.returncode else None
+    r = subprocess.run(['php', '-l', str(p)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return (str(p.relative_to(ROOT)), ((r.stdout or '') + '\\n' + (r.stderr or '')).strip()) if r.returncode else None
 with ThreadPoolExecutor(max_workers=12) as pool:
     php_bad = [x for x in pool.map(lint_php, php_files) if x]
 check('PHP syntax (' + str(len(php_files)) + ' files)', not php_bad, '; '.join(x[0] for x in php_bad[:8]))
@@ -133,7 +138,7 @@ check('PHP syntax (' + str(len(php_files)) + ' files)', not php_bad, '; '.join(x
 js_files = [p for p in ROOT.rglob('*.js') if p.is_file() and 'vendor' not in p.parts and p.name not in {'intro.js','outro.js'}]
 def lint_js(p):
     r = subprocess.run(['node', '--check', str(p)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-    return (str(p.relative_to(ROOT)), r.stderr.strip()) if r.returncode else None
+    return (str(p.relative_to(ROOT)), r.stderr.strip() or r.stdout.strip()) if r.returncode else None
 with ThreadPoolExecutor(max_workers=12) as pool:
     js_bad = [x for x in pool.map(lint_js, js_files) if x]
 check('JavaScript syntax (' + str(len(js_files)) + ' files)', not js_bad, '; '.join(x[0] for x in js_bad[:8]))

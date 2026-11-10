@@ -376,7 +376,6 @@ class ordersList_BE {
     private $oProTbl        = 'ORDER_PRODUCT';
     private $proCodeTbl     = 'PRODUCT_CODES';
     private $prodTbl        = 'PRODUCTS';
-    private $invoTbl        = 'invoices';
     private $oservTbl       = 'order_service';
     private $osertexTbl     = 'order_service_text';
     private $cusOrderTbl    = 'custody_orders';
@@ -486,7 +485,7 @@ class ordersList_BE {
                     OSE.CMSG AS MSG_COUNT,
                     CASE WHEN OSE.OS_STATUSE = 0 THEN 1 ELSE 0 END AS OSMsgCS,
                     
-                    P.INVO_ID,
+                    A.SALE_ENTRY_ID AS INVO_ID,
                     COUNT(M.ORDER_ID) AS PRODUCTS_COUNT,
                     SUM(M.QTY) AS PRODUCTS_QTY,
                     SUM((M.PRICE - M.DISCOUNT) * M.QTY) AS PRICE,
@@ -557,7 +556,6 @@ class ordersList_BE {
                 LEFT JOIN GOV              R ON K.GOV_ID = R.GOV_ID
                 LEFT JOIN ZONES            L ON K.ZONE_ID = L.ZONE_ID
                 LEFT JOIN ORDER_PRODUCT    M ON A.ORDER_ID = M.ORDER_ID
-                LEFT JOIN invoices         P ON A.ORDER_ID = P.REFERENCE_ID AND REFERENCE_TYPE='SALES'
                 LEFT JOIN ORDERS           EXO ON A.EXCHANGE = EXO.ORDER_ID
                 LEFT JOIN PRODUCT_OPTIONS_VIEW POV ON M.PRO_CODE = POV.PRO_CODE
                 LEFT JOIN (
@@ -1050,7 +1048,7 @@ class ordersList_BE {
 	                    OSE.COUNT_END_OS AS OS_END_COUNT,
 	                    OSE.CMSG AS MSG_COUNT,
 	                    CASE WHEN OSE.OS_STATUSE = 0 THEN 1 ELSE 0 END AS OSMsgCS,
-	                    P.INVO_ID,
+	                    A.SALE_ENTRY_ID AS INVO_ID,
 	                    COUNT(M.ORDER_ID) AS PRODUCTS_COUNT,
 	                    SUM(M.QTY) AS PRODUCTS_QTY,
 	                    SUM((M.PRICE - M.DISCOUNT) * M.QTY) AS PRICE,
@@ -1128,7 +1126,6 @@ class ordersList_BE {
 	                LEFT JOIN GOV               R ON K.GOV_ID = R.GOV_ID
 	                LEFT JOIN ZONES             L ON K.ZONE_ID = L.ZONE_ID
 	                LEFT JOIN ORDER_PRODUCT     M ON A.ORDER_ID = M.ORDER_ID
-	                LEFT JOIN invoices          P ON A.ORDER_ID = P.REFERENCE_ID AND REFERENCE_TYPE='SALES'
 	                LEFT JOIN ORDERS            EXO ON A.EXCHANGE = EXO.ORDER_ID
 	                LEFT JOIN order_service     OSB ON A.ORDER_ID=OSB.ORDER_ID AND OSB.OS_STATUSE=1
 	                LEFT JOIN order_service     OSC ON A.ORDER_ID=OSC.ORDER_ID AND OSC.OS_STATUSE=0
