@@ -3927,3 +3927,13 @@
 - **اختبارات مضافة:** تغطي جدول المستخدمين ونوافذ الإجراءات وبطاقات مجموعات الصلاحيات.
 - **الملفات:** resources/views/admin/access/users.blade.php، resources/views/admin/access/roles.blade.php، tests/Feature/AccessControlManagementTest.php، docs/AUTH_ACCESS_CONTROL_IMPLEMENTATION_AR.md.
 - **التحقق:** نتيجة CI على HEAD الذي يتضمن آخر تعديل لم تُراجع بعد، ولا توجد معاينة متصفح.
+
+
+## تحديث شاشتي صفات المنتجات وتحديث قاعدة البيانات على AdminLTE — 2026-11-11
+
+- **صفات المنتجات:** تحويل مجموعات الصفات إلى بطاقات AdminLTE، وقيم كل مجموعة إلى جدول، مع نماذج إنشاء/تعديل وتفعيل/إيقاف مستقلة حسب الصلاحيات. بقي منع تعطيل المجموعة أو القيمة المستخدمة في منتج قائم.
+- **تحديث قاعدة البيانات:** تحويل معلومات الاتصال إلى Info Boxes، وحالة migrations إلى جدول، والتحذير والتنفيذ إلى Callouts/Cards أصلية، مع الإبقاء على تأكيد اسم قاعدة البيانات وعبارة RUN MIGRATIONS وعدم تشغيل Seeders.
+- **اختبارات مضافة:** التحقق من مكونات AdminLTE في الشاشتين.
+- **الملفات:** resources/views/admin/products/attributes.blade.php، resources/views/admin/system/database-updates.blade.php، tests/Feature/ProductManagementTest.php، tests/Feature/DatabaseUpdatePageTest.php.
+- **التحقق:** نتيجة CI بعد هذه التغييرات لم تُراجع بعد. لم تتم معاينة المتصفح.
+- **لم يحدث:** لا تشغيل migrations أو seeders، ولا تعديل قاعدة بيانات الاستضافة، ولا نشر أو دمج إلى main.
