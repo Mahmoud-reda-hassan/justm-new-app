@@ -114,7 +114,8 @@
                         <div><label for="warehouse_name">اسم المخزن الأول</label><input id="warehouse_name" name="warehouse_name" value="{{ old('warehouse_name', 'المخزن الرئيسي') }}" maxlength="150" required></div>
                         <div><label for="warehouse_type">نوع المخزن</label>
                             <select id="warehouse_type" name="warehouse_type" required>
-                                <option value="internal" @selected(old('warehouse_type', 'internal') === 'internal')>مخزن عادي</option>
+                                <option value="" @selected(old('warehouse_type') === null)>اختر نوع المخزن</option>
+                                <option value="internal" @selected(old('warehouse_type') === 'internal')>مخزن عادي</option>
                                 <option value="sales_dispatch" @selected(old('warehouse_type') === 'sales_dispatch')>مخزن بيع مباشر</option>
                             </select>
                         </div>
