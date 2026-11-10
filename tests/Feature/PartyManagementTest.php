@@ -177,7 +177,7 @@ class PartyManagementTest extends TestCase
 
     public function test_scoped_manager_cannot_link_an_account_to_a_party_without_party_scope_support(): void
     {
-        $admin = $this->userWith(['users.create']);
+        $admin = $this->userWith(['users.create'], false);
         $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'مسوق بنطاق مستقل']);
         $party->partyRoles()->create(['role' => 'marketer']);
 
@@ -198,6 +198,30 @@ class PartyManagementTest extends TestCase
         $user = $this->userWith(['parties.view'], false);
 
         $this->actingAs($user)->get(route('admin.parties.index'))->assertForbidden();
+    }
+
+
+    public function test_permissions_are_denied_to_a_linked_account_after_its_party_is_deactivated(): void
+    {
+        app(DatabaseSeeder::class)->run();
+        $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'مسوق يتم إيقافه']);
+        $party->partyRoles()->create(['role' => 'marketer']);
+        $permission = Permission::query()->where('key', 'parties.view')->firstOrFail();
+        $role = Role::query()->create(['name' => 'Partner access', 'key' => 'partner-access-test', 'is_active' => true]);
+        $role->permissions()->sync([$permission->id]);
+        $account = User::query()->create([
+            'name' => 'حساب مسوق',
+            'username' => 'deactivated-party-account',
+            'password' => 'long-secure-password',
+            'account_type' => 'partner',
+            'party_id' => $party->id,
+            'is_active' => true,
+        ]);
+        $account->roles()->attach($role);
+
+        $this->assertTrue($account->hasPermission('parties.view'));
+        $party->update(['is_active' => false]);
+        $this->assertFalse($account->fresh()->hasPermission('parties.view'));
     }
 
     public function test_party_must_have_at_least_one_valid_role(): void

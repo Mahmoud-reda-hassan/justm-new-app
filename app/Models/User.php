@@ -47,6 +47,10 @@ class User extends Authenticatable implements MustVerifyEmail
             return false;
         }
 
+        if ($this->party_id && ! $this->party()->where('is_active', true)->exists()) {
+            return false;
+        }
+
         return $this->roles()
             ->where('roles.is_active', true)
             ->whereHas('permissions', fn ($query) => $query->where('permissions.key', $permission))
