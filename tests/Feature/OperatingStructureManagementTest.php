@@ -49,6 +49,13 @@ class OperatingStructureManagementTest extends TestCase
         $this->actingAs($user)->get(route('admin.structure.warehouses'))->assertForbidden();
     }
 
+    public function test_user_management_screen_renders_data_scope_selectors(): void
+    {
+        $user = $this->userWith(['users.view', 'users.assign_scopes']);
+        $response = $this->actingAs($user)->get(route('admin.access.users'))->assertOk();
+        $response->assertSee('نطاق البيانات');
+    }
+
     public function test_company_creation_is_available_only_with_create_permission(): void
     {
         $user = $this->userWith(['companies.create']);
