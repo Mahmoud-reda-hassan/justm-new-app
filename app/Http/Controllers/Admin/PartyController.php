@@ -101,7 +101,7 @@ class PartyController extends Controller
             'name' => ['required', 'string', 'max:180'],
             'contact_person' => ['nullable', 'string', 'max:150'],
             'phone' => ['nullable', 'string', 'max:40'],
-            'mobile' => ['nullable', 'string', 'max:40],
+            'mobile' => ['nullable', 'string', 'max:40'],
             'email' => ['nullable', 'email', 'max:190'],
             'city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
             'address' => ['nullable', 'string', 'max:4000'],
