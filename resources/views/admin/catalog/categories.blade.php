@@ -49,8 +49,17 @@
                 <thead><tr><th>التصنيف</th><th>الكود</th><th>التصنيف الأب</th><th>الترتيب</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
                 <tbody>
                 @forelse($categories as $category)
-                    <tr>
-                        <td><strong>{{ $category->name }}</strong></td>
+                    <tr data-category-id="{{ $category->id }}" data-parent-id="{{ $category->parent_id ?? '' }}" data-category-depth="{{ $category->tree_depth }}">
+                        <td>
+                            <span class="d-inline-flex align-items-center" style="padding-right: {{ 8 + ($category->tree_depth * 22) }}px">
+                                @if($category->has_children)
+                                    <button type="button" class="btn btn-xs btn-default ml-1" data-category-toggle data-expanded="true" data-id="{{ $category->id }}" aria-label="طي الفروع">−</button>
+                                @else
+                                    <i class="fas fa-level-up-alt fa-rotate-90 text-muted ml-2"></i>
+                                @endif
+                                <strong>{{ $category->name }}</strong>
+                            </span>
+                        </td>
                         <td>{{ $category->code ?: '—' }}</td>
                         <td>{{ $category->parent?->name ?: 'رئيسي' }}</td>
                         <td>{{ $category->sort_order }}</td>
