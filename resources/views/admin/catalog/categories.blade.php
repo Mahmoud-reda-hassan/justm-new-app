@@ -35,10 +35,17 @@
 @endif
 
 <div class="card card-outline card-secondary">
-    <div class="card-header"><h3 class="card-title">دليل التصنيفات</h3><div class="card-tools"><span class="badge badge-secondary">{{ number_format($categories->total()) }} تصنيف</span></div></div>
+    <div class="card-header">
+        <h3 class="card-title">شجرة التصنيفات</h3>
+        <div class="card-tools">
+            <span class="badge badge-secondary">{{ number_format($categories->count()) }} تصنيف</span>
+            <button type="button" class="btn btn-tool" id="expandCategoryTree" title="توسيع الكل"><i class="fas fa-expand-alt"></i></button>
+            <button type="button" class="btn btn-tool" id="collapseCategoryTree" title="طي الفروع"><i class="fas fa-compress-alt"></i></button>
+        </div>
+    </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-bordered table-hover table-striped">
+            <table class="table table-bordered table-hover table-striped" id="categoryTree">
                 <thead><tr><th>التصنيف</th><th>الكود</th><th>التصنيف الأب</th><th>الترتيب</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
                 <tbody>
                 @forelse($categories as $category)
@@ -80,7 +87,53 @@
                 </tbody>
             </table>
         </div>
-        <div class="mt-3">{{ $categories->links() }}</div>
+        
     </div>
 </div>
+<script>
+(function () {
+    const table = document.getElementById('categoryTree');
+    if (!table) return;
+
+    function setChildrenVisible(parentId, visible) {
+        table.querySelectorAll('tbody tr[data-parent-id="' + parentId + '"]').forEach(function (child) {
+            child.hidden = !visible;
+            const toggle = child.querySelector('[data-category-toggle]');
+            if (toggle) {
+                const expanded = visible && toggle.dataset.expanded === 'true';
+                toggle.textContent = expanded ? '−' : '+';
+                if (!visible) setChildrenVisible(child.dataset.categoryId, false);
+                else if (expanded) setChildrenVisible(child.dataset.categoryId, true);
+            }
+        });
+    }
+
+    table.querySelectorAll('[data-category-toggle]').forEach(function (toggle) {
+        toggle.addEventListener('click', function () {
+            const expanded = this.dataset.expanded === 'true';
+            this.dataset.expanded = expanded ? 'false' : 'true';
+            this.textContent = expanded ? '+' : '−';
+            setChildrenVisible(this.dataset.id, !expanded);
+        });
+    });
+
+    document.getElementById('expandCategoryTree')?.addEventListener('click', function () {
+        table.querySelectorAll('tbody tr').forEach(row => row.hidden = false);
+        table.querySelectorAll('[data-category-toggle]').forEach(toggle => {
+            toggle.dataset.expanded = 'true';
+            toggle.textContent = '−';
+        });
+    });
+
+    document.getElementById('collapseCategoryTree')?.addEventListener('click', function () {
+        table.querySelectorAll('tbody tr[data-category-depth]').forEach(row => {
+            if (Number(row.dataset.categoryDepth) > 0) row.hidden = true;
+        });
+        table.querySelectorAll('[data-category-toggle]').forEach(toggle => {
+            toggle.dataset.expanded = 'false';
+            toggle.textContent = '+';
+        });
+    });
+})();
+</script>
 @endsection
