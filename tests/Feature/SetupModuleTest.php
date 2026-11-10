@@ -59,13 +59,9 @@ class SetupModuleTest extends TestCase
     {
         app(InitialOperatingSetup::class)->configure([
             'site_name' => 'Just-M',
-            'country_name_ar' => 'مصر',
-            'country_name_en' => 'Egypt',
-            'region_name' => 'القاهرة الكبرى',
-            'governorate_name_ar' => 'القاهرة',
-            'governorate_name_en' => 'Cairo',
-            'city_name_ar' => 'مدينة نصر',
-            'city_name_en' => 'Nasr City',
+            'country_id' => Country::query()->where('name_ar', 'مصر')->value('id'),
+            'governorate_id' => Governorate::query()->where('name_ar', 'القاهره')->value('id'),
+            'city_id' => City::query()->where('name_ar', 'مدينة نصر')->value('id'),
             'company_name' => 'شركة Just-M',
             'branch_name' => 'المقر الرئيسي',
             'warehouse_name' => 'مخزن البيع',
