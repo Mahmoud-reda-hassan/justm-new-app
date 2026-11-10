@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>المنتجات | Just-M</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>المنتجات | Just-M</title>
 <style>
 :root{--ink:#17233b;--muted:#718096;--line:#e7ebf2;--canvas:#f4f6fb;--brand:#3157d5;--green:#16865b;--red:#c43d4d;--shadow:0 14px 36px rgba(25,42,78,.07)}
 *{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font:14px/1.7 Tahoma,Arial,sans-serif}.shell{max-width:1480px;margin:auto;padding:24px}.head{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:20px}.eyebrow{font-size:11px;color:var(--brand);font-weight:700}.head h1{font-size:27px;margin:2px 0}.head p{margin:0;color:var(--muted)}.nav{display:flex;gap:8px;flex-wrap:wrap}.nav a,.btn{border:1px solid var(--line);border-radius:9px;padding:9px 13px;background:#fff;color:var(--ink);font-weight:700;text-decoration:none;font-size:12px;cursor:pointer}.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn.soft{background:#eef2ff;color:var(--brand)}.btn.danger{background:#fff0f1;color:var(--red)}
@@ -17,12 +17,12 @@
 
 @if(auth()->user()->hasPermission('products.create'))
 <section class="panel"><h2>إضافة منتج</h2><p class="sub">كل منتج يحتاج كود بيع واحدًا على الأقل. يمكن إضافة أكواد أخرى بعد الحفظ.</p>
-<form method="post" action="{{ route('admin.products.store') }}">@csrf
+<form method="post" enctype="multipart/form-data" action="{{ route('admin.products.store') }}">@csrf
 <div class="fields">
 <div class="field span2"><label>اسم المنتج</label><input name="name" value="{{ old('name') }}" required maxlength="180"></div>
 <div class="field"><label>التصنيف</label><select name="category_id" required><option value="">اختر التصنيف</option>@foreach($categories as $category)<option value="{{ $category->id }}" @selected((string)old('category_id')===(string)$category->id)>{{ $category->name }}</option>@endforeach</select></div>
 <div class="field"><label>وحدة القياس</label><select name="unit_id" required><option value="">اختر الوحدة</option>@foreach($units as $unit)<option value="{{ $unit->id }}" @selected((string)old('unit_id')===(string)$unit->id)>{{ $unit->name }} {{ $unit->symbol }}</option>@endforeach</select></div>
-<div class="field span4"><label>وصف المنتج</label><textarea name="description">{{ old('description') }}</textarea></div>
+<div class="field span4"><label>وصف المنتج</label><textarea name="description">{{ old('description') }}</textarea></div><div class="field span4"><label>صورة المنتج</label><input type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
 <div class="field"><label>الطول (سم)</label><input name="length_cm" type="number" step="0.001" min="0" value="{{ old('length_cm') }}"></div>
 <div class="field"><label>العرض (سم)</label><input name="width_cm" type="number" step="0.001" min="0" value="{{ old('width_cm') }}"></div>
 <div class="field"><label>الارتفاع (سم)</label><input name="height_cm" type="number" step="0.001" min="0" value="{{ old('height_cm') }}"></div>
@@ -39,7 +39,7 @@
 @endforeach
 </div></div>
 @endif
-<div class="field"><label>كود / SKU</label><input name="initial_variant[sku]" value="{{ old('initial_variant.sku') }}" required maxlength="50"></div>
+<div class="field"><label>كود / SKU</label><input id="initialSku" name="initial_variant[sku]" value="{{ old('initial_variant.sku') }}" required maxlength="50"><button type="button" class="btn soft" onclick="generateProductCode(document.getElementById('initialSku'))">توليد باركود داخلي</button></div>
 <div class="field"><label>اسم التركيبة (اختياري)</label><input name="initial_variant[variant_name]" value="{{ old('initial_variant.variant_name') }}" maxlength="180"></div>
 <div class="field"><label>سعر القائمة</label><input name="initial_variant[list_price]" type="number" step="0.01" min="0" value="{{ old('initial_variant.list_price') }}" required></div>
 <div class="field"><label>أقل سعر بيع مسموح</label><input name="initial_variant[minimum_sale_price]" type="number" step="0.01" min="0" value="{{ old('initial_variant.minimum_sale_price') }}" required></div>
@@ -55,7 +55,7 @@
 <div class="product-grid">
 @forelse($products as $product)
 <article class="product-card">
-<div class="product-head"><div><h3>{{ $product->name }}</h3><span class="muted">{{ $product->category->name }} · {{ $product->unit->name }} {{ $product->unit->symbol }}</span></div><div><span class="status {{ $product->is_active?'on':'off' }}">{{ $product->is_active?'نشط':'موقوف' }}</span><br><span class="status {{ $product->is_visible?'on':'off' }}">{{ $product->is_visible?'متاح للبيع':'غير معروض' }}</span></div></div>
+<div class="product-head"><div>@if($product->image_path)<img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($product->image_path) }}" alt="{{ $product->name }}" style="width:74px;height:74px;object-fit:cover;border-radius:10px;float:right;margin-left:10px">@endif<h3>{{ $product->name }}</h3><span class="muted">{{ $product->category->name }} · {{ $product->unit->name }} {{ $product->unit->symbol }}</span></div><div><span class="status {{ $product->is_active?'on':'off' }}">{{ $product->is_active?'نشط':'موقوف' }}</span><br><span class="status {{ $product->is_visible?'on':'off' }}">{{ $product->is_visible?'متاح للبيع':'غير معروض' }}</span></div></div>
 @if($product->description)<p class="muted">{{ \Illuminate\Support\Str::limit($product->description,150) }}</p>@endif
 @if($product->attributeGroups->isNotEmpty())<div class="chips">@foreach($product->attributeGroups as $group)<span class="chip">{{ $group->name }}</span>@endforeach</div>@endif
 <div class="table-wrap"><table class="variant-table"><thead><tr><th>الكود</th><th>الصفات</th><th>سعر القائمة</th><th>الحد الأدنى</th><th>الحالة</th></tr></thead><tbody>
@@ -68,12 +68,12 @@
 @if(auth()->user()->hasPermission('products.update'))<form method="post" action="{{ route('admin.products.visible',$product) }}">@csrf @method('patch')<input type="hidden" name="is_visible" value="{{ $product->is_visible?0:1 }}"><button class="btn soft">{{ $product->is_visible?'إخفاء من البيع':'إتاحته للبيع' }}</button></form>@endif
 </div>
 @if(auth()->user()->hasPermission('products.update'))
-<details class="details"><summary>تعديل بيانات المنتج</summary><form method="post" action="{{ route('admin.products.update',$product) }}">@csrf @method('put')
+<details class="details"><summary>تعديل بيانات المنتج</summary><form method="post" enctype="multipart/form-data" action="{{ route('admin.products.update',$product) }}">@csrf @method('put')
 <div class="fields">
 <div class="field span2"><label>الاسم</label><input name="name" value="{{ $product->name }}" required></div>
 <div class="field"><label>التصنيف</label><select name="category_id" required>@foreach($categories as $category)<option value="{{ $category->id }}" @selected($product->category_id===$category->id)>{{ $category->name }}</option>@endforeach</select></div>
 <div class="field"><label>الوحدة</label><select name="unit_id" required>@foreach($units as $unit)<option value="{{ $unit->id }}" @selected($product->unit_id===$unit->id)>{{ $unit->name }} {{ $unit->symbol }}</option>@endforeach</select></div>
-<div class="field span4"><label>الوصف</label><textarea name="description">{{ $product->description }}</textarea></div>
+<div class="field span4"><label>الوصف</label><textarea name="description">{{ $product->description }}</textarea></div><div class="field span4"><label>استبدال صورة المنتج</label><input type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></div>
 <div class="field"><label>الطول (سم)</label><input name="length_cm" type="number" step="0.001" min="0" value="{{ $product->length_cm }}"></div>
 <div class="field"><label>العرض (سم)</label><input name="width_cm" type="number" step="0.001" min="0" value="{{ $product->width_cm }}"></div>
 <div class="field"><label>الارتفاع (سم)</label><input name="height_cm" type="number" step="0.001" min="0" value="{{ $product->height_cm }}"></div>
@@ -84,7 +84,7 @@
 @if(auth()->user()->hasPermission('products.create') && $product->is_active)
 <details class="details"><summary>إضافة كود / تركيبة جديدة</summary><form class="variant-form" method="post" action="{{ route('admin.products.variants.store',$product) }}">@csrf
 <div class="fields">
-<div class="field"><label>الكود / SKU</label><input name="sku" required maxlength="50"></div><div class="field"><label>اسم التركيبة</label><input name="variant_name" maxlength="180"></div><div class="field"><label>سعر القائمة</label><input name="list_price" type="number" min="0" step="0.01" required></div><div class="field"><label>أقل سعر بيع</label><input name="minimum_sale_price" type="number" min="0" step="0.01" required></div>
+<div class="field"><label>الكود / SKU</label><input name="sku" required maxlength="50"><button type="button" class="btn soft" onclick="generateProductCode(this.form.querySelector('[name=&quot;sku&quot;]'))">توليد باركود</button></div><div class="field"><label>اسم التركيبة</label><input name="variant_name" maxlength="180"></div><div class="field"><label>سعر القائمة</label><input name="list_price" type="number" min="0" step="0.01" required></div><div class="field"><label>أقل سعر بيع</label><input name="minimum_sale_price" type="number" min="0" step="0.01" required></div>
 @foreach($product->attributeGroups as $group)<div class="field"><label>{{ $group->name }}</label><select name="attribute_value_ids[]" required><option value="">اختر</option>@foreach($group->values->where('is_active',true) as $value)<option value="{{ $value->id }}">{{ $value->value }}</option>@endforeach</select></div>@endforeach
 </div><div class="actions"><button class="btn primary">إضافة الكود</button></div></form></details>
 @endif
@@ -108,5 +108,17 @@ document.querySelectorAll('.group-toggle').forEach(function(toggle){
     const sync=function(){select.disabled=!toggle.checked;select.required=toggle.checked;if(!toggle.checked)select.value='';};
     toggle.addEventListener('change',sync);sync();
 });
+async function generateProductCode(input){
+    try{
+        const response=await fetch("{{ route('admin.products.generate-codes') }}",{
+            method:"POST",
+            headers:{"X-CSRF-TOKEN":document.querySelector('meta[name="csrf-token"]').content,"Accept":"application/json","Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},
+            body:"count=1"
+        });
+        const result=await response.json();
+        if(!response.ok) throw new Error(result.message||"تعذر توليد الكود");
+        input.value=result.codes[0];
+    }catch(error){alert(error.message);}
+}
 </script>
 </body></html>
