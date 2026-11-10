@@ -33,6 +33,7 @@ class SetupModuleTest extends TestCase
     public function test_first_admin_can_be_created_once_with_only_setup_permissions(): void
     {
         app(DatabaseSeeder::class)->run();
+        $this->createOperatingData();
 
         $this->artisan('justm:provision-first-admin', [
             '--name' => 'First Admin',
@@ -51,9 +52,28 @@ class SetupModuleTest extends TestCase
         $this->assertSame(11, $user->roles()->first()->permissions()->count());
     }
 
+    private function createOperatingData(): void
+    {
+        app(InitialOperatingSetup::class)->configure([
+            'site_name' => 'Just-M',
+            'country_name_ar' => 'مصر',
+            'country_name_en' => 'Egypt',
+            'region_name' => 'القاهرة الكبرى',
+            'governorate_name_ar' => 'القاهرة',
+            'governorate_name_en' => 'Cairo',
+            'city_name_ar' => 'مدينة نصر',
+            'city_name_en' => 'Nasr City',
+            'company_name' => 'شركة Just-M',
+            'branch_name' => 'المقر الرئيسي',
+            'warehouse_name' => 'مخزن البيع',
+            'warehouse_type' => 'sales_dispatch',
+        ]);
+    }
+
     public function test_first_admin_provisioning_is_refused_when_any_user_exists(): void
     {
         app(DatabaseSeeder::class)->run();
+        $this->createOperatingData();
         User::create([
             'name' => 'Existing User',
             'username' => 'existing-user',
