@@ -28,6 +28,14 @@ class AuthenticatedSessionController extends Controller
             ])->onlyInput('username');
         }
 
+        $authenticatedUser = $request->user()->loadMissing('party');
+        if ($authenticatedUser->party && ! $authenticatedUser->party->is_active) {
+            Auth::logout();
+            return back()->withErrors([
+                'username' => 'الطرف المرتبط بهذا الحساب موقوف. يرجى مراجعة إدارة النظام.',
+            ])->onlyInput('username');
+        }
+
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard'));

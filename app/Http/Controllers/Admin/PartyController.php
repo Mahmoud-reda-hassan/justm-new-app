@@ -45,7 +45,7 @@ class PartyController extends Controller
             'cities' => City::query()->where('is_active', true)->orderBy('name_ar')->get(),
             'partyRoles' => Party::ROLES,
             'loginRoles' => Party::LOGIN_ROLES,
-            'canCreateUsers' => $request->user()?->hasPermission('users.create') ?? false,
+            'canCreateUsers' => ($request->user()?->hasPermission('users.create') ?? false) && ($request->user()?->hasPermission('structure.scope.manage_all') ?? false),
             'stats' => [
                 'total' => Party::query()->count(),
                 'active' => Party::query()->where('is_active', true)->count(),
@@ -79,6 +79,11 @@ class PartyController extends Controller
         $data = $this->validatedData($request, $party);
         $roles = $data['roles'];
         unset($data['roles']);
+        abort_if(
+            $party->users()->exists() && count(array_intersect($roles, Party::LOGIN_ROLES)) === 0,
+            422,
+            'لا يمكن إزالة كل الصفات التشغيلية من طرف مرتبط بحسابات دخول.'
+        );
 
         DB::transaction(function () use ($party, $data, $roles): void {
             $party->update($data);

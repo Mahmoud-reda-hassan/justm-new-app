@@ -126,6 +126,71 @@ class PartyManagementTest extends TestCase
         $this->assertDatabaseMissing('users', ['username' => 'customer-only-login']);
     }
 
+    public function test_party_with_linked_login_cannot_lose_all_operational_roles(): void
+    {
+        $admin = $this->userWith(['parties.update']);
+        $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'مسوق مرتبط']);
+        $party->partyRoles()->create(['role' => 'marketer']);
+        User::query()->create([
+            'name' => 'حساب المسوق',
+            'username' => 'role-protected-account',
+            'password' => 'long-secure-password',
+            'account_type' => 'partner',
+            'party_id' => $party->id,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->put(route('admin.parties.update', $party), [
+            'entity_type' => 'individual',
+            'name' => 'مسوق مرتبط',
+            'roles' => ['customer'],
+        ])->assertStatus(422);
+
+        $this->assertSame(['marketer'], $party->fresh()->assignedRoles());
+    }
+
+    public function test_login_is_blocked_when_linked_party_is_inactive(): void
+    {
+        $party = Party::query()->create([
+            'entity_type' => 'individual',
+            'name' => 'طرف موقوف',
+            'is_active' => false,
+        ]);
+        $party->partyRoles()->create(['role' => 'marketer']);
+        User::query()->create([
+            'name' => 'حساب طرف موقوف',
+            'username' => 'inactive-party-login',
+            'password' => 'secure-password',
+            'account_type' => 'partner',
+            'party_id' => $party->id,
+            'is_active' => true,
+        ]);
+
+        $this->post(route('login.store'), [
+            'username' => 'inactive-party-login',
+            'password' => 'secure-password',
+        ])->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+    }
+
+    public function test_scoped_manager_cannot_link_an_account_to_a_party_without_party_scope_support(): void
+    {
+        $admin = $this->userWith(['users.create']);
+        $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'مسوق بنطاق مستقل']);
+        $party->partyRoles()->create(['role' => 'marketer']);
+
+        $this->actingAs($admin)->post(route('admin.access.users.store'), [
+            'name' => 'حساب مسوق محدود',
+            'username' => 'scoped-marketer-login',
+            'password' => 'long-secure-password',
+            'password_confirmation' => 'long-secure-password',
+            'party_id' => $party->id,
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('users', ['username' => 'scoped-marketer-login']);
+    }
+
     public function test_party_must_have_at_least_one_valid_role(): void
     {
         $user = $this->userWith(['parties.create']);

@@ -37,6 +37,7 @@ class AccessControlController extends Controller
         $visibleUsers = $allUsers->filter(fn (User $user): bool =>
             $actor->is($user) || $this->userIsWithinActorScope($actor, $user)
         )->values();
+        $visiblePartyIds = $visibleUsers->pluck('party_id')->filter()->unique()->values();
         $page = LengthAwarePaginator::resolveCurrentPage();
         $users = new LengthAwarePaginator(
             $visibleUsers->forPage($page, 20)->values(),
@@ -49,7 +50,7 @@ class AccessControlController extends Controller
         return view('admin.access.users', [
             'users' => $users,
             'roles' => Role::query()->where('is_active', true)->orderBy('name')->get(),
-            'parties' => Party::query()->with('partyRoles')->whereHas('partyRoles', fn ($q) => $q->whereIn('role', Party::LOGIN_ROLES))->orderBy('name')->get(),
+            'parties' => Party::query()->with('partyRoles')->whereHas('partyRoles', fn ($q) => $q->whereIn('role', Party::LOGIN_ROLES))->where(function ($query) use ($globalScope, $visiblePartyIds): void { if (! $globalScope) { $query->whereIn('id', $visiblePartyIds); } })->orderBy('name')->get(),
             'partyRoleLabels' => Party::ROLES,
             'selectedPartyId' => $request->input('party_id'),
             'companies' => Company::query()->when(! $globalScope, fn ($q) => $q->whereIn('id', $companyIds))->orderBy('name')->get(['id', 'name']),
@@ -84,6 +85,7 @@ class AccessControlController extends Controller
 
         $actor = $request->user();
         $hasGlobalScope = $actor->hasPermission('structure.scope.manage_all');
+        abort_unless(! $party || $hasGlobalScope, 403, 'ربط حساب بطرف يتطلب صلاحية إدارة نطاق الهيكل بالكامل حتى يكتمل نطاق الطرف.');
         if (! $hasGlobalScope) {
             abort_unless($actor->dataScopes()->exists(), 403,
                 'لا يمكن إنشاء مستخدم قبل تحديد نطاق البيانات المسموح لك بإدارته.');
@@ -127,6 +129,11 @@ class AccessControlController extends Controller
         if (array_key_exists('party_id', $data)) {
             $party = $data['party_id'] ? Party::query()->with('partyRoles')->findOrFail($data['party_id']) : null;
             if ($party) {
+                abort_unless(
+                    $request->user()->hasPermission('structure.scope.manage_all') || (int) $party->id === (int) $user->party_id,
+                    403,
+                    'ربط الحساب بطرف جديد يتطلب صلاحية إدارة نطاق الهيكل بالكامل.'
+                );
                 abort_unless(
                     $party->partyRoles->contains(fn ($partyRole) => in_array($partyRole->role, Party::LOGIN_ROLES, true)),
                     422,
