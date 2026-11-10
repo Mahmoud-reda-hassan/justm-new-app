@@ -50,7 +50,7 @@ class ProductCatalogSettingsTest extends TestCase
 
         $child = ProductCategory::query()->where('name', 'قمصان')->firstOrFail();
         $this->assertSame($parent->id, $child->parent_id);
-        $this->get(route('admin.catalog.categories'))->assertOk()->assertSee('ملابس')->assertSee('قمصان');
+        $this->get(route('admin.catalog.categories'))->assertOk()->assertSee('ملابس')->assertSee('قمصان')->assertSee('data-category-depth="1"', false)->assertSee('expandCategoryTree', false)->assertSee('collapseCategoryTree', false);
     }
 
     public function test_category_cannot_be_moved_under_its_descendant(): void
