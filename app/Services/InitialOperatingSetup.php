@@ -1,18 +1,18 @@
 <?php
 
-namespace App\\Services;
+namespace App\Services;
 
-use App\\Models\\Branch;
-use App\\Models\\City;
-use App\\Models\\Company;
-use App\\Models\\Country;
-use App\\Models\\Governorate;
-use App\\Models\\Region;
-use App\\Models\\SystemSetting;
-use App\\Models\\Warehouse;
-use App\\Models\\WarehouseType;
-use Illuminate\\Support\\Facades\\DB;
-use Illuminate\\Validation\\ValidationException;
+use App\Models\Branch;
+use App\Models\City;
+use App\Models\Company;
+use App\Models\Country;
+use App\Models\Governorate;
+use App\Models\Region;
+use App\Models\SystemSetting;
+use App\Models\Warehouse;
+use App\Models\WarehouseType;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class InitialOperatingSetup
 {
