@@ -4,6 +4,8 @@ use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Admin\DatabaseUpdateController;
 use App\Http\Controllers\Admin\OperatingStructureController;
 use App\Http\Controllers\Admin\ProductCatalogController;
+use App\Http\Controllers\Admin\ProductController;
+use App\Http\Controllers\Admin\ProductAttributeController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -90,6 +92,27 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/warehouses', [OperatingStructureController::class, 'storeWarehouse'])->middleware('permission:warehouses.create')->name('warehouses.store');
         Route::put('/warehouses/{warehouse}', [OperatingStructureController::class, 'updateWarehouse'])->middleware('permission:warehouses.update')->name('warehouses.update');
         Route::patch('/warehouses/{warehouse}/active', [OperatingStructureController::class, 'setWarehouseActive'])->middleware('permission:warehouses.activate')->name('warehouses.active');
+    });
+
+    Route::prefix('admin/products')->name('admin.products.')->group(function (): void {
+        Route::get('/', [ProductController::class, 'index'])->middleware('permission:products.view')->name('index');
+        Route::post('/', [ProductController::class, 'store'])->middleware('permission:products.create')->name('store');
+        Route::put('/{product}', [ProductController::class, 'update'])->middleware('permission:products.update')->name('update');
+        Route::patch('/{product}/active', [ProductController::class, 'setActive'])->middleware('permission:products.activate')->name('active');
+        Route::patch('/{product}/visible', [ProductController::class, 'setVisible'])->middleware('permission:products.update')->name('visible');
+        Route::post('/{product}/variants', [ProductController::class, 'storeVariant'])->middleware('permission:products.create')->name('variants.store');
+        Route::put('/{product}/variants/{variant}', [ProductController::class, 'updateVariant'])->middleware('permission:products.update')->name('variants.update');
+        Route::patch('/{product}/variants/{variant}/active', [ProductController::class, 'setVariantActive'])->middleware('permission:products.activate')->name('variants.active');
+    });
+
+    Route::prefix('admin/product-attributes')->name('admin.product-attributes.')->group(function (): void {
+        Route::get('/', [ProductAttributeController::class, 'index'])->middleware('permission:product_attributes.view')->name('index');
+        Route::post('/groups', [ProductAttributeController::class, 'storeGroup'])->middleware('permission:product_attributes.create')->name('groups.store');
+        Route::put('/groups/{group}', [ProductAttributeController::class, 'updateGroup'])->middleware('permission:product_attributes.update')->name('groups.update');
+        Route::patch('/groups/{group}/active', [ProductAttributeController::class, 'setGroupActive'])->middleware('permission:product_attributes.activate')->name('groups.active');
+        Route::post('/groups/{group}/values', [ProductAttributeController::class, 'storeValue'])->middleware('permission:product_attributes.create')->name('values.store');
+        Route::put('/values/{value}', [ProductAttributeController::class, 'updateValue'])->middleware('permission:product_attributes.update')->name('values.update');
+        Route::patch('/values/{value}/active', [ProductAttributeController::class, 'setValueActive'])->middleware('permission:product_attributes.activate')->name('values.active');
     });
 
     Route::prefix('admin/catalog')->name('admin.catalog.')->group(function (): void {

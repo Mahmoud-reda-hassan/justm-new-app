@@ -59,8 +59,8 @@ class ProductCatalogController extends Controller
         $this->authorizePermission($request, 'product_categories.activate');
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
 
-        if (! $data['is_active'] && $category->children()->where('is_active', true)->exists()) {
-            throw ValidationException::withMessages(['category' => 'لا يمكن إيقاف تصنيف له تصنيفات فرعية نشطة.']);
+        if (! $data['is_active'] && ($category->children()->where('is_active', true)->exists() || $category->products()->where('is_active', true)->exists())) {
+            throw ValidationException::withMessages(['category' => 'لا يمكن إيقاف تصنيف له تصنيفات فرعية أو منتجات نشطة.']);
         }
 
         $category->update(['is_active' => (bool) $data['is_active']]);
@@ -108,6 +108,9 @@ class ProductCatalogController extends Controller
     {
         $this->authorizePermission($request, 'units.activate');
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
+        if (! $data['is_active'] && $unit->products()->where('is_active', true)->exists()) {
+            throw ValidationException::withMessages(['unit' => 'لا يمكن إيقاف وحدة قياس مستخدمة في منتجات نشطة.']);
+        }
         $unit->update(['is_active' => (bool) $data['is_active']]);
 
         return back()->with('status', 'تم تحديث حالة وحدة القياس.');
