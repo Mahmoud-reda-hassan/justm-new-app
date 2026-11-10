@@ -44,7 +44,7 @@ class OperatingStructureController extends Controller
             'city_id' => ['nullable', 'integer', 'exists:cities,id'],
             'address' => ['nullable', 'string', 'max:2000'],
         ]);
-        Company::create($data + ['is_active' => true]);
+        $company = Company::create($data + ['is_active' => true]);\n        if (! $request->user()->hasPermission('structure.scope.manage_all')) {\n            $request->user()->dataScopes()->create(['scope_type' => 'company', 'scope_id' => $company->id]);\n        }
 
         return back()->with('status', 'تم إنشاء الشركة.');
     }
@@ -122,7 +122,7 @@ class OperatingStructureController extends Controller
             'address' => ['nullable', 'string', 'max:255'],
             'is_main' => ['sometimes', 'boolean'],
         ]);
-        $this->assertCompanyScope($request, Company::query()->findOrFail($data['company_id']));
+        $this->assertCompanyScope($request, Company::query()->findOrFail($data['company_id']), $branch);
         $manager->update($branch, $data);
 
         return back()->with('status', 'تم تحديث بيانات الفرع.');
@@ -133,7 +133,7 @@ class OperatingStructureController extends Controller
         $this->authorizePermission($request, 'branches.activate');
         $this->assertBranchScope($request, $branch);
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
-        if (! $data['is_active'] && $branch->warehouses()->where('is_active', true)->exists()) {
+        if (! $data['is_active'] && $branch->is_main && $branch->company->is_active) {\n            throw ValidationException::withMessages(['branch' => 'حدد فرعًا رئيسيًا بديلًا قبل إيقاف الفرع الرئيسي الحالي.']);\n        }\n        if (! $data['is_active'] && $branch->warehouses()->where('is_active', true)->exists()) {
             throw ValidationException::withMessages(['branch' => 'لا يمكن إيقاف فرع لديه مخازن نشطة؛ أوقف المخازن أولًا.']);
         }
         $branch->update(['is_active' => (bool) $data['is_active']]);
