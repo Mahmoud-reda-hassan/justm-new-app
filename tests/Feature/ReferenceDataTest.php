@@ -72,6 +72,43 @@ class ReferenceDataTest extends TestCase
         $this->assertDatabaseCount('branches', 2);
     }
 
+    public function test_branch_manager_keeps_only_one_main_branch_per_company(): void
+    {
+        $company = Company::create(['name' => 'Main Company']);
+        $manager = app(BranchManager::class);
+
+        $first = $manager->create([
+            'company_id' => $company->id,
+            'name' => 'First branch',
+            'is_main' => true,
+        ]);
+        $second = $manager->create([
+            'company_id' => $company->id,
+            'name' => 'Second branch',
+            'is_main' => true,
+        ]);
+
+        $this->assertFalse($first->fresh()->is_main);
+        $this->assertTrue($second->fresh()->is_main);
+        $this->assertSame(1, Branch::query()->where('company_id', $company->id)->where('is_main', true)->count());
+    }
+
+    public function test_branch_with_warehouses_cannot_be_moved_to_another_company(): void
+    {
+        $firstCompany = Company::create(['name' => 'First Company']);
+        $secondCompany = Company::create(['name' => 'Second Company']);
+        $branch = Branch::create(['company_id' => $firstCompany->id, 'name' => 'Branch']);
+        $type = WarehouseType::create(['key' => 'branch-move-test', 'name' => 'Test']);
+        Warehouse::create([
+            'branch_id' => $branch->id,
+            'warehouse_type_id' => $type->id,
+            'name' => 'Warehouse',
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        app(BranchManager::class)->update($branch, ['company_id' => $secondCompany->id]);
+    }
+
     public function test_warehouse_name_is_unique_inside_its_branch(): void
     {
         $company = Company::create(['name' => 'Company']);
