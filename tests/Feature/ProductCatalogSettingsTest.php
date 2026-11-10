@@ -1,0 +1,108 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Permission;
+use App\Models\ProductCategory;
+use App\Models\Role;
+use App\Models\Unit;
+use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class ProductCatalogSettingsTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function userWith(array $keys): User
+    {
+        app(DatabaseSeeder::class)->run();
+        $user = User::query()->create([
+            'name' => 'Catalog Admin',
+            'username' => 'catalog-admin-'.uniqid(),
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+        $role = Role::query()->create(['name' => 'Catalog role', 'key' => 'catalog-role-'.uniqid(), 'is_active' => true]);
+        $role->permissions()->sync(Permission::query()->whereIn('key', $keys)->pluck('id'));
+        $user->roles()->attach($role);
+        return $user;
+    }
+
+    public function test_categories_can_be_nested_and_listed(): void
+    {
+        $user = $this->userWith(['product_categories.view', 'product_categories.create']);
+        $this->actingAs($user)->post(route('admin.catalog.categories.store'), [
+            'name' => 'ملابس',
+            'code' => 'CLOTHES',
+            'sort_order' => 1,
+        ])->assertSessionHasNoErrors();
+        $parent = ProductCategory::query()->where('name', 'ملابس')->firstOrFail();
+
+        $this->post(route('admin.catalog.categories.store'), [
+            'name' => 'قمصان',
+            'parent_id' => $parent->id,
+        ])->assertSessionHasNoErrors();
+
+        $child = ProductCategory::query()->where('name', 'قمصان')->firstOrFail();
+        $this->assertSame($parent->id, $child->parent_id);
+        $this->get(route('admin.catalog.categories'))->assertOk()->assertSee('ملابس')->assertSee('قمصان');
+    }
+
+    public function test_category_cannot_be_moved_under_its_descendant(): void
+    {
+        $user = $this->userWith(['product_categories.update']);
+        $parent = ProductCategory::query()->create(['name' => 'رئيسي']);
+        $child = ProductCategory::query()->create(['name' => 'فرعي', 'parent_id' => $parent->id]);
+
+        $this->actingAs($user)->put(route('admin.catalog.categories.update', $parent), [
+            'name' => 'رئيسي',
+            'parent_id' => $child->id,
+        ])->assertSessionHasErrors('parent_id');
+
+        $this->assertNull($parent->fresh()->parent_id);
+    }
+
+    public function test_category_with_active_children_cannot_be_deactivated(): void
+    {
+        $user = $this->userWith(['product_categories.activate']);
+        $parent = ProductCategory::query()->create(['name' => 'رئيسي']);
+        ProductCategory::query()->create(['name' => 'فرعي', 'parent_id' => $parent->id]);
+
+        $this->actingAs($user)->patch(route('admin.catalog.categories.active', $parent), [
+            'is_active' => 0,
+        ])->assertSessionHasErrors('category');
+
+        $this->assertTrue($parent->fresh()->is_active);
+    }
+
+    public function test_units_store_precision_and_symbol(): void
+    {
+        $user = $this->userWith(['units.view', 'units.create', 'units.update']);
+        $this->actingAs($user)->post(route('admin.catalog.units.store'), [
+            'name' => 'كيلوجرام',
+            'symbol' => 'كجم',
+            'decimal_places' => 3,
+        ])->assertSessionHasNoErrors();
+
+        $unit = Unit::query()->where('name', 'كيلوجرام')->firstOrFail();
+        $this->assertSame(3, $unit->decimal_places);
+        $this->put(route('admin.catalog.units.update', $unit), [
+            'name' => 'كيلوجرام',
+            'symbol' => 'kg',
+            'decimal_places' => 4,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('kg', $unit->fresh()->symbol);
+        $this->assertSame(4, $unit->fresh()->decimal_places);
+    }
+
+    public function test_catalog_settings_routes_require_specific_permissions(): void
+    {
+        $user = $this->userWith([]);
+        $this->actingAs($user)->get(route('admin.catalog.categories'))->assertForbidden();
+        $this->get(route('admin.catalog.units'))->assertForbidden();
+    }
+}

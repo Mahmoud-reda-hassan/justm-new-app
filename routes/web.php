@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Admin\DatabaseUpdateController;
 use App\Http\Controllers\Admin\OperatingStructureController;
+use App\Http\Controllers\Admin\ProductCatalogController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -89,6 +90,18 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/warehouses', [OperatingStructureController::class, 'storeWarehouse'])->middleware('permission:warehouses.create')->name('warehouses.store');
         Route::put('/warehouses/{warehouse}', [OperatingStructureController::class, 'updateWarehouse'])->middleware('permission:warehouses.update')->name('warehouses.update');
         Route::patch('/warehouses/{warehouse}/active', [OperatingStructureController::class, 'setWarehouseActive'])->middleware('permission:warehouses.activate')->name('warehouses.active');
+    });
+
+    Route::prefix('admin/catalog')->name('admin.catalog.')->group(function (): void {
+        Route::get('/categories', [ProductCatalogController::class, 'categories'])->middleware('permission:product_categories.view')->name('categories');
+        Route::post('/categories', [ProductCatalogController::class, 'storeCategory'])->middleware('permission:product_categories.create')->name('categories.store');
+        Route::put('/categories/{category}', [ProductCatalogController::class, 'updateCategory'])->middleware('permission:product_categories.update')->name('categories.update');
+        Route::patch('/categories/{category}/active', [ProductCatalogController::class, 'setCategoryActive'])->middleware('permission:product_categories.activate')->name('categories.active');
+
+        Route::get('/units', [ProductCatalogController::class, 'units'])->middleware('permission:units.view')->name('units');
+        Route::post('/units', [ProductCatalogController::class, 'storeUnit'])->middleware('permission:units.create')->name('units.store');
+        Route::put('/units/{unit}', [ProductCatalogController::class, 'updateUnit'])->middleware('permission:units.update')->name('units.update');
+        Route::patch('/units/{unit}/active', [ProductCatalogController::class, 'setUnitActive'])->middleware('permission:units.activate')->name('units.active');
     });
 
     Route::prefix('admin/parties')->name('admin.parties.')->group(function (): void {
