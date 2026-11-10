@@ -74,6 +74,9 @@ class AccessControlController extends Controller
 
         $actor = $request->user();
         if (! $actor->hasPermission('structure.scope.manage_all')) {
+            abort_unless($actor->dataScopes()->exists(), 403,
+                'لا يمكن إنشاء مستخدم قبل تحديد نطاق البيانات المسموح لك بإدارته.');
+
             $user->dataScopes()->createMany(
                 $actor->dataScopes()->get(['scope_type', 'scope_id'])->map(fn ($scope) => [
                     'scope_type' => $scope->scope_type,
