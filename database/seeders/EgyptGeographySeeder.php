@@ -1,12 +1,12 @@
 <?php
 
-namespace Database\\Seeders;
+namespace Database\Seeders;
 
-use App\\Models\\City;
-use App\\Models\\Country;
-use App\\Models\\Governorate;
-use App\\Models\\Region;
-use Illuminate\\Database\\Seeder;
+use App\Models\City;
+use App\Models\Country;
+use App\Models\Governorate;
+use App\Models\Region;
+use Illuminate\Database\Seeder;
 use RuntimeException;
 
 class EgyptGeographySeeder extends Seeder
