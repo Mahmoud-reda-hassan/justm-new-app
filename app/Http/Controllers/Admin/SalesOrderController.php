@@ -34,6 +34,10 @@ class SalesOrderController extends Controller
     public function create(Request $request): View
     {
         $customers = Party::query()
+            ->with([
+                'phones' => fn ($query) => $query->where('is_active', true)->orderByDesc('is_primary')->orderBy('id'),
+                'addresses' => fn ($query) => $query->where('is_active', true)->with('city')->orderByDesc('is_primary')->orderBy('id'),
+            ])
             ->where('is_active', true)
             ->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'customer'))
             ->orderBy('name')
