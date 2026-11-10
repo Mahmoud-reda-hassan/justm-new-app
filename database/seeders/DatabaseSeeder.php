@@ -51,8 +51,9 @@ class DatabaseSeeder extends Seeder
 
         $role->permissions()->syncWithoutDetaching($permissions->modelKeys());
 
-        // These two types are established by the legacy warehouse workflow.
-        // No companies, branches, warehouses, or geographic sample records are seeded.
+        // Import the approved geographic reference data only; no operating entities are created.
+        $this->call(EgyptGeographySeeder::class);
+
         WarehouseType::query()->updateOrCreate(
             ['key' => 'internal'],
             [
