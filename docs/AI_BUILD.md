@@ -3937,3 +3937,13 @@
 - **الملفات:** resources/views/admin/products/attributes.blade.php، resources/views/admin/system/database-updates.blade.php، tests/Feature/ProductManagementTest.php، tests/Feature/DatabaseUpdatePageTest.php.
 - **التحقق:** نتيجة CI بعد هذه التغييرات لم تُراجع بعد. لم تتم معاينة المتصفح.
 - **لم يحدث:** لا تشغيل migrations أو seeders، ولا تعديل قاعدة بيانات الاستضافة، ولا نشر أو دمج إلى main.
+
+
+## استعادة طريقة تصفح المستخدمين القديمة مع نموذج الصلاحيات الجديد — 2026-11-11
+
+- بعد مراجعة main تبيّن أن دليل المستخدمين القديم كان بطاقات مع بحث وفلاتر، لذلك لم يكن تحويله إلى جدول فقط مطابقًا لتجربة الاستخدام المطلوبة.
+- استُعيد عرض البطاقات، وأضيف بحث بالاسم/الدخول/البريد/الهاتف، وفلاتر صفة الطرف والحالة ونوع الارتباط ومجموعة الصلاحيات.
+- أضيفت الفلاتر في AccessControlController بعد تقييد الحسابات بنطاق المدير؛ لا تعتمد على account_type لمنح أو كشف صلاحيات، وتستخدم Party::assignedRoles() لتوحيد sales_intermediary التاريخية تحت marketer.
+- أضيف اختبار للتحقق من البحث والفلاتر وعدم ظهور حساب داخلي غير مطابق.
+- **الملفات:** app/Http/Controllers/Admin/AccessControlController.php، resources/views/admin/access/users.blade.php، tests/Feature/AccessControlManagementTest.php، docs/AUTH_ACCESS_CONTROL_IMPLEMENTATION_AR.md.
+- نتيجة CI بعد التعديل لم تُراجع بعد، ولا توجد معاينة متصفح.
