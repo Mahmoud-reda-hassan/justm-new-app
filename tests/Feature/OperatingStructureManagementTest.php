@@ -138,6 +138,39 @@ class OperatingStructureManagementTest extends TestCase
         $this->assertTrue($company->fresh()->is_active);
     }
 
+    public function test_access_administrator_can_delegate_catalog_permissions_but_not_to_own_role(): void
+    {
+        $admin = $this->userWith(['permissions.catalog.assign', 'permissions.groups.assign', 'users.assign_groups']);
+        $target = User::create([
+            'name' => 'Scoped Operator',
+            'username' => 'delegated-operator',
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+        $role = Role::create(['name' => 'Company operator', 'key' => 'company-operator', 'is_active' => true]);
+        $permission = Permission::query()->where('key', 'companies.view')->firstOrFail();
+
+        $this->actingAs($admin)->put(route('admin.access.roles.permissions', $role), [
+            'permissions' => [$permission->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->put(route('admin.access.users.roles', $target), [
+            'roles' => [$role->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue($target->fresh()->hasPermission('companies.view'));
+
+        $ownRole = $admin->roles()->firstOrFail();
+        $this->put(route('admin.access.roles.permissions', $ownRole), [
+            'permissions' => [$permission->id],
+        ])->assertStatus(422);
+
+        $this->put(route('admin.access.users.roles', $admin), [
+            'roles' => [$role->id],
+        ])->assertStatus(422);
+    }
+
     public function test_data_scope_assignment_is_audited(): void
     {
         $admin = $this->userWith(['users.assign_scopes', 'structure.scope.manage_all']);
