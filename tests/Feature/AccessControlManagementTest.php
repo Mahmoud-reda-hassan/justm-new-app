@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Permission;
+use App\Models\Company;
+use App\Models\Branch;
+use App\Models\UserDataScope;
 use App\Models\PermissionAudit;
 use App\Models\Role;
 use App\Models\User;
