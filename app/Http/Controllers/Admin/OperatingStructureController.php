@@ -124,7 +124,11 @@ class OperatingStructureController extends Controller
             'is_main' => ['sometimes', 'boolean'],
         ]);
         $this->assertCompanyScope($request, Company::query()->findOrFail($data['company_id']), $branch);
-        $manager->update($branch, $data);
+        try {
+            $manager->update($branch, $data);
+        } catch (\RuntimeException $exception) {
+            throw ValidationException::withMessages(['company_id' => $exception->getMessage()]);
+        }
 
         return back()->with('status', 'تم تحديث بيانات الفرع.');
     }
