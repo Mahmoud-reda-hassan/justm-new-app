@@ -1,19 +1,11 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>مجموعات الصلاحيات</title>
-    <style>
-        body{font-family:Tahoma,Arial,sans-serif;background:#f5f6f8;color:#222;margin:0;padding:24px}
-        main{max-width:1100px;margin:auto} section{background:#fff;padding:18px;margin:0 0 18px;border:1px solid #ddd;border-radius:8px}
-        input,button,textarea{padding:9px;margin:4px;border:1px solid #bbb;border-radius:5px} button{cursor:pointer}
-        .module{display:inline-block;vertical-align:top;min-width:220px;padding:8px;margin:5px;border:1px solid #ddd}
-        .status{padding:10px;background:#e8f5e9;margin-bottom:12px}.notice{padding:12px;background:#fff4d6;border:1px solid #ead18b;border-radius:6px;margin-top:12px} h1,h2{margin-top:0}
-    </style>
-</head>
-<body><main>
-    <h1>مجموعات الصلاحيات</h1>
+@extends('layouts.app')
+
+@section('title', 'مجموعات الصلاحيات')
+@section('page-title', 'مجموعات الصلاحيات')
+@section('breadcrumb', 'مجموعات الصلاحيات')
+
+@section('content')
+<h1>مجموعات الصلاحيات</h1>
     <p><a href="{{ route('admin.access.users') }}">إدارة المستخدمين</a> | <a href="{{ route('dashboard') }}">الرئيسية</a></p>
     @if (session('status')) <div class="status">{{ session('status') }}</div> @endif
     @if ($errors->any()) <section><ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></section> @endif
@@ -56,4 +48,4 @@
         </section>
     @endforeach
     {{ $roles->links() }}
-</main></body></html>
+@endsection
