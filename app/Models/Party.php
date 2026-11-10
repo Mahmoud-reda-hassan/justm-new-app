@@ -46,6 +46,16 @@ class Party extends Model
         return $this->hasMany(PartyRole::class);
     }
 
+    public function phones(): HasMany
+    {
+        return $this->hasMany(PartyPhone::class);
+    }
+
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(PartyAddress::class);
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
