@@ -15,6 +15,7 @@
 <body>
 <main>
     <h1>تسجيل الدخول</h1>
+    @if (session('status')) <p class="error">{{ session('status') }}</p> @endif
     @if ($errors->any()) <p class="error">{{ $errors->first() }}</p> @endif
     <form method="POST" action="{{ route('login.store') }}">
         @csrf
@@ -25,6 +26,7 @@
         <label><input type="checkbox" name="remember" value="1" style="width:auto"> تذكرني</label>
         <button type="submit">دخول</button>
     </form>
+    <p style="margin-top:1rem"><a href="{{ route('password.request') }}">نسيت كلمة المرور؟</a></p>
 </main>
 </body>
 </html>
