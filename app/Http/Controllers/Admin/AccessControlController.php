@@ -22,8 +22,11 @@ class AccessControlController extends Controller
     public function users(): View
     {
         return view('admin.access.users', [
-            'users' => User::query()->with('roles')->orderByDesc('id')->paginate(20),
+            'users' => User::query()->with(['roles', 'dataScopes'])->orderByDesc('id')->paginate(20),
             'roles' => Role::query()->where('is_active', true)->orderBy('name')->get(),
+            'companies' => \\App\\Models\\Company::query()->orderBy('name')->get(['id', 'name']),
+            'branches' => \\App\\Models\\Branch::query()->with('company')->orderBy('name')->get(['id', 'company_id', 'name']),
+            'warehouses' => \\App\\Models\\Warehouse::query()->with('branch')->orderBy('name')->get(['id', 'branch_id', 'name']),
         ]);
     }
 
