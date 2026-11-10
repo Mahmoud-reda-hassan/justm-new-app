@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\Auth\ProfileEmailController;
 use App\Http\Controllers\SetupController;
 use Illuminate\Support\Facades\Route;
 
@@ -34,6 +35,8 @@ Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 've
 
 Route::middleware('auth')->group(function (): void {
     Route::get('/email/verify', [EmailVerificationController::class, 'notice'])->name('verification.notice');
+    Route::get('/account/email', [ProfileEmailController::class, 'edit'])->name('account.email.edit');
+    Route::put('/account/email', [ProfileEmailController::class, 'update'])->middleware('throttle:5,1')->name('account.email.update');
     Route::post('/email/verification-notification', [EmailVerificationController::class, 'resend'])
         ->middleware('throttle:6,1')->name('verification.send');
     Route::view('/dashboard', 'dashboard')->name('dashboard');
