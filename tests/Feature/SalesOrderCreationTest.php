@@ -217,6 +217,26 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee('حفظ أمر البيع كمسودة');
     }
 
+    public function test_order_list_searches_by_order_number_and_customer(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        SalesOrder::query()->create([
+            'order_number' => 'SO-SEARCH-2026',
+            'customer_id' => $customer->id,
+            'created_by' => $user->id,
+            'status' => 'draft',
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total' => 100,
+        ]);
+
+        $this->actingAs($user)->get(route('admin.sales.orders.index', ['q' => 'SO-SEARCH-2026']))
+            ->assertOk()->assertSee('SO-SEARCH-2026')->assertSee($customer->name);
+        $this->get(route('admin.sales.orders.index', ['q' => 'غير موجود']))
+            ->assertOk()->assertDontSee('SO-SEARCH-2026');
+    }
+
     public function test_order_screens_require_explicit_sales_permissions(): void
     {
         $user = $this->userWithSalesPermission();
