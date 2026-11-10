@@ -33,7 +33,7 @@
 
 @section('content')
 <div class="dashboard-page">
-    @php($hasSpecialWorkspace = auth()->user()->party && auth()->user()->party->is_active && auth()->user()->party->partyRoles()->whereIn('role', \App\Models\Party::LOGIN_ROLES)->exists())
+    @php($hasSpecialWorkspace = auth()->user()->party && auth()->user()->party->is_active && auth()->user()->party->partyRoles()->whereIn('role', \App\Models\Party::WORKSPACE_ROLES)->exists())
     @php($hasAdminWorkspace = auth()->user()->hasPermission('users.view') || auth()->user()->hasPermission('permissions.groups.view') || auth()->user()->hasPermission('structure.scope.manage_all'))
     @if ($hasSpecialWorkspace || $hasAdminWorkspace)
         <div class="card card-outline card-primary mb-3"><div class="card-body d-flex flex-wrap align-items-center justify-content-between"><div><h3 class="h6 mb-1">مساحة المستخدمين المميزين</h3><p class="text-muted mb-0 small">الدخول إلى الوظائف التشغيلية المسندة إلى حسابك.</p></div><a href="{{ route('workspaces.index') }}" class="btn btn-primary mt-2 mt-md-0"><i class="fas fa-th-large ml-1"></i> دخول المستخدمين المميزين</a></div></div>
