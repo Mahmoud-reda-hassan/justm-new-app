@@ -49,6 +49,10 @@ class SetupWebTest extends TestCase
         $this->assertDatabaseHas('roles', ['key' => 'system-access-admin']);
         $this->assertDatabaseHas('warehouse_types', ['key' => 'internal']);
         $this->assertDatabaseHas('warehouse_types', ['key' => 'sales_dispatch']);
+        $this->assertDatabaseCount('countries', 1);
+        $this->assertDatabaseCount('regions', 7);
+        $this->assertDatabaseCount('governorates', 27);
+        $this->assertDatabaseCount('cities', 516);
     }
 
     public function test_initial_operating_setup_creates_the_required_hierarchy_and_site_name(): void
@@ -62,7 +66,7 @@ class SetupWebTest extends TestCase
             'setting_value' => 'Just-M للتجارة',
         ]);
         $this->assertDatabaseHas('countries', ['name_ar' => 'مصر', 'name_en' => 'Egypt']);
-        $this->assertDatabaseHas('governorates', ['name_ar' => 'القاهرة', 'name_en' => 'Cairo']);
+        $this->assertDatabaseHas('governorates', ['name_ar' => 'القاهره', 'name_en' => 'Cairo']);
         $this->assertDatabaseHas('cities', ['name_ar' => 'مدينة نصر', 'name_en' => 'Nasr City']);
         $this->assertDatabaseHas('companies', ['name' => 'شركة Just-M']);
         $this->assertDatabaseHas('branches', ['name' => 'المقر الرئيسي', 'is_main' => true]);
@@ -72,8 +76,8 @@ class SetupWebTest extends TestCase
         $this->assertSame(1, Branch::query()->count());
         $this->assertSame(1, Warehouse::query()->count());
         $this->assertSame(1, Country::query()->count());
-        $this->assertSame(1, Governorate::query()->count());
-        $this->assertSame(1, City::query()->count());
+        $this->assertSame(27, Governorate::query()->count());
+        $this->assertSame(516, City::query()->count());
     }
 
     public function test_existing_first_admin_can_complete_operating_setup_before_setup_locks(): void
@@ -112,7 +116,7 @@ class SetupWebTest extends TestCase
                 'password' => 'secure-password-123',
                 'password_confirmation' => 'secure-password-123',
             ])
-            ->assertSessionHasErrors(['company_name', 'branch_name', 'branch_address', 'country_name_ar', 'governorate_name_ar', 'city_name_ar']);
+            ->assertSessionHasErrors(['company_name', 'branch_name', 'branch_address', 'country_id', 'governorate_id', 'city_id']);
 
         $this->assertDatabaseCount('users', 0);
         $this->assertDatabaseCount('companies', 0);
@@ -134,13 +138,9 @@ class SetupWebTest extends TestCase
                 'company_phone' => '0222222222',
                 'branch_name' => 'المقر الرئيسي',
                 'branch_address' => 'شارع التحرير - القاهرة',
-                'country_name_ar' => 'مصر',
-                'country_name_en' => 'Egypt',
-                'region_name' => 'القاهرة الكبرى',
-                'governorate_name_ar' => 'القاهرة',
-                'governorate_name_en' => 'Cairo',
-                'city_name_ar' => 'مدينة نصر',
-                'city_name_en' => 'Nasr City',
+                'country_id' => Country::query()->where('name_ar', 'مصر')->value('id'),
+                'governorate_id' => Governorate::query()->where('name_ar', 'القاهره')->value('id'),
+                'city_id' => City::query()->where('name_ar', 'مدينة نصر')->value('id'),
                 'warehouse_name' => 'المخزن الرئيسي',
                 'warehouse_type' => 'sales_dispatch',
             ])
@@ -222,13 +222,9 @@ class SetupWebTest extends TestCase
         return $this->withSession(['justm_setup_authorized_at' => now()->timestamp])
             ->post('/setup/operating-data', [
                 'site_name' => 'Just-M للتجارة',
-                'country_name_ar' => 'مصر',
-                'country_name_en' => 'Egypt',
-                'region_name' => 'القاهرة الكبرى',
-                'governorate_name_ar' => 'القاهرة',
-                'governorate_name_en' => 'Cairo',
-                'city_name_ar' => 'مدينة نصر',
-                'city_name_en' => 'Nasr City',
+                'country_id' => Country::query()->where('name_ar', 'مصر')->value('id'),
+                'governorate_id' => Governorate::query()->where('name_ar', 'القاهره')->value('id'),
+                'city_id' => City::query()->where('name_ar', 'مدينة نصر')->value('id'),
                 'company_name' => 'شركة Just-M',
                 'company_phone' => '0222222222',
                 'company_mobile' => '01000000000',
