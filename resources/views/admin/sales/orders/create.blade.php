@@ -54,7 +54,7 @@
                         @foreach($customers as $customer)
                             <div data-customer-id="{{ $customer->id }}">
                                 @foreach($customer->addresses as $address)
-                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}"></span>
+                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}" data-zone="{{ $address->city?->shippingZone?->name_ar }}" data-fee-min="{{ $address->city?->shippingZone?->shipping_fee_min }}" data-fee-max="{{ $address->city?->shippingZone?->shipping_fee_max }}" data-delivery-days="{{ $address->city?->shippingZone?->delivery_days }}"></span>
                                 @endforeach
                             </div>
                         @endforeach
@@ -63,6 +63,7 @@
                 <div class="form-group col-lg-3">
                     <label for="shipping_fee">رسوم الشحن</label>
                     <input class="form-control" type="number" name="shipping_fee" id="shipping_fee" min="0" step="0.01" value="0">
+                    <small class="form-text text-muted" id="shipping-route-hint">اختر عنوانًا لمعرفة منطقة الشحن والرسوم ومدة التوصيل.</small>
                 </div>
                 <div class="form-group col-md-5">
                     <label for="customer-address-select">العناوين المحفوظة للعميل</label>
@@ -154,7 +155,11 @@
             id: node.dataset.id,
             title: node.dataset.title,
             address: node.dataset.addressText,
-            city: node.dataset.city
+            city: node.dataset.city,
+            zone: node.dataset.zone,
+            feeMin: node.dataset.feeMin,
+            feeMax: node.dataset.feeMax,
+            deliveryDays: node.dataset.deliveryDays
         }));
         return map;
     }, {});
@@ -178,6 +183,7 @@
             });
             $('shipping_address_id').value = addresses[0].id;
             $('shipping_address').value = addresses[0].address;
+            applyShippingRoute(addresses[0]);
         } else {
             select.disabled = true;
             const option = document.createElement('option');
@@ -186,6 +192,25 @@
             select.appendChild(option);
             $('shipping_address_id').value = '';
             $('shipping_address').value = selectedCustomer?.dataset.address || '';
+            $('shipping-route-hint').textContent = 'لا يوجد عنوان محفوظ مرتبط بمنطقة شحن؛ أضف عنوانًا للعميل واربط مدينته بمنطقة شحن أولًا.';
+            $('shipping_fee').value = 0;
+            $('shipping_fee').min = 0;
+            $('shipping_fee').removeAttribute('max');
+        }
+    };
+    const applyShippingRoute = address => {
+        const fee = $('shipping_fee');
+        const hint = $('shipping-route-hint');
+        if (address.zone && address.feeMin !== '' && address.feeMax !== '') {
+            fee.min = address.feeMin;
+            fee.max = address.feeMax;
+            fee.value = address.feeMin;
+            hint.textContent = 'منطقة الشحن: ' + address.zone + ' — الرسوم من ' + money(address.feeMin) + ' إلى ' + money(address.feeMax) + ' جنيه — مدة التوصيل المتوقعة: ' + address.deliveryDays + ' يوم';
+        } else {
+            fee.value = 0;
+            fee.min = 0;
+            fee.removeAttribute('max');
+            hint.textContent = 'لا توجد منطقة شحن نشطة مرتبطة بمدينة هذا العنوان. لن يمكن حفظ الأمر قبل إعداد منطقة الشحن والمخزن المرتبط بها.';
         }
     };
     $('customer_id').addEventListener('change', renderCustomerAddresses);
@@ -194,6 +219,7 @@
         if (address) {
             $('shipping_address_id').value = address.id;
             $('shipping_address').value = address.address;
+            applyShippingRoute(address);
         }
     });
     renderCustomerAddresses();
