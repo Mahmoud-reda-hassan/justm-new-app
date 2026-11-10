@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\City;
+use App\Models\Country;
+use App\Models\Governorate;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\InitialOperatingSetup;
