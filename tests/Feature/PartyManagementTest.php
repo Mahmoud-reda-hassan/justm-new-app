@@ -14,7 +14,7 @@ class PartyManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function userWith(array $permissions): User
+    private function userWith(array $permissions, bool $globalScope = true): User
     {
         app(DatabaseSeeder::class)->run();
 
@@ -26,7 +26,8 @@ class PartyManagementTest extends TestCase
             'is_active' => true,
         ]);
         $role = Role::create(['name' => 'Party role', 'key' => 'party-role-'.uniqid(), 'is_active' => true]);
-        $role->permissions()->sync(Permission::query()->whereIn('key', $permissions)->pluck('id'));
+        $permissionKeys = $globalScope ? array_values(array_unique([...$permissions, 'structure.scope.manage_all'])) : $permissions;
+        $role->permissions()->sync(Permission::query()->whereIn('key', $permissionKeys)->pluck('id'));
         $user->roles()->attach($role);
 
         return $user;
@@ -189,6 +190,14 @@ class PartyManagementTest extends TestCase
         ])->assertForbidden();
 
         $this->assertDatabaseMissing('users', ['username' => 'scoped-marketer-login']);
+    }
+
+
+    public function test_party_directory_is_not_visible_to_a_user_without_global_party_scope(): void
+    {
+        $user = $this->userWith(['parties.view'], false);
+
+        $this->actingAs($user)->get(route('admin.parties.index'))->assertForbidden();
     }
 
     public function test_party_must_have_at_least_one_valid_role(): void

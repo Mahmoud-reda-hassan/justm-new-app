@@ -129,5 +129,10 @@ class PartyController extends Controller
     private function authorizePermission(Request $request, string $permission): void
     {
         abort_unless($request->user()?->hasPermission($permission), 403);
+        abort_unless(
+            $request->user()?->hasPermission('structure.scope.manage_all'),
+            403,
+            'إدارة الأطراف تتطلب نطاقًا شاملًا حتى يكتمل ربط الأطراف بنطاق الشركة والفرع.'
+        );
     }
 }
