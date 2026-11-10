@@ -58,6 +58,24 @@ class OperatingStructureManagementTest extends TestCase
         $response->assertSee('نطاق البيانات');
     }
 
+    public function test_structure_screens_use_adminlte_tables_and_modal_forms(): void
+    {
+        $user = $this->userWith([
+            'companies.view', 'branches.view', 'warehouses.view', 'structure.scope.manage_all',
+            'companies.create', 'branches.create', 'warehouses.create',
+        ]);
+
+        $this->actingAs($user)->get(route('admin.structure.companies'))
+            ->assertOk()->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('createCompanyModal', false);
+        $this->get(route('admin.structure.branches'))
+            ->assertOk()->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('createBranchModal', false);
+        $this->get(route('admin.structure.warehouses'))
+            ->assertOk()->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('createWarehouseModal', false);
+    }
+
     public function test_company_creation_is_available_only_with_create_permission(): void
     {
         $user = $this->userWith(['companies.create']);
