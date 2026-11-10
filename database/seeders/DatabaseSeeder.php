@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\WarehouseType;
 use Illuminate\Database\Seeder;
 use RuntimeException;
 
@@ -49,5 +50,25 @@ class DatabaseSeeder extends Seeder
         }
 
         $role->permissions()->syncWithoutDetaching($permissions->modelKeys());
+
+        // These two types are established by the legacy warehouse workflow.
+        // No companies, branches, warehouses, or geographic sample records are seeded.
+        WarehouseType::query()->updateOrCreate(
+            ['key' => 'internal'],
+            [
+                'name' => 'مخزن عادي',
+                'description' => 'مخزن مخصص للتحويلات الداخلية بين المخازن.',
+                'is_active' => true,
+            ],
+        );
+
+        WarehouseType::query()->updateOrCreate(
+            ['key' => 'sales_dispatch'],
+            [
+                'name' => 'مخزن بيع مباشر',
+                'description' => 'مخزن يصدر منه الصرف المرتبط بأوامر البيع والتسليم لجهات التوصيل.',
+                'is_active' => true,
+            ],
+        );
     }
 }
