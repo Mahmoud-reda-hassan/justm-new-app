@@ -80,6 +80,38 @@ class SalesOrderController extends Controller
             throw ValidationException::withMessages(['customer_id' => 'العميل غير نشط أو لا يحمل صفة عميل.']);
         }
 
+        $shippingAddress = PartyAddress::query()
+            ->with(['city.shippingZone.warehouse.branch.company', 'city.shippingZone.warehouse.type'])
+            ->whereKey($data['shipping_address_id'])
+            ->where('party_id', $customer->id)
+            ->where('is_active', true)
+            ->first();
+
+        $zone = $shippingAddress?->city?->shippingZone;
+        $warehouse = $zone?->warehouse;
+        if (
+            ! $shippingAddress
+            || ! $shippingAddress->city?->is_active
+            || ! $zone
+            || ! $zone->is_active
+            || ! $warehouse
+            || ! $warehouse->is_active
+            || ! $warehouse->branch?->is_active
+            || ! $warehouse->branch?->company?->is_active
+            || $warehouse->type?->key !== 'sales_dispatch'
+        ) {
+            throw ValidationException::withMessages([
+                'shipping_address_id' => 'عنوان التوصيل غير مرتبط بمنطقة شحن نشطة ومخزن بيع مباشر متاح. راجع إعداد الشحن المحلي.',
+            ]);
+        }
+
+        $shippingFee = round((float) $data['shipping_fee'], 2);
+        if ($shippingFee < (float) $zone->shipping_fee_min || $shippingFee > (float) $zone->shipping_fee_max) {
+            throw ValidationException::withMessages([
+                'shipping_fee' => 'رسوم الشحن يجب أن تكون بين '.number_format((float) $zone->shipping_fee_min, 2).' و'.number_format((float) $zone->shipping_fee_max, 2).' جنيه حسب منطقة العنوان.',
+            ]);
+        }
+
         $preparedItems = [];
         $subtotal = 0.0;
         $discountTotal = 0.0;
@@ -156,6 +188,6 @@ class SalesOrderController extends Controller
             return $order;
         });
 
-        return redirect()->route('admin.sales.orders.create')->with('status', 'تم حفظ أمر البيع '.$order->order_number.' كمسودة. لم يتم حجز مخزون أو إنشاء قيد مالي.');
+        return redirect()->route('admin.sales.orders.create')->with('status', 'تم حفظ أمر البيع '.$order->order_number.' كمسودة. موعد الشحن '.$shippingDate.'، والمخزن '.$warehouse->name.'. لم يتم حجز مخزون أو إنشاء قيد مالي.');
     }
 }
