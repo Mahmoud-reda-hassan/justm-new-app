@@ -30,6 +30,14 @@ class ProvisionFirstAdmin extends Command
             return self::FAILURE;
         }
 
+        if (! Schema::hasTable('system_settings') || ! Schema::hasTable('companies') || ! Schema::hasTable('branches') || ! Schema::hasTable('warehouses')
+            || ! Company::query()->exists() || ! Branch::query()->exists() || ! Warehouse::query()->exists()
+            || ! filled(SystemSetting::query()->where('setting_key', 'site_name')->value('setting_value'))) {
+            $this->error('أكمل بيانات الموقع والدولة والمحافظة والمدينة والشركة والفرع والمخزن من معالج /setup أولًا.');
+
+            return self::FAILURE;
+        }
+
         if (User::query()->exists()) {
             $this->error('تم رفض العملية: يوجد مستخدم بالفعل. لا يمكن استخدام الإعداد الأولي مرة أخرى.');
 
@@ -70,8 +78,10 @@ class ProvisionFirstAdmin extends Command
 
         try {
             DB::transaction(function () use ($name, $username, $email, $password): void {
-                // Re-check inside the transaction to prevent two simultaneous bootstrap attempts.
-                if (User::query()->lockForUpdate()->exists()) {
+                // Re-check the bootstrap prerequisites and user state inside the transaction.
+                if (! Company::query()->exists() || ! Branch::query()->exists() || ! Warehouse::query()->exists()
+                    || ! filled(SystemSetting::query()->where('setting_key', 'site_name')->value('setting_value'))
+                    || User::query()->lockForUpdate()->exists()) {
                     throw new RuntimeException('A user already exists; first-admin provisioning is closed.');
                 }
 
