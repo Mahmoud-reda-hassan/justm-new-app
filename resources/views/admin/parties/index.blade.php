@@ -92,7 +92,7 @@ a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}.she
             <div><span class="party-code">{{ $party->code ? 'كود '.$party->code : 'بدون كود' }}</span><h3>{{ $party->name }}</h3><div class="party-type">{{ $party->entity_type==='company'?'شركة / مؤسسة':'فرد' }}</div></div>
             <span class="status {{ $party->is_active?'status-on':'status-off' }}">{{ $party->is_active?'نشط':'موقوف' }}</span>
         </div>
-        <div class="badges">@foreach($party->partyRoles as $partyRole)<span class="badge-role">{{ $partyRoles[$partyRole->role] ?? $partyRole->role }}</span>@endforeach</div>
+        <div class="badges">@foreach($party->assignedRoles() as $role)<span class="badge-role">{{ $partyRoles[$role] ?? $role }}</span>@endforeach</div>
         <div class="info-grid">
             <div class="info-item"><div class="info-label">الهاتف / المحمول</div><div class="info-value">{{ $party->phone ?: '—' }} {{ $party->mobile ?: '' }}</div></div>
             <div class="info-item"><div class="info-label">البريد الإلكتروني</div><div class="info-value">{{ $party->email ?: '—' }}</div></div>
@@ -136,7 +136,7 @@ a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}.she
                     <div class="field span-2"><label>العنوان</label><input name="address" value="{{ $party->address }}"></div>
                     <div class="field span-2"><label>ملاحظات</label><textarea name="notes">{{ $party->notes }}</textarea></div>
                 </div>
-                <div class="roles">@foreach($partyRoles as $key => $label)<label class="role-check"><input type="checkbox" name="roles[]" value="{{ $key }}" @checked($party->partyRoles->contains('role',$key))>{{ $label }}</label>@endforeach</div>
+                <div class="roles">@foreach($partyRoles as $key => $label)<label class="role-check"><input type="checkbox" name="roles[]" value="{{ $key }}" @checked(in_array($key, $party->assignedRoles(), true))>{{ $label }}</label>@endforeach</div>
                 <div class="form-actions"><button class="btn btn-primary" type="submit">حفظ التعديلات</button></div>
             </form>
         </details>
