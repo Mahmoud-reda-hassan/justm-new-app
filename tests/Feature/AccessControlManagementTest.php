@@ -13,7 +13,7 @@ class AccessControlManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function administratorWith(array $keys): User
+    private function administratorWith(array $keys, bool $globalScope = true): User
     {
         $user = User::create([
             'name' => 'Access Admin',
@@ -29,11 +29,85 @@ class AccessControlManagementTest extends TestCase
             'is_active' => true,
         ]);
 
-        $permissions = Permission::query()->whereIn('key', $keys)->get();
+        $permissions = Permission::query()->whereIn('key', array_values(array_unique([...$keys, ...($globalScope ? ['structure.scope.manage_all'] : [])])))->get();
         $role->permissions()->sync($permissions->modelKeys());
         $user->roles()->attach($role);
 
         return $user;
+    }
+
+
+    public function test_user_outside_actor_scope_cannot_be_updated(): void
+    {
+        $admin = $this->administratorWith(['users.update'], false);
+        $companyA = Company::create(['name' => 'Company A', 'is_active' => true]);
+        $companyB = Company::create(['name' => 'Company B', 'is_active' => true]);
+        UserDataScope::create(['user_id' => $admin->id, 'scope_type' => 'company', 'scope_id' => $companyA->id]);
+
+        $target = User::create([
+            'name' => 'Outside User',
+            'username' => 'outside-user',
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+        UserDataScope::create(['user_id' => $target->id, 'scope_type' => 'company', 'scope_id' => $companyB->id]);
+
+        $this->actingAs($admin)->put(route('admin.access.users.update', $target), [
+            'name' => 'Changed',
+            'username' => 'outside-user',
+            'email' => null,
+        ])->assertForbidden();
+
+        $this->assertSame('Outside User', $target->fresh()->name);
+    }
+
+    public function test_company_scope_can_assign_a_child_branch_to_an_unassigned_user(): void
+    {
+        $admin = $this->administratorWith(['users.assign_scopes'], false);
+        $company = Company::create(['name' => 'Scoped Company', 'is_active' => true]);
+        $branch = Branch::create([
+            'company_id' => $company->id,
+            'name' => 'Scoped Branch',
+            'is_main' => true,
+            'is_active' => true,
+        ]);
+        UserDataScope::create(['user_id' => $admin->id, 'scope_type' => 'company', 'scope_id' => $company->id]);
+
+        $target = User::create([
+            'name' => 'New Operator',
+            'username' => 'new-scoped-operator',
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->put(route('admin.access.users.scopes', $target), [
+            'branch_ids' => [$branch->id],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertTrue($target->fresh()->hasDataScope('branch', $branch->id));
+    }
+
+    public function test_unscoped_manager_cannot_manage_a_scoped_user(): void
+    {
+        $admin = $this->administratorWith(['users.assign_groups'], false);
+        $company = Company::create(['name' => 'Private Company', 'is_active' => true]);
+        $target = User::create([
+            'name' => 'Scoped Target',
+            'username' => 'scoped-target',
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+        UserDataScope::create(['user_id' => $target->id, 'scope_type' => 'company', 'scope_id' => $company->id]);
+        $role = Role::create(['name' => 'Basic', 'key' => 'basic-role', 'is_active' => true]);
+
+        $this->actingAs($admin)->put(route('admin.access.users.roles', $target), [
+            'roles' => [$role->id],
+        ])->assertForbidden();
+
+        $this->assertSame(0, $target->fresh()->roles()->count());
     }
 
     public function test_user_management_routes_require_their_specific_permission(): void
