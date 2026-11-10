@@ -10,7 +10,9 @@ use App\Models\Governorate;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\Warehouse;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class SetupWebTest extends TestCase
