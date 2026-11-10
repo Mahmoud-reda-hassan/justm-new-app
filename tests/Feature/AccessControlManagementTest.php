@@ -130,6 +130,26 @@ class AccessControlManagementTest extends TestCase
         $this->assertDatabaseMissing('users', ['username' => 'orphan-user']);
     }
 
+    public function test_permission_groups_screen_uses_native_adminlte_cards_and_permission_modules(): void
+    {
+        app(\Database\Seeders\DatabaseSeeder::class)->run();
+        $admin = $this->administratorWith([
+            'permissions.groups.view',
+            'permissions.groups.create',
+            'permissions.groups.update',
+            'permissions.groups.assign',
+            'permissions.catalog.assign',
+        ]);
+        $role = Role::create(['name' => 'مشغل المخزن', 'key' => 'warehouse-operator', 'is_active' => true]);
+
+        $this->actingAs($admin)->get(route('admin.access.roles'))
+            ->assertOk()
+            ->assertSee('card card-outline card-primary', false)
+            ->assertSee('card card-outline card-secondary', false)
+            ->assertSee('مشغل المخزن')
+            ->assertSee('حفظ صلاحيات المجموعة');
+    }
+
     public function test_user_management_routes_require_their_specific_permission(): void
     {
         $user = User::create([
