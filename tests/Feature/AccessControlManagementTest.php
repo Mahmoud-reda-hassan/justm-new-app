@@ -150,6 +150,31 @@ class AccessControlManagementTest extends TestCase
             ->assertSee('حفظ صلاحيات المجموعة');
     }
 
+    public function test_user_management_screen_uses_adminlte_table_and_modal_actions(): void
+    {
+        app(\Database\Seeders\DatabaseSeeder::class)->run();
+        $admin = $this->administratorWith([
+            'users.view', 'users.create', 'users.update', 'users.activate',
+            'users.assign_groups', 'users.assign_scopes', 'users.reset_password',
+        ]);
+        $target = User::create([
+            'name' => 'مشغل تجريبي',
+            'username' => 'modal-operator',
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.access.users'))
+            ->assertOk()
+            ->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('createUserModal', false)
+            ->assertSee('editUserModal'.$target->id, false)
+            ->assertSee('userRolesModal'.$target->id, false)
+            ->assertSee('userScopesModal'.$target->id, false)
+            ->assertSee('userPasswordModal'.$target->id, false);
+    }
+
     public function test_user_management_routes_require_their_specific_permission(): void
     {
         $user = User::create([
