@@ -1,12 +1,12 @@
 <?php
 
-namespace Database\\Seeders;
+namespace Database\Seeders;
 
-use App\\Models\\City;
-use App\\Models\\Country;
-use App\\Models\\Governorate;
-use App\\Models\\Region;
-use Illuminate\\Database\\Seeder;
+use App\Models\City;
+use App\Models\Country;
+use App\Models\Governorate;
+use App\Models\Region;
+use Illuminate\Database\Seeder;
 use RuntimeException;
 
 class EgyptGeographySeeder extends Seeder
@@ -39,7 +39,7 @@ class EgyptGeographySeeder extends Seeder
 
         $regions = [];
         foreach ($data['regions'] as $row) {
-            $shortName = preg_replace('/^إقليم\\s*/u', '', $row['name']);
+            $shortName = preg_replace('/^إقليم\s*/u', '', $row['name']);
             $matches = Region::query()->whereIn('name', array_unique([$row['name'], $shortName]))->get();
 
             if ($matches->count() > 1) {
