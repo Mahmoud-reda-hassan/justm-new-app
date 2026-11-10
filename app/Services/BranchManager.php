@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Company;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class BranchManager
 {
@@ -62,7 +63,7 @@ class BranchManager
             }
 
             if ($companyId !== (int) $current->company_id && $current->warehouses()->exists()) {
-                throw ValidationException::withMessages(['company_id' => 'لا يمكن نقل فرع مرتبط بمخازن إلى شركة أخرى.']);
+                throw new RuntimeException('لا يمكن نقل فرع مرتبط بمخازن إلى شركة أخرى.');
             }
 
             $isMain = (bool) ($attributes['is_main'] ?? $current->is_main);
