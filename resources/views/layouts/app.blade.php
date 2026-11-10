@@ -6,12 +6,50 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name')) | {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('vendor/justm/fontawesome.min.css') }}">
-    <link rel="stylesheet" href="{{ asset('vendor/justm/adminlte.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/bootstrap-rtl.css') }}">
+    <link rel="stylesheet" href="{{ asset('vendor/justm/adminlte.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/select2.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/sweetalert2.min.css') }}">
     <style>
         html,body{direction:rtl;text-align:right;font-family:Tahoma,Arial,sans-serif}
+        body{font-size:14px;color:#343a40;background:#f4f6f9}
+        .content-wrapper{background:#f4f6f9}
+        .content-header{padding:15px .5rem}
+        .content-header h1{font-size:1.45rem;font-weight:600;margin:0}
+        .content{padding:0 .5rem 1rem}
+        .content .shell,.content main,.content .wrap{max-width:none;width:100%;margin:0;padding:0}
+        .content section,.content .panel,.content .group-card{background:#fff;border:1px solid #dee2e6;border-radius:.25rem;padding:1rem;margin:0 0 1rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+        .content .head,.content .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 1rem;padding:0 0 .75rem;border-bottom:1px solid #dee2e6}
+        .content h1{font-size:1.35rem;font-weight:600;margin:0 0 .5rem}
+        .content h2{font-size:1.05rem;font-weight:600;margin:0 0 .85rem}
+        .content h3{font-size:1rem;font-weight:600}
+        .content p{margin-bottom:.75rem}
+        .content table{width:100%;background:#fff;border-collapse:collapse}
+        .content table th,.content table td{padding:.65rem .75rem;border-top:1px solid #dee2e6;vertical-align:middle}
+        .content table thead th{background:#f8f9fa;border-bottom:2px solid #dee2e6;font-weight:600;white-space:nowrap}
+        .content form:not(.form-inline){margin-bottom:.75rem}
+        .content input:not([type=checkbox]):not([type=radio]):not([type=hidden]),.content select,.content textarea{display:inline-block;max-width:100%;min-height:38px;padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.25rem;background:#fff;color:#495057;vertical-align:middle}
+        .content textarea{min-height:80px}
+        .content label{font-weight:600;margin:0 .25rem .4rem 0}
+        .content button,.content .btn,.content input[type=submit]{display:inline-block;padding:.375rem .75rem;border:1px solid #007bff;border-radius:.25rem;background:#007bff;color:#fff;font-weight:400;line-height:1.5;cursor:pointer}
+        .content button:hover,.content .btn:hover{background:#0069d9;color:#fff}
+        .content button:disabled{opacity:.65;cursor:not-allowed}
+        .content .alert{position:relative;padding:.75rem 1rem;margin:0 0 1rem;border:1px solid transparent;border-radius:.25rem}
+        .content .alert-success,.content .success,.content .status{background:#d4edda;color:#155724;border-color:#c3e6cb}
+        .content .alert-danger,.content .errors,.content .error{background:#f8d7da;color:#721c24;border-color:#f5c6cb}
+        .content .muted,.content .sub,.content .eyebrow{color:#6c757d}
+        .content .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;margin:0 0 1rem}
+        .content .stat{background:#fff;border:1px solid #dee2e6;border-right:3px solid #007bff;border-radius:.25rem;padding:.85rem}
+        .content .fields{display:flex;flex-wrap:wrap;gap:.75rem;align-items:end}
+        .content .field{display:flex;flex-direction:column;gap:.25rem;min-width:180px;flex:1}
+        .content .inline{display:inline-flex;align-items:center;gap:.35rem}
+        .content .nav,.content .top-links,.content .top-actions,.content .actions{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+        .content a{color:#007bff}
+        .content .status{display:inline-block;padding:.2rem .5rem;border-radius:.2rem}
+        .content .status.on{background:#d4edda;color:#155724}
+        .content .status.off{background:#f8d7da;color:#721c24}
+        .content .card{box-shadow:0 1px 2px rgba(0,0,0,.05)}
+        @media(max-width:767.98px){.content .head,.content .topbar{align-items:flex-start;flex-direction:column}.content table{display:block;overflow-x:auto;white-space:nowrap}.content .fields{display:block}.content .field{margin-bottom:.65rem}.content input:not([type=checkbox]):not([type=radio]):not([type=hidden]),.content select,.content textarea{width:100%}}
         body{background:#f4f6f9}
         .main-sidebar{right:0;left:auto}
         .content-wrapper,.main-footer,.main-header{margin-left:0!important;margin-right:250px}
