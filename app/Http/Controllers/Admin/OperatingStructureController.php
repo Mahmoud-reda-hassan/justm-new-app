@@ -138,7 +138,10 @@ class OperatingStructureController extends Controller
         $this->authorizePermission($request, 'branches.activate');
         $this->assertBranchScope($request, $branch);
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
-                if (! $data['is_active'] && $branch->warehouses()->where('is_active', true)->exists()) {
+                if ($data['is_active'] && ! $branch->company->is_active) {
+            throw ValidationException::withMessages(['branch' => 'لا يمكن تفعيل فرع تابع لشركة موقوفة.']);
+        }
+        if (! $data['is_active'] && $branch->warehouses()->where('is_active', true)->exists()) {
             throw ValidationException::withMessages(['branch' => 'لا يمكن إيقاف فرع لديه مخازن نشطة؛ أوقف المخازن أولًا.']);
         }
         $branch->update(['is_active' => (bool) $data['is_active']]);
@@ -215,6 +218,9 @@ class OperatingStructureController extends Controller
         $this->authorizePermission($request, 'warehouses.activate');
         $this->assertWarehouseScope($request, $warehouse);
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
+        if ($data['is_active'] && (! $warehouse->branch->is_active || ! $warehouse->branch->company->is_active)) {
+            throw ValidationException::withMessages(['warehouse' => 'لا يمكن تفعيل مخزن تابع لفرع أو شركة موقوفة.']);
+        }
         $warehouse->update(['is_active' => (bool) $data['is_active']]);
 
         return back()->with('status', 'تم تحديث حالة المخزن.');
