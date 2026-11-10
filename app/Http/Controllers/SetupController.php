@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\City;
 use App\Models\Company;
+use App\Models\Country;
+use App\Models\Governorate;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -241,11 +244,17 @@ class SetupController extends Controller
     {
         try {
             return Schema::hasTable('system_settings')
+                && Schema::hasTable('countries')
+                && Schema::hasTable('governorates')
+                && Schema::hasTable('cities')
                 && Schema::hasTable('companies')
                 && Schema::hasTable('branches')
                 && Schema::hasTable('warehouses')
+                && Country::query()->exists()
+                && Governorate::query()->exists()
+                && City::query()->exists()
                 && Company::query()->exists()
-                && Branch::query()->exists()
+                && Branch::query()->where('is_main', true)->exists()
                 && Warehouse::query()->exists()
                 && filled(SystemSetting::query()->where('setting_key', 'site_name')->value('setting_value'));
         } catch (Throwable $exception) {
