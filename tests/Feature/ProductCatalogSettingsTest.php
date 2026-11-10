@@ -99,6 +99,17 @@ class ProductCatalogSettingsTest extends TestCase
         $this->assertSame(4, $unit->fresh()->decimal_places);
     }
 
+
+    public function test_dashboard_shows_catalog_links_only_when_permissions_are_assigned(): void
+    {
+        $user = $this->userWith(['product_categories.view', 'units.view']);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(route('admin.catalog.categories'))
+            ->assertSee(route('admin.catalog.units'));
+    }
+
     public function test_catalog_settings_routes_require_specific_permissions(): void
     {
         $user = $this->userWith([]);
