@@ -178,6 +178,38 @@ class OperatingStructureManagementTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_inactive_company_cannot_reactivate_branch_or_warehouse(): void
+    {
+        app(DatabaseSeeder::class)->run();
+        $company = $this->company('شركة موقوفة');
+        $branch = app(BranchManager::class)->create([
+            'company_id' => $company->id,
+            'name' => 'فرع متوقف',
+            'is_main' => true,
+            'is_active' => false,
+        ]);
+        $warehouseTypeId = \\App\\Models\\WarehouseType::query()->where('key', 'internal')->value('id');
+        $warehouse = \\App\\Models\\Warehouse::create([
+            'branch_id' => $branch->id,
+            'warehouse_type_id' => $warehouseTypeId,
+            'name' => 'مخزن متوقف',
+            'is_active' => false,
+        ]);
+        $company->update(['is_active' => false]);
+        $user = $this->userWith(['branches.activate', 'warehouses.activate', 'structure.scope.manage_all']);
+
+        $this->actingAs($user)->patch(route('admin.structure.branches.active', $branch), [
+            'is_active' => 1,
+        ])->assertSessionHasErrors('branch');
+
+        $this->patch(route('admin.structure.warehouses.active', $warehouse), [
+            'is_active' => 1,
+        ])->assertSessionHasErrors('warehouse');
+
+        $this->assertFalse($branch->fresh()->is_active);
+        $this->assertFalse($warehouse->fresh()->is_active);
+    }
+
     public function test_data_scope_assignment_is_audited(): void
     {
         $admin = $this->userWith(['users.assign_scopes', 'structure.scope.manage_all']);
