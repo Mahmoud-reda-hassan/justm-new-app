@@ -35,25 +35,24 @@
                 <label><input type="checkbox" name="is_active" value="1" @checked($role->is_active)> نشطة</label>
                 <button>حفظ بيانات المجموعة</button>
             </form>
-            @if ($currentUserRoleIds->contains($role->id))
-                <div class="notice">
-                    <strong>مجموعة حسابك الحالي محمية.</strong>
-                    لا يمكن تعديل صلاحياتها من نفس الحساب؛ لتجهيز شاشات التشغيل أنشئ مجموعة جديدة من أعلى الصفحة، ثم اضبط صلاحيات المجموعة الجديدة.
-                </div>
-            @else
-                <form method="post" action="{{ route('admin.access.roles.permissions', $role) }}">@csrf @method('put')
-                    <h3>الصلاحيات المتاحة</h3>
-                    @foreach ($permissions->groupBy('module') as $module => $items)
-                        <div class="module"><strong>{{ $module }}</strong><br>
-                        @foreach ($items as $permission)
-                            <label><input type="checkbox" name="permissions[]" value="{{ $permission->id }}" @checked($role->permissions->contains('id', $permission->id))>
-                                {{ $permission->key }}</label><br>
-                        @endforeach
-                        </div>
+            <form method="post" action="{{ route('admin.access.roles.permissions', $role) }}">@csrf @method('put')
+                <h3>الصلاحيات المتاحة</h3>
+                @if ($currentUserRoleIds->contains($role->id) && $role->key === 'system-access-admin')
+                    <div class="notice">
+                        يمكنك إضافة صلاحيات التشغيل لمجموعتك. صلاحيات إدارة المستخدمين والوصول الأساسية محمية ولا يمكن حذفها أو إضافة صلاحيات إدارية حساسة جديدة من هذه المجموعة.
+                    </div>
+                @endif
+                @foreach ($permissions->groupBy('module') as $module => $items)
+                    <div class="module"><strong>{{ $module }}</strong><br>
+                    @foreach ($items as $permission)
+                        @php($protectedForCurrentAdmin = $currentUserRoleIds->contains($role->id) && $role->key === 'system-access-admin' && $protectedPermissionIds->contains($permission->id))
+                        <label><input type="checkbox" name="permissions[]" value="{{ $permission->id }}" @checked($role->permissions->contains('id', $permission->id)) @disabled($protectedForCurrentAdmin)>
+                            {{ $permission->key }} @if ($protectedForCurrentAdmin) (محمية) @endif</label><br>
                     @endforeach
-                    <button>حفظ الصلاحيات</button>
-                </form>
-            @endif
+                    </div>
+                @endforeach
+                <button>حفظ الصلاحيات</button>
+            </form>
         </section>
     @endforeach
     {{ $roles->links() }}
