@@ -138,6 +138,7 @@
 @push('scripts')
 <script>
 (() => {
+    const $ = id => document.getElementById(id);
     const customerAddresses = @json($customers->mapWithKeys(fn ($customer) => [$customer->id => $customer->addresses->map(fn ($address) => ['title' => $address->title, 'address' => $address->address, 'city' => $address->city?->name_ar])->values()])->all());
     const renderCustomerAddresses = () => {
         const select = $('customer-address-select');
@@ -173,7 +174,7 @@
     });
     renderCustomerAddresses();
 
-    const $ = id => document.getElementById(id);
+
     const steps = ['step-customer', 'step-products', 'step-review'];
     const items = [];
     const money = value => (Number(value) || 0).toFixed(2);
