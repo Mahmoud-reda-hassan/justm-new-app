@@ -140,6 +140,7 @@ class AuthenticationTest extends TestCase
     {
         $party = Party::create(['name' => 'Multi-role', 'entity_type' => 'individual', 'is_active' => true]);
         $party->partyRoles()->createMany([
+            ['role' => 'customer'],
             ['role' => 'marketer'],
             ['role' => 'delivery_agent'],
         ]);
