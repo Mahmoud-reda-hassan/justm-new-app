@@ -65,9 +65,9 @@ class AccessControlManagementTest extends TestCase
         $this->assertSame('Outside User', $target->fresh()->name);
     }
 
-    public function test_company_scope_can_assign_a_child_branch_to_an_unassigned_user(): void
+    public function test_new_user_inherits_creator_scope_and_can_be_narrowed_to_child_branch(): void
     {
-        $admin = $this->administratorWith(['users.assign_scopes'], false);
+        $admin = $this->administratorWith(['users.create', 'users.assign_scopes'], false);
         $company = Company::create(['name' => 'Scoped Company', 'is_active' => true]);
         $branch = Branch::create([
             'company_id' => $company->id,
@@ -77,15 +77,17 @@ class AccessControlManagementTest extends TestCase
         ]);
         UserDataScope::create(['user_id' => $admin->id, 'scope_type' => 'company', 'scope_id' => $company->id]);
 
-        $target = User::create([
+        $this->actingAs($admin)->post(route('admin.access.users.store'), [
             'name' => 'New Operator',
             'username' => 'new-scoped-operator',
-            'password' => 'secure-password',
-            'account_type' => 'admin',
-            'is_active' => true,
-        ]);
+            'password' => 'long-secure-password',
+            'password_confirmation' => 'long-secure-password',
+        ])->assertSessionHasNoErrors();
 
-        $this->actingAs($admin)->put(route('admin.access.users.scopes', $target), [
+        $target = User::query()->where('username', 'new-scoped-operator')->firstOrFail();
+        $this->assertTrue($target->fresh()->hasDataScope('company', $company->id));
+
+        $this->put(route('admin.access.users.scopes', $target), [
             'branch_ids' => [$branch->id],
         ])->assertSessionHasNoErrors();
 
