@@ -228,6 +228,8 @@ class AccessControlController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['required', 'boolean'],
         ]);
+        abort_if(! $data['is_active'] && $request->user()->roles()->whereKey($role->id)->exists(), 422,
+            'لا يمكن إيقاف مجموعة صلاحيات مسندة إلى حسابك الحالي.');
 
         $before = $role->only(['name', 'description', 'is_active']);
         $role->update($data);
