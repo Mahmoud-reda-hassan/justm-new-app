@@ -11,8 +11,7 @@ class WorkspaceController extends Controller
 {
     private const WORKSPACES = [
         'admin' => ['title' => 'منطقة الإداريين', 'description' => 'إدارة النظام والمستخدمين والإعدادات والعمليات المصرح بها.', 'icon' => 'fas fa-user-shield'],
-        'marketer' => ['title' => 'منطقة المسوقين', 'description' => 'متابعة العملاء والطلبات والعمولات الخاصة بالمسوق.', 'icon' => 'fas fa-bullhorn'],
-        'intermediary' => ['title' => 'منطقة الوسطاء', 'description' => 'متابعة عمليات البيع والطلبات والعمولات الخاصة بالوسيط.', 'icon' => 'fas fa-handshake'],
+        'marketer' => ['title' => 'منطقة المسوقين والوسطاء', 'description' => 'متابعة العملاء والطلبات والعمولات وفق إعداد العمولة وطريقة احتسابها للحساب.', 'icon' => 'fas fa-bullhorn'],
         'delivery' => ['title' => 'منطقة المندوبين', 'description' => 'مهام التوصيل والتسليم والتحصيل والعهدة والتسويات.', 'icon' => 'fas fa-truck'],
     ];
 
@@ -33,6 +32,11 @@ class WorkspaceController extends Controller
 
     public function enter(Request $request, string $workspace): RedirectResponse|View
     {
+        // Keep old intermediary URLs working, but route them to the shared marketer/intermediary workspace.
+        if ($workspace === 'intermediary') {
+            $workspace = 'marketer';
+        }
+
         $workspaces = $this->availableWorkspaces($request);
         abort_unless(array_key_exists($workspace, $workspaces), 403);
 
@@ -66,12 +70,12 @@ class WorkspaceController extends Controller
         if ($party) {
             $roleMap = [
                 'marketer' => 'marketer',
-                'sales_intermediary' => 'intermediary',
+                'sales_intermediary' => 'marketer',
                 'delivery_agent' => 'delivery',
             ];
 
             $assigned = $party->partyRoles()
-                ->whereIn('role', Party::LOGIN_ROLES)
+                ->whereIn('role', Party::WORKSPACE_ROLES)
                 ->pluck('role')
                 ->all();
 
