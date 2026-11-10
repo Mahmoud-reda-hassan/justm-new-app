@@ -54,7 +54,7 @@
                         @foreach($customers as $customer)
                             <div data-customer-id="{{ $customer->id }}">
                                 @foreach($customer->addresses as $address)
-                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}" data-zone="{{ $address->city?->shippingZone?->name_ar }}" data-fee-min="{{ $address->city?->shippingZone?->shipping_fee_min }}" data-fee-max="{{ $address->city?->shippingZone?->shipping_fee_max }}" data-delivery-days="{{ $address->city?->shippingZone?->delivery_days }}"></span>
+                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}" data-zone="{{ $address->city?->shippingZone?->is_active && $address->city?->shippingZone?->warehouse?->is_active && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch' && $address->city?->shippingZone?->warehouse?->branch?->is_active && $address->city?->shippingZone?->warehouse?->branch?->company?->is_active ? $address->city?->shippingZone?->name_ar : '' }}" data-fee-min="{{ $address->city?->shippingZone?->shipping_fee_min }}" data-fee-max="{{ $address->city?->shippingZone?->shipping_fee_max }}" data-delivery-days="{{ $address->city?->shippingZone?->delivery_days }}"></span>
                                 @endforeach
                             </div>
                         @endforeach
