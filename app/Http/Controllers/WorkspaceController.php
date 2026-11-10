@@ -1,12 +1,11 @@
 <?php
 
-namespace App\\Http\\Controllers;
+namespace App\Http\Controllers;
 
-use App\\Http\\Controllers\\Controller;
-use App\\Models\\Party;
-use Illuminate\\Http\\RedirectResponse;
-use Illuminate\\Http\\Request;
-use Illuminate\\View\\View;
+use App\Models\Party;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
 
 class WorkspaceController extends Controller
 {
@@ -35,7 +34,6 @@ class WorkspaceController extends Controller
     public function enter(Request $request, string $workspace): RedirectResponse|View
     {
         $workspaces = $this->availableWorkspaces($request);
-
         abort_unless(array_key_exists($workspace, $workspaces), 403);
 
         if ($workspace === 'admin') {
@@ -72,7 +70,11 @@ class WorkspaceController extends Controller
                 'delivery_agent' => 'delivery',
             ];
 
-            $assigned = $party->partyRoles()->whereIn('role', Party::LOGIN_ROLES)->pluck('role')->all();
+            $assigned = $party->partyRoles()
+                ->whereIn('role', Party::LOGIN_ROLES)
+                ->pluck('role')
+                ->all();
+
             foreach ($roleMap as $partyRole => $workspaceKey) {
                 if (in_array($partyRole, $assigned, true)) {
                     $available[$workspaceKey] = self::WORKSPACES[$workspaceKey];
