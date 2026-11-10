@@ -123,6 +123,19 @@ class SalesOrderCreationTest extends TestCase
         $this->assertDatabaseCount('sales_order_items', 0);
     }
 
+    public function test_order_creation_screen_keeps_the_three_step_flow_and_sweetalert_item_editing(): void
+    {
+        $user = $this->userWithSalesPermission();
+
+        $this->actingAs($user)->get(route('admin.sales.orders.create'))
+            ->assertOk()
+            ->assertSee('order-step active', false)
+            ->assertSee('id="step-products"', false)
+            ->assertSee('id="step-review"', false)
+            ->assertSee('تعديل بند الطلب')
+            ->assertSee('حفظ أمر البيع كمسودة');
+    }
+
     public function test_order_screens_require_explicit_sales_permissions(): void
     {
         $user = $this->userWithSalesPermission();
