@@ -20,7 +20,8 @@ return new class extends Migration {
             ['key' => 'warehouses.update', 'module' => 'warehouses', 'action' => 'update', 'description' => 'تعديل مخزن'],
             ['key' => 'warehouses.activate', 'module' => 'warehouses', 'action' => 'activate', 'description' => 'تفعيل أو إيقاف مخزن'],
             ['key' => 'users.assign_scopes', 'module' => 'users', 'action' => 'assign_scopes', 'description' => 'تحديد نطاق بيانات المستخدم'],
-            ['key' => 'permissions.catalog.assign', 'module' => 'permissions', 'action' => 'catalog_assign', 'description' => 'تفويض صلاحيات النظام المتاحة لمجموعات الصلاحيات'],\n            ['key' => 'structure.scope.manage_all', 'module' => 'structure', 'action' => 'scope_manage_all', 'description' => 'إدارة نطاقات الوصول على مستوى الهيكل بالكامل'],
+            ['key' => 'permissions.catalog.assign', 'module' => 'permissions', 'action' => 'catalog_assign', 'description' => 'تفويض صلاحيات النظام المتاحة لمجموعات الصلاحيات'],
+            ['key' => 'structure.scope.manage_all', 'module' => 'structure', 'action' => 'scope_manage_all', 'description' => 'إدارة نطاقات الوصول على مستوى الهيكل بالكامل'],
         ];
 
         foreach ($permissions as $permission) {
@@ -30,8 +31,8 @@ return new class extends Migration {
             );
         }
 
-        // The initial access administrator may delegate catalog permissions,
-        // but receives no operating permission and no implicit data scope.
+        // Access administration can delegate permissions and manage structure scopes,
+        // but it does not grant operational CRUD permissions.
         $roleId = DB::table('roles')->where('key', 'system-access-admin')->value('id');
         $permissionIds = DB::table('permissions')
             ->whereIn('key', ['permissions.catalog.assign', 'users.assign_scopes', 'structure.scope.manage_all'])
