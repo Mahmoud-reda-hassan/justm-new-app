@@ -33,6 +33,23 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_admin_path_redirects_to_dashboard_for_authenticated_users(): void
+    {
+        $user = User::create([
+            'name' => 'Test Admin',
+            'username' => 'admin.path',
+            'password' => 'secret-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $this->get('/admin')->assertRedirect(route('login'));
+
+        $this->actingAs($user)
+            ->get('/admin')
+            ->assertRedirect(route('dashboard'));
+    }
+
     public function test_inactive_user_cannot_login(): void
     {
         User::create([
