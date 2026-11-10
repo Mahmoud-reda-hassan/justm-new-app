@@ -33,10 +33,65 @@ class AccessControlController extends Controller
         $branchIds = $actor->dataScopes()->where('scope_type', 'branch')->pluck('scope_id');
         $warehouseIds = $actor->dataScopes()->where('scope_type', 'warehouse')->pluck('scope_id');
 
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'party_role' => ['nullable', Rule::in(array_keys(Party::ROLES))],
+            'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'account' => ['nullable', Rule::in(['internal', 'linked'])],
+            'role_id' => ['nullable', 'integer'],
+        ]);
+
+        // Scope filtering always happens before user-selected filters and pagination.
         $allUsers = User::query()->with(['roles', 'dataScopes', 'party.partyRoles'])->orderByDesc('id')->get();
         $visibleUsers = $allUsers->filter(fn (User $user): bool =>
             $actor->is($user) || $this->userIsWithinActorScope($actor, $user)
         )->values();
+
+        $search = trim((string) ($filters['q'] ?? ''));
+        $visibleUsers = $visibleUsers->filter(function (User $user) use ($filters, $search): bool {
+            if ($search !== '') {
+                $searchable = [
+                    $user->name,
+                    $user->username,
+                    $user->email,
+                    $user->party?->name,
+                    $user->party?->phone,
+                    $user->party?->mobile,
+                ];
+                $matchesSearch = collect($searchable)->contains(
+                    fn ($value): bool => $value !== null && mb_stripos((string) $value, $search) !== false
+                );
+                if (! $matchesSearch) {
+                    return false;
+                }
+            }
+
+            if (($filters['party_role'] ?? '') !== ''
+                && ! in_array($filters['party_role'], $user->party?->assignedRoles() ?? [], true)) {
+                return false;
+            }
+
+            if (($filters['status'] ?? '') === 'active' && ! $user->is_active) {
+                return false;
+            }
+            if (($filters['status'] ?? '') === 'inactive' && $user->is_active) {
+                return false;
+            }
+
+            if (($filters['account'] ?? '') === 'internal' && $user->party_id !== null) {
+                return false;
+            }
+            if (($filters['account'] ?? '') === 'linked' && $user->party_id === null) {
+                return false;
+            }
+
+            if (! empty($filters['role_id']) && ! $user->roles->contains('id', (int) $filters['role_id'])) {
+                return false;
+            }
+
+            return true;
+        })->values();
+
         $visiblePartyIds = $visibleUsers->pluck('party_id')->filter()->unique()->values();
         $page = LengthAwarePaginator::resolveCurrentPage();
         $users = new LengthAwarePaginator(
@@ -52,6 +107,8 @@ class AccessControlController extends Controller
             'roles' => Role::query()->where('is_active', true)->orderBy('name')->get(),
             'parties' => Party::query()->with('partyRoles')->whereHas('partyRoles', fn ($q) => $q->whereIn('role', Party::LOGIN_ROLES))->where(function ($query) use ($globalScope, $visiblePartyIds): void { if (! $globalScope) { $query->whereIn('id', $visiblePartyIds); } })->orderBy('name')->get(),
             'partyRoleLabels' => Party::ROLES,
+            'partyRoles' => Party::ROLES,
+            'filters' => array_merge(['q' => '', 'party_role' => '', 'status' => '', 'account' => '', 'role_id' => ''], $filters),
             'selectedPartyId' => $request->input('party_id'),
             'companies' => Company::query()->when(! $globalScope, fn ($q) => $q->whereIn('id', $companyIds))->orderBy('name')->get(['id', 'name']),
             'branches' => Branch::query()->with('company')->when(! $globalScope, fn ($q) => $q->whereIn('company_id', $companyIds)->orWhereIn('id', $branchIds))->orderBy('name')->get(['id', 'company_id', 'name']),
