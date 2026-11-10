@@ -103,7 +103,7 @@ class AccessControlController extends Controller
     {
         $data = $request->validate([
             'roles' => ['sometimes', 'array'],
-            'roles.*' => ['integer', 'distinct', 'exists:roles,id'],
+            'roles.*' => ['integer', 'distinct', Rule::exists('roles', 'id')->where('is_active', true)],
         ]);
 
         $roleIds = $data['roles'] ?? [];

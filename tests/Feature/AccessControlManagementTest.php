@@ -102,6 +102,29 @@ class AccessControlManagementTest extends TestCase
         $this->assertSame(0, $target->fresh()->roles()->count());
     }
 
+    public function test_inactive_role_cannot_be_assigned_to_a_user(): void
+    {
+        $admin = $this->administratorWith(['users.assign_groups']);
+        $target = User::create([
+            'name' => 'Target',
+            'username' => 'target.user',
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+        $inactiveRole = Role::create([
+            'name' => 'Inactive role',
+            'key' => 'inactive-role',
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($admin)->put(route('admin.access.users.roles', $target), [
+            'roles' => [$inactiveRole->id],
+        ])->assertSessionHasErrors('roles.0');
+
+        $this->assertSame(0, $target->fresh()->roles()->count());
+    }
+
     public function test_user_group_assignment_is_audited_and_can_clear_all_groups(): void
     {
         $admin = $this->administratorWith(['users.assign_groups']);
