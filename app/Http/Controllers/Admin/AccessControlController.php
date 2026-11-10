@@ -136,31 +136,30 @@ class AccessControlController extends Controller
     public function assignUserScopes(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate([
-            'scopes' => ['sometimes', 'array'],
-            'scopes.*.scope_type' => ['required', 'in:company,branch,warehouse'],
-            'scopes.*.scope_id' => ['required', 'integer', 'min:1'],
+            'company_ids' => ['sometimes', 'array'],
+            'company_ids.*' => ['integer', 'distinct', 'exists:companies,id'],
+            'branch_ids' => ['sometimes', 'array'],
+            'branch_ids.*' => ['integer', 'distinct', 'exists:branches,id'],
+            'warehouse_ids' => ['sometimes', 'array'],
+            'warehouse_ids.*' => ['integer', 'distinct', 'exists:warehouses,id'],
         ]);
 
-        $scopes = collect($data['scopes'] ?? []);
-        foreach ($scopes as $scope) {
-            $exists = match ($scope['scope_type']) {
-                'company' => \\App\\Models\\Company::query()->whereKey($scope['scope_id'])->exists(),
-                'branch' => \\App\\Models\\Branch::query()->whereKey($scope['scope_id'])->exists(),
-                'warehouse' => \\App\\Models\\Warehouse::query()->whereKey($scope['scope_id'])->exists(),
-            };
-            abort_unless($exists, 422, 'نطاق البيانات المحدد غير موجود.');
-        }
+        $scopes = collect([
+            ...collect($data['company_ids'] ?? [])->map(fn ($id) => ['scope_type' => 'company', 'scope_id' => (int) $id]),
+            ...collect($data['branch_ids'] ?? [])->map(fn ($id) => ['scope_type' => 'branch', 'scope_id' => (int) $id]),
+            ...collect($data['warehouse_ids'] ?? [])->map(fn ($id) => ['scope_type' => 'warehouse', 'scope_id' => (int) $id]),
+        ]);
 
         if (! $request->user()->hasPermission('permissions.catalog.assign')) {
             foreach ($scopes as $scope) {
-                abort_unless($request->user()->hasDataScope($scope['scope_type'], (int) $scope['scope_id']), 403,
+                abort_unless($request->user()->hasDataScope($scope['scope_type'], $scope['scope_id']), 403,
                     'لا يمكنك إسناد نطاق بيانات خارج نطاقك.');
             }
         }
 
         $before = $user->dataScopes()->get(['scope_type', 'scope_id'])->toArray();
         $user->dataScopes()->delete();
-        foreach ($scopes->unique(fn ($scope) => $scope['scope_type'].':'.$scope['scope_id']) as $scope) {
+        foreach ($scopes as $scope) {
             $user->dataScopes()->create($scope);
         }
 
