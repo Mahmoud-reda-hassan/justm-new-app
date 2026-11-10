@@ -2,15 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Role;
+use App\Models\SystemSetting;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Services\InitialOperatingSetup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class SetupController extends Controller
@@ -23,10 +30,12 @@ class SetupController extends Controller
         $adminExists = false;
 
         try {
-            $databaseReady = Schema::hasTable('users');
-            $adminExists = $databaseReady && User::query()->exists();
+            $databaseReady = Schema::hasTable('users')
+                && Schema::hasTable('system_settings')
+                && Schema::hasTable('companies')
+                && Schema::hasTable('warehouses');
+            $adminExists = Schema::hasTable('users') && User::query()->exists();
         } catch (Throwable $exception) {
-            // The setup page must remain reachable when the configured database is not created yet.
             report($exception);
         }
 
@@ -34,6 +43,8 @@ class SetupController extends Controller
             'authorized' => $this->isAuthorized(),
             'databaseReady' => $databaseReady,
             'adminExists' => $adminExists,
+            'operatingDataReady' => $this->isOperatingDataReady(),
+            'siteName' => SystemSetting::query()->where('setting_key', 'site_name')->value('setting_value'),
             'tokenConfigured' => is_string(config('app.setup_token')) && strlen(config('app.setup_token')) >= 32,
         ]);
     }
@@ -77,7 +88,6 @@ class SetupController extends Controller
         $this->ensureAuthorized($request);
 
         try {
-            // The CLI setup command can create the configured database if it does not exist.
             $driver = config('database.connections.'.config('database.default').'.driver');
             $setupExit = Artisan::call('justm:setup', [
                 '--create-database' => in_array($driver, ['mysql', 'mariadb'], true),
@@ -89,7 +99,7 @@ class SetupController extends Controller
                 return back()->withErrors(['setup' => 'تعذر إنشاء قاعدة البيانات أو الجداول أو البيانات الأولية. راجع إعدادات الاتصال وصلاحية CREATE DATABASE وسجل التطبيق.']);
             }
 
-            return back()->with('setup_status', 'تم تجهيز قاعدة البيانات والجداول وإدخال البيانات الأولية بنجاح.');
+            return back()->with('setup_status', 'تم تجهيز قاعدة البيانات والجداول والبيانات الثابتة بنجاح.');
         } catch (Throwable $exception) {
             report($exception);
 
@@ -97,9 +107,65 @@ class SetupController extends Controller
         }
     }
 
+    public function saveOperatingData(Request $request, InitialOperatingSetup $setup): RedirectResponse
+    {
+        $this->ensureAuthorized($request);
+        abort_unless(Schema::hasTable('companies') && Schema::hasTable('warehouses'), 409);
+        abort_if($this->isOperatingDataReady(), 404);
+
+        $validated = $request->validate([
+            'site_name' => ['required', 'string', 'max:150'],
+            'country_name_ar' => ['required', 'string', 'max:100'],
+            'country_name_en' => ['required', 'string', 'max:100'],
+            'region_name' => ['nullable', 'string', 'max:100'],
+            'governorate_name_ar' => ['required', 'string', 'max:100'],
+            'governorate_name_en' => ['required', 'string', 'max:100'],
+            'city_name_ar' => ['required', 'string', 'max:120'],
+            'city_name_en' => ['required', 'string', 'max:120'],
+            'company_name' => ['required', 'string', 'max:150'],
+            'company_phone' => ['nullable', 'string', 'max:40'],
+            'company_mobile' => ['nullable', 'string', 'max:40'],
+            'company_email' => ['nullable', 'email', 'max:190'],
+            'company_address' => ['nullable', 'string', 'max:2000'],
+            'branch_name' => ['required', 'string', 'max:120'],
+            'branch_address' => ['nullable', 'string', 'max:255'],
+            'warehouse_name' => ['required', 'string', 'max:150'],
+            'warehouse_type' => [
+                'required',
+                Rule::exists('warehouse_types', 'key')->where(fn ($query) => $query->where('is_active', true)),
+            ],
+        ], [
+            'site_name.required' => 'اسم الموقع مطلوب.',
+            'country_name_ar.required' => 'اسم الدولة بالعربية مطلوب.',
+            'country_name_en.required' => 'اسم الدولة بالإنجليزية مطلوب.',
+            'governorate_name_ar.required' => 'اسم المحافظة بالعربية مطلوب.',
+            'governorate_name_en.required' => 'اسم المحافظة بالإنجليزية مطلوب.',
+            'city_name_ar.required' => 'اسم المدينة بالعربية مطلوب.',
+            'city_name_en.required' => 'اسم المدينة بالإنجليزية مطلوب.',
+            'company_name.required' => 'اسم الشركة مطلوب.',
+            'branch_name.required' => 'اسم الفرع الأول مطلوب.',
+            'warehouse_name.required' => 'اسم المخزن الأول مطلوب.',
+            'warehouse_type.required' => 'نوع المخزن مطلوب.',
+            'warehouse_type.exists' => 'نوع المخزن المحدد غير متاح.',
+        ]);
+
+        try {
+            $setup->configure($validated);
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()->withInput()->withErrors(['setup' => 'تعذر حفظ بيانات التشغيل الأولية. لم يتم اعتماد أي جزء منها؛ راجع البيانات وسجل التطبيق.']);
+        }
+
+        return back()->with('setup_status', 'تم حفظ بيانات الموقع والدولة والمحافظة والمدينة والشركة والفرع والمخزن بنجاح.');
+    }
+
     public function createFirstAdmin(Request $request): RedirectResponse
     {
         $this->ensureAuthorized($request);
+        abort_unless($this->isOperatingDataReady(), 409);
         abort_unless(Schema::hasTable('users') && Schema::hasTable('roles'), 409);
         abort_if(User::query()->exists(), 404);
 
@@ -121,7 +187,6 @@ class SetupController extends Controller
 
         try {
             DB::transaction(function () use ($validated): void {
-                // Lock the single bootstrap role row so concurrent first-admin requests serialize.
                 $role = Role::query()
                     ->where('key', 'system-access-admin')
                     ->where('is_active', true)
@@ -168,12 +233,31 @@ class SetupController extends Controller
             && now()->timestamp >= (int) $authorizedAt;
     }
 
+    private function isOperatingDataReady(): bool
+    {
+        try {
+            return Schema::hasTable('system_settings')
+                && Schema::hasTable('companies')
+                && Schema::hasTable('branches')
+                && Schema::hasTable('warehouses')
+                && Company::query()->exists()
+                && Branch::query()->exists()
+                && Warehouse::query()->exists()
+                && filled(SystemSetting::query()->where('setting_key', 'site_name')->value('setting_value'));
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
+    }
+
     private function isCompleted(): bool
     {
         try {
-            return Schema::hasTable('users') && User::query()->exists();
+            return Schema::hasTable('users')
+                && User::query()->exists()
+                && $this->isOperatingDataReady();
         } catch (Throwable $exception) {
-            // An unavailable or not-yet-created database must not prevent the setup page from opening.
             report($exception);
 
             return false;
