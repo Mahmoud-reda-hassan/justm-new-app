@@ -1,11 +1,11 @@
 <?php
 
-namespace Database\Seeders;
+namespace Database\\Seeders;
 
-use App\Models\Permission;
-use App\Models\Role;
-use App\Models\WarehouseType;
-use Illuminate\Database\Seeder;
+use App\\Models\\Permission;
+use App\\Models\\Role;
+use App\\Models\\WarehouseType;
+use Illuminate\\Database\\Seeder;
 use RuntimeException;
 
 class DatabaseSeeder extends Seeder
@@ -31,6 +31,8 @@ class DatabaseSeeder extends Seeder
             'permissions.catalog.assign',
             'users.assign_scopes',
             'structure.scope.manage_all',
+            'sales.orders.view',
+            'sales.orders.create',
         ];
 
         $permissions = Permission::query()->whereIn('key', $permissionKeys)->get();
