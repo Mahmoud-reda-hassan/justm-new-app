@@ -1,37 +1,10 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>إدارة الأطراف | Just-M</title>
-<style>
-:root{--ink:#17233b;--muted:#718096;--line:#e7ebf2;--surface:#fff;--canvas:#f4f6fb;--brand:#3157d5;--green:#16865b;--red:#c43d4d;--shadow:0 14px 36px rgba(25,42,78,.07)}
-*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--ink);font-family:Tahoma,Arial,sans-serif;font-size:14px;line-height:1.7}
-a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}.shell{max-width:1480px;margin:auto;padding:28px}
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}.eyebrow{font-size:12px;color:var(--brand);font-weight:700}.topbar h1{font-size:29px;margin:3px 0 0;font-weight:800}.topbar p{margin:3px 0;color:var(--muted)}.top-links{display:flex;gap:9px;flex-wrap:wrap}
-.link-btn,.btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;padding:10px 15px;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none}
-.link-btn{background:#fff;border:1px solid var(--line);color:var(--ink)}.btn-primary{background:var(--brand);color:#fff}.btn-soft{background:#eef2ff;color:var(--brand)}.btn-danger{background:#fff0f1;color:var(--red)}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}.stat,.panel,.party-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
-.stat{padding:17px 19px}.stat-label{color:var(--muted);font-size:12px}.stat-value{font-size:25px;font-weight:800;margin-top:5px}.stat-note{color:var(--muted);font-size:11px}
-.panel{padding:21px;margin-bottom:20px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.panel-head h2{font-size:18px;margin:0}.panel-head p{color:var(--muted);margin:3px 0 0;font-size:12px}.tag{background:#eef2ff;color:var(--brand);border-radius:30px;padding:5px 11px;font-size:11px;font-weight:700}
-.fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.field{display:flex;flex-direction:column;gap:5px}.field label{font-size:12px;font-weight:700;color:#526079}.field input,.field select,.field textarea,.filter input,.filter select{width:100%;min-width:0;border:1px solid #dce2ed;border-radius:9px;padding:10px 11px;background:#fff;color:var(--ink);font:inherit;outline:none}.field input:focus,.field select:focus,.field textarea:focus,.filter input:focus,.filter select:focus{border-color:#8ca3f2;box-shadow:0 0 0 3px rgba(49,87,213,.09)}.field textarea{min-height:42px;resize:vertical}.span-2{grid-column:span 2}
-.roles{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px}.role-check{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:#fbfcff;font-size:12px}.role-check input{accent-color:var(--brand)}
-.form-actions{display:flex;gap:9px;margin-top:17px;flex-wrap:wrap}
-.alert{padding:12px 15px;border-radius:11px;margin-bottom:15px}.alert-success{background:#eaf8f1;color:#146a49;border:1px solid #ccebdc}.alert-errors{background:#fff0f1;color:#982d3a;border:1px solid #f2cbd0}
-.filter{display:grid;grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) minmax(130px,1fr) auto auto;gap:9px;align-items:center}
-.list-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:24px 0 13px}.list-head h2{font-size:18px;margin:0}.list-head p{font-size:12px;color:var(--muted);margin:2px 0 0}.party-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
-.party-card{padding:18px;min-width:0}.party-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.party-code{font-size:11px;color:var(--muted)}.party-head h3{font-size:17px;margin:3px 0 0;overflow-wrap:anywhere}.party-type{color:var(--muted);font-size:11px}.status{display:inline-flex;align-items:center;border-radius:30px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap}.status-on{background:#e8f7ef;color:var(--green)}.status-off{background:#fff0f1;color:var(--red)}
-.badges{display:flex;gap:6px;flex-wrap:wrap;margin:13px 0}.badge-role{background:#eef2ff;color:#354fae;border-radius:7px;padding:4px 8px;font-size:11px;font-weight:700}
-.info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.info-item{min-width:0}.info-label{font-size:10px;color:var(--muted)}.info-value{font-size:12px;font-weight:600;overflow-wrap:anywhere}
-.accounts{margin-top:13px;background:#f8faff;border:1px solid #e8edf7;border-radius:11px;padding:12px}.accounts-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.accounts-head strong{font-size:12px}.account-list{list-style:none;padding:0;margin:8px 0 0}.account-list li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #e8edf7;font-size:12px}.account-list small{display:block;color:var(--muted)}.empty-note{font-size:11px;color:var(--muted);margin:7px 0 0}
-.card-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.details{border-top:1px solid var(--line);margin-top:13px;padding-top:11px}.details summary{cursor:pointer;color:var(--brand);font-weight:700;font-size:12px}.edit-form{padding-top:13px}.edit-form .fields{grid-template-columns:repeat(2,minmax(0,1fr))}
-.pagination-wrap{margin-top:18px}.empty-state{background:#fff;border:1px dashed #cbd4e3;border-radius:15px;text-align:center;padding:35px;color:var(--muted)}
-@media(max-width:950px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.fields{grid-template-columns:repeat(2,minmax(0,1fr))}.filter{grid-template-columns:1fr 1fr}.filter input{grid-column:span 2}}
-@media(max-width:680px){.shell{padding:15px}.topbar{align-items:flex-start;flex-direction:column}.topbar h1{font-size:24px}.stats{gap:9px}.stat{padding:13px}.stat-value{font-size:21px}.panel{padding:15px}.party-grid{grid-template-columns:1fr}.fields,.edit-form .fields{grid-template-columns:1fr}.span-2{grid-column:auto}.filter{grid-template-columns:1fr}.filter input{grid-column:auto}.panel-head{align-items:flex-start}.info-grid{gap:7px}}
-</style>
-</head>
-<body>
-<div class="shell">
+@extends('layouts.app')
+
+@section('title', 'إدارة الأطراف')
+@section('page-title', 'إدارة الأطراف')
+@section('breadcrumb', 'إدارة الأطراف')
+
+@section('content')
 <header class="topbar">
     <div><span class="eyebrow">JUST-M · إدارة البيانات الأساسية</span><h1>إدارة الأطراف</h1><p>ملف موحد للعملاء والموردين والمسوقين والوسطاء والمندوبين وشركات الشحن.</p></div>
     <nav class="top-links">
@@ -147,6 +120,4 @@ a{color:var(--brand);text-decoration:none}a:hover{text-decoration:underline}.she
 @endforelse
 </div>
 <div class="pagination-wrap">{{ $parties->links() }}</div>
-</div>
-</body>
-</html>
+@endsection
