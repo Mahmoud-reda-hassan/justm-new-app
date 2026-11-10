@@ -34,7 +34,7 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_admin_path_redirects_to_dashboard_for_authenticated_users(): void
+    public function test_admin_path_rejects_users_without_an_explicit_admin_permission(): void
     {
         $user = User::create([
             'name' => 'Test Admin',
@@ -190,11 +190,10 @@ class AuthenticationTest extends TestCase
             'is_active' => true,
         ]);
         $role = Role::create(['name' => 'Access group', 'key' => 'access-group', 'is_active' => true]);
-        $permission = Permission::create([
-            'key' => 'users.view',
-            'module' => 'users',
-            'action' => 'view',
-        ]);
+        $permission = Permission::firstOrCreate(
+            ['key' => 'users.view'],
+            ['module' => 'users', 'action' => 'view'],
+        );
         $role->permissions()->attach($permission);
         $user->roles()->attach($role);
 
