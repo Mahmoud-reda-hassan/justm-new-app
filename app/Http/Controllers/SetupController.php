@@ -166,6 +166,10 @@ class SetupController extends Controller
             return back()->withInput()->withErrors(['setup' => 'تعذر حفظ بيانات التشغيل الأولية. لم يتم اعتماد أي جزء منها؛ راجع البيانات وسجل التطبيق.']);
         }
 
+        if (User::query()->exists()) {
+            return redirect()->route('login')->with('status', 'تم استكمال بيانات التشغيل الأساسية. يمكنك تسجيل الدخول.');
+        }
+
         return back()->with('setup_status', 'تم حفظ بيانات الموقع والدولة والمحافظة والمدينة والشركة والفرع والمخزن بنجاح.');
     }
 
