@@ -5,35 +5,82 @@
 @section('breadcrumb', 'تصنيفات المنتجات')
 
 @section('content')
-<header class="head"><div><span class="eyebrow">JUST-M · كتالوج المنتجات</span><h1>تصنيفات المنتجات</h1><p>تنظيم المنتجات في شجرة تصنيفات رئيسية وفرعية.</p></div><nav class="nav"><a href="{{ route('dashboard') }}">الرئيسية</a>@if(auth()->user()->hasPermission('products.view'))<a href="{{ route('admin.products.index') }}">المنتجات</a>@endif @if(auth()->user()->hasPermission('units.view'))<a href="{{ route('admin.catalog.units') }}">وحدات القياس</a>@endif</nav></header>
-@if(session('status'))<div class="alert success">{{ session('status') }}</div>@endif
-@if($errors->any())<div class="alert errors"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+    <p class="text-muted mb-2">تنظيم المنتجات في تصنيفات رئيسية وفرعية، مع الحفاظ على العلاقات الهرمية.</p>
+    <div class="mb-2">
+        @if(auth()->user()->hasPermission('products.view'))<a class="btn btn-default btn-sm" href="{{ route('admin.products.index') }}">المنتجات</a>@endif
+        @if(auth()->user()->hasPermission('units.view'))<a class="btn btn-default btn-sm" href="{{ route('admin.catalog.units') }}">وحدات القياس</a>@endif
+    </div>
+</div>
+@if(session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
+@if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+
 @if(auth()->user()->hasPermission('product_categories.create'))
-<section class="panel"><h2>إضافة تصنيف</h2><p class="sub">يمكن إنشاء تصنيف رئيسي أو إسناده إلى تصنيف أب.</p>
-<form method="post" action="{{ route('admin.catalog.categories.store') }}">@csrf
-<div class="fields">
-<div class="field"><label>اسم التصنيف</label><input name="name" value="{{ old('name') }}" required maxlength="150"></div>
-<div class="field"><label>الكود</label><input name="code" value="{{ old('code') }}" maxlength="50" placeholder="اختياري"></div>
-<div class="field"><label>التصنيف الأب</label><select name="parent_id"><option value="">تصنيف رئيسي</option>@foreach($parentOptions as $option)<option value="{{ $option->id }}" @selected((string)old('parent_id')===(string)$option->id)>{{ $option->name }}{{ $option->is_active?'':' — موقوف' }}</option>@endforeach</select></div>
-<div class="field"><label>ترتيب العرض</label><input name="sort_order" type="number" min="0" value="{{ old('sort_order',0) }}"></div>
-<button class="btn primary" type="submit">حفظ التصنيف</button>
-</div></form></section>
+<div class="card card-outline card-primary">
+    <div class="card-header"><h3 class="card-title">إضافة تصنيف</h3></div>
+    <form method="post" action="{{ route('admin.catalog.categories.store') }}">
+        @csrf
+        <div class="card-body">
+            <p class="text-muted">يمكن إنشاء تصنيف رئيسي أو إسناده إلى تصنيف أب موجود.</p>
+            <div class="form-row">
+                <div class="form-group col-md-4"><label>اسم التصنيف</label><input class="form-control" name="name" value="{{ old('name') }}" required maxlength="150"></div>
+                <div class="form-group col-md-2"><label>الكود</label><input class="form-control" name="code" value="{{ old('code') }}" maxlength="50" placeholder="اختياري"></div>
+                <div class="form-group col-md-4"><label>التصنيف الأب</label><select class="form-control" name="parent_id"><option value="">تصنيف رئيسي</option>@foreach($parentOptions as $option)<option value="{{ $option->id }}" @selected((string)old('parent_id') === (string)$option->id)>{{ $option->name }}{{ $option->is_active ? '' : ' — موقوف' }}</option>@endforeach</select></div>
+                <div class="form-group col-md-2"><label>ترتيب العرض</label><input class="form-control" name="sort_order" type="number" min="0" value="{{ old('sort_order', 0) }}"></div>
+            </div>
+        </div>
+        <div class="card-footer"><button class="btn btn-primary" type="submit"><i class="fas fa-save ml-1"></i> حفظ التصنيف</button></div>
+    </form>
+</div>
 @endif
-<section class="panel"><h2>دليل التصنيفات</h2><p class="sub">{{ $categories->total() }} تصنيف مسجل.</p>
-<div class="table-wrap"><table><thead><tr><th>التصنيف</th><th>الكود</th><th>التصنيف الأب</th><th>الترتيب</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>
-@forelse($categories as $category)
-<tr><td><strong>{{ $category->name }}</strong></td><td>{{ $category->code ?: '—' }}</td><td>{{ $category->parent?->name ?: 'رئيسي' }}</td><td>{{ $category->sort_order }}</td><td><span class="status {{ $category->is_active?'on':'off' }}">{{ $category->is_active?'نشط':'موقوف' }}</span></td><td>
-<div class="actions">
-@if(auth()->user()->hasPermission('product_categories.activate'))<form method="post" action="{{ route('admin.catalog.categories.active',$category) }}">@csrf @method('patch')<input type="hidden" name="is_active" value="{{ $category->is_active?0:1 }}"><button class="btn" type="submit">{{ $category->is_active?'إيقاف':'تفعيل' }}</button></form>@endif
-@if(auth()->user()->hasPermission('product_categories.update'))<details><summary>تعديل</summary><form class="edit" method="post" action="{{ route('admin.catalog.categories.update',$category) }}">@csrf @method('put')
-<div class="fields">
-<div class="field"><label>الاسم</label><input name="name" value="{{ $category->name }}" required></div>
-<div class="field"><label>الكود</label><input name="code" value="{{ $category->code }}"></div>
-<div class="field"><label>الأب</label><select name="parent_id"><option value="">رئيسي</option>@foreach($parentOptions as $option)@if($option->id!==$category->id)<option value="{{ $option->id }}" @selected($category->parent_id==$option->id)>{{ $option->name }}</option>@endif @endforeach</select></div>
-<div class="field"><label>الترتيب</label><input name="sort_order" type="number" min="0" value="{{ $category->sort_order }}"></div>
-<button class="btn primary" type="submit">حفظ</button>
-</div></form></details>@endif
-</div></td></tr>
-@empty<tr><td colspan="6" class="empty">لا توجد تصنيفات بعد.</td></tr>@endforelse
-</tbody></table></div>{{ $categories->links() }}</section>
+
+<div class="card card-outline card-secondary">
+    <div class="card-header"><h3 class="card-title">دليل التصنيفات</h3><div class="card-tools"><span class="badge badge-secondary">{{ number_format($categories->total()) }} تصنيف</span></div></div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover table-striped">
+                <thead><tr><th>التصنيف</th><th>الكود</th><th>التصنيف الأب</th><th>الترتيب</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+                <tbody>
+                @forelse($categories as $category)
+                    <tr>
+                        <td><strong>{{ $category->name }}</strong></td>
+                        <td>{{ $category->code ?: '—' }}</td>
+                        <td>{{ $category->parent?->name ?: 'رئيسي' }}</td>
+                        <td>{{ $category->sort_order }}</td>
+                        <td><span class="badge {{ $category->is_active ? 'badge-success' : 'badge-danger' }}">{{ $category->is_active ? 'نشط' : 'موقوف' }}</span></td>
+                        <td>
+                            <div class="d-flex flex-wrap align-items-center">
+                                @if(auth()->user()->hasPermission('product_categories.activate'))
+                                    <form method="post" action="{{ route('admin.catalog.categories.active', $category) }}" class="ml-1 mb-1">
+                                        @csrf @method('patch')
+                                        <input type="hidden" name="is_active" value="{{ $category->is_active ? 0 : 1 }}">
+                                        <button class="btn btn-sm {{ $category->is_active ? 'btn-danger' : 'btn-success' }}" type="submit">{{ $category->is_active ? 'إيقاف' : 'تفعيل' }}</button>
+                                    </form>
+                                @endif
+                                @if(auth()->user()->hasPermission('product_categories.update'))
+                                    <details class="mb-1"><summary class="btn btn-sm btn-primary">تعديل</summary>
+                                        <form class="border rounded p-3 mt-2" method="post" action="{{ route('admin.catalog.categories.update', $category) }}">
+                                            @csrf @method('put')
+                                            <div class="form-row">
+                                                <div class="form-group col-md-4"><label>الاسم</label><input class="form-control" name="name" value="{{ $category->name }}" required></div>
+                                                <div class="form-group col-md-2"><label>الكود</label><input class="form-control" name="code" value="{{ $category->code }}"></div>
+                                                <div class="form-group col-md-4"><label>الأب</label><select class="form-control" name="parent_id"><option value="">رئيسي</option>@foreach($parentOptions as $option)@if($option->id !== $category->id)<option value="{{ $option->id }}" @selected($category->parent_id == $option->id)>{{ $option->name }}</option>@endif @endforeach</select></div>
+                                                <div class="form-group col-md-2"><label>الترتيب</label><input class="form-control" name="sort_order" type="number" min="0" value="{{ $category->sort_order }}"></div>
+                                            </div>
+                                            <button class="btn btn-primary btn-sm" type="submit">حفظ التعديلات</button>
+                                        </form>
+                                    </details>
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="6" class="text-center text-muted py-4">لا توجد تصنيفات مسجلة.</td></tr>
+                @endforelse
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">{{ $categories->links() }}</div>
+    </div>
+</div>
 @endsection
