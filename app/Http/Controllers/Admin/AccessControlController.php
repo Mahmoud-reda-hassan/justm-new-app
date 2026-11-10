@@ -201,6 +201,11 @@ class AccessControlController extends Controller
             'roles' => Role::query()->with('permissions')->orderBy('name')->paginate(20),
             'permissions' => Permission::query()->orderBy('module')->orderBy('key')->get(),
             'currentUserRoleIds' => $request->user()->roles()->pluck('roles.id'),
+            'protectedPermissionIds' => Permission::query()->where(function ($query): void {
+                $query->where('key', 'like', 'permissions.%')
+                    ->orWhere('key', 'like', 'users.%')
+                    ->orWhere('key', 'like', 'structure.%');
+            })->pluck('id'),
         ]);
     }
 
@@ -250,13 +255,42 @@ class AccessControlController extends Controller
             'permissions.*' => ['integer', 'distinct', 'exists:permissions,id'],
         ]);
 
-        if ($request->user()->roles()->whereKey($role->id)->exists()) {
+        $actor = $request->user();
+        $isInitialAccessAdmin = $role->key === 'system-access-admin'
+            && (int) $actor->id === (int) User::query()->min('id')
+            && $actor->roles()->whereKey($role->id)->exists();
+
+        if ($actor->roles()->whereKey($role->id)->exists() && ! $isInitialAccessAdmin) {
             return back()->withErrors([
-                'permissions' => 'هذه المجموعة مرتبطة بحسابك الحالي ومحمية. أنشئ مجموعة تشغيلية جديدة وعدّل صلاحياتها بدلًا منها.',
+                'permissions' => 'لا يمكن تعديل مجموعة أخرى مرتبطة بحسابك الحالي.',
             ]);
         }
 
         $selected = Permission::query()->whereIn('id', $data['permissions'] ?? [])->get();
+
+        if ($isInitialAccessAdmin) {
+            $protected = $role->permissions()->where(function ($query): void {
+                $query->where('permissions.key', 'like', 'permissions.%')
+                    ->orWhere('permissions.key', 'like', 'users.%')
+                    ->orWhere('permissions.key', 'like', 'structure.%');
+            })->get();
+
+            $protectedKeys = $protected->pluck('key')->all();
+            $attemptedSensitive = $selected->first(fn (Permission $permission): bool =>
+                (str_starts_with($permission->key, 'permissions.')
+                    || str_starts_with($permission->key, 'users.')
+                    || str_starts_with($permission->key, 'structure.'))
+                && ! in_array($permission->key, $protectedKeys, true)
+            );
+
+            if ($attemptedSensitive) {
+                return back()->withErrors([
+                    'permissions' => 'لا يمكن إضافة صلاحية إدارية حساسة جديدة إلى مجموعة مدير النظام.',
+                ]);
+            }
+
+            $selected = $selected->concat($protected)->unique('id')->values();
+        }
         $actorPermissions = $request->user()->roles()
             ->where('roles.is_active', true)
             ->with('permissions:id,key')
