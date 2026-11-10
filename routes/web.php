@@ -1,17 +1,18 @@
 <?php
 
-use App\Http\Controllers\Admin\AccessControlController;
-use App\Http\Controllers\Admin\DatabaseUpdateController;
-use App\Http\Controllers\Admin\OperatingStructureController;
-use App\Http\Controllers\Admin\ProductCatalogController;
-use App\Http\Controllers\Admin\ProductController;
-use App\Http\Controllers\Admin\ProductAttributeController;
-use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\Auth\EmailVerificationController;
-use App\Http\Controllers\Auth\PasswordResetController;
-use App\Http\Controllers\Auth\ProfileEmailController;
-use App\Http\Controllers\SetupController;
-use Illuminate\Support\Facades\Route;
+use App\\Http\\Controllers\\Admin\\AccessControlController;
+use App\\Http\\Controllers\\Admin\\DatabaseUpdateController;
+use App\\Http\\Controllers\\Admin\\OperatingStructureController;
+use App\\Http\\Controllers\\Admin\\ProductCatalogController;
+use App\\Http\\Controllers\\Admin\\ProductController;
+use App\\Http\\Controllers\\Admin\\ProductAttributeController;
+use App\\Http\\Controllers\\Admin\\SalesOrderController;
+use App\\Http\\Controllers\\Auth\\AuthenticatedSessionController;
+use App\\Http\\Controllers\\Auth\\EmailVerificationController;
+use App\\Http\\Controllers\\Auth\\PasswordResetController;
+use App\\Http\\Controllers\\Auth\\ProfileEmailController;
+use App\\Http\\Controllers\\SetupController;
+use Illuminate\\Support\\Facades\\Route;
 
 Route::view('/', 'welcome')->name('home');
 
@@ -65,7 +66,6 @@ Route::middleware('auth')->group(function (): void {
             ->middleware('permission:users.assign_groups')->name('users.roles');
         Route::put('/users/{user}/scopes', [AccessControlController::class, 'assignUserScopes'])
             ->middleware('permission:users.assign_scopes')->name('users.scopes');
-
 
         Route::get('/roles', [AccessControlController::class, 'roles'])
             ->middleware('permission:permissions.groups.view')->name('roles');
@@ -129,10 +129,15 @@ Route::middleware('auth')->group(function (): void {
     });
 
     Route::prefix('admin/parties')->name('admin.parties.')->group(function (): void {
-        Route::get('/', [\App\Http\Controllers\Admin\PartyController::class, 'index'])->middleware('permission:parties.view')->name('index');
-        Route::post('/', [\App\Http\Controllers\Admin\PartyController::class, 'store'])->middleware('permission:parties.create')->name('store');
-        Route::put('/{party}', [\App\Http\Controllers\Admin\PartyController::class, 'update'])->middleware('permission:parties.update')->name('update');
-        Route::patch('/{party}/active', [\App\Http\Controllers\Admin\PartyController::class, 'setActive'])->middleware('permission:parties.activate')->name('active');
+        Route::get('/', [\\App\\Http\\Controllers\\Admin\\PartyController::class, 'index'])->middleware('permission:parties.view')->name('index');
+        Route::post('/', [\\App\\Http\\Controllers\\Admin\\PartyController::class, 'store'])->middleware('permission:parties.create')->name('store');
+        Route::put('/{party}', [\\App\\Http\\Controllers\\Admin\\PartyController::class, 'update'])->middleware('permission:parties.update')->name('update');
+        Route::patch('/{party}/active', [\\App\\Http\\Controllers\\Admin\\PartyController::class, 'setActive'])->middleware('permission:parties.activate')->name('active');
     });
 
+    Route::prefix('admin/sales/orders')->name('admin.sales.orders.')->group(function (): void {
+        Route::get('/', [SalesOrderController::class, 'index'])->middleware('permission:sales.orders.view')->name('index');
+        Route::get('/create', [SalesOrderController::class, 'create'])->middleware('permission:sales.orders.create')->name('create');
+        Route::post('/', [SalesOrderController::class, 'store'])->middleware('permission:sales.orders.create')->name('store');
+    });
 });
