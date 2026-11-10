@@ -143,6 +143,21 @@ class ProductCatalogSettingsTest extends TestCase
         $this->get(route('admin.catalog.units'))->assertForbidden();
     }
 
+    public function test_catalog_settings_render_with_native_adminlte_cards_and_tables(): void
+    {
+        $user = $this->userWith(['product_categories.view', 'units.view']);
+
+        $this->actingAs($user)->get(route('admin.catalog.categories'))
+            ->assertOk()
+            ->assertSee('card card-outline card-secondary', false)
+            ->assertSee('table table-bordered table-hover table-striped', false);
+
+        $this->get(route('admin.catalog.units'))
+            ->assertOk()
+            ->assertSee('card card-outline card-secondary', false)
+            ->assertSee('table table-bordered table-hover table-striped', false);
+    }
+
     public function test_catalog_settings_routes_require_specific_permissions(): void
     {
         $user = $this->userWith([]);
