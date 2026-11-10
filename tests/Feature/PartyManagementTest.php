@@ -127,7 +127,7 @@ class PartyManagementTest extends TestCase
         $account = User::query()->where('username', 'customer-only-login')->firstOrFail();
         $this->assertSame($party->id, $account->party_id);
         $this->actingAs($account)->get(route('workspaces.index'))
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('home'));
     }
 
 
