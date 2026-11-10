@@ -218,6 +218,19 @@ class ProductManagementTest extends TestCase
     }
 
 
+    public function test_attribute_groups_screen_uses_adminlte_cards_and_tables(): void
+    {
+        $user = $this->userWith(['product_attributes.view']);
+        $group = ProductAttributeGroup::query()->create(['name' => 'المقاس']);
+        $group->values()->create(['value' => 'كبير']);
+
+        $this->actingAs($user)->get(route('admin.product-attributes.index'))
+            ->assertOk()
+            ->assertSee('card card-outline card-secondary', false)
+            ->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('كبير');
+    }
+
     public function test_internal_product_codes_are_unique_thirteen_digit_ean13_values(): void
     {
         $user = $this->userWith(['products.create']);
