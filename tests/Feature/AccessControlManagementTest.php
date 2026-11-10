@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Branch;
 use App\Models\UserDataScope;
 use App\Models\PermissionAudit;
+use App\Models\Party;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -167,12 +168,50 @@ class AccessControlManagementTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.access.users'))
             ->assertOk()
-            ->assertSee('table table-bordered table-hover table-striped', false)
+            ->assertSee('card card-solid card-primary', false)
+            ->assertSee('id="user-search"', false)
             ->assertSee('createUserModal', false)
             ->assertSee('editUserModal'.$target->id, false)
             ->assertSee('userRolesModal'.$target->id, false)
             ->assertSee('userScopesModal'.$target->id, false)
             ->assertSee('userPasswordModal'.$target->id, false);
+    }
+
+    public function test_user_directory_filters_by_search_party_role_status_and_account_link(): void
+    {
+        app(\Database\Seeders\DatabaseSeeder::class)->run();
+        $admin = $this->administratorWith(['users.view']);
+        $customer = Party::create([
+            'entity_type' => 'individual',
+            'name' => 'عميل البحث المحدد',
+            'is_active' => true,
+        ]);
+        $customer->partyRoles()->create(['role' => 'customer']);
+        User::create([
+            'name' => 'حساب العميل',
+            'username' => 'filtered-customer',
+            'password' => 'secure-password',
+            'account_type' => 'partner',
+            'party_id' => $customer->id,
+            'is_active' => true,
+        ]);
+        User::create([
+            'name' => 'حساب داخلي آخر',
+            'username' => 'unfiltered-internal',
+            'password' => 'secure-password',
+            'account_type' => 'admin',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.access.users', [
+            'q' => 'عميل البحث المحدد',
+            'party_role' => 'customer',
+            'status' => 'active',
+            'account' => 'linked',
+        ]))
+            ->assertOk()
+            ->assertSee('حساب العميل')
+            ->assertDontSee('حساب داخلي آخر');
     }
 
     public function test_user_management_routes_require_their_specific_permission(): void
