@@ -92,7 +92,9 @@ class SetupWebTest extends TestCase
             ->assertSee('بيانات التشغيل الأولى')
             ->assertDontSee('إنشاء أول مدير');
 
-        $this->submitOperatingData()->assertSessionHas('setup_status');
+        $this->submitOperatingData()
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('status', 'تم استكمال بيانات التشغيل الأساسية. يمكنك تسجيل الدخول.');
         $this->get('/setup')->assertNotFound();
     }
 
