@@ -12,7 +12,6 @@ use App\Services\BranchManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -135,9 +134,6 @@ class OperatingStructureController extends Controller
         $this->authorizePermission($request, 'branches.activate');
         $this->assertBranchScope($request, $branch);
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
-        if (! $data['is_active'] && $branch->is_main && $branch->company->is_active) {
-            throw ValidationException::withMessages(['branch' => 'حدد فرعًا رئيسيًا بديلًا قبل إيقاف الفرع الرئيسي الحالي.']);
-        }
         if (! $data['is_active'] && $branch->is_main && $branch->company->is_active) {
             throw ValidationException::withMessages(['branch' => 'حدد فرعًا رئيسيًا بديلًا قبل إيقاف الفرع الرئيسي الحالي.']);
         }
