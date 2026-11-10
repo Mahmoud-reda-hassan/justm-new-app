@@ -20,6 +20,11 @@ class City extends Model
         return $this->belongsTo(Governorate::class);
     }
 
+    public function shippingZone(): BelongsTo
+    {
+        return $this->belongsTo(ShippingZone::class);
+    }
+
     public function companies(): HasMany
     {
         return $this->hasMany(Company::class);
