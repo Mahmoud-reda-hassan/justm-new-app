@@ -6,7 +6,7 @@
 
 @section('content')
 <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
-    <p class="text-muted mb-2">إدارة حسابات الدخول وربطها بالأطراف ومجموعات الصلاحيات ونطاقات البيانات.</p>
+    <p class="text-muted mb-2">استعرض الحسابات وابحث عنها حسب الاسم أو الصفة أو مجموعة الصلاحيات، ثم افتح ملف الحساب لإدارته.</p>
     <div class="mb-2">
         @if(auth()->user()->hasPermission('permissions.groups.view'))<a class="btn btn-default btn-sm" href="{{ route('admin.access.roles') }}">مجموعات الصلاحيات</a>@endif
         @if(auth()->user()->hasPermission('users.create'))<button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#createUserModal"><i class="fas fa-user-plus ml-1"></i> إضافة مستخدم</button>@endif
@@ -15,51 +15,120 @@
 @if(session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
 @if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
-<div class="card card-outline card-primary">
-    <div class="card-header"><h3 class="card-title">دليل المستخدمين</h3><div class="card-tools"><span class="badge badge-secondary">{{ number_format($users->total()) }} مستخدم</span></div></div>
-    <div class="card-body"><div class="table-responsive">
-        <table class="table table-bordered table-hover table-striped">
-            <thead><tr><th>المستخدم</th><th>الطرف المرتبط</th><th>الحالة</th><th>مجموعات الصلاحيات</th><th>نطاق البيانات</th><th>الإجراءات</th></tr></thead>
-            <tbody>
+<div class="card card-solid card-primary">
+    <div class="card-header">
+        <h3 class="card-title">دليل المستخدمين</h3>
+        <div class="card-tools"><span class="badge badge-light">{{ number_format($users->total()) }} مستخدم</span></div>
+    </div>
+    <div class="card-body pb-0">
+        <form method="get" action="{{ route('admin.access.users') }}" class="border rounded p-3 mb-3">
+            <div class="form-row align-items-end">
+                <div class="form-group col-lg-4 col-md-6">
+                    <label for="user-search">بحث</label>
+                    <input id="user-search" class="form-control" type="search" name="q" value="{{ $filters['q'] }}" placeholder="الاسم أو اسم الدخول أو البريد أو الهاتف">
+                </div>
+                <div class="form-group col-lg-2 col-md-6">
+                    <label for="user-party-role">صفة الطرف</label>
+                    <select id="user-party-role" class="form-control" name="party_role">
+                        <option value="">كل الصفات</option>
+                        @foreach($partyRoles as $key => $label)
+                            <option value="{{ $key }}" @selected($filters['party_role'] === $key)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group col-lg-2 col-md-4">
+                    <label for="user-account">نوع الارتباط</label>
+                    <select id="user-account" class="form-control" name="account">
+                        <option value="">الكل</option>
+                        <option value="internal" @selected($filters['account'] === 'internal')>حساب داخلي</option>
+                        <option value="linked" @selected($filters['account'] === 'linked')>مرتبط بطرف</option>
+                    </select>
+                </div>
+                <div class="form-group col-lg-2 col-md-4">
+                    <label for="user-status">الحالة</label>
+                    <select id="user-status" class="form-control" name="status">
+                        <option value="">كل الحالات</option>
+                        <option value="active" @selected($filters['status'] === 'active')>نشط</option>
+                        <option value="inactive" @selected($filters['status'] === 'inactive')>موقوف</option>
+                    </select>
+                </div>
+                <div class="form-group col-lg-2 col-md-4">
+                    <label for="user-role">مجموعة الصلاحيات</label>
+                    <select id="user-role" class="form-control" name="role_id">
+                        <option value="">كل المجموعات</option>
+                        @foreach($roles as $role)
+                            <option value="{{ $role->id }}" @selected((string)$filters['role_id'] === (string)$role->id)>{{ $role->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="form-group col-12 mb-0">
+                    <button class="btn btn-primary"><i class="fas fa-search ml-1"></i> بحث</button>
+                    <a class="btn btn-default" href="{{ route('admin.access.users') }}">مسح الفلاتر</a>
+                </div>
+            </div>
+        </form>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-muted small">النتائج المعروضة: {{ number_format($users->total()) }}</span>
+            <span class="text-muted small">الحساب لا يحصل على صلاحية تشغيل أو لوحة عمل إلا من خلال الإسناد الصريح.</span>
+        </div>
+        <div class="row" id="userView">
             @forelse($users as $user)
-                <tr>
-                    <td><strong>{{ $user->name }}</strong><div class="text-muted small">{{ $user->username }}</div><div class="text-muted small">{{ $user->email ?: '—' }}</div></td>
-                    <td>
-                        {{ $user->party?->name ?? 'حساب داخلي' }}
-                        @if($user->party)<div class="mt-1">@foreach($user->party->assignedRoles() as $role)<span class="badge badge-info">{{ $partyRoleLabels[$role] ?? $role }}</span>@endforeach</div>@endif
-                    </td>
-                    <td><span class="badge {{ $user->is_active ? 'badge-success' : 'badge-danger' }}">{{ $user->is_active ? 'نشط' : 'موقوف' }}</span></td>
-                    <td>
-                        @forelse($user->roles as $role)<span class="badge badge-secondary">{{ $role->name }}</span>@empty<span class="text-muted">لا توجد مجموعات</span>@endforelse
-                    </td>
-                    <td>
-                        <span class="text-muted small">{{ $user->dataScopes->count() }} نطاق مباشر</span>
-                        @if($user->dataScopes->isNotEmpty())
-                            <button type="button" class="btn btn-link btn-sm p-0 d-block" data-toggle="collapse" data-target="#user-scopes-{{ $user->id }}">عرض التفاصيل</button>
-                            <div class="collapse mt-1" id="user-scopes-{{ $user->id }}">
-                                @foreach($user->dataScopes as $scope)
-                                    <div class="small">{{ $scope->scope_type }} #{{ $scope->scope_id }}</div>
-                                @endforeach
+                @php($assignedPartyRoles = $user->party?->assignedRoles() ?? [])
+                <div class="col-xl-4 col-md-6 d-flex">
+                    <div class="card card-outline card-secondary w-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span class="font-weight-bold">{{ $user->party ? 'حساب مرتبط بطرف' : 'حساب داخلي' }}</span>
+                            <span class="badge {{ $user->is_active ? 'badge-success' : 'badge-danger' }}">{{ $user->is_active ? 'نشط' : 'موقوف' }}</span>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="mb-1">{{ $user->name }}</h5>
+                            <div class="text-muted mb-3">{{ '@'.$user->username }}</div>
+                            @if($user->party)
+                                <div class="mb-2"><i class="fas fa-address-card text-muted ml-1"></i><strong>{{ $user->party->name }}</strong></div>
+                                <div class="mb-2">
+                                    @foreach($assignedPartyRoles as $partyRole)
+                                        <span class="badge badge-info">{{ $partyRoleLabels[$partyRole] ?? $partyRole }}</span>
+                                    @endforeach
+                                </div>
+                                @if(auth()->user()->hasPermission('users.view_details'))
+                                    @if($user->party->phone || $user->party->mobile)<div class="small text-muted mb-1"><i class="fas fa-phone ml-1"></i>{{ $user->party->phone }} {{ $user->party->mobile }}</div>@endif
+                                    @if($user->party->address)<div class="small text-muted mb-1"><i class="fas fa-map-marker-alt ml-1"></i>{{ $user->party->address }}</div>@endif
+                                @endif
+                            @else
+                                <div class="text-muted mb-2">غير مرتبط بصفة طرف.</div>
+                            @endif
+                            @if(auth()->user()->hasPermission('users.view_details') && $user->email)
+                                <div class="small text-muted mb-2"><i class="fas fa-envelope ml-1"></i>{{ $user->email }}</div>
+                            @endif
+                            <hr>
+                            <div class="small mb-2"><strong>مجموعات الصلاحيات:</strong>
+                                @forelse($user->roles as $role)<span class="badge badge-secondary">{{ $role->name }}</span>@empty<span class="text-muted">لا توجد</span>@endforelse
                             </div>
-                        @endif
-                    </td>
-                    <td><div class="btn-group btn-group-sm">
-                        @if(auth()->user()->hasPermission('users.update') && $user->id !== auth()->id())<button class="btn btn-primary" title="تعديل" data-toggle="modal" data-target="#editUserModal{{ $user->id }}"><i class="fas fa-edit"></i></button>@endif
-                        @if(auth()->user()->hasPermission('users.assign_groups') && $user->id !== auth()->id())<button class="btn btn-info" title="مجموعات الصلاحيات" data-toggle="modal" data-target="#userRolesModal{{ $user->id }}"><i class="fas fa-user-shield"></i></button>@endif
-                        @if(auth()->user()->hasPermission('users.assign_scopes'))<button class="btn btn-secondary" title="نطاق البيانات" data-toggle="modal" data-target="#userScopesModal{{ $user->id }}"><i class="fas fa-sitemap"></i></button>@endif
-                        @if(auth()->user()->hasPermission('users.reset_password') && $user->id !== auth()->id())<button class="btn btn-warning" title="إعادة تعيين كلمة المرور" data-toggle="modal" data-target="#userPasswordModal{{ $user->id }}"><i class="fas fa-key"></i></button>@endif
-                        @if(auth()->user()->hasPermission('users.activate') && $user->id !== auth()->id())
-                            <form method="post" action="{{ route('admin.access.users.active', $user) }}" onsubmit="return confirm('{{ $user->is_active ? 'هل تريد إيقاف الحساب؟' : 'هل تريد تفعيل الحساب؟' }}')">
-                                @csrf @method('patch')<input type="hidden" name="is_active" value="{{ $user->is_active ? 0 : 1 }}">
-                                <button class="btn {{ $user->is_active ? 'btn-danger' : 'btn-success' }}" title="{{ $user->is_active ? 'إيقاف' : 'تفعيل' }}"><i class="fas {{ $user->is_active ? 'fa-user-slash' : 'fa-user-check' }}"></i></button>
-                            </form>
-                        @endif
-                    </div></td>
-                </tr>
-            @empty<tr><td colspan="6" class="text-center text-muted py-4">لا يوجد مستخدمون ضمن نطاق الوصول.</td></tr>@endforelse
-            </tbody>
-        </table>
-    </div>{{ $users->links() }}</div>
+                            <div class="small text-muted"><i class="fas fa-sitemap ml-1"></i> {{ $user->dataScopes->count() }} نطاق بيانات مباشر</div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex flex-wrap">
+                                @if(auth()->user()->hasPermission('users.update') && $user->id !== auth()->id())<button class="btn btn-sm btn-primary ml-1 mb-1" data-toggle="modal" data-target="#editUserModal{{ $user->id }}"><i class="fas fa-edit ml-1"></i> تعديل</button>@endif
+                                @if(auth()->user()->hasPermission('users.assign_groups') && $user->id !== auth()->id())<button class="btn btn-sm btn-info ml-1 mb-1" data-toggle="modal" data-target="#userRolesModal{{ $user->id }}"><i class="fas fa-user-shield ml-1"></i> المجموعات</button>@endif
+                                @if(auth()->user()->hasPermission('users.assign_scopes'))<button class="btn btn-sm btn-secondary ml-1 mb-1" data-toggle="modal" data-target="#userScopesModal{{ $user->id }}"><i class="fas fa-sitemap ml-1"></i> النطاق</button>@endif
+                                @if(auth()->user()->hasPermission('users.reset_password') && $user->id !== auth()->id())<button class="btn btn-sm btn-warning ml-1 mb-1" data-toggle="modal" data-target="#userPasswordModal{{ $user->id }}"><i class="fas fa-key ml-1"></i> كلمة المرور</button>@endif
+                                @if(auth()->user()->hasPermission('users.activate') && $user->id !== auth()->id())
+                                    <form method="post" action="{{ route('admin.access.users.active', $user) }}" onsubmit="return confirm('{{ $user->is_active ? 'هل تريد إيقاف الحساب؟' : 'هل تريد تفعيل الحساب؟' }}')" class="mb-1">
+                                        @csrf @method('patch')<input type="hidden" name="is_active" value="{{ $user->is_active ? 0 : 1 }}">
+                                        <button class="btn btn-sm {{ $user->is_active ? 'btn-danger' : 'btn-success' }}"><i class="fas {{ $user->is_active ? 'fa-user-slash' : 'fa-user-check' }} ml-1"></i>{{ $user->is_active ? 'إيقاف' : 'تفعيل' }}</button>
+                                    </form>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @empty
+                <div class="col-12"><div class="alert alert-info text-center">لا توجد حسابات مطابقة لخيارات البحث ضمن نطاق الوصول.</div></div>
+            @endforelse
+        </div>
+    </div>
+    <div class="card-footer">{{ $users->links() }}</div>
 </div>
 
 @if(auth()->user()->hasPermission('users.create'))
