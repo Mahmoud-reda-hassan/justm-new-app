@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\City;
 use App\Models\Party;
+use App\Models\PartyAddress;
+use App\Models\PartyPhone;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PartyController extends Controller
@@ -19,7 +22,7 @@ class PartyController extends Controller
         $this->authorizePermission($request, 'parties.view');
 
         $parties = Party::query()
-            ->with(['city', 'partyRoles', 'users'])
+            ->with(['city', 'partyRoles', 'users', 'phones' => fn ($q) => $q->where('is_active', true), 'addresses.city'])
             ->when($request->filled('q'), function (Builder $query) use ($request): void {
                 $term = trim((string) $request->input('q'));
                 $query->where(function (Builder $search) use ($term): void {
@@ -27,7 +30,8 @@ class PartyController extends Controller
                         ->orWhere('code', 'like', '%'.$term.'%')
                         ->orWhere('phone', 'like', '%'.$term.'%')
                         ->orWhere('mobile', 'like', '%'.$term.'%')
-                        ->orWhere('email', 'like', '%'.$term.'%');
+                        ->orWhere('email', 'like', '%'.$term.'%')
+                        ->orWhereHas('phones', fn (Builder $phones) => $phones->where('number', 'like', '%'.$term.'%'));
                 });
             })
             ->when(
@@ -60,14 +64,21 @@ class PartyController extends Controller
         $this->authorizePermission($request, 'parties.create');
         $data = $this->validatedData($request);
         $roles = $data['roles'];
-        unset($data['roles']);
+        $phones = $data['phones'] ?? $this->legacyPhones($data);
+        $addresses = $data['addresses'] ?? $this->legacyAddresses($data);
+        unset($data['roles'], $data['phones'], $data['addresses']);
 
-        DB::transaction(function () use ($data, $roles): void {
+        $this->assertSinglePrimary($phones, 'phones');
+        $this->assertSinglePrimary($addresses, 'addresses');
+
+        DB::transaction(function () use ($data, $roles, $phones, $addresses): void {
             $party = Party::query()->create($data + ['is_active' => true]);
             $party->partyRoles()->createMany(array_map(
                 fn (string $role): array => ['role' => $role],
                 $roles,
             ));
+            $this->syncPhones($party, $phones);
+            $this->syncAddresses($party, $addresses);
         });
 
         return back()->with('status', 'تمت إضافة الطرف بنجاح.');
@@ -78,20 +89,35 @@ class PartyController extends Controller
         $this->authorizePermission($request, 'parties.update');
         $data = $this->validatedData($request, $party);
         $roles = $data['roles'];
-        unset($data['roles']);
+        $phones = $data['phones'] ?? null;
+        $addresses = $data['addresses'] ?? null;
+        unset($data['roles'], $data['phones'], $data['addresses']);
         abort_if(
             $party->users()->exists() && count(array_intersect($roles, Party::LOGIN_ROLES)) === 0,
             422,
             'لا يمكن إزالة كل الصفات التشغيلية من طرف مرتبط بحسابات دخول.'
         );
 
-        DB::transaction(function () use ($party, $data, $roles): void {
+        if ($phones !== null) {
+            $this->assertSinglePrimary($phones, 'phones');
+        }
+        if ($addresses !== null) {
+            $this->assertSinglePrimary($addresses, 'addresses');
+        }
+
+        DB::transaction(function () use ($party, $data, $roles, $phones, $addresses): void {
             $party->update($data);
             $party->partyRoles()->delete();
             $party->partyRoles()->createMany(array_map(
                 fn (string $role): array => ['role' => $role],
                 $roles,
             ));
+            if ($phones !== null) {
+                $this->syncPhones($party, $phones);
+            }
+            if ($addresses !== null) {
+                $this->syncAddresses($party, $addresses);
+            }
         });
 
         return back()->with('status', 'تم تحديث بيانات الطرف وصفاته.');
@@ -123,6 +149,131 @@ class PartyController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['required', 'string', Rule::in(array_keys(Party::ROLES))],
+            'phones' => ['sometimes', 'array', 'max:20'],
+            'phones.*.id' => ['nullable', 'integer'],
+            'phones.*.number' => ['required', 'string', 'max:40'],
+            'phones.*.type' => ['required', Rule::in(['mobile', 'landline'])],
+            'phones.*.is_whatsapp' => ['nullable', 'boolean'],
+            'phones.*.is_telegram' => ['nullable', 'boolean'],
+            'phones.*.is_primary' => ['nullable', 'boolean'],
+            'addresses' => ['sometimes', 'array', 'max:30'],
+            'addresses.*.id' => ['nullable', 'integer'],
+            'addresses.*.city_id' => ['nullable', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
+            'addresses.*.title' => ['required', 'string', 'max:80'],
+            'addresses.*.address' => ['required', 'string', 'max:4000'],
+            'addresses.*.is_primary' => ['nullable', 'boolean'],
+        ]);
+    }
+
+    private function legacyPhones(array $data): array
+    {
+        $phones = [];
+        if (! empty($data['mobile'])) {
+            $phones[] = ['number' => $data['mobile'], 'type' => 'mobile', 'is_primary' => true];
+        }
+        if (! empty($data['phone'])) {
+            $phones[] = ['number' => $data['phone'], 'type' => 'landline', 'is_primary' => $phones === []];
+        }
+
+        return $phones;
+    }
+
+    private function legacyAddresses(array $data): array
+    {
+        if (empty($data['address']) && empty($data['city_id'])) {
+            return [];
+        }
+
+        return [[
+            'city_id' => $data['city_id'] ?? null,
+            'title' => 'العنوان الرئيسي',
+            'address' => $data['address'] ?? '',
+            'is_primary' => true,
+        ]];
+    }
+
+    private function assertSinglePrimary(array $items, string $field): void
+    {
+        $primaryCount = collect($items)->filter(fn (array $item): bool => (bool) ($item['is_primary'] ?? false))->count();
+        if ($primaryCount > 1) {
+            throw ValidationException::withMessages([$field => 'حدد سجلًا رئيسيًا واحدًا فقط.']);
+        }
+    }
+
+    private function syncPhones(Party $party, array $phones): void
+    {
+        $keptIds = [];
+        foreach ($phones as $phone) {
+            $id = $phone['id'] ?? null;
+            if ($id) {
+                $record = $party->phones()->whereKey($id)->firstOrFail();
+                $record->update([
+                    'number' => trim($phone['number']),
+                    'type' => $phone['type'],
+                    'is_whatsapp' => (bool) ($phone['is_whatsapp'] ?? false),
+                    'is_telegram' => (bool) ($phone['is_telegram'] ?? false),
+                    'is_primary' => (bool) ($phone['is_primary'] ?? false),
+                    'is_active' => true,
+                ]);
+            } else {
+                $record = $party->phones()->create([
+                    'number' => trim($phone['number']),
+                    'type' => $phone['type'],
+                    'is_whatsapp' => (bool) ($phone['is_whatsapp'] ?? false),
+                    'is_telegram' => (bool) ($phone['is_telegram'] ?? false),
+                    'is_primary' => (bool) ($phone['is_primary'] ?? false),
+                    'is_active' => true,
+                ]);
+            }
+            $keptIds[] = $record->id;
+        }
+
+        $party->phones()->whereNotIn('id', $keptIds ?: [0])->update(['is_active' => false, 'is_primary' => false]);
+        $active = $party->phones()->where('is_active', true)->orderByDesc('is_primary')->orderBy('id')->get();
+        $primary = $active->firstWhere('is_primary', true) ?? $active->first();
+        if ($primary) {
+            $party->phones()->where('id', '<>', $primary->id)->update(['is_primary' => false]);
+            $primary->update(['is_primary' => true]);
+        }
+
+        $party->update([
+            'mobile' => $active->firstWhere('type', 'mobile')?->number,
+            'phone' => $active->firstWhere('type', 'landline')?->number,
+        ]);
+    }
+
+    private function syncAddresses(Party $party, array $addresses): void
+    {
+        $keptIds = [];
+        foreach ($addresses as $address) {
+            $id = $address['id'] ?? null;
+            $values = [
+                'city_id' => $address['city_id'] ?? null,
+                'title' => trim($address['title']),
+                'address' => trim($address['address']),
+                'is_primary' => (bool) ($address['is_primary'] ?? false),
+                'is_active' => true,
+            ];
+            if ($id) {
+                $record = $party->addresses()->whereKey($id)->firstOrFail();
+                $record->update($values);
+            } else {
+                $record = $party->addresses()->create($values);
+            }
+            $keptIds[] = $record->id;
+        }
+
+        $party->addresses()->whereNotIn('id', $keptIds ?: [0])->update(['is_active' => false, 'is_primary' => false]);
+        $active = $party->addresses()->where('is_active', true)->orderByDesc('is_primary')->orderBy('id')->get();
+        $primary = $active->firstWhere('is_primary', true) ?? $active->first();
+        if ($primary) {
+            $party->addresses()->where('id', '<>', $primary->id)->update(['is_primary' => false]);
+            $primary->update(['is_primary' => true]);
+        }
+
+        $party->update([
+            'city_id' => $primary?->city_id,
+            'address' => $primary?->address,
         ]);
     }
 
