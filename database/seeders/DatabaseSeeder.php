@@ -1,11 +1,11 @@
 <?php
 
-namespace Database\\Seeders;
+namespace Database\Seeders;
 
-use App\\Models\\Permission;
-use App\\Models\\Role;
-use App\\Models\\WarehouseType;
-use Illuminate\\Database\\Seeder;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\WarehouseType;
+use Illuminate\Database\Seeder;
 use RuntimeException;
 
 class DatabaseSeeder extends Seeder
