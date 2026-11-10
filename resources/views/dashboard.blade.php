@@ -16,6 +16,15 @@
         @if (auth()->user()->hasPermission('permissions.groups.view'))
             <a href="{{ route('admin.access.roles') }}">مجموعات الصلاحيات</a>
         @endif
+        @if (auth()->user()->hasPermission('companies.view'))
+            <a href="{{ route('admin.structure.companies') }}">الشركات</a>
+        @endif
+        @if (auth()->user()->hasPermission('branches.view'))
+            <a href="{{ route('admin.structure.branches') }}">الفروع</a>
+        @endif
+        @if (auth()->user()->hasPermission('warehouses.view'))
+            <a href="{{ route('admin.structure.warehouses') }}">المخازن</a>
+        @endif
     </nav>
     <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">تسجيل الخروج</button></form>
 </body>
