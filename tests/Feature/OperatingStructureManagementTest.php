@@ -8,6 +8,8 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserDataScope;
+use App\Models\Warehouse;
+use App\Models\WarehouseType;
 use App\Services\BranchManager;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -188,8 +190,8 @@ class OperatingStructureManagementTest extends TestCase
             'is_main' => true,
             'is_active' => false,
         ]);
-        $warehouseTypeId = \\App\\Models\\WarehouseType::query()->where('key', 'internal')->value('id');
-        $warehouse = \\App\\Models\\Warehouse::create([
+        $warehouseTypeId = WarehouseType::query()->where('key', 'internal')->value('id');
+        $warehouse = Warehouse::create([
             'branch_id' => $branch->id,
             'warehouse_type_id' => $warehouseTypeId,
             'name' => 'مخزن متوقف',
