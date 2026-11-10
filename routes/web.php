@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\ProfileEmailController;
 use App\Http\Controllers\SetupController;
+use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
@@ -46,7 +47,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/email/verification-notification', [EmailVerificationController::class, 'resend'])
         ->middleware('throttle:6,1')->name('verification.send');
     Route::view('/dashboard', 'dashboard')->name('dashboard');
-    Route::get('/admin', fn () => redirect()->route('dashboard'))->name('admin.home');
+    Route::get('/special-users', [WorkspaceController::class, 'index'])->name('workspaces.index');
+    Route::get('/workspaces/{workspace}', [WorkspaceController::class, 'enter'])->whereIn('workspace', ['admin', 'marketer', 'intermediary', 'delivery'])->name('workspaces.enter');
+    Route::get('/admin', [WorkspaceController::class, 'admin'])->name('admin.home');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
     Route::get('/admin/system/database-updates', [DatabaseUpdateController::class, 'index'])->name('admin.system.database-updates');
