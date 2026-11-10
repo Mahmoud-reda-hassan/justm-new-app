@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Permission;
+use App\Models\Warehouse;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\PermissionAuditLogger;
@@ -24,9 +27,9 @@ class AccessControlController extends Controller
         return view('admin.access.users', [
             'users' => User::query()->with(['roles', 'dataScopes'])->orderByDesc('id')->paginate(20),
             'roles' => Role::query()->where('is_active', true)->orderBy('name')->get(),
-            'companies' => \\App\\Models\\Company::query()->orderBy('name')->get(['id', 'name']),
-            'branches' => \\App\\Models\\Branch::query()->with('company')->orderBy('name')->get(['id', 'company_id', 'name']),
-            'warehouses' => \\App\\Models\\Warehouse::query()->with('branch')->orderBy('name')->get(['id', 'branch_id', 'name']),
+            'companies' => Company::query()->orderBy('name')->get(['id', 'name']),
+            'branches' => Branch::query()->with('company')->orderBy('name')->get(['id', 'company_id', 'name']),
+            'warehouses' => Warehouse::query()->with('branch')->orderBy('name')->get(['id', 'branch_id', 'name']),
         ]);
     }
 
