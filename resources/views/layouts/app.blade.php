@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name')) | {{ config('app.name') }}</title>
+    <link rel="stylesheet" href="{{ asset('vendor/justm/fontawesome.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/adminlte.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/select2.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/sweetalert2.min.css') }}">
@@ -57,7 +58,7 @@
 <div class="wrapper">
     <nav class="main-header navbar navbar-expand navbar-white navbar-light">
         <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button" aria-label="فتح وإغلاق القائمة"><span aria-hidden="true">☰</span></a></li>
+            <li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#" role="button" aria-label="فتح وإغلاق القائمة"><i class="fas fa-bars" aria-hidden="true"></i></a></li>
             <li class="nav-item d-none d-sm-inline-block"><span class="nav-link font-weight-bold">{{ config('app.name') }}</span></li>
         </ul>
         <ul class="navbar-nav ml-auto">
@@ -84,31 +85,31 @@
             <nav class="mt-2">
                 <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
                     <li class="nav-item">
-                        <a href="{{ route('dashboard') }}" class="nav-link @if(request()->routeIs('dashboard')) active @endif"><i class="nav-icon">⌂</i><p>لوحة التحكم</p></a>
+                        <a href="{{ route('dashboard') }}" class="nav-link @if(request()->routeIs('dashboard')) active @endif"><i class="nav-icon fas fa-tachometer-alt"></i><p>لوحة التحكم</p></a>
                     </li>
                     @if ($user->hasPermission('sales.orders.view') || $user->hasPermission('parties.view'))
                         <li class="nav-header">العمليات</li>
                         @if ($user->hasPermission('sales.orders.view'))
-                            <li class="nav-item"><a href="{{ route('admin.sales.orders.index') }}" class="nav-link"><i class="nav-icon">▤</i><p>أوامر البيع</p></a></li>
+                            <li class="nav-item"><a href="{{ route('admin.sales.orders.index') }}" class="nav-link"><i class="nav-icon fas fa-list-alt"></i><p>أوامر البيع</p></a></li>
                         @endif
                         @if ($user->hasPermission('parties.view'))
-                            <li class="nav-item"><a href="{{ route('admin.parties.index') }}" class="nav-link"><i class="nav-icon">♙</i><p>الأطراف</p></a></li>
+                            <li class="nav-item"><a href="{{ route('admin.parties.index') }}" class="nav-link"><i class="nav-icon fas fa-users"></i><p>الأطراف</p></a></li>
                         @endif
                     @endif
                     @if (($user->hasPermission('products.view') || $user->hasPermission('product_categories.view') || $user->hasPermission('product_attributes.view') || $user->hasPermission('units.view')) && $user->hasPermission('structure.scope.manage_all'))
                         <li class="nav-header">كتالوج المنتجات</li>
-                        @if ($user->hasPermission('products.view'))<li class="nav-item"><a href="{{ route('admin.products.index') }}" class="nav-link"><i class="nav-icon">▦</i><p>المنتجات</p></a></li>@endif
-                        @if ($user->hasPermission('product_categories.view'))<li class="nav-item"><a href="{{ route('admin.catalog.categories') }}" class="nav-link"><i class="nav-icon">▧</i><p>التصنيفات</p></a></li>@endif
-                        @if ($user->hasPermission('product_attributes.view'))<li class="nav-item"><a href="{{ route('admin.product-attributes.index') }}" class="nav-link"><i class="nav-icon">◇</i><p>صفات المنتجات</p></a></li>@endif
-                        @if ($user->hasPermission('units.view'))<li class="nav-item"><a href="{{ route('admin.catalog.units') }}" class="nav-link"><i class="nav-icon">⚖</i><p>وحدات القياس</p></a></li>@endif
+                        @if ($user->hasPermission('products.view'))<li class="nav-item"><a href="{{ route('admin.products.index') }}" class="nav-link"><i class="nav-icon fas fa-boxes"></i><p>المنتجات</p></a></li>@endif
+                        @if ($user->hasPermission('product_categories.view'))<li class="nav-item"><a href="{{ route('admin.catalog.categories') }}" class="nav-link"><i class="nav-icon fas fa-sitemap"></i><p>التصنيفات</p></a></li>@endif
+                        @if ($user->hasPermission('product_attributes.view'))<li class="nav-item"><a href="{{ route('admin.product-attributes.index') }}" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>صفات المنتجات</p></a></li>@endif
+                        @if ($user->hasPermission('units.view'))<li class="nav-item"><a href="{{ route('admin.catalog.units') }}" class="nav-link"><i class="nav-icon fas fa-balance-scale"></i><p>وحدات القياس</p></a></li>@endif
                     @endif
                     @if ($user->hasPermission('users.view') || $user->hasPermission('permissions.groups.view') || $user->hasPermission('companies.view') || $user->hasPermission('branches.view') || $user->hasPermission('warehouses.view'))
                         <li class="nav-header">الإدارة والإعداد</li>
-                        @if ($user->hasPermission('users.view'))<li class="nav-item"><a href="{{ route('admin.access.users') }}" class="nav-link"><i class="nav-icon">♧</i><p>المستخدمون</p></a></li>@endif
-                        @if ($user->hasPermission('permissions.groups.view'))<li class="nav-item"><a href="{{ route('admin.access.roles') }}" class="nav-link"><i class="nav-icon">⚿</i><p>مجموعات الصلاحيات</p></a></li>@endif
-                        @if ($user->hasPermission('companies.view'))<li class="nav-item"><a href="{{ route('admin.structure.companies') }}" class="nav-link"><i class="nav-icon">▥</i><p>الشركات</p></a></li>@endif
-                        @if ($user->hasPermission('branches.view'))<li class="nav-item"><a href="{{ route('admin.structure.branches') }}" class="nav-link"><i class="nav-icon">⌖</i><p>الفروع</p></a></li>@endif
-                        @if ($user->hasPermission('warehouses.view'))<li class="nav-item"><a href="{{ route('admin.structure.warehouses') }}" class="nav-link"><i class="nav-icon">▤</i><p>المخازن</p></a></li>@endif
+                        @if ($user->hasPermission('users.view'))<li class="nav-item"><a href="{{ route('admin.access.users') }}" class="nav-link"><i class="nav-icon fas fa-user"></i><p>المستخدمون</p></a></li>@endif
+                        @if ($user->hasPermission('permissions.groups.view'))<li class="nav-item"><a href="{{ route('admin.access.roles') }}" class="nav-link"><i class="nav-icon fas fa-user-shield"></i><p>مجموعات الصلاحيات</p></a></li>@endif
+                        @if ($user->hasPermission('companies.view'))<li class="nav-item"><a href="{{ route('admin.structure.companies') }}" class="nav-link"><i class="nav-icon fas fa-building"></i><p>الشركات</p></a></li>@endif
+                        @if ($user->hasPermission('branches.view'))<li class="nav-item"><a href="{{ route('admin.structure.branches') }}" class="nav-link"><i class="nav-icon fas fa-code-branch"></i><p>الفروع</p></a></li>@endif
+                        @if ($user->hasPermission('warehouses.view'))<li class="nav-item"><a href="{{ route('admin.structure.warehouses') }}" class="nav-link"><i class="nav-icon fas fa-list-alt"></i><p>المخازن</p></a></li>@endif
                     @endif
                 </ul>
             </nav>
