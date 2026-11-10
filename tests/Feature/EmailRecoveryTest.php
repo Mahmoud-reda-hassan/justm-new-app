@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
@@ -75,6 +76,39 @@ class EmailRecoveryTest extends TestCase
         ])->assertRedirect(route('login'));
 
         $this->assertTrue(password_verify('new-secure-password-123', $user->fresh()->password));
+    }
+
+    public function test_user_can_add_a_recovery_email_with_current_password_and_receive_verification(): void
+    {
+        Notification::fake();
+        $user = $this->makeUser();
+        $user->forceFill(['email' => null])->save();
+
+        $this->actingAs($user)
+            ->put(route('account.email.update'), [
+                'email' => 'recovery@example.test',
+                'current_password' => 'old-secure-password',
+            ])
+            ->assertRedirect();
+
+        $user->refresh();
+        $this->assertSame('recovery@example.test', $user->email);
+        $this->assertNull($user->email_verified_at);
+        Notification::assertSentTo($user, VerifyEmail::class);
+    }
+
+    public function test_changing_recovery_email_requires_current_password(): void
+    {
+        $user = $this->makeUser();
+
+        $this->actingAs($user)
+            ->put(route('account.email.update'), [
+                'email' => 'new@example.test',
+                'current_password' => 'wrong-password',
+            ])
+            ->assertSessionHasErrors('current_password');
+
+        $this->assertSame('admin@example.test', $user->fresh()->email);
     }
 
     private function makeUser(): User
