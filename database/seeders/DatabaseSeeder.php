@@ -31,8 +31,6 @@ class DatabaseSeeder extends Seeder
             'permissions.catalog.assign',
             'users.assign_scopes',
             'structure.scope.manage_all',
-            'sales.orders.view',
-            'sales.orders.create',
         ];
 
         $permissions = Permission::query()->whereIn('key', $permissionKeys)->get();
