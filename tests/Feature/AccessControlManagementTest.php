@@ -159,6 +159,7 @@ class AccessControlManagementTest extends TestCase
 
         $this->assertSame(0, $target->fresh()->roles()->count());
     }
+
     public function test_initial_access_admin_can_add_operational_permissions_to_own_role(): void
     {
         $admin = $this->administratorWith(['permissions.groups.view', 'permissions.groups.assign', 'permissions.catalog.assign']);
@@ -167,7 +168,8 @@ class AccessControlManagementTest extends TestCase
         $permission = Permission::query()->firstOrCreate(['key' => 'companies.view'], ['module' => 'companies', 'action' => 'view']);
         $protected = $role->permissions()->where('permissions.key', 'permissions.groups.view')->firstOrFail();
 
-        $this->actingAs($admin)->put(route('admin.access.roles.permissions', $role), ['permissions' => [$permission->id]])
+        $this->from(route('admin.access.roles'))->actingAs($admin)
+            ->put(route('admin.access.roles.permissions', $role), ['permissions' => [$permission->id]])
             ->assertRedirect(route('admin.access.roles'))->assertSessionHasNoErrors();
 
         $this->assertTrue($role->fresh()->permissions->contains('id', $permission->id));
@@ -183,7 +185,7 @@ class AccessControlManagementTest extends TestCase
         $role->update(['key' => 'system-access-admin']);
         $sensitive = Permission::query()->firstOrCreate(['key' => 'users.delete'], ['module' => 'users', 'action' => 'delete']);
 
-        $this->actingAs($admin)->from(route('admin.access.roles'))->put(route('admin.access.roles.permissions', $role), ['permissions' => [$sensitive->id]])
+        $this->from(route('admin.access.roles'))->put(route('admin.access.roles.permissions', $role), ['permissions' => [$sensitive->id]])
             ->assertRedirect(route('admin.access.roles'))->assertSessionHasErrors('permissions');
         $this->assertFalse($role->fresh()->permissions->contains('id', $sensitive->id));
     }
@@ -195,7 +197,8 @@ class AccessControlManagementTest extends TestCase
         $role->update(['key' => 'system-access-admin']);
         $protected = $role->permissions()->where('permissions.key', 'permissions.groups.view')->firstOrFail();
 
-        $this->actingAs($admin)->put(route('admin.access.roles.permissions', $role), ['permissions' => []])
+        $this->from(route('admin.access.roles'))->actingAs($admin)
+            ->put(route('admin.access.roles.permissions', $role), ['permissions' => []])
             ->assertRedirect(route('admin.access.roles'))->assertSessionHasNoErrors();
         $this->assertTrue($role->fresh()->permissions->contains('id', $protected->id));
     }
@@ -218,7 +221,7 @@ class AccessControlManagementTest extends TestCase
             ['module' => 'warehouses', 'action' => 'view'],
         );
 
-        $this->actingAs($admin)
+        $this->from(route('admin.access.roles'))->actingAs($admin)
             ->put(route('admin.access.roles.permissions', $role), [
                 'permissions' => [$permission->id],
             ])
@@ -226,5 +229,4 @@ class AccessControlManagementTest extends TestCase
 
         $this->assertTrue($role->fresh()->permissions->contains('id', $permission->id));
     }
-
 }
