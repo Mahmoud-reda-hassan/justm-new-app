@@ -1,5 +1,10 @@
-<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>الفروع</title><style>body{font-family:Tahoma,Arial;background:#f5f6f8;margin:0;padding:22px;color:#222}main{max-width:1200px;margin:auto}section{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin:0 0 16px}input,select,button{padding:8px;margin:3px;border:1px solid #bbb;border-radius:5px}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #ddd;text-align:right;vertical-align:top}.inline{display:inline-block}.status{background:#e8f5e9;padding:10px}</style></head><body><main>
+@extends('layouts.app')
+
+@section('title', 'الفروع')
+@section('page-title', 'الفروع')
+@section('breadcrumb', 'الفروع')
+
+@section('content')
 <h1>إدارة الفروع</h1><p><a href="{{ route('dashboard') }}">الرئيسية</a> · <a href="{{ route('admin.structure.companies') }}">الشركات</a> · <a href="{{ route('admin.structure.warehouses') }}">المخازن</a></p>
 @if(session('status'))<p class="status">{{ session('status') }}</p>@endif @if($errors->any())<section><ul>@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul></section>@endif
 @if(auth()->user()->hasPermission('branches.create'))<section><h2>إضافة فرع</h2><form method="post" action="{{ route('admin.structure.branches.store') }}">@csrf
@@ -7,4 +12,5 @@
 <section><h2>الفروع</h2><table><thead><tr><th>الفرع</th><th>الشركة</th><th>المخازن</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>
 @forelse($branches as $branch)<tr><td>{{ $branch->name }} @if($branch->is_main) (رئيسي) @endif</td><td>{{ $branch->company->name }}</td><td>{{ $branch->warehouses_count }}</td><td>{{ $branch->is_active?'نشط':'موقوف' }}</td><td>
 @if(auth()->user()->hasPermission('branches.update'))<form class="inline" method="post" action="{{ route('admin.structure.branches.update',$branch) }}">@csrf @method('put')<select name="company_id" required>@foreach($companies as $company)<option value="{{ $company->id }}" @selected($branch->company_id==$company->id)>{{ $company->name }}</option>@endforeach</select><input name="name" value="{{ $branch->name }}" required><select name="city_id"><option value="">المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected($branch->city_id==$city->id)>{{ $city->name_ar }}</option>@endforeach</select><input name="address" value="{{ $branch->address }}"><label><input type="checkbox" name="is_main" value="1" @checked($branch->is_main)> رئيسي</label><button>حفظ</button></form>@endif
-@if(auth()->user()->hasPermission('branches.activate'))<form class="inline" method="post" action="{{ route('admin.structure.branches.active',$branch) }}">@csrf @method('patch')<input type="hidden" name="is_active" value="{{ $branch->is_active?0:1 }}"><button>{{ $branch->is_active?'إيقاف':'تفعيل' }}</button></form>@endif</td></tr>@empty<tr><td colspan="5">لا توجد فروع ضمن نطاق الوصول.</td></tr>@endforelse</tbody></table>{{ $branches->links() }}</section></main></body></html>
+@if(auth()->user()->hasPermission('branches.activate'))<form class="inline" method="post" action="{{ route('admin.structure.branches.active',$branch) }}">@csrf @method('patch')<input type="hidden" name="is_active" value="{{ $branch->is_active?0:1 }}"><button>{{ $branch->is_active?'إيقاف':'تفعيل' }}</button></form>@endif</td></tr>@empty<tr><td colspan="5">لا توجد فروع ضمن نطاق الوصول.</td></tr>@endforelse</tbody></table>{{ $branches->links() }}</section>
+@endsection
