@@ -36,7 +36,7 @@
         <table><thead><tr><th>الاسم / الدخول</th><th>الطرف المرتبط</th><th>الحالة</th><th>مجموعات الصلاحيات</th><th>الإجراءات</th><th>نطاق البيانات</th></tr></thead><tbody>
         @forelse ($users as $user)
             <tr><td>{{ $user->name }}<br><span class="muted">{{ $user->username }} · {{ $user->email }}</span></td>
-                <td>{{ $user->party?->name ?? "—" }}@if($user->party)<br><span class="muted">{{ $user->party->assignedRoles() ? collect($user->party->assignedRoles())->map(fn($role) => $partyRoleLabels[$role] ?? $role)->implode("، ") : '' }}</span>@endif</td>
+                <td>{{ $user->party?->name ?? "—" }}@if($user->party)<br><span class="muted">{{ collect($user->party->assignedRoles())->map(fn($role) => $partyRoleLabels[$role] ?? $role)->implode("، ") }}</span>@endif</td>
                 <td>{{ $user->is_active ? 'نشط' : 'موقوف' }}</td>
                 <td>
                     <form method="post" action="{{ route('admin.access.users.roles', $user) }}">@csrf @method('put')
