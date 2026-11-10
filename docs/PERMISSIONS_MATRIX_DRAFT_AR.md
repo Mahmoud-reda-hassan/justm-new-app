@@ -371,3 +371,15 @@
 - منع إعادة تعيين كلمة مرور الحساب الحالي من شاشة إدارة المستخدمين.
 - أضيفت اختبارات Feature للحالات السابقة، ونجحت جميع الاختبارات الآلية في CI رقم 42776128401 على commit التنفيذ.
 - **قرار مفتوح لم يتغير:** `account_type` الافتراضي عند إنشاء المستخدم ما زال `admin`؛ لا يُغيّر إلى نوع آخر دون اعتماد معنى الأنواع وخياراتها. النوع لا يمنح صلاحيات تلقائية.
+
+
+## صلاحيات كتالوج المنتجات — التنفيذ الحالي
+
+| المجال | الصلاحيات |
+|---|---|
+| المنتجات والأكواد | `products.view`, `products.create`, `products.update`, `products.activate` |
+| تصنيفات المنتجات | `product_categories.view`, `product_categories.create`, `product_categories.update`, `product_categories.activate` |
+| وحدات القياس | `units.view`, `units.create`, `units.update`, `units.activate` |
+| مجموعات الصفات والقيم | `product_attributes.view`, `product_attributes.create`, `product_attributes.update`, `product_attributes.activate` |
+
+إلى أن يُعتمد نطاق مستقل للمنتجات، تتطلب جميع شاشات إدارة كتالوج المنتجات والتصنيفات والوحدات والصفات صلاحية `structure.scope.manage_all` بالإضافة إلى صلاحية العملية. لا توجد صلاحيات ضمنية من نوع الحساب أو المجموعة.

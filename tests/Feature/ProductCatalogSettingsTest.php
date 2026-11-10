@@ -16,7 +16,7 @@ class ProductCatalogSettingsTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function userWith(array $keys): User
+    private function userWith(array $keys, bool $globalScope = true): User
     {
         app(DatabaseSeeder::class)->run();
         $user = User::query()->create([
@@ -27,7 +27,8 @@ class ProductCatalogSettingsTest extends TestCase
             'is_active' => true,
         ]);
         $role = Role::query()->create(['name' => 'Catalog role', 'key' => 'catalog-role-'.uniqid(), 'is_active' => true]);
-        $role->permissions()->sync(Permission::query()->whereIn('key', $keys)->pluck('id'));
+        $permissionKeys = $globalScope ? array_values(array_unique([...$keys, 'structure.scope.manage_all'])) : $keys;
+        $role->permissions()->sync(Permission::query()->whereIn('key', $permissionKeys)->pluck('id'));
         $user->roles()->attach($role);
         return $user;
     }
@@ -132,6 +133,14 @@ class ProductCatalogSettingsTest extends TestCase
     {
         $user = $this->userWith(['units.view']);
         $this->actingAs($user)->get(route('admin.catalog.units'))->assertOk()->assertSee('وحدات القياس');
+    }
+
+
+    public function test_catalog_settings_are_not_visible_without_global_product_scope(): void
+    {
+        $user = $this->userWith(['product_categories.view', 'units.view'], false);
+        $this->actingAs($user)->get(route('admin.catalog.categories'))->assertForbidden();
+        $this->get(route('admin.catalog.units'))->assertForbidden();
     }
 
     public function test_catalog_settings_routes_require_specific_permissions(): void

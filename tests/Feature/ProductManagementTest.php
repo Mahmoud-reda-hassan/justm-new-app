@@ -20,7 +20,7 @@ class ProductManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function userWith(array $keys): User
+    private function userWith(array $keys, bool $globalScope = true): User
     {
         app(DatabaseSeeder::class)->run();
         $user = User::query()->create([
@@ -31,7 +31,8 @@ class ProductManagementTest extends TestCase
             'is_active' => true,
         ]);
         $role = Role::query()->create(['name' => 'Product role', 'key' => 'product-role-'.uniqid(), 'is_active' => true]);
-        $role->permissions()->sync(Permission::query()->whereIn('key', $keys)->pluck('id'));
+        $permissionKeys = $globalScope ? array_values(array_unique([...$keys, 'structure.scope.manage_all'])) : $keys;
+        $role->permissions()->sync(Permission::query()->whereIn('key', $permissionKeys)->pluck('id'));
         $user->roles()->attach($role);
         return $user;
     }
@@ -276,6 +277,13 @@ class ProductManagementTest extends TestCase
         ])->assertSessionHasErrors('attribute_value_ids');
 
         $this->assertDatabaseMissing('product_variants', ['sku' => 'UNIQUE-RED-2']);
+    }
+
+
+    public function test_product_catalog_is_not_visible_without_global_product_scope(): void
+    {
+        $user = $this->userWith(['products.view'], false);
+        $this->actingAs($user)->get(route('admin.products.index'))->assertForbidden();
     }
 
     public function test_product_and_attribute_screens_require_specific_permissions(): void

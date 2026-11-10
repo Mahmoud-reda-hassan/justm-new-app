@@ -28,16 +28,16 @@
         @if (auth()->user()->hasPermission('warehouses.view'))
             <a href="{{ route('admin.structure.warehouses') }}">المخازن</a>
         @endif
-        @if (auth()->user()->hasPermission('products.view'))
+        @if (auth()->user()->hasPermission('products.view') && auth()->user()->hasPermission('structure.scope.manage_all'))
             <a href="{{ route('admin.products.index') }}">المنتجات</a>
         @endif
-        @if (auth()->user()->hasPermission('product_attributes.view'))
+        @if (auth()->user()->hasPermission('product_attributes.view') && auth()->user()->hasPermission('structure.scope.manage_all'))
             <a href="{{ route('admin.product-attributes.index') }}">صفات المنتجات</a>
         @endif
-        @if (auth()->user()->hasPermission('product_categories.view'))
+        @if (auth()->user()->hasPermission('product_categories.view') && auth()->user()->hasPermission('structure.scope.manage_all'))
             <a href="{{ route('admin.catalog.categories') }}">تصنيفات المنتجات</a>
         @endif
-        @if (auth()->user()->hasPermission('units.view'))
+        @if (auth()->user()->hasPermission('units.view') && auth()->user()->hasPermission('structure.scope.manage_all'))
             <a href="{{ route('admin.catalog.units') }}">وحدات القياس</a>
         @endif
         @if (auth()->user()->hasPermission('parties.view'))
