@@ -122,7 +122,7 @@ class SetupController extends Controller
         abort_if($this->isOperatingDataReady(), 404);
 
         $validated = $request->validate([
-            'site_name' => ['required', 'string', 'max:150'],
+            'site_name' => ['nullable', 'string', 'max:150'],
             'country_name_ar' => ['required', 'string', 'max:100'],
             'country_name_en' => ['required', 'string', 'max:100'],
             'region_name' => ['nullable', 'string', 'max:100'],
@@ -131,7 +131,7 @@ class SetupController extends Controller
             'city_name_ar' => ['required', 'string', 'max:120'],
             'city_name_en' => ['required', 'string', 'max:120'],
             'company_name' => ['required', 'string', 'max:150'],
-            'company_phone' => ['nullable', 'string', 'max:40'],
+            'company_phone' => ['required', 'string', 'max:40'],
             'company_mobile' => ['nullable', 'string', 'max:40'],
             'company_email' => ['nullable', 'email', 'max:190'],
             'company_address' => ['nullable', 'string', 'max:2000'],
@@ -156,6 +156,9 @@ class SetupController extends Controller
             'warehouse_type.required' => 'نوع المخزن مطلوب.',
             'warehouse_type.exists' => 'نوع المخزن المحدد غير متاح.',
         ]);
+
+        $validated['site_name'] = $validated['site_name'] ?: $validated['company_name'];
+        $validated['company_address'] = $validated['branch_address'] ?? null;
 
         try {
             $setup->configure($validated);
