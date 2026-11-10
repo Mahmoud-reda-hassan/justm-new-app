@@ -88,6 +88,44 @@ class PartyManagementTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_operational_party_can_be_linked_to_a_login_account_without_implicit_permissions(): void
+    {
+        $admin = $this->userWith(['users.create', 'structure.scope.manage_all']);
+        $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'مسوق تجريبي']);
+        $party->partyRoles()->create(['role' => 'marketer']);
+
+        $this->actingAs($admin)->post(route('admin.access.users.store'), [
+            'name' => 'حساب المسوق',
+            'username' => 'linked-marketer',
+            'email' => 'linked-marketer@example.test',
+            'password' => 'long-secure-password',
+            'password_confirmation' => 'long-secure-password',
+            'party_id' => $party->id,
+        ])->assertSessionHasNoErrors();
+
+        $account = User::query()->where('username', 'linked-marketer')->firstOrFail();
+        $this->assertSame($party->id, $account->party_id);
+        $this->assertSame('partner', $account->account_type);
+        $this->assertSame(0, $account->roles()->count());
+    }
+
+    public function test_customer_party_cannot_be_linked_to_an_operational_login_account(): void
+    {
+        $admin = $this->userWith(['users.create', 'structure.scope.manage_all']);
+        $party = Party::query()->create(['entity_type' => 'individual', 'name' => 'عميل فقط']);
+        $party->partyRoles()->create(['role' => 'customer']);
+
+        $this->actingAs($admin)->post(route('admin.access.users.store'), [
+            'name' => 'حساب غير مسموح',
+            'username' => 'customer-only-login',
+            'password' => 'long-secure-password',
+            'password_confirmation' => 'long-secure-password',
+            'party_id' => $party->id,
+        ])->assertStatus(422);
+
+        $this->assertDatabaseMissing('users', ['username' => 'customer-only-login']);
+    }
+
     public function test_party_must_have_at_least_one_valid_role(): void
     {
         $user = $this->userWith(['parties.create']);

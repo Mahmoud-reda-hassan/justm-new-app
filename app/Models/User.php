@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -13,7 +14,7 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable;
 
-    protected $fillable = ['name', 'username', 'email', 'password', 'account_type', 'is_active'];
+    protected $fillable = ['name', 'username', 'email', 'password', 'account_type', 'party_id', 'is_active'];
     protected $hidden = ['password', 'remember_token'];
 
     protected function casts(): array
@@ -23,6 +24,11 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function party(): BelongsTo
+    {
+        return $this->belongsTo(Party::class);
     }
 
     public function roles(): BelongsToMany

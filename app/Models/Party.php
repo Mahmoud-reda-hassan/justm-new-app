@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Party extends Model
 {
+    public const LOGIN_ROLES = ['marketer', 'sales_intermediary', 'delivery_agent'];
+
     public const ROLES = [
         'customer' => 'عميل',
         'supplier' => 'مورد',
@@ -36,6 +38,11 @@ class Party extends Model
     public function partyRoles(): HasMany
     {
         return $this->hasMany(PartyRole::class);
+    }
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
     }
 
     public function assignedRoles(): array

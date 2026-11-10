@@ -19,7 +19,7 @@ class PartyController extends Controller
         $this->authorizePermission($request, 'parties.view');
 
         $parties = Party::query()
-            ->with(['city', 'partyRoles'])
+            ->with(['city', 'partyRoles', 'users'])
             ->when($request->filled('q'), function (Builder $query) use ($request): void {
                 $term = trim((string) $request->input('q'));
                 $query->where(function (Builder $search) use ($term): void {
@@ -44,6 +44,14 @@ class PartyController extends Controller
             'parties' => $parties,
             'cities' => City::query()->where('is_active', true)->orderBy('name_ar')->get(),
             'partyRoles' => Party::ROLES,
+            'loginRoles' => Party::LOGIN_ROLES,
+            'canCreateUsers' => $request->user()?->hasPermission('users.create') ?? false,
+            'stats' => [
+                'total' => Party::query()->count(),
+                'active' => Party::query()->where('is_active', true)->count(),
+                'marketers' => Party::query()->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'marketer'))->count(),
+                'deliveryAgents' => Party::query()->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'delivery_agent'))->count(),
+            ],
         ]);
     }
 

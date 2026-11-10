@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Permission;
+use App\Models\Party;
 use App\Models\Warehouse;
 use App\Models\Role;
 use App\Models\User;
@@ -32,7 +33,7 @@ class AccessControlController extends Controller
         $branchIds = $actor->dataScopes()->where('scope_type', 'branch')->pluck('scope_id');
         $warehouseIds = $actor->dataScopes()->where('scope_type', 'warehouse')->pluck('scope_id');
 
-        $allUsers = User::query()->with(['roles', 'dataScopes'])->orderByDesc('id')->get();
+        $allUsers = User::query()->with(['roles', 'dataScopes', 'party.partyRoles'])->orderByDesc('id')->get();
         $visibleUsers = $allUsers->filter(fn (User $user): bool =>
             $actor->is($user) || $this->userIsWithinActorScope($actor, $user)
         )->values();
@@ -48,6 +49,9 @@ class AccessControlController extends Controller
         return view('admin.access.users', [
             'users' => $users,
             'roles' => Role::query()->where('is_active', true)->orderBy('name')->get(),
+            'parties' => Party::query()->with('partyRoles')->whereHas('partyRoles', fn ($q) => $q->whereIn('role', Party::LOGIN_ROLES))->orderBy('name')->get(),
+            'partyRoleLabels' => Party::ROLES,
+            'selectedPartyId' => $request->input('party_id'),
             'companies' => Company::query()->when(! $globalScope, fn ($q) => $q->whereIn('id', $companyIds))->orderBy('name')->get(['id', 'name']),
             'branches' => Branch::query()->with('company')->when(! $globalScope, fn ($q) => $q->whereIn('company_id', $companyIds)->orWhereIn('id', $branchIds))->orderBy('name')->get(['id', 'company_id', 'name']),
             'warehouses' => Warehouse::query()->with('branch')->when(! $globalScope, function ($q) use ($companyIds, $branchIds, $warehouseIds): void {
@@ -65,7 +69,18 @@ class AccessControlController extends Controller
             'username' => ['required', 'string', 'max:100', 'alpha_dash', 'unique:users,username'],
             'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:12', 'confirmed'],
+            'party_id' => ['nullable', 'integer', Rule::exists('parties', 'id')],
         ]);
+
+        $party = null;
+        if (! empty($data['party_id'])) {
+            $party = Party::query()->with('partyRoles')->findOrFail($data['party_id']);
+            abort_unless(
+                $party->is_active && $party->partyRoles->contains(fn ($partyRole) => in_array($partyRole->role, Party::LOGIN_ROLES, true)),
+                422,
+                'لا يمكن ربط حساب جديد بطرف موقوف أو لا يملك دورًا تشغيليًا يتطلب تسجيل الدخول.'
+            );
+        }
 
         $actor = $request->user();
         $hasGlobalScope = $actor->hasPermission('structure.scope.manage_all');
@@ -75,7 +90,7 @@ class AccessControlController extends Controller
         }
 
         $user = User::create($data + [
-            'account_type' => 'admin',
+            'account_type' => $party ? 'partner' : 'admin',
             'is_active' => true,
         ]);
 
@@ -91,6 +106,7 @@ class AccessControlController extends Controller
         $this->audit->record('users.created', $user, [
             'username' => $user->username,
             'account_type' => $user->account_type,
+            'party_id' => $user->party_id,
         ]);
 
         return back()->with('status', 'تم إنشاء المستخدم.');
@@ -105,14 +121,28 @@ class AccessControlController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'username' => ['required', 'string', 'max:100', 'alpha_dash', Rule::unique('users', 'username')->ignore($user->id)],
             'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'party_id' => ['sometimes', 'nullable', 'integer', Rule::exists('parties', 'id')],
         ]);
 
-        $before = $user->only(['name', 'username', 'email']);
+        if (array_key_exists('party_id', $data)) {
+            $party = $data['party_id'] ? Party::query()->with('partyRoles')->findOrFail($data['party_id']) : null;
+            if ($party) {
+                abort_unless(
+                    $party->partyRoles->contains(fn ($partyRole) => in_array($partyRole->role, Party::LOGIN_ROLES, true)),
+                    422,
+                    'الطرف المحدد لا يملك دورًا تشغيليًا يتطلب حساب دخول.'
+                );
+                abort_unless($party->is_active || (int) $party->id === (int) $user->party_id, 422, 'لا يمكن ربط الحساب بطرف موقوف.');
+            }
+            $data['account_type'] = $party ? 'partner' : 'admin';
+        }
+
+        $before = $user->only(['name', 'username', 'email', 'party_id', 'account_type']);
         $user->update($data);
 
         $this->audit->record('users.updated', $user, [
             'before' => $before,
-            'after' => $user->only(['name', 'username', 'email']),
+            'after' => $user->only(['name', 'username', 'email', 'party_id', 'account_type']),
         ]);
 
         return back()->with('status', 'تم تحديث بيانات المستخدم.');
