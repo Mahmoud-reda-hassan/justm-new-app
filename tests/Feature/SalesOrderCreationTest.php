@@ -91,7 +91,7 @@ class SalesOrderCreationTest extends TestCase
                 'quantity' => 2,
                 'sale_price' => 90,
             ]],
-        ])->assertRedirect(route('admin.sales.orders.index'));
+        ])->assertRedirect(route('admin.sales.orders.create'));
 
         $order = SalesOrder::query()->with('items')->firstOrFail();
 
