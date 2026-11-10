@@ -58,9 +58,9 @@
 <div class="product-head"><div>@if($product->image_path)<img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($product->image_path) }}" alt="{{ $product->name }}" style="width:74px;height:74px;object-fit:cover;border-radius:10px;float:right;margin-left:10px">@endif<h3>{{ $product->name }}</h3><span class="muted">{{ $product->category->name }} · {{ $product->unit->name }} {{ $product->unit->symbol }}</span></div><div><span class="status {{ $product->is_active?'on':'off' }}">{{ $product->is_active?'نشط':'موقوف' }}</span><br><span class="status {{ $product->is_visible?'on':'off' }}">{{ $product->is_visible?'متاح للبيع':'غير معروض' }}</span></div></div>
 @if($product->description)<p class="muted">{{ \Illuminate\Support\Str::limit($product->description,150) }}</p>@endif
 @if($product->attributeGroups->isNotEmpty())<div class="chips">@foreach($product->attributeGroups as $group)<span class="chip">{{ $group->name }}</span>@endforeach</div>@endif
-<div class="table-wrap"><table class="variant-table"><thead><tr><th>الكود</th><th>الصفات</th><th>سعر القائمة</th><th>الحد الأدنى</th><th>الحالة</th></tr></thead><tbody>
+<div class="table-wrap"><table class="variant-table"><thead><tr><th>الكود</th><th>الصفات</th><th>سعر القائمة</th><th>الحد الأدنى</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>
 @foreach($product->variants as $variant)
-<tr><td><strong>{{ $variant->sku }}</strong>@if($variant->variant_name)<div class="muted">{{ $variant->variant_name }}</div>@endif</td><td>{{ $variant->attributeValues->map(fn($value)=>$value->group->name.': '.$value->value)->implode('، ') ?: '—' }}</td><td>{{ number_format((float)$variant->list_price,2) }}</td><td>{{ number_format((float)$variant->minimum_sale_price,2) }}</td><td><span class="status {{ $variant->is_active?'on':'off' }}">{{ $variant->is_active?'نشط':'موقوف' }}</span></td></tr>
+<tr><td><strong>{{ $variant->sku }}</strong>@if($variant->variant_name)<div class="muted">{{ $variant->variant_name }}</div>@endif</td><td>{{ $variant->attributeValues->map(fn($value)=>$value->group->name.': '.$value->value)->implode('، ') ?: '—' }}</td><td>{{ number_format((float)$variant->list_price,2) }}</td><td>{{ number_format((float)$variant->minimum_sale_price,2) }}</td><td><span class="status {{ $variant->is_active?'on':'off' }}">{{ $variant->is_active?'نشط':'موقوف' }}</span></td><td>@if(auth()->user()->hasPermission('products.activate'))<form method="post" action="{{ route('admin.products.variants.active',[$product,$variant]) }}">@csrf @method('patch')<input type="hidden" name="is_active" value="{{ $variant->is_active?0:1 }}"><button class="btn soft">{{ $variant->is_active?'إيقاف':'تفعيل' }}</button></form>@endif</td></tr>
 @endforeach
 </tbody></table></div>
 <div class="actions">
@@ -81,7 +81,7 @@
 <div class="field span4"><label class="checkline"><input type="checkbox" name="is_visible" value="1" @checked($product->is_visible)> متاح للبيع</label></div>
 </div><div class="actions"><button class="btn primary">حفظ التعديلات</button></div></form></details>
 @endif
-@if(auth()->user()->hasPermission('products.create') && $product->is_active)
+@if(auth()->user()->hasPermission('products.create') && $product->is_active && $product->attributeGroups->isNotEmpty())
 <details class="details"><summary>إضافة كود / تركيبة جديدة</summary><form class="variant-form" method="post" action="{{ route('admin.products.variants.store',$product) }}">@csrf
 <div class="fields">
 <div class="field"><label>الكود / SKU</label><input name="sku" required maxlength="50"><button type="button" class="btn soft" onclick="generateProductCode(this.form.querySelector('[name=&quot;sku&quot;]'))">توليد باركود</button></div><div class="field"><label>اسم التركيبة</label><input name="variant_name" maxlength="180"></div><div class="field"><label>سعر القائمة</label><input name="list_price" type="number" min="0" step="0.01" required></div><div class="field"><label>أقل سعر بيع</label><input name="minimum_sale_price" type="number" min="0" step="0.01" required></div>

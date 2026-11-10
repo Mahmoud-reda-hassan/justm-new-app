@@ -252,6 +252,32 @@ class ProductManagementTest extends TestCase
         Storage::disk('public')->assertExists($product->image_path);
     }
 
+
+    public function test_product_rejects_duplicate_variant_attribute_combinations(): void
+    {
+        $user = $this->userWith(['products.create']);
+        $group = ProductAttributeGroup::query()->create(['name' => 'اللون الفريد']);
+        $red = $group->values()->create(['value' => 'أحمر']);
+        $product = $this->createProduct($user, [
+            'attribute_group_ids' => [$group->id],
+            'initial_variant' => [
+                'sku' => 'UNIQUE-RED-1',
+                'list_price' => 100,
+                'minimum_sale_price' => 70,
+                'attribute_value_ids' => [$red->id],
+            ],
+        ]);
+
+        $this->post(route('admin.products.variants.store', $product), [
+            'sku' => 'UNIQUE-RED-2',
+            'list_price' => 100,
+            'minimum_sale_price' => 70,
+            'attribute_value_ids' => [$red->id],
+        ])->assertSessionHasErrors('attribute_value_ids');
+
+        $this->assertDatabaseMissing('product_variants', ['sku' => 'UNIQUE-RED-2']);
+    }
+
     public function test_product_and_attribute_screens_require_specific_permissions(): void
     {
         $user = $this->userWith([]);

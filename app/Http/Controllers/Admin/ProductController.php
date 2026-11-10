@@ -184,6 +184,7 @@ class ProductController extends Controller
         $data = $this->validateVariant($request);
         $groupIds = $product->attributeGroups()->pluck('product_attribute_groups.id')->map(fn ($id) => (int) $id)->all();
         $valueIds = $this->validatedAttributeValues($groupIds, $data['attribute_value_ids'] ?? [], 'attribute_value_ids');
+        $this->assertVariantCombinationUnique($product, $valueIds);
         unset($data['attribute_value_ids']);
         $product->variants()->create($data + ['is_active' => true])->attributeValues()->sync($valueIds);
 
@@ -197,6 +198,7 @@ class ProductController extends Controller
         $data = $this->validateVariant($request, $variant);
         $groupIds = $product->attributeGroups()->pluck('product_attribute_groups.id')->map(fn ($id) => (int) $id)->all();
         $valueIds = $this->validatedAttributeValues($groupIds, $data['attribute_value_ids'] ?? [], 'attribute_value_ids');
+        $this->assertVariantCombinationUnique($product, $valueIds, $variant);
         unset($data['attribute_value_ids']);
         $variant->update($data);
         $variant->attributeValues()->sync($valueIds);
@@ -267,6 +269,24 @@ class ProductController extends Controller
         }
 
         return $valueIds;
+    }
+
+    private function assertVariantCombinationUnique(Product $product, array $valueIds, ?ProductVariant $ignore = null): void
+    {
+        $newIds = array_map('intval', $valueIds);
+        sort($newIds);
+        $query = $product->variants()->with('attributeValues');
+        if ($ignore) {
+            $query->where('id', '!=', $ignore->id);
+        }
+
+        foreach ($query->get() as $existing) {
+            $existingIds = $existing->attributeValues->pluck('id')->map(fn ($id) => (int) $id)->all();
+            sort($existingIds);
+            if ($existingIds === $newIds) {
+                throw ValidationException::withMessages(['attribute_value_ids' => 'هذه التركيبة مسجلة بالفعل لهذا المنتج.']);
+            }
+        }
     }
 
     private function authorizePermission(Request $request, string $permission): void
