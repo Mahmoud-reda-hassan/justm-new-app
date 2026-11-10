@@ -18,7 +18,7 @@
         .content-header h1{font-size:1.45rem;font-weight:600;margin:0}
         .content{padding:0 .5rem 1rem}
         .content .shell,.content main,.content .wrap{max-width:none;width:100%;margin:0;padding:0}
-        .content section,.content .panel,.content .group-card{background:#fff;border:1px solid #dee2e6;border-radius:.25rem;padding:1rem;margin:0 0 1rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+        .content section:not(.card),.content .panel,.content .group-card{background:#fff;border:1px solid #dee2e6;border-radius:.25rem;padding:1rem;margin:0 0 1rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
         .content .head,.content .topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 1rem;padding:0 0 .75rem;border-bottom:1px solid #dee2e6}
         .content h1{font-size:1.35rem;font-weight:600;margin:0 0 .5rem}
         .content h2{font-size:1.05rem;font-weight:600;margin:0 0 .85rem}
