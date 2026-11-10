@@ -115,6 +115,21 @@ class AccessControlManagementTest extends TestCase
         $this->assertSame(0, $target->fresh()->roles()->count());
     }
 
+
+    public function test_user_without_data_scope_cannot_create_scoped_accounts(): void
+    {
+        $admin = $this->administratorWith(['users.create'], false);
+
+        $this->actingAs($admin)->post(route('admin.access.users.store'), [
+            'name' => 'Orphan User',
+            'username' => 'orphan-user',
+            'password' => 'long-secure-password',
+            'password_confirmation' => 'long-secure-password',
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('users', ['username' => 'orphan-user']);
+    }
+
     public function test_user_management_routes_require_their_specific_permission(): void
     {
         $user = User::create([
