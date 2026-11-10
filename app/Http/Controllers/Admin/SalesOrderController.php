@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Party;
+use App\Models\PartyAddress;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use Illuminate\Database\Eloquent\Builder;
@@ -61,7 +62,8 @@ class SalesOrderController extends Controller
     {
         $data = $request->validate([
             'customer_id' => ['required', 'integer', 'exists:parties,id'],
-            'shipping_address' => ['nullable', 'string', 'max:2000'],
+            'shipping_address_id' => ['required', 'integer', 'exists:party_addresses,id'],
+            'shipping_address' => ['required', 'string', 'max:2000'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
@@ -105,13 +107,14 @@ class SalesOrderController extends Controller
             ]);
         }
 
-        $shippingFee = round((float) $data['shipping_fee'], 2);
+        $shippingFee = round((float) ($data['shipping_fee'] ?? 0), 2);
         if ($shippingFee < (float) $zone->shipping_fee_min || $shippingFee > (float) $zone->shipping_fee_max) {
             throw ValidationException::withMessages([
                 'shipping_fee' => 'رسوم الشحن يجب أن تكون بين '.number_format((float) $zone->shipping_fee_min, 2).' و'.number_format((float) $zone->shipping_fee_max, 2).' جنيه حسب منطقة العنوان.',
             ]);
         }
 
+        $shippingDate = now()->addDays((int) $zone->delivery_days)->toDateString();
         $preparedItems = [];
         $subtotal = 0.0;
         $discountTotal = 0.0;
@@ -155,13 +158,24 @@ class SalesOrderController extends Controller
         }
 
         $shippingFee = round((float) ($data['shipping_fee'] ?? 0), 2);
-        $order = DB::transaction(function () use ($request, $data, $customer, $preparedItems, $subtotal, $discountTotal, $shippingFee): SalesOrder {
+        $order = DB::transaction(function () use ($request, $data, $customer, $shippingAddress, $zone, $warehouse, $shippingDate, $preparedItems, $subtotal, $discountTotal, $shippingFee): SalesOrder {
             $order = SalesOrder::query()->create([
                 'customer_id' => $customer->id,
+                'shipping_address_id' => $shippingAddress->id,
+                'shipping_city_id' => $shippingAddress->city_id,
+                'shipping_zone_id' => $zone->id,
+                'shipping_warehouse_id' => $warehouse->id,
+                'shipping_zone_name' => $zone->name_ar,
+                'shipping_warehouse_name' => $warehouse->name,
+                'shipping_fee_min' => $zone->shipping_fee_min,
+                'shipping_fee_max' => $zone->shipping_fee_max,
+                'shipping_days' => $zone->delivery_days,
+                'shipping_type' => $zone->shipping_type,
+                'shipping_date' => $shippingDate,
                 'created_by' => $request->user()->id,
                 'created_by_party_id' => $request->user()->party_id,
                 'status' => 'draft',
-                'shipping_address' => $data['shipping_address'] ?? null,
+                'shipping_address' => $data['shipping_address'],
                 'shipping_fee' => $shippingFee,
                 'subtotal' => round($subtotal, 2),
                 'discount_total' => round($discountTotal, 2),
