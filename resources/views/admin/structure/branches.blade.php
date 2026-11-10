@@ -57,8 +57,8 @@
         <div class="modal-body"><div class="form-row">
             <div class="form-group col-md-6"><label>الشركة</label><select class="form-control" name="company_id" required><option value="">اختر الشركة</option>@foreach($companies as $company)<option value="{{ $company->id }}">{{ $company->name }}</option>@endforeach</select></div>
             <div class="form-group col-md-6"><label>اسم الفرع</label><input class="form-control" name="name" required maxlength="150"></div>
-            <div class="form-group col-md-6"><label>المدينة</label><select class="form-control" name="city_id"><option value="">اختياري</option>@foreach($cities as $city)<option value="{{ $city->id }}">{{ $city->name_ar }}</option>@endforeach</select></div>
-            <div class="form-group col-md-6"><label>العنوان</label><input class="form-control" name="address" maxlength="500"></div>
+            <div class="form-group col-md-6"><label>المدينة</label><select class="form-control" name="city_id" required><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}">{{ $city->name_ar }}</option>@endforeach</select></div>
+            <div class="form-group col-md-6"><label>العنوان</label><input class="form-control" name="address" required maxlength="500"></div>
             <div class="form-group col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_main" id="create-branch-main" value="1"><label class="form-check-label" for="create-branch-main">الفرع الرئيسي للشركة</label></div></div>
         </div></div>
         <div class="modal-footer"><button type="button" class="btn btn-default" data-dismiss="modal">إغلاق</button><button class="btn btn-primary">حفظ الفرع</button></div>
@@ -74,8 +74,8 @@
         <div class="modal-body"><div class="form-row">
             <div class="form-group col-md-6"><label>الشركة</label><select class="form-control" name="company_id" required>@foreach($companies as $company)<option value="{{ $company->id }}" @selected($branch->company_id == $company->id)>{{ $company->name }}</option>@endforeach</select></div>
             <div class="form-group col-md-6"><label>اسم الفرع</label><input class="form-control" name="name" value="{{ $branch->name }}" required maxlength="150"></div>
-            <div class="form-group col-md-6"><label>المدينة</label><select class="form-control" name="city_id"><option value="">اختياري</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected($branch->city_id == $city->id)>{{ $city->name_ar }}</option>@endforeach</select></div>
-            <div class="form-group col-md-6"><label>العنوان</label><input class="form-control" name="address" value="{{ $branch->address }}" maxlength="500"></div>
+            <div class="form-group col-md-6"><label>المدينة</label><select class="form-control" name="city_id" required><option value="">اختر المدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected($branch->city_id == $city->id)>{{ $city->name_ar }}</option>@endforeach</select></div>
+            <div class="form-group col-md-6"><label>العنوان</label><input class="form-control" name="address" value="{{ $branch->address }}" required maxlength="500"></div>
             <div class="form-group col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_main" id="edit-branch-main-{{ $branch->id }}" value="1" @checked($branch->is_main)><label class="form-check-label" for="edit-branch-main-{{ $branch->id }}">الفرع الرئيسي للشركة</label></div></div>
         </div></div>
         <div class="modal-footer"><button type="button" class="btn btn-default" data-dismiss="modal">إغلاق</button><button class="btn btn-primary">حفظ التعديلات</button></div>
