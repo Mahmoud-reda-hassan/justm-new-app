@@ -88,6 +88,9 @@
                     <li class="nav-item">
                         <a href="{{ route('dashboard') }}" class="nav-link @if(request()->routeIs('dashboard')) active @endif"><i class="nav-icon fas fa-tachometer-alt"></i><p>لوحة التحكم</p></a>
                     </li>
+                    <li class="nav-item">
+                        <a href="{{ route('admin.seo-audit.design') }}" class="nav-link @if(request()->routeIs('admin.seo-audit.*')) active @endif"><i class="nav-icon fas fa-universal-access"></i><p>مراجعة SEO و Accessibility</p></a>
+                    </li>
                     @if ($user->hasPermission('sales.orders.view') || $user->hasPermission('parties.view'))
                         <li class="nav-header">العمليات</li>
                         @if ($user->hasPermission('sales.orders.view'))
