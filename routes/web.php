@@ -139,6 +139,13 @@ Route::middleware('auth')->group(function (): void {
         Route::patch('/{party}/active', [\App\Http\Controllers\Admin\PartyController::class, 'setActive'])->middleware('permission:parties.activate')->name('active');
     });
 
+    Route::prefix('admin/shipping/zones')->name('admin.shipping.zones.')->group(function (): void {
+        Route::get('/', [ShippingZoneController::class, 'index'])->middleware('permission:shipping_zones.view')->name('index');
+        Route::post('/', [ShippingZoneController::class, 'store'])->middleware('permission:shipping_zones.create')->name('store');
+        Route::put('/{zone}', [ShippingZoneController::class, 'update'])->middleware('permission:shipping_zones.update')->name('update');
+        Route::patch('/{zone}/active', [ShippingZoneController::class, 'setActive'])->middleware('permission:shipping_zones.activate')->name('active');
+    });
+
     Route::prefix('admin/sales/orders')->name('admin.sales.orders.')->group(function (): void {
         Route::get('/', [SalesOrderController::class, 'index'])->middleware('permission:sales.orders.view')->name('index');
         Route::get('/create', [SalesOrderController::class, 'create'])->middleware('permission:sales.orders.create')->name('create');
