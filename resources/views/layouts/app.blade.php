@@ -7,6 +7,7 @@
     <title>@yield('title', config('app.name')) | {{ config('app.name') }}</title>
     <link rel="stylesheet" href="{{ asset('vendor/justm/fontawesome.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/adminlte.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('vendor/justm/bootstrap-rtl.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/select2.min.css') }}">
     <link rel="stylesheet" href="{{ asset('vendor/justm/sweetalert2.min.css') }}">
     <style>
