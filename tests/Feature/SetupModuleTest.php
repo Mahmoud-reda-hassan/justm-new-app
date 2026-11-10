@@ -59,7 +59,10 @@ class SetupModuleTest extends TestCase
 
         $this->assertTrue(password_verify('correct-horse-battery', $user->password));
         $this->assertSame(['system-access-admin'], $user->roles()->pluck('key')->all());
-        $this->assertSame(11, $user->roles()->first()->permissions()->count());
+        $this->assertSame(14, $user->roles()->first()->permissions()->count());
+        $this->assertFalse($user->hasPermission('companies.view'));
+        $this->assertFalse($user->hasPermission('branches.view'));
+        $this->assertFalse($user->hasPermission('warehouses.view'));
     }
 
     private function createOperatingData(): void
