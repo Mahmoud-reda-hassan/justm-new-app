@@ -55,6 +55,9 @@ Route::middleware('auth')->group(function (): void {
             ->middleware('permission:users.reset_password')->name('users.password');
         Route::put('/users/{user}/roles', [AccessControlController::class, 'assignUserRoles'])
             ->middleware('permission:users.assign_groups')->name('users.roles');
+        Route::put('/users/{user}/scopes', [AccessControlController::class, 'assignUserScopes'])
+            ->middleware('permission:users.assign_scopes')->name('users.scopes');
+
 
         Route::get('/roles', [AccessControlController::class, 'roles'])
             ->middleware('permission:permissions.groups.view')->name('roles');
@@ -64,5 +67,22 @@ Route::middleware('auth')->group(function (): void {
             ->middleware('permission:permissions.groups.update')->name('roles.update');
         Route::put('/roles/{role}/permissions', [AccessControlController::class, 'assignRolePermissions'])
             ->middleware('permission:permissions.groups.assign')->name('roles.permissions');
+    });
+
+    Route::prefix('admin/structure')->name('admin.structure.')->group(function (): void {
+        Route::get('/companies', [OperatingStructureController::class, 'companies'])->middleware('permission:companies.view')->name('companies');
+        Route::post('/companies', [OperatingStructureController::class, 'storeCompany'])->middleware('permission:companies.create')->name('companies.store');
+        Route::put('/companies/{company}', [OperatingStructureController::class, 'updateCompany'])->middleware('permission:companies.update')->name('companies.update');
+        Route::patch('/companies/{company}/active', [OperatingStructureController::class, 'setCompanyActive'])->middleware('permission:companies.activate')->name('companies.active');
+
+        Route::get('/branches', [OperatingStructureController::class, 'branches'])->middleware('permission:branches.view')->name('branches');
+        Route::post('/branches', [OperatingStructureController::class, 'storeBranch'])->middleware('permission:branches.create')->name('branches.store');
+        Route::put('/branches/{branch}', [OperatingStructureController::class, 'updateBranch'])->middleware('permission:branches.update')->name('branches.update');
+        Route::patch('/branches/{branch}/active', [OperatingStructureController::class, 'setBranchActive'])->middleware('permission:branches.activate')->name('branches.active');
+
+        Route::get('/warehouses', [OperatingStructureController::class, 'warehouses'])->middleware('permission:warehouses.view')->name('warehouses');
+        Route::post('/warehouses', [OperatingStructureController::class, 'storeWarehouse'])->middleware('permission:warehouses.create')->name('warehouses.store');
+        Route::put('/warehouses/{warehouse}', [OperatingStructureController::class, 'updateWarehouse'])->middleware('permission:warehouses.update')->name('warehouses.update');
+        Route::patch('/warehouses/{warehouse}/active', [OperatingStructureController::class, 'setWarehouseActive'])->middleware('permission:warehouses.activate')->name('warehouses.active');
     });
 });
