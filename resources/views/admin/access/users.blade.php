@@ -32,7 +32,7 @@
     </section>
     <section>
         <h2>المستخدمون</h2>
-        <table><thead><tr><th>الاسم / الدخول</th><th>الحالة</th><th>مجموعات الصلاحيات</th><th>الإجراءات</th><th>نطاق البيانات</th><th>نطاق البيانات</th></tr></thead><tbody>
+        <table><thead><tr><th>الاسم / الدخول</th><th>الحالة</th><th>مجموعات الصلاحيات</th><th>الإجراءات</th><th>نطاق البيانات</th></tr></thead><tbody>
         @forelse ($users as $user)
             <tr><td>{{ $user->name }}<br><span class="muted">{{ $user->username }} · {{ $user->email }}</span></td>
                 <td>{{ $user->is_active ? 'نشط' : 'موقوف' }}</td>
@@ -68,15 +68,15 @@
                     <form method="post" action="{{ route('admin.access.users.scopes', $user) }}">@csrf @method('put')
                         <strong>الشركات</strong><br>
                         <select name="company_ids[]" multiple size="3">
-                            @foreach($companies as $company)<option value="{{ $company->id }}" @selected($user->dataScopes->contains(fn($scope) => $scope->scope_type==='company' && $scope->scope_id==$company->id)>{{ $company->name }}</option>@endforeach
+                            @foreach($companies as $company)<option value="{{ $company->id }}" @selected($user->dataScopes->contains(fn($scope) => $scope->scope_type==='company' && $scope->scope_id==$company->id))>{{ $company->name }}</option>@endforeach
                         </select><br>
                         <strong>الفروع</strong><br>
                         <select name="branch_ids[]" multiple size="3">
-                            @foreach($branches as $branch)<option value="{{ $branch->id }}" @selected($user->dataScopes->contains(fn($scope) => $scope->scope_type==='branch' && $scope->scope_id==$branch->id)>{{ $branch->company->name }} — {{ $branch->name }}</option>@endforeach
+                            @foreach($branches as $branch)<option value="{{ $branch->id }}" @selected($user->dataScopes->contains(fn($scope) => $scope->scope_type==='branch' && $scope->scope_id==$branch->id))>{{ $branch->company->name }} — {{ $branch->name }}</option>@endforeach
                         </select><br>
                         <strong>المخازن</strong><br>
                         <select name="warehouse_ids[]" multiple size="3">
-                            @foreach($warehouses as $warehouse)<option value="{{ $warehouse->id }}" @selected($user->dataScopes->contains(fn($scope) => $scope->scope_type==='warehouse' && $scope->scope_id==$warehouse->id)>{{ $warehouse->name }} — {{ $warehouse->branch->name }}</option>@endforeach
+                            @foreach($warehouses as $warehouse)<option value="{{ $warehouse->id }}" @selected($user->dataScopes->contains(fn($scope) => $scope->scope_type==='warehouse' && $scope->scope_id==$warehouse->id))>{{ $warehouse->name }} — {{ $warehouse->branch->name }}</option>@endforeach
                         </select><br><button>حفظ النطاق</button>
                     </form>
                     @endif
