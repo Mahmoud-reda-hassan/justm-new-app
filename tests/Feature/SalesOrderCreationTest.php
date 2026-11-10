@@ -113,7 +113,7 @@ class SalesOrderCreationTest extends TestCase
             'warehouse_id' => $warehouse->id,
             'is_active' => true,
         ]);
-        $city->update(['shipping_zone_id' => $zone->id]);
+        $city->forceFill(['shipping_zone_id' => $zone->id])->save();
 
         return $customer->addresses()->create([
             'city_id' => $city->id,
