@@ -18,9 +18,42 @@ class ProductCatalogController extends Controller
     {
         $this->authorizePermission($request, 'product_categories.view');
 
+        $allCategories = ProductCategory::query()
+            ->with('parent')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+        $childrenByParent = $allCategories->groupBy(fn (ProductCategory $category) => $category->parent_id ?? 'root');
+        $orderedCategories = collect();
+        $visited = [];
+
+        $appendChildren = function ($parentId, int $depth) use (&$appendChildren, &$visited, $childrenByParent, $orderedCategories): void {
+            $key = $parentId ?? 'root';
+            foreach ($childrenByParent->get($key, collect()) as $category) {
+                if (in_array($category->id, $visited, true)) {
+                    continue;
+                }
+                $visited[] = $category->id;
+                $category->setAttribute('tree_depth', $depth);
+                $category->setAttribute('has_children', $childrenByParent->has($category->id));
+                $orderedCategories->push($category);
+                $appendChildren($category->id, $depth + 1);
+            }
+        };
+        $appendChildren(null, 0);
+
+        // Keep legacy/orphaned rows visible rather than silently hiding them.
+        foreach ($allCategories as $category) {
+            if (! in_array($category->id, $visited, true)) {
+                $category->setAttribute('tree_depth', 0);
+                $category->setAttribute('has_children', $childrenByParent->has($category->id));
+                $orderedCategories->push($category);
+            }
+        }
+
         return view('admin.catalog.categories', [
-            'categories' => ProductCategory::query()->with('parent')->orderBy('sort_order')->orderBy('name')->paginate(40),
-            'parentOptions' => ProductCategory::query()->orderBy('name')->get(),
+            'categories' => $orderedCategories,
+            'parentOptions' => $allCategories,
         ]);
     }
 
