@@ -136,7 +136,7 @@ class SetupController extends Controller
             'company_email' => ['nullable', 'email', 'max:190'],
             'company_address' => ['nullable', 'string', 'max:2000'],
             'branch_name' => ['required', 'string', 'max:120'],
-            'branch_address' => ['nullable', 'string', 'max:255'],
+            'branch_address' => ['required', 'string', 'max:255'],
             'warehouse_name' => ['required', 'string', 'max:150'],
             'warehouse_type' => [
                 'required',
@@ -157,7 +157,7 @@ class SetupController extends Controller
             'warehouse_type.exists' => 'نوع المخزن المحدد غير متاح.',
         ]);
 
-        $validated['site_name'] = $validated['site_name'] ?: $validated['company_name'];
+        $validated['site_name'] = $validated['site_name'] ?? $validated['company_name'];
         $validated['company_address'] = $validated['branch_address'] ?? null;
 
         try {
