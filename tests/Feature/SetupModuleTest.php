@@ -8,6 +8,7 @@ use App\Services\InitialOperatingSetup;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class SetupModuleTest extends TestCase
@@ -33,6 +34,7 @@ class SetupModuleTest extends TestCase
 
     public function test_first_admin_can_be_created_once_with_only_setup_permissions(): void
     {
+        Notification::fake();
         app(DatabaseSeeder::class)->run();
         $this->createOperatingData();
 
