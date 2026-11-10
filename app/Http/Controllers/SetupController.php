@@ -173,31 +173,62 @@ class SetupController extends Controller
         return back()->with('setup_status', 'تم حفظ بيانات الموقع والدولة والمحافظة والمدينة والشركة والفرع والمخزن بنجاح.');
     }
 
-    public function createFirstAdmin(Request $request): RedirectResponse
+    public function createFirstAdmin(Request $request, InitialOperatingSetup $setup): RedirectResponse
     {
         $this->ensureAuthorized($request);
         abort_unless($this->isOperatingDataReady(), 409);
         abort_unless(Schema::hasTable('users') && Schema::hasTable('roles'), 409);
         abort_if(User::query()->exists(), 404);
 
+        $needsOperatingData = ! $this->isOperatingDataReady();
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'username' => ['required', 'string', 'max:100', 'alpha_dash', 'unique:users,username'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'confirmed', Password::min(12)],
+            'company_name' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:150'],
+            'company_phone' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:40'],
+            'branch_name' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:120'],
+            'branch_address' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:255'],
+            'country_name_ar' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:100'],
+            'country_name_en' => ['nullable', 'string', 'max:100'],
+            'region_name' => ['nullable', 'string', 'max:100'],
+            'governorate_name_ar' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:100'],
+            'governorate_name_en' => ['nullable', 'string', 'max:100'],
+            'city_name_ar' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:120'],
+            'city_name_en' => ['nullable', 'string', 'max:120'],
+            'warehouse_name' => [Rule::requiredIf($needsOperatingData), 'nullable', 'string', 'max:150'],
+            'warehouse_type' => [
+                Rule::requiredIf($needsOperatingData),
+                'nullable',
+                Rule::exists('warehouse_types', 'key')->where(fn ($query) => $query->where('is_active', true)),
+            ],
         ], [
             'name.required' => 'اسم المدير مطلوب.',
             'username.required' => 'اسم المستخدم مطلوب.',
             'username.alpha_dash' => 'اسم المستخدم يقبل الحروف والأرقام والشرطة فقط.',
             'username.unique' => 'اسم المستخدم مستخدم بالفعل.',
+            'email.required' => 'البريد الإلكتروني للمدير مطلوب لاستعادة كلمة المرور.',
             'email.email' => 'البريد الإلكتروني غير صحيح.',
             'email.unique' => 'البريد الإلكتروني مستخدم بالفعل.',
             'password.confirmed' => 'تأكيد كلمة المرور غير مطابق.',
             'password.min' => 'كلمة المرور يجب ألا تقل عن 12 حرفًا.',
+            'company_name.required' => 'اسم الشركة أو المؤسسة مطلوب.',
+            'company_phone.required' => 'رقم هاتف المؤسسة الأول مطلوب.',
+            'branch_name.required' => 'اسم الفرع الرئيسي مطلوب.',
+            'branch_address.required' => 'عنوان الفرع الرئيسي مطلوب.',
+            'country_name_ar.required' => 'الدولة مطلوبة.',
+            'governorate_name_ar.required' => 'المحافظة مطلوبة.',
+            'city_name_ar.required' => 'المدينة مطلوبة.',
+            'warehouse_name.required' => 'اسم المخزن الأول مطلوب.',
+            'warehouse_type.required' => 'نوع المخزن مطلوب.',
         ]);
 
+        $user = null;
+
         try {
-            DB::transaction(function () use ($validated): void {
+            DB::transaction(function () use ($validated, $setup, $needsOperatingData, &$user): void {
                 $role = Role::query()
                     ->where('key', 'system-access-admin')
                     ->where('is_active', true)
@@ -208,20 +239,59 @@ class SetupController extends Controller
                     throw new \RuntimeException('First administrator setup is already closed.');
                 }
 
-                User::create([
+                if ($needsOperatingData) {
+                    $setup->configure([
+                        'site_name' => $validated['company_name'],
+                        'country_name_ar' => $validated['country_name_ar'],
+                        'country_name_en' => $validated['country_name_en'] ?: $validated['country_name_ar'],
+                        'region_name' => $validated['region_name'] ?? null,
+                        'governorate_name_ar' => $validated['governorate_name_ar'],
+                        'governorate_name_en' => $validated['governorate_name_en'] ?: $validated['governorate_name_ar'],
+                        'city_name_ar' => $validated['city_name_ar'],
+                        'city_name_en' => $validated['city_name_en'] ?: $validated['city_name_ar'],
+                        'company_name' => $validated['company_name'],
+                        'company_phone' => $validated['company_phone'],
+                        'branch_name' => $validated['branch_name'],
+                        'branch_address' => $validated['branch_address'],
+                        'warehouse_name' => $validated['warehouse_name'],
+                        'warehouse_type' => $validated['warehouse_type'],
+                    ]);
+                }
+
+                $user = User::create([
                     'name' => $validated['name'],
                     'username' => $validated['username'],
-                    'email' => $validated['email'] ?: null,
+                    'email' => $validated['email'],
                     'password' => Hash::make($validated['password']),
                     'account_type' => 'admin',
                     'is_active' => true,
-                ])->roles()->attach($role);
+                ]);
+
+                $user->roles()->attach($role);
             });
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             report($exception);
 
-            return back()->withErrors(['setup' => 'تعذر إنشاء المدير. تأكد من اكتمال التهيئة وعدم وجود مستخدم سابق.']);
+            return back()->withInput()->withErrors(['setup' => 'تعذر إكمال التهيئة وإنشاء المدير. لم يتم اعتماد أي جزء من البيانات؛ راجع المدخلات وسجل التطبيق.']);
         }
+
+        $request->session()->forget('justm_setup_authorized_at');
+        $request->session()->regenerateToken();
+
+        Auth::login($user);
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return redirect()->route('verification.notice')
+                ->with('warning', 'تم إنشاء الحساب، لكن تعذر إرسال رسالة التحقق. راجع إعدادات البريد ثم أعد الإرسال.');
+        }
+
+        return redirect()->route('verification.notice')
+            ->with('status', 'تم إنشاء المدير والمؤسسة والفرع الرئيسي والمخزن. أرسلنا رسالة تحقق إلى بريدك الإلكتروني.');
 
         $request->session()->forget('justm_setup_authorized_at');
         $request->session()->regenerateToken();
