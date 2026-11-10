@@ -184,8 +184,12 @@ class ProductController extends Controller
 
     private function validateVariant(Request $request, ?ProductVariant $variant = null): array
     {
+        $skuRule = Rule::unique('product_variants', 'sku');
+        if ($variant) {
+            $skuRule->ignore($variant->id);
+        }
         $data = $request->validate([
-            'sku' => ['required', 'string', 'max:50', Rule::unique('product_variants', 'sku')->ignore($variant?->id)],
+            'sku' => ['required', 'string', 'max:50', $skuRule],
             'variant_name' => ['nullable', 'string', 'max:180'],
             'list_price' => ['required', 'numeric', 'min:0'],
             'minimum_sale_price' => ['required', 'numeric', 'min:0'],

@@ -28,6 +28,12 @@
         @if (auth()->user()->hasPermission('warehouses.view'))
             <a href="{{ route('admin.structure.warehouses') }}">المخازن</a>
         @endif
+        @if (auth()->user()->hasPermission('products.view'))
+            <a href="{{ route('admin.products.index') }}">المنتجات</a>
+        @endif
+        @if (auth()->user()->hasPermission('product_attributes.view'))
+            <a href="{{ route('admin.product-attributes.index') }}">صفات المنتجات</a>
+        @endif
         @if (auth()->user()->hasPermission('product_categories.view'))
             <a href="{{ route('admin.catalog.categories') }}">تصنيفات المنتجات</a>
         @endif

@@ -78,8 +78,8 @@ class ProductAttributeController extends Controller
         $this->authorizePermission($request, 'product_attributes.activate');
         $data = $request->validate(['is_active' => ['required', 'boolean']]);
 
-        if (! $data['is_active'] && $value->variants()->exists()) {
-            throw ValidationException::withMessages(['value' => 'لا يمكن إيقاف قيمة صفة مستخدمة في أكواد منتجات.']);
+        if (! $data['is_active'] && ($value->variants()->exists() || $value->group->products()->exists())) {
+            throw ValidationException::withMessages(['value' => 'لا يمكن إيقاف قيمة صفة مستخدمة في منتج أو كود منتج.']);
         }
 
         $value->update(['is_active' => (bool) $data['is_active']]);
