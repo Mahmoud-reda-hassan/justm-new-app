@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\City;
 use App\Models\Company;
 use App\Models\Warehouse;
+use App\Models\SalesOrder;
 use App\Models\WarehouseType;
 use App\Services\BranchManager;
 use Illuminate\Database\Eloquent\Builder;
@@ -206,7 +207,8 @@ class OperatingStructureController extends Controller
         $branch = Branch::query()->findOrFail($data['branch_id']);
         $this->assertBranchScope($request, $branch);
         abort_unless($branch->is_active && $branch->company()->where('is_active', true)->exists(), 422, 'الفرع أو الشركة موقوفة.');
-        abort_unless(WarehouseType::query()->whereKey($data['warehouse_type_id'])->where('is_active', true)->exists(), 422);
+        $type = WarehouseType::query()->whereKey($data['warehouse_type_id'])->where('is_active', true)->firstOrFail();
+        $this->assertWarehouseTypeRules($branch->id, $type, null);
         Warehouse::create($data + ['is_active' => true]);
 
         return back()->with('status', 'تم إنشاء المخزن.');
@@ -224,7 +226,8 @@ class OperatingStructureController extends Controller
         $branch = Branch::query()->findOrFail($data['branch_id']);
         $this->assertBranchScope($request, $branch);
         abort_unless($branch->is_active && $branch->company()->where('is_active', true)->exists(), 422, 'الفرع أو الشركة موقوفة.');
-        abort_unless(WarehouseType::query()->whereKey($data['warehouse_type_id'])->where('is_active', true)->exists(), 422);
+        $type = WarehouseType::query()->whereKey($data['warehouse_type_id'])->where('is_active', true)->firstOrFail();
+        $this->assertWarehouseTypeRules($branch->id, $type, $warehouse);
         $warehouse->update($data);
 
         return back()->with('status', 'تم تحديث بيانات المخزن.');
@@ -241,6 +244,30 @@ class OperatingStructureController extends Controller
         $warehouse->update(['is_active' => (bool) $data['is_active']]);
 
         return back()->with('status', 'تم تحديث حالة المخزن.');
+    }
+
+    private function assertWarehouseTypeRules(int $branchId, WarehouseType $targetType, ?Warehouse $current): void
+    {
+        if ($targetType->key === 'sales_dispatch') {
+            $duplicate = Warehouse::query()
+                ->where('branch_id', $branchId)
+                ->whereHas('type', fn (Builder $query) => $query->where('key', 'sales_dispatch'))
+                ->when($current, fn (Builder $query) => $query->whereKeyNot($current->id))
+                ->exists();
+
+            if ($duplicate) {
+                throw ValidationException::withMessages([
+                    'warehouse_type_id' => 'يوجد بالفعل مخزن بيع مباشر لهذا الفرع؛ لا يمكن إنشاء أكثر من مخزن بيع مباشر واحد للفرع.',
+                ]);
+            }
+        }
+
+        if ($current && $current->type?->key === 'sales_dispatch' && $targetType->key !== 'sales_dispatch'
+            && SalesOrder::query()->where('shipping_warehouse_id', $current->id)->exists()) {
+            throw ValidationException::withMessages([
+                'warehouse_type_id' => 'لا يمكن تغيير نوع مخزن البيع المباشر لارتباطه بأوامر بيع.',
+            ]);
+        }
     }
 
     private function authorizePermission(Request $request, string $permission): void
