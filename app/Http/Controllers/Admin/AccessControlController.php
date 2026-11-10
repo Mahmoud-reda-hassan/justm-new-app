@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\PermissionAuditLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 use Illuminate\Validation\Rule;
@@ -22,14 +23,24 @@ class AccessControlController extends Controller
     {
     }
 
-    public function users(): View
+    public function users(Request $request): View
     {
+        $actor = $request->user();
+        $globalScope = $actor->hasPermission('structure.scope.manage_all');
+        $companyIds = $actor->dataScopes()->where('scope_type', 'company')->pluck('scope_id');
+        $branchIds = $actor->dataScopes()->where('scope_type', 'branch')->pluck('scope_id');
+        $warehouseIds = $actor->dataScopes()->where('scope_type', 'warehouse')->pluck('scope_id');
+
         return view('admin.access.users', [
             'users' => User::query()->with(['roles', 'dataScopes'])->orderByDesc('id')->paginate(20),
             'roles' => Role::query()->where('is_active', true)->orderBy('name')->get(),
-            'companies' => Company::query()->orderBy('name')->get(['id', 'name']),
-            'branches' => Branch::query()->with('company')->orderBy('name')->get(['id', 'company_id', 'name']),
-            'warehouses' => Warehouse::query()->with('branch')->orderBy('name')->get(['id', 'branch_id', 'name']),
+            'companies' => Company::query()->when(! $globalScope, fn ($q) => $q->whereIn('id', $companyIds))->orderBy('name')->get(['id', 'name']),
+            'branches' => Branch::query()->with('company')->when(! $globalScope, fn ($q) => $q->whereIn('company_id', $companyIds)->orWhereIn('id', $branchIds))->orderBy('name')->get(['id', 'company_id', 'name']),
+            'warehouses' => Warehouse::query()->with('branch')->when(! $globalScope, function ($q) use ($companyIds, $branchIds, $warehouseIds): void {
+                $q->where(fn ($inner) => $inner->whereIn('id', $warehouseIds)
+                    ->orWhereIn('branch_id', $branchIds)
+                    ->orWhereHas('branch', fn ($branch) => $branch->whereIn('company_id', $companyIds)));
+            })->orderBy('name')->get(['id', 'branch_id', 'name']),
         ]);
     }
 
@@ -158,6 +169,10 @@ class AccessControlController extends Controller
         ]);
 
         if (! $request->user()->hasPermission('structure.scope.manage_all')) {
+            foreach ($user->dataScopes as $existingScope) {
+                abort_unless($request->user()->hasDataScope($existingScope->scope_type, (int) $existingScope->scope_id), 403,
+                    'لا يمكنك تعديل نطاق بيانات خارج نطاقك.');
+            }
             foreach ($scopes as $scope) {
                 abort_unless($request->user()->hasDataScope($scope['scope_type'], $scope['scope_id']), 403,
                     'لا يمكنك إسناد نطاق بيانات خارج نطاقك.');
@@ -165,10 +180,12 @@ class AccessControlController extends Controller
         }
 
         $before = $user->dataScopes()->get(['scope_type', 'scope_id'])->toArray();
-        $user->dataScopes()->delete();
-        foreach ($scopes as $scope) {
-            $user->dataScopes()->create($scope);
-        }
+        DB::transaction(function () use ($user, $scopes): void {
+            $user->dataScopes()->delete();
+            foreach ($scopes as $scope) {
+                $user->dataScopes()->create($scope);
+            }
+        });
 
         $this->audit->record('users.data_scopes_assigned', $user, [
             'before' => $before,
