@@ -27,7 +27,15 @@ class SalesOrderController extends Controller
             $query->where('created_by_party_id', $user->party_id);
         }
 
-        $orders = $query->latest('id')->paginate(20);
+        $query->when(request()->filled('q'), fn (Builder $builder) => $builder->where(function (Builder $search): void {
+            $term = '%'.request()->string('q').'%';
+            $search->where('order_number', 'like', $term)
+                ->orWhereHas('customer', fn (Builder $customer) => $customer->where('name', 'like', $term))
+                ->orWhereHas('creatorParty', fn (Builder $party) => $party->where('name', 'like', $term))
+                ->orWhereHas('creator', fn (Builder $creator) => $creator->where('name', 'like', $term));
+        }));
+
+        $orders = $query->latest('id')->paginate(20)->withQueryString();
 
         return view('admin.sales.orders.index', compact('orders'));
     }
