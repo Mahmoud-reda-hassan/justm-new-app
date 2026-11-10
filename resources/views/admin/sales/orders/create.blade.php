@@ -49,6 +49,15 @@
                             <option value="{{ $customer->id }}" data-address="{{ e($customer->address ?? '') }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
                         @endforeach
                     </select>
+                    <div id="customer-address-data" class="d-none">
+                        @foreach($customers as $customer)
+                            <div data-customer-id="{{ $customer->id }}">
+                                @foreach($customer->addresses as $address)
+                                    <span data-address data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}"></span>
+                                @endforeach
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
                 <div class="form-group col-lg-3">
                     <label for="shipping_fee">رسوم الشحن</label>
@@ -139,7 +148,14 @@
 <script>
 (() => {
     const $ = id => document.getElementById(id);
-    const customerAddresses = @json($customers->mapWithKeys(fn ($customer) => [$customer->id => $customer->addresses->map(fn ($address) => ['title' => $address->title, 'address' => $address->address, 'city' => $address->city?->name_ar])->values()])->all());
+    const customerAddresses = Array.from(document.querySelectorAll('#customer-address-data [data-customer-id]')).reduce((map, group) => {
+        map[group.dataset.customerId] = Array.from(group.querySelectorAll('[data-address]')).map(node => ({
+            title: node.dataset.title,
+            address: node.dataset.addressText,
+            city: node.dataset.city
+        }));
+        return map;
+    }, {});
     const renderCustomerAddresses = () => {
         const select = $('customer-address-select');
         const selectedCustomer = $('customer_id').selectedOptions[0];
