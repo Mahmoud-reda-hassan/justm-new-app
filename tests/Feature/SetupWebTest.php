@@ -210,6 +210,30 @@ class SetupWebTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_setup_rejects_a_city_that_does_not_belong_to_the_selected_governorate(): void
+    {
+        $this->installDatabase();
+
+        $payload = [
+            'site_name' => 'Just-M',
+            'country_id' => Country::query()->where('name_ar', 'مصر')->value('id'),
+            'governorate_id' => Governorate::query()->where('name_ar', 'القاهره')->value('id'),
+            'city_id' => City::query()->where('name_ar', 'سموحة')->value('id'),
+            'company_name' => 'شركة اختبار',
+            'company_phone' => '0222222222',
+            'branch_name' => 'الفرع الرئيسي',
+            'branch_address' => 'عنوان الفرع',
+            'warehouse_name' => 'المخزن الرئيسي',
+            'warehouse_type' => 'sales_dispatch',
+        ];
+
+        $this->withSession(['justm_setup_authorized_at' => now()->timestamp])
+            ->post('/setup/operating-data', $payload)
+            ->assertSessionHasErrors('city_id');
+
+        $this->assertDatabaseCount('companies', 0);
+    }
+
     private function installDatabase(): void
     {
         $this->withSession(['justm_setup_authorized_at' => now()->timestamp])
