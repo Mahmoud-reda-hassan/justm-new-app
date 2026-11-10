@@ -1,6 +1,10 @@
-<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>الشركات</title>
-<style>body{font-family:Tahoma,Arial;background:#f5f6f8;margin:0;padding:22px;color:#222}main{max-width:1200px;margin:auto}section{background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;margin:0 0 16px}input,select,button{padding:8px;margin:3px;border:1px solid #bbb;border-radius:5px}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid #ddd;text-align:right;vertical-align:top}.inline{display:inline-block}.status{background:#e8f5e9;padding:10px}.muted{color:#666;font-size:13px}</style></head><body><main>
+@extends('layouts.app')
+
+@section('title', 'الشركات')
+@section('page-title', 'الشركات')
+@section('breadcrumb', 'الشركات')
+
+@section('content')
 <h1>إدارة الشركات</h1><p><a href="{{ route('dashboard') }}">الرئيسية</a> · <a href="{{ route('admin.structure.branches') }}">الفروع</a> · <a href="{{ route('admin.structure.warehouses') }}">المخازن</a></p>
 @if(session('status'))<p class="status">{{ session('status') }}</p>@endif @if($errors->any())<section><ul>@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul></section>@endif
 @if(auth()->user()->hasPermission('companies.create'))<section><h2>إضافة شركة</h2><form method="post" action="{{ route('admin.structure.companies.store') }}">@csrf
@@ -11,4 +15,5 @@
 @if(auth()->user()->hasPermission('companies.update'))<form class="inline" method="post" action="{{ route('admin.structure.companies.update',$company) }}">@csrf @method('put')
 <input name="name" value="{{ $company->name }}" required><input name="phone" value="{{ $company->phone }}"><input name="mobile" value="{{ $company->mobile }}"><input name="fax" value="{{ $company->fax }}"><input name="email" type="email" value="{{ $company->email }}"><select name="city_id"><option value="">بدون مدينة</option>@foreach($cities as $city)<option value="{{ $city->id }}" @selected($company->city_id==$city->id)>{{ $city->name_ar }}</option>@endforeach</select><input name="address" value="{{ $company->address }}"><button>حفظ</button></form>@endif
 @if(auth()->user()->hasPermission('companies.activate'))<form class="inline" method="post" action="{{ route('admin.structure.companies.active',$company) }}">@csrf @method('patch')<input type="hidden" name="is_active" value="{{ $company->is_active?0:1 }}"><button>{{ $company->is_active?'إيقاف':'تفعيل' }}</button></form>@endif
-</td></tr>@empty<tr><td colspan="5">لا توجد شركات ضمن نطاق الوصول.</td></tr>@endforelse</tbody></table>{{ $companies->links() }}</section></main></body></html>
+</td></tr>@empty<tr><td colspan="5">لا توجد شركات ضمن نطاق الوصول.</td></tr>@endforelse</tbody></table>{{ $companies->links() }}</section>
+@endsection
