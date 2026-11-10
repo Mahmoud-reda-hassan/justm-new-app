@@ -98,7 +98,7 @@ class SetupWebTest extends TestCase
         $this->get('/setup')->assertNotFound();
     }
 
-    public function test_first_admin_cannot_be_created_before_operating_data(): void
+    public function test_first_admin_form_requires_organization_and_branch_details_together(): void
     {
         $this->installDatabase();
 
@@ -106,16 +106,61 @@ class SetupWebTest extends TestCase
             ->post('/setup/admin', [
                 'name' => 'مدير النظام',
                 'username' => 'premature-admin',
+                'email' => 'admin@example.test',
                 'password' => 'secure-password-123',
                 'password_confirmation' => 'secure-password-123',
             ])
-            ->assertStatus(409);
+            ->assertSessionHasErrors(['company_name', 'branch_name', 'branch_address', 'country_name_ar', 'governorate_name_ar', 'city_name_ar']);
 
         $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('companies', 0);
+    }
+
+    public function test_first_admin_setup_creates_organization_branch_warehouse_and_admin_together(): void
+    {
+        Notification::fake();
+        $this->installDatabase();
+
+        $this->withSession(['justm_setup_authorized_at' => now()->timestamp])
+            ->post('/setup/admin', [
+                'name' => 'مدير النظام',
+                'username' => 'first-admin',
+                'email' => 'admin@example.test',
+                'password' => 'secure-password-123',
+                'password_confirmation' => 'secure-password-123',
+                'company_name' => 'شركة Just-M',
+                'company_phone' => '0222222222',
+                'branch_name' => 'المقر الرئيسي',
+                'branch_address' => 'شارع التحرير - القاهرة',
+                'country_name_ar' => 'مصر',
+                'country_name_en' => 'Egypt',
+                'region_name' => 'القاهرة الكبرى',
+                'governorate_name_ar' => 'القاهرة',
+                'governorate_name_en' => 'Cairo',
+                'city_name_ar' => 'مدينة نصر',
+                'city_name_en' => 'Nasr City',
+                'warehouse_name' => 'المخزن الرئيسي',
+                'warehouse_type' => 'sales_dispatch',
+            ])
+            ->assertRedirect(route('verification.notice'));
+
+        $user = User::query()->where('username', 'first-admin')->firstOrFail();
+        $this->assertAuthenticatedAs($user);
+        $this->assertNull($user->email_verified_at);
+        $this->assertSame(['system-access-admin'], $user->roles()->pluck('key')->all());
+        $this->assertDatabaseHas('companies', ['name' => 'شركة Just-M', 'phone' => '0222222222']);
+        $this->assertDatabaseHas('branches', ['name' => 'المقر الرئيسي', 'is_main' => true, 'address' => 'شارع التحرير - القاهرة']);
+        $this->assertDatabaseHas('countries', ['name_ar' => 'مصر']);
+        $this->assertDatabaseHas('governorates', ['name_ar' => 'القاهرة']);
+        $this->assertDatabaseHas('cities', ['name_ar' => 'مدينة نصر']);
+        $this->assertDatabaseHas('warehouses', ['name' => 'المخزن الرئيسي']);
+        Notification::assertSentTo($user, VerifyEmail::class);
+        $this->get('/setup')->assertNotFound();
     }
 
     public function test_first_admin_is_created_only_after_operating_data_and_has_limited_role(): void
     {
+        Notification::fake();
         $this->installDatabase();
         $this->submitOperatingData();
 
@@ -127,12 +172,13 @@ class SetupWebTest extends TestCase
                 'password' => 'secure-password-123',
                 'password_confirmation' => 'secure-password-123',
             ])
-            ->assertRedirect(route('login'));
+            ->assertRedirect(route('verification.notice'));
 
         $user = User::query()->where('username', 'first-admin')->firstOrFail();
         $this->assertTrue(password_verify('secure-password-123', $user->password));
         $this->assertSame(['system-access-admin'], $user->roles()->pluck('key')->all());
-        $this->assertGuest();
+        $this->assertAuthenticatedAs($user);
+        Notification::assertSentTo($user, VerifyEmail::class);
         $this->get('/setup')->assertNotFound();
     }
 
