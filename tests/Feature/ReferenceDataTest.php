@@ -137,12 +137,16 @@ class ReferenceDataTest extends TestCase
         Branch::create(['company_id' => 999999, 'name' => 'Orphan branch']);
     }
 
-    public function test_setup_seeds_only_the_two_legacy_warehouse_types_without_sample_companies(): void
+    public function test_setup_seeds_egypt_geography_and_two_legacy_warehouse_types_without_sample_companies(): void
     {
         app(DatabaseSeeder::class)->run();
 
         $this->assertDatabaseHas('warehouse_types', ['key' => 'internal', 'name' => 'مخزن عادي']);
         $this->assertDatabaseHas('warehouse_types', ['key' => 'sales_dispatch', 'name' => 'مخزن بيع مباشر']);
+        $this->assertDatabaseCount('countries', 1);
+        $this->assertDatabaseCount('regions', 7);
+        $this->assertDatabaseCount('governorates', 27);
+        $this->assertDatabaseCount('cities', 516);
         $this->assertDatabaseCount('companies', 0);
         $this->assertDatabaseCount('branches', 0);
         $this->assertDatabaseCount('warehouses', 0);
