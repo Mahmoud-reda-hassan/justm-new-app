@@ -28,6 +28,9 @@ class DatabaseSeeder extends Seeder
             'permissions.groups.create',
             'permissions.groups.update',
             'permissions.groups.assign',
+            'permissions.catalog.assign',
+            'users.assign_scopes',
+            'structure.scope.manage_all',
         ];
 
         $permissions = Permission::query()->whereIn('key', $permissionKeys)->get();
