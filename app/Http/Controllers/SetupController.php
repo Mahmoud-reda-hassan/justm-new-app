@@ -28,6 +28,7 @@ class SetupController extends Controller
 
         $databaseReady = false;
         $adminExists = false;
+        $siteName = null;
 
         try {
             $databaseReady = Schema::hasTable('users')
@@ -35,6 +36,9 @@ class SetupController extends Controller
                 && Schema::hasTable('companies')
                 && Schema::hasTable('warehouses');
             $adminExists = Schema::hasTable('users') && User::query()->exists();
+            $siteName = Schema::hasTable('system_settings')
+                ? SystemSetting::query()->where('setting_key', 'site_name')->value('setting_value')
+                : null;
         } catch (Throwable $exception) {
             report($exception);
         }
@@ -44,7 +48,7 @@ class SetupController extends Controller
             'databaseReady' => $databaseReady,
             'adminExists' => $adminExists,
             'operatingDataReady' => $this->isOperatingDataReady(),
-            'siteName' => SystemSetting::query()->where('setting_key', 'site_name')->value('setting_value'),
+            'siteName' => $siteName,
             'tokenConfigured' => is_string(config('app.setup_token')) && strlen(config('app.setup_token')) >= 32,
         ]);
     }
