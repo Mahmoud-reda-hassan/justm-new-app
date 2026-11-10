@@ -159,4 +159,61 @@ class AccessControlManagementTest extends TestCase
 
         $this->assertSame(0, $target->fresh()->roles()->count());
     }
+    public function test_current_users_role_permissions_cannot_be_changed_and_screen_explains_why(): void
+    {
+        $admin = $this->administratorWith([
+            'permissions.groups.view',
+            'permissions.groups.assign',
+            'permissions.catalog.assign',
+        ]);
+        $role = $admin->roles()->firstOrFail();
+        $permission = Permission::query()->firstOrCreate(
+            ['key' => 'companies.view'],
+            ['module' => 'companies', 'action' => 'view'],
+        );
+        $originalPermissionIds = $role->permissions()->pluck('permissions.id')->all();
+
+        $this->actingAs($admin)
+            ->from(route('admin.access.roles'))
+            ->put(route('admin.access.roles.permissions', $role), [
+                'permissions' => [$permission->id],
+            ])
+            ->assertRedirect(route('admin.access.roles'))
+            ->assertSessionHasErrors('permissions');
+
+        $this->assertSame($originalPermissionIds, $role->fresh()->permissions()->pluck('permissions.id')->all());
+
+        $this->get(route('admin.access.roles'))
+            ->assertOk()
+            ->assertSee('مجموعة حسابك الحالي محمية.')
+            ->assertDontSee('action="' . route('admin.access.roles.permissions', $role) . '"');
+    }
+
+    public function test_access_admin_can_assign_catalog_permissions_to_a_new_operating_role(): void
+    {
+        $admin = $this->administratorWith([
+            'permissions.groups.view',
+            'permissions.groups.create',
+            'permissions.groups.assign',
+            'permissions.catalog.assign',
+        ]);
+        $role = Role::create([
+            'name' => 'Warehouse Operator',
+            'key' => 'warehouse-operator',
+            'is_active' => true,
+        ]);
+        $permission = Permission::query()->firstOrCreate(
+            ['key' => 'warehouses.view'],
+            ['module' => 'warehouses', 'action' => 'view'],
+        );
+
+        $this->actingAs($admin)
+            ->put(route('admin.access.roles.permissions', $role), [
+                'permissions' => [$permission->id],
+            ])
+            ->assertRedirect(route('admin.access.roles'));
+
+        $this->assertTrue($role->fresh()->permissions->contains('id', $permission->id));
+    }
+
 }
