@@ -19,7 +19,7 @@
     @auth
         <p><a href="{{ route('dashboard') }}">العودة إلى حسابك</a></p>
         @php($user = auth()->user())
-        @if (($user->party && $user->party->is_active && $user->party->partyRoles()->whereIn('role', \App\Models\Party::LOGIN_ROLES)->exists()) || $user->hasPermission('users.view') || $user->hasPermission('permissions.groups.view') || $user->hasPermission('structure.scope.manage_all'))
+        @if (($user->party && $user->party->is_active && $user->party->partyRoles()->whereIn('role', \App\Models\Party::WORKSPACE_ROLES)->exists()) || $user->hasPermission('users.view') || $user->hasPermission('permissions.groups.view') || $user->hasPermission('structure.scope.manage_all'))
             <p><a href="{{ route('workspaces.index') }}">دخول المستخدمين المميزين</a></p>
         @endif
     @else
