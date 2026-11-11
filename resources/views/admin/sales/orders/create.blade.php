@@ -482,6 +482,7 @@
             const radio = document.createElement('input');
             radio.type = 'radio';
             radio.name = 'directory-phone-' + customer.id;
+            radio.className = 'jm-choice-radio';
             radio.value = String(phone.id);
             radio.checked = !!phone.isPrimary || (!phones.some(item => item.isPrimary) && phones[0]?.id === phone.id);
             const check = document.createElement('span');
@@ -532,6 +533,7 @@
             const radio = document.createElement('input');
             radio.type = 'radio';
             radio.name = 'directory-address-' + customer.id;
+            radio.className = 'jm-choice-radio';
             radio.value = String(address.id);
             radio.checked = !!address.isPrimary || (!addresses.some(item => item.isPrimary) && addresses[0]?.id === address.id);
             const check = document.createElement('span');
