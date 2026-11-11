@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\\Http\\Controllers\\Admin;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\View\View;
+use App\\Http\\Controllers\\Controller;
+use Illuminate\\Http\\RedirectResponse;
+use Illuminate\\Http\\Request;
+use Illuminate\\Support\\Facades\\Artisan;
+use Illuminate\\Support\\Facades\\DB;
+use Illuminate\\Support\\Facades\\Schema;
+use Illuminate\\View\\View;
 use Throwable;
 
 class DatabaseUpdateController extends Controller
@@ -30,6 +30,22 @@ class DatabaseUpdateController extends Controller
         }
 
         return $rows;
+    }
+
+    /**
+     * Show technical details only while Laravel development/debug mode is enabled.
+     */
+    private function updateFailureMessage(string $message, ?string $details = null): string
+    {
+        if (!config('app.debug')) {
+            return $message;
+        }
+
+        $details = trim((string) $details);
+
+        return $details === ''
+            ? $message
+            : $message."\\n\\nتفاصيل الخطأ (وضع التطوير):\\n".$details;
     }
 
     public function index(Request $request): View
@@ -87,8 +103,15 @@ class DatabaseUpdateController extends Controller
             ]);
 
             if ($exitCode !== 0) {
-                report(new \RuntimeException('Browser database migration command failed.'));
-                return back()->withErrors(['update' => 'توقف تحديث قاعدة البيانات بسبب خطأ. راجع سجل التطبيق قبل إعادة المحاولة.']);
+                $output = Artisan::output();
+                report(new \\RuntimeException('Browser database migration command failed. '.$output));
+
+                $message = $this->updateFailureMessage(
+                    'توقف تحديث قاعدة البيانات بسبب خطأ. لم يتم تشغيل أي Seeder أو إنشاء قاعدة بيانات جديدة. راجع سجل التطبيق.',
+                    $output
+                );
+
+                return back()->withErrors(['update' => $message]);
             }
 
             $after = collect($this->migrationState())->where('ran', false)->count();
@@ -98,7 +121,18 @@ class DatabaseUpdateController extends Controller
                 : 'انتهى الأمر، لكن ما زالت هناك migrations معلقة؛ راجع سجل التطبيق.');
         } catch (Throwable $exception) {
             report($exception);
-            return back()->withErrors(['update' => 'تعذر تنفيذ التحديث. لم يتم تشغيل أي Seeder أو إنشاء قاعدة بيانات جديدة. راجع سجل التطبيق.']);
+
+            $details = $exception->getMessage();
+            for ($previous = $exception->getPrevious(); $previous; $previous = $previous->getPrevious()) {
+                $details .= "\\n".$previous->getMessage();
+            }
+
+            return back()->withErrors([
+                'update' => $this->updateFailureMessage(
+                    'تعذر تنفيذ التحديث. لم يتم تشغيل أي Seeder أو إنشاء قاعدة بيانات جديدة. راجع سجل التطبيق.',
+                    $details
+                ),
+            ]);
         } finally {
             if ($lockAcquired) {
                 try {
