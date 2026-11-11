@@ -12,7 +12,7 @@
 <div class="col-lg-6"><div class="card card-outline card-primary">
 <div class="card-header"><h3 class="card-title">مستند صرف مخزني</h3></div>
 <form method="post" action="{{ route('admin.inventory.issues.store') }}">@csrf
-<input type="hidden" name="idempotency_key" value="{{ (string) Str::uuid() }}">
+<input type="hidden" name="idempotency_key" value="{{ $issueKey }}">
 <div class="card-body">
 <div class="form-group"><label>المخزن</label><select name="warehouse_id" class="form-control" required><option value="">اختر المخزن</option>@foreach($warehouses as $warehouse)<option value="{{ $warehouse->id }}">{{ $warehouse->branch->company->name }} — {{ $warehouse->branch->name }} — {{ $warehouse->name }}</option>@endforeach</select></div>
 <div class="table-responsive"><table class="table table-bordered"><thead><tr><th>الصنف</th><th>الكمية</th><th>تكلفة الوحدة</th></tr></thead><tbody>
@@ -30,7 +30,7 @@
 <div class="col-lg-6"><div class="card card-outline card-info">
 <div class="card-header"><h3 class="card-title">تحويل بين مخزنين</h3></div>
 <form method="post" action="{{ route('admin.inventory.transfers.store') }}">@csrf
-<input type="hidden" name="idempotency_key" value="{{ (string) Str::uuid() }}">
+<input type="hidden" name="idempotency_key" value="{{ $transferKey }}">
 <div class="card-body">
 <div class="form-group"><label>من مخزن</label><select name="source_warehouse_id" class="form-control" required><option value="">اختر المخزن المصدر</option>@foreach($warehouses as $warehouse)<option value="{{ $warehouse->id }}">{{ $warehouse->branch->company->name }} — {{ $warehouse->branch->name }} — {{ $warehouse->name }}</option>@endforeach</select></div>
 <div class="form-group"><label>إلى مخزن</label><select name="destination_warehouse_id" class="form-control" required><option value="">اختر المخزن المستلم</option>@foreach($warehouses as $warehouse)<option value="{{ $warehouse->id }}">{{ $warehouse->branch->company->name }} — {{ $warehouse->branch->name }} — {{ $warehouse->name }}</option>@endforeach</select></div>

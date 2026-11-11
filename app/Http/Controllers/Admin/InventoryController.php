@@ -90,7 +90,10 @@ class InventoryController extends Controller
             ->where(function (Builder $query) use ($warehouseIds): void {
                 $query->whereNull('destination_warehouse_id')->orWhereIn('destination_warehouse_id', $warehouseIds);
             })->whereIn('movement_type', ['issue', 'transfer'])->latest('id')->paginate(20)->withQueryString();
-        return view('admin.inventory.movements', compact('warehouses', 'variants', 'movements'));
+        return view('admin.inventory.movements', compact('warehouses', 'variants', 'movements') + [
+            'issueKey' => (string) Str::uuid(),
+            'transferKey' => (string) Str::uuid(),
+        ]);
     }
 
     public function storeIssue(Request $request, InventoryMovementPostingService $service): RedirectResponse
