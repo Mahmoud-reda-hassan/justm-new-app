@@ -103,6 +103,7 @@
 </head>
 <body class="hold-transition sidebar-mini layout-fixed text-sm">
 @php($user = auth()->user())
+@php($canManageDatabase = $user->is_active && $user->roles()->where('roles.key', 'system-access-admin')->where('roles.is_active', true)->exists())
 <div class="wrapper">
     <nav class="main-header navbar navbar-expand navbar-white navbar-light">
         <ul class="navbar-nav">
@@ -151,7 +152,7 @@
                         @if ($user->hasPermission('product_attributes.view'))<li class="nav-item"><a href="{{ route('admin.product-attributes.index') }}" class="nav-link"><i class="nav-icon fas fa-sliders-h"></i><p>صفات المنتجات</p></a></li>@endif
                         @if ($user->hasPermission('units.view'))<li class="nav-item"><a href="{{ route('admin.catalog.units') }}" class="nav-link"><i class="nav-icon fas fa-balance-scale"></i><p>وحدات القياس</p></a></li>@endif
                     @endif
-                    @if ($user->hasPermission('users.view') || $user->hasPermission('permissions.groups.view') || $user->hasPermission('companies.view') || $user->hasPermission('branches.view') || $user->hasPermission('warehouses.view') || $user->hasPermission('shipping_zones.view'))
+                    @if ($canManageDatabase || $user->hasPermission('users.view') || $user->hasPermission('permissions.groups.view') || $user->hasPermission('companies.view') || $user->hasPermission('branches.view') || $user->hasPermission('warehouses.view') || $user->hasPermission('shipping_zones.view'))
                         <li class="nav-header">الإدارة والإعداد</li>
                         @if ($user->hasPermission('users.view'))<li class="nav-item"><a href="{{ route('admin.access.users') }}" class="nav-link"><i class="nav-icon fas fa-user"></i><p>المستخدمون</p></a></li>@endif
                         @if ($user->hasPermission('permissions.groups.view'))<li class="nav-item"><a href="{{ route('admin.access.roles') }}" class="nav-link"><i class="nav-icon fas fa-user-shield"></i><p>مجموعات الصلاحيات</p></a></li>@endif
@@ -159,6 +160,7 @@
                         @if ($user->hasPermission('branches.view'))<li class="nav-item"><a href="{{ route('admin.structure.branches') }}" class="nav-link"><i class="nav-icon fas fa-code-branch"></i><p>الفروع</p></a></li>@endif
                         @if ($user->hasPermission('warehouses.view'))<li class="nav-item"><a href="{{ route('admin.structure.warehouses') }}" class="nav-link"><i class="nav-icon fas fa-list-alt"></i><p>المخازن</p></a></li>@endif
                         @if ($user->hasPermission('shipping_zones.view'))<li class="nav-item"><a href="{{ route('admin.shipping.zones.index') }}" class="nav-link"><i class="nav-icon fas fa-truck"></i><p>إعداد الشحن المحلي</p></a></li>@endif
+                        @if ($canManageDatabase)<li class="nav-item"><a href="{{ route('admin.system.database-updates') }}" class="nav-link @if(request()->routeIs('admin.system.database-updates*')) active @endif"><i class="nav-icon fas fa-database"></i><p>تحديث قاعدة البيانات</p></a></li>@endif
                     @endif
                 </ul>
             </nav>
