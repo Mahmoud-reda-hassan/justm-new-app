@@ -49,6 +49,18 @@ class InventoryOpeningBalanceService
                 throw ValidationException::withMessages(['items' => 'يوجد صنف غير موجود أو غير نشط.']);
             }
 
+            $alreadyOpened = InventoryMovement::query()
+                ->where('warehouse_id', $warehouse->id)
+                ->where('movement_type', 'opening_balance')
+                ->whereHas('items', fn ($query) => $query->whereIn('product_variant_id', $variantIds))
+                ->exists();
+
+            if ($alreadyOpened) {
+                throw ValidationException::withMessages([
+                    'items' => 'تم تسجيل رصيد افتتاحي لصنف واحد أو أكثر في هذا المخزن من قبل. استخدم مستند تسوية مخزنية لتصحيح الرصيد.',
+                ]);
+            }
+
             $movement = InventoryMovement::query()->create([
                 'document_no' => 'OB-'.$warehouse->id.'-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)),
                 'movement_type' => 'opening_balance',

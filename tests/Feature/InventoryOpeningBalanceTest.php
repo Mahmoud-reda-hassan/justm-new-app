@@ -126,6 +126,32 @@ class InventoryOpeningBalanceTest extends TestCase
         $this->assertSame(1, InventoryMovement::query()->where('movement_type', 'opening_balance')->count());
     }
 
+    public function test_opening_balance_cannot_be_posted_twice_for_the_same_variant_and_warehouse(): void
+    {
+        $payload = [
+            'warehouse_id' => $this->warehouse->id,
+            'items' => [[
+                'product_variant_id' => $this->variant->id,
+                'quantity' => 12,
+            ]],
+        ];
+
+        $this->actingAs($this->user)->post(route('admin.inventory.opening-balances.store'), $payload)
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->user)->from(route('admin.inventory.opening-balances'))
+            ->post(route('admin.inventory.opening-balances.store'), $payload)
+            ->assertRedirect(route('admin.inventory.opening-balances'))
+            ->assertSessionHasErrors('items');
+
+        $this->assertSame(1, InventoryMovement::query()->where('movement_type', 'opening_balance')->count());
+        $this->assertDatabaseHas('warehouse_product_stocks', [
+            'warehouse_id' => $this->warehouse->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => '12.000',
+        ]);
+    }
+
     public function test_opening_balance_rejects_zero_quantity_without_creating_a_document(): void
     {
         $this->actingAs($this->user)->from(route('admin.inventory.opening-balances'))
