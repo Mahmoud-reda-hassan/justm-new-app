@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Admin\DatabaseUpdateController;
 use App\Http\Controllers\Admin\GeographicSettingsController;
 use App\Http\Controllers\Admin\InventoryController;
+use App\Http\Controllers\Admin\InventorySettingsController;
 use App\Http\Controllers\Admin\OperatingStructureController;
 use App\Http\Controllers\Admin\ProductCatalogController;
 use App\Http\Controllers\Admin\ProductController;
@@ -159,6 +160,10 @@ Route::middleware('auth')->group(function (): void {
     });
 
     Route::prefix('admin/inventory')->name('admin.inventory.')->group(function (): void {
+        Route::get('/settings', [InventorySettingsController::class, 'index'])
+            ->middleware('permission:inventory.settings.view')->name('settings');
+        Route::put('/settings', [InventorySettingsController::class, 'update'])
+            ->middleware('permission:inventory.settings.update')->name('settings.update');
         Route::get('/opening-balances', [InventoryController::class, 'openingBalances'])
             ->middleware('permission:inventory.opening_balances.view')->name('opening-balances');
         Route::post('/opening-balances', [InventoryController::class, 'storeOpeningBalance'])

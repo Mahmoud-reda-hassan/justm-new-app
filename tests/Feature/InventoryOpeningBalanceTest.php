@@ -82,6 +82,35 @@ class InventoryOpeningBalanceTest extends TestCase
         ]);
     }
 
+    public function test_inventory_settings_screen_shows_global_negative_stock_policy(): void
+    {
+        $role = $this->user->roles()->firstOrFail();
+        $role->permissions()->attach(Permission::query()->where('key', 'inventory.settings.view')->value('id'));
+        $this->actingAs($this->user)->get(route('admin.inventory.settings'))
+            ->assertOk()->assertSee('إعدادات المخازن العامة')->assertSee('منع الرصيد السالب');
+    }
+
+    public function test_negative_stock_policy_defaults_to_block(): void
+    {
+        $this->assertFalse(app(\\App\\Services\\InventorySettingsService::class)->allowsNegativeStock());
+    }
+
+    public function test_global_negative_stock_policy_can_be_enabled(): void
+    {
+        $role = $this->user->roles()->firstOrFail();
+        $role->permissions()->attach(Permission::query()->whereIn('key', ['inventory.settings.view','inventory.settings.update'])->pluck('id'));
+        $this->actingAs($this->user)->put(route('admin.inventory.settings.update'), ['allow_negative_stock' => '1'])
+            ->assertRedirect(route('admin.inventory.settings'))->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('system_settings', ['setting_key' => 'inventory.allow_negative_stock', 'setting_value' => '1']);
+        $this->assertTrue(app(\\App\\Services\\InventorySettingsService::class)->allowsNegativeStock());
+    }
+
+    public function test_user_without_permission_cannot_change_negative_stock_policy(): void
+    {
+        $this->actingAs($this->user)->put(route('admin.inventory.settings.update'), ['allow_negative_stock' => '1'])->assertForbidden();
+        $this->assertDatabaseHas('system_settings', ['setting_key' => 'inventory.allow_negative_stock', 'setting_value' => '0']);
+    }
+
     public function test_inventory_movement_supports_source_and_reversal_links(): void
     {
         $original = InventoryMovement::query()->create([

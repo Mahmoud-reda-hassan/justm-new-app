@@ -148,9 +148,14 @@
                             <li class="nav-item"><a href="{{ route('admin.parties.index') }}" class="nav-link"><i class="nav-icon fas fa-users"></i><p>الأطراف</p></a></li>
                         @endif
                     @endif
-                    @if ($user->hasPermission('inventory.opening_balances.view'))
+                    @if ($user->hasPermission('inventory.opening_balances.view') || $user->hasPermission('inventory.settings.view'))
                         <li class="nav-header">المخزون</li>
+                        @if ($user->hasPermission('inventory.settings.view'))
+                            <li class="nav-item"><a href="{{ route('admin.inventory.settings') }}" class="nav-link @if(request()->routeIs('admin.inventory.settings')) active @endif"><i class="nav-icon fas fa-cogs"></i><p>إعدادات المخازن العامة</p></a></li>
+                        @endif
+                        @if ($user->hasPermission('inventory.opening_balances.view'))
                         <li class="nav-item"><a href="{{ route('admin.inventory.opening-balances') }}" class="nav-link @if(request()->routeIs('admin.inventory.opening-balances*')) active @endif"><i class="nav-icon fas fa-box-open"></i><p>الأرصدة الافتتاحية</p></a></li>
+                        @endif
                     @endif
                     @if (($user->hasPermission('products.view') || $user->hasPermission('product_categories.view') || $user->hasPermission('product_attributes.view') || $user->hasPermission('units.view')) && $user->hasPermission('structure.scope.manage_all'))
                         <li class="nav-header">كتالوج المنتجات</li>
