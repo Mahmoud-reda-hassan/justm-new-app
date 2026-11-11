@@ -53,10 +53,10 @@
                         @endforeach
                     </select>
                     <div class="d-flex flex-wrap gap-2 mt-2">
-                        @if(auth()->user()?->hasPermission('parties.create'))
+                        @if(auth()->user()?->hasPermission('parties.create') && auth()->user()?->hasPermission('structure.scope.manage_all'))
                             <button type="button" class="btn btn-sm btn-outline-primary" id="add-customer"><i class="fas fa-user-plus ml-1"></i> إضافة عميل</button>
                         @endif
-                        @if(auth()->user()?->hasPermission('parties.update'))
+                        @if(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="edit-customer" disabled><i class="fas fa-user-edit ml-1"></i> تعديل بيانات العميل</button>
                         @endif
                     </div>
