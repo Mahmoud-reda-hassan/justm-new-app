@@ -37,6 +37,7 @@
 <form method="post" action="{{ route('admin.sales.orders.store') }}" id="order-form">
     @csrf
     <input type="hidden" name="shipping_address_id" id="shipping_address_id">
+    <input type="hidden" name="shipping_phone_id" id="shipping_phone_id">
     <section class="card card-outline card-primary order-step active" id="step-customer">
         <div class="card-header"><h3 class="card-title">1. بيانات العميل</h3></div>
         <div class="card-body">
@@ -52,6 +53,12 @@
                             <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-entity-type="{{ $customer->entity_type }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
                         @endforeach
                     </select>
+                    <div class="form-group mt-2 mb-2">
+                        <label for="customer-phone-select">رقم هاتف التواصل والتوصيل</label>
+                        <select class="form-control" id="customer-phone-select" disabled>
+                            <option value="">اختر العميل أولًا</option>
+                        </select>
+                    </div>
                     <div class="d-flex flex-wrap gap-2 mt-2">
                         @if(auth()->user()?->hasPermission('parties.create') && auth()->user()?->hasPermission('structure.scope.manage_all'))
                             <button type="button" class="btn btn-sm btn-outline-primary" id="add-customer"><i class="fas fa-user-plus ml-1"></i> إضافة عميل</button>
@@ -59,6 +66,15 @@
                         @if(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="edit-customer" disabled><i class="fas fa-user-edit ml-1"></i> تعديل بيانات العميل</button>
                         @endif
+                    </div>
+                    <div id="customer-phone-data" class="d-none">
+                        @foreach($customers as $customer)
+                            <div data-customer-id="{{ $customer->id }}">
+                                @foreach($customer->phones as $phone)
+                                    <span data-phone data-id="{{ $phone->id }}" data-number="{{ $phone->number }}" data-type="{{ $phone->type }}" data-primary="{{ $phone->is_primary ? '1' : '0' }}" data-whatsapp="{{ $phone->is_whatsapp ? '1' : '0' }}"></span>
+                                @endforeach
+                            </div>
+                        @endforeach
                     </div>
                     <div id="customer-order-history" class="mt-3" aria-live="polite">
                         <div class="text-muted small">اختر العميل لعرض آخر أوامره السابقة.</div>
@@ -177,6 +193,39 @@
         }));
         return map;
     }, {});
+    const customerPhones = Array.from(document.querySelectorAll('#customer-phone-data [data-customer-id]')).reduce((map, group) => {
+        map[group.dataset.customerId] = Array.from(group.querySelectorAll('[data-phone]')).map(node => ({
+            id: node.dataset.id,
+            number: node.dataset.number,
+            type: node.dataset.type,
+            isPrimary: node.dataset.primary === '1',
+            isWhatsapp: node.dataset.whatsapp === '1'
+        }));
+        return map;
+    }, {});
+    const renderCustomerPhones = () => {
+        const select = $('customer-phone-select');
+        const phones = customerPhones[$('customer_id').value] || [];
+        select.innerHTML = '';
+        if (!phones.length) {
+            select.disabled = true;
+            select.appendChild(new Option('لا يوجد رقم هاتف نشط للعميل', ''));
+            $('shipping_phone_id').value = '';
+            return;
+        }
+        select.disabled = false;
+        select.appendChild(new Option('اختر رقم الهاتف', ''));
+        phones.forEach(phone => {
+            const label = phone.number + (phone.isPrimary ? ' — أساسي' : '') + (phone.isWhatsapp ? ' — WhatsApp' : '');
+            select.appendChild(new Option(label, phone.id, false, false));
+        });
+        const primary = phones.find(phone => phone.isPrimary) || phones[0];
+        select.value = String(primary.id);
+        $('shipping_phone_id').value = String(primary.id);
+    };
+    $('customer-phone-select').addEventListener('change', function () {
+        $('shipping_phone_id').value = this.value;
+    });
     const renderCustomerAddresses = () => {
         const select = $('customer-address-select');
         const selectedCustomer = $('customer_id').selectedOptions[0];
@@ -380,6 +429,13 @@
         customerOption.dataset.email = customer.email || '';
         customerOption.dataset.address = firstAddress.address || '';
         customerOption.dataset.search = (customer.name + ' ' + (customer.mobile || '') + ' ' + (customer.phone || '')).toLocaleLowerCase();
+        customerPhones[customer.id] = (customer.phones || []).map(item => ({
+            id: String(item.id),
+            number: item.number,
+            type: item.type,
+            isPrimary: !!item.isPrimary,
+            isWhatsapp: !!item.isWhatsapp
+        }));
         customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
             id: String(item.id),
             title: item.title,
@@ -412,7 +468,9 @@
     });
 
     $('customer_id').addEventListener('change', () => {
-        renderCustomerAddresses();
+        renderCustomerPhones();
+        renderCustomerPhones();
+    renderCustomerAddresses();
         loadCustomerHistory();
     });
     $('customer-address-select').addEventListener('change', function () {
