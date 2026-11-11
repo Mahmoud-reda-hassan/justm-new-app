@@ -11,6 +11,7 @@ use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\UserDataScope;
 use App\Models\Warehouse;
 use App\Models\WarehouseType;
 use Database\Seeders\DatabaseSeeder;
@@ -150,6 +151,70 @@ class InventoryOpeningBalanceTest extends TestCase
             'product_variant_id' => $this->variant->id,
             'quantity_on_hand' => '12.000',
         ]);
+    }
+
+    public function test_same_variant_can_have_an_opening_balance_in_a_different_warehouse(): void
+    {
+        $otherWarehouse = Warehouse::query()->create([
+            'branch_id' => $this->warehouse->branch_id,
+            'warehouse_type_id' => $this->warehouse->warehouse_type_id,
+            'name' => 'مخزن فرعي',
+            'is_active' => true,
+        ]);
+
+        foreach ([$this->warehouse, $otherWarehouse] as $warehouse) {
+            $this->actingAs($this->user)->post(route('admin.inventory.opening-balances.store'), [
+                'warehouse_id' => $warehouse->id,
+                'items' => [[
+                    'product_variant_id' => $this->variant->id,
+                    'quantity' => 5,
+                ]],
+            ])->assertSessionHasNoErrors();
+        }
+
+        $this->assertDatabaseHas('warehouse_product_stocks', [
+            'warehouse_id' => $this->warehouse->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => '5.000',
+        ]);
+        $this->assertDatabaseHas('warehouse_product_stocks', [
+            'warehouse_id' => $otherWarehouse->id,
+            'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => '5.000',
+        ]);
+    }
+
+    public function test_user_cannot_post_opening_balance_outside_assigned_warehouse_scope(): void
+    {
+        $otherWarehouse = Warehouse::query()->create([
+            'branch_id' => $this->warehouse->branch_id,
+            'warehouse_type_id' => $this->warehouse->warehouse_type_id,
+            'name' => 'مخزن خارج النطاق',
+            'is_active' => true,
+        ]);
+
+        $role = $this->user->roles()->firstOrFail();
+        $manageAllPermissionId = Permission::query()->where('key', 'structure.scope.manage_all')->value('id');
+        $role->permissions()->detach($manageAllPermissionId);
+
+        UserDataScope::query()->create([
+            'user_id' => $this->user->id,
+            'scope_type' => 'warehouse',
+            'scope_id' => $this->warehouse->id,
+        ]);
+
+        $this->actingAs($this->user)
+            ->post(route('admin.inventory.opening-balances.store'), [
+                'warehouse_id' => $otherWarehouse->id,
+                'items' => [[
+                    'product_variant_id' => $this->variant->id,
+                    'quantity' => 5,
+                ]],
+            ])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('inventory_movements', 0);
+        $this->assertDatabaseCount('warehouse_product_stocks', 0);
     }
 
     public function test_opening_balance_rejects_zero_quantity_without_creating_a_document(): void
