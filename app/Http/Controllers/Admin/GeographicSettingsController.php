@@ -103,7 +103,7 @@ class GeographicSettingsController extends Controller
             $rules['name_ar'][] = Rule::unique('governorates', 'name_ar')->where('country_id', $request->input('country_id'))->ignore($record?->id);
             $rules['name_en'][] = Rule::unique('governorates', 'name_en')->where('country_id', $request->input('country_id'))->ignore($record?->id);
         } else {
-            $rules['governorate_id'] = ['nullable', 'integer', Rule::exists('governorates', 'id')->where('is_active', true)];
+            $rules['governorate_id'] = ['required', 'integer', Rule::exists('governorates', 'id')->where('is_active', true)];
             $rules['name_ar'][] = Rule::unique('cities', 'name_ar')->where('governorate_id', $request->input('governorate_id'))->ignore($record?->id);
             $rules['name_en'][] = Rule::unique('cities', 'name_en')->where('governorate_id', $request->input('governorate_id'))->ignore($record?->id);
         }
