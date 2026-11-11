@@ -424,8 +424,10 @@
             $('customer_id').dispatchEvent(new Event('change'));
             message.textContent = 'تم اختيار العميل. راجع الهاتف والعنوان قبل المتابعة.';
             $('edit-customer')?.removeAttribute('disabled');
+            return true;
         } catch (error) {
             message.textContent = 'تعذر تحميل بيانات العميل. حاول مرة أخرى.';
+            return false;
         }
     };
 
@@ -470,7 +472,22 @@
         choose.type = 'button';
         choose.className = 'btn btn-outline-primary';
         choose.textContent = 'اختيار العميل';
-        choose.addEventListener('click', () => selectCustomerFromDirectory(customer.id));
+        choose.addEventListener('click', async () => {
+            const loaded = await selectCustomerFromDirectory(customer.id);
+            if (!loaded) return;
+            const customerId = $('customer_id').value;
+            const phoneId = $('shipping_phone_id').value;
+            const addressId = $('shipping_address_id').value;
+            const address = (customerAddresses[customerId] || []).find(item => String(item.id) === String(addressId));
+            if (!phoneId || !address || !address.zone) {
+                await Swal.fire({
+                    icon: 'warning',
+                    text: 'لا يمكن المتابعة قبل تحديد رقم هاتف وعنوان مرتبط بمنطقة شحن نشطة. استخدم تعديل بيانات العميل لاستكمال البيانات.'
+                });
+                return;
+            }
+            show('step-products');
+        });
         actions.appendChild(choose);
         if (@json(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))) {
             const edit = document.createElement('button');
