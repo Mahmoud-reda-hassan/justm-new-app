@@ -132,6 +132,9 @@
                 </div>
             </div>
         </div>
+        <div class="card-footer order-actions">
+            <button type="button" class="btn btn-primary" id="to-products">التالي: اختيار المنتجات <i class="fas fa-arrow-left mr-1"></i></button>
+        </div>
     </section>
 
     <section class="card card-outline card-primary order-step" id="step-products">
@@ -1291,7 +1294,7 @@
             if (step.dataset.orderStep === id) step.setAttribute('aria-current','step');
             else step.removeAttribute('aria-current');
         });
-        $('jmWizardNext').style.display = id === 'step-review' ? 'none' : 'inline-flex';
+        $('jmWizardNext').style.display = id === 'step-products' ? 'inline-flex' : 'none';
         $('save-order').style.display = id === 'step-review' ? 'inline-flex' : 'none';
         $('save-order').closest('.order-foot').style.display = id === 'step-review' ? 'flex' : 'none';
         $('jmWizardHint').textContent = id === 'step-customer'
@@ -1373,6 +1376,12 @@
         }
         return true;
     };
+
+    $('to-products').addEventListener('click', () => {
+        if (!validateCustomerStep()) return;
+        show('step-products');
+        renderCatalog();
+    });
 
     $('jmWizardNext').addEventListener('click', () => {
         if (currentStep === 'step-customer') {
