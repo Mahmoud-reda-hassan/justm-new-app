@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AccessControlController;
 use App\Http\Controllers\Admin\DatabaseUpdateController;
 use App\Http\Controllers\Admin\GeographicSettingsController;
+use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\OperatingStructureController;
 use App\Http\Controllers\Admin\ProductCatalogController;
 use App\Http\Controllers\Admin\ProductController;
