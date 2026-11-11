@@ -515,4 +515,18 @@ class SalesOrderCreationTest extends TestCase
         $this->actingAs($user)->get(route('admin.sales.orders.create'))->assertOk();
         $this->actingAs($user)->get(route('admin.sales.orders.index'))->assertOk();
     }
+    public function test_order_creation_uses_legacy_visual_system_and_three_step_navigation(): void
+    {
+        $user = $this->userWithSalesPermission();
+
+        $this->actingAs($user)->get(route('admin.sales.orders.create'))
+            ->assertOk()
+            ->assertSee('css/order-storefront-legacy.css')
+            ->assertSee('class="jm-order-steps"', false)
+            ->assertSee('data-order-step="step-customer"', false)
+            ->assertSee('data-order-step="step-products"', false)
+            ->assertSee('data-order-step="step-review"', false)
+            ->assertSee('class="jm-order-storefront-page"', false);
+    }
+
 }
