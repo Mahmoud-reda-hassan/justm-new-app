@@ -620,17 +620,16 @@
             text.className = 'customer-contact-value';
             text.textContent = (address.city ? address.city + ' — ' : '') + address.address;
             right.append(radio, text);
-            const left = document.createElement('div');
-            left.className = 'customer-contact-actions';
             if (address.isPrimary) {
                 const def = document.createElement('span');
-                def.className = 'badge badge-light border';
-                def.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
-                def.title = 'الافتراضي';
-                def.setAttribute('aria-label', 'الافتراضي');
                 def.className = 'customer-default-check text-success';
-                left.appendChild(def);
+                def.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
+                def.title = 'العنوان الافتراضي';
+                def.setAttribute('aria-label', 'العنوان الافتراضي');
+                right.appendChild(def);
             }
+            const left = document.createElement('div');
+            left.className = 'customer-contact-actions';
             const edit = document.createElement('button');
             edit.type = 'button';
             edit.className = 'btn btn-sm btn-link text-secondary p-1';
@@ -639,7 +638,7 @@
             edit.innerHTML = '<i class="fas fa-edit"></i>';
             edit.addEventListener('click', openEditor);
             left.appendChild(edit);
-            row.append(right, left);
+            row.append(left, right);
             addressList.appendChild(row);
         });
         body.appendChild(addressList);
