@@ -18,7 +18,9 @@ class InventoryMovementItem extends Model
             'quantity' => 'decimal:3',
             'unit_cost' => 'decimal:4',
             'quantity_before' => 'decimal:3',
-            'quantity_after' => 'decimal:3',\n            'destination_quantity_before' => 'decimal:3',\n            'destination_quantity_after' => 'decimal:3',
+            'quantity_after' => 'decimal:3',
+            'destination_quantity_before' => 'decimal:3',
+            'destination_quantity_after' => 'decimal:3',
         ];
     }
 

@@ -15,6 +15,7 @@ use App\Models\UserDataScope;
 use App\Models\Warehouse;
 use App\Models\WarehouseType;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -132,7 +133,7 @@ class InventoryOpeningBalanceTest extends TestCase
             'created_by' => $this->user->id,
         ]);
 
-        $this->expectException(\\Illuminate\\Database\\QueryException::class);
+        $this->expectException(QueryException::class);
 
         InventoryMovement::query()->create([
             'document_no' => 'TR-IDEMP-002',
@@ -166,7 +167,7 @@ class InventoryOpeningBalanceTest extends TestCase
             'reversal_of_id' => $original->id,
         ]);
 
-        $this->expectException(\\Illuminate\\Database\\QueryException::class);
+        $this->expectException(QueryException::class);
 
         InventoryMovement::query()->create([
             'document_no' => 'TR-REV-003',
