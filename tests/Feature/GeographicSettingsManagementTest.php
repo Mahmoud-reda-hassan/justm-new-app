@@ -1,15 +1,15 @@
 <?php
 
-namespace Tests\\Feature;
+namespace Tests\Feature;
 
-use App\\Models\\Country;
-use App\\Models\\Governorate;
-use App\\Models\\Permission;
-use App\\Models\\Role;
-use App\\Models\\User;
-use Database\\Seeders\\DatabaseSeeder;
-use Illuminate\\Foundation\\Testing\\RefreshDatabase;
-use Tests\\TestCase;
+use App\Models\Country;
+use App\Models\Governorate;
+use App\Models\Permission;
+use App\Models\Role;
+use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
 
 class GeographicSettingsManagementTest extends TestCase
 {
