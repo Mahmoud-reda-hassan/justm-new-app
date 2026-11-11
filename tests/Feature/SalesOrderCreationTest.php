@@ -250,11 +250,10 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee("const address = addresses.find(item => String(item.id) === this.value);", false);
     }
 
-    public function test_order_creation_screen_supports_customer_search_by_name_and_phone(): void
+    public function test_order_creation_screen_uses_phone_only_customer_directory_cards(): void
     {
         $user = $this->userWithSalesPermission();
         $customer = $this->customer();
-        $customer->update(['email' => 'company-customer@example.test']);
         $customer->phones()->create([
             'number' => '01012345678',
             'type' => 'mobile',
@@ -265,14 +264,13 @@ class SalesOrderCreationTest extends TestCase
         $this->actingAs($user)->get(route('admin.sales.orders.create'))
             ->assertOk()
             ->assertSee('id="customer-search"', false)
-            ->assertSee('بحث العميل بالاسم أو رقم الهاتف')
+            ->assertSee('بحث برقم هاتف العميل فقط')
+            ->assertSee('id="top-customer-cards"', false)
+            ->assertSee('id="customer-directory-cards"', false)
+            ->assertSee('id="customer-directory-pagination"', false)
             ->assertSee('id="customer-phone-select"', false)
-            ->assertSee('data-entity-type="company"', false)
-            ->assertSee('data-email="company-customer@example.test"', false)
-            ->assertSee('id="shipping_phone_id"', false)
-            ->assertSee('data-phone', false)
-            ->assertSee('01012345678')
-            ->assertSee('data-search=', false);
+            ->assertSee(route('admin.sales.orders.customers.directory'), false)
+            ->assertSee('id="shipping_phone_id"', false);
     }
 
     public function test_customer_history_endpoint_returns_only_the_selected_customers_recent_orders(): void
