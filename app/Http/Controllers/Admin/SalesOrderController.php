@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -235,7 +236,7 @@ class SalesOrderController extends Controller
     public function create(Request $request): View
     {
         $variants = ProductVariant::query()
-            ->with(['product', 'attributeValues.group'])
+            ->with(['product.category', 'attributeValues.group'])
             ->where('is_active', true)
             ->whereHas('product', fn (Builder $query) => $query
                 ->where('is_active', true)
@@ -245,9 +246,37 @@ class SalesOrderController extends Controller
             ->orderBy('sku')
             ->get();
 
+        // Build one storefront card per product, while retaining every sellable variant
+        // for the product-details selector used by the legacy Just-M order screen.
+        $catalogProducts = $variants->groupBy('product_id')->map(function ($productVariants): array {
+            $firstVariant = $productVariants->first();
+            $product = $firstVariant->product;
+
+            return [
+                'id' => (string) $product->id,
+                'name' => $product->name,
+                'category' => $product->category?->name ?? 'بدون قسم',
+                'description' => $product->description ?? '',
+                'image' => $product->image_path ? Storage::url($product->image_path) : null,
+                'variants' => $productVariants->map(fn (ProductVariant $variant): array => [
+                    'id' => (string) $variant->id,
+                    'sku' => $variant->sku,
+                    'variant_name' => $variant->variant_name,
+                    'list_price' => (float) $variant->list_price,
+                    'minimum_sale_price' => (float) $variant->minimum_sale_price,
+                    'attributes' => $variant->attributeValues->map(fn ($value): array => [
+                        'group_id' => (string) $value->group_id,
+                        'group_name' => $value->group?->name ?? 'المواصفة',
+                        'value_id' => (string) $value->id,
+                        'value' => $value->value,
+                    ])->values()->all(),
+                ])->values()->all(),
+            ];
+        })->values();
+
         $cities = City::query()->where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar']);
 
-        return view('admin.sales.orders.create', compact('variants', 'cities'));
+        return view('admin.sales.orders.create', compact('variants', 'cities', 'catalogProducts'));
     }
 
     public function store(Request $request): RedirectResponse
