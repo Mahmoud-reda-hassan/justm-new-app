@@ -19,6 +19,21 @@
     .customer-directory-card .customer-directory-name{font-size:1rem}
     .customer-directory-card label{cursor:pointer}
     @media(max-width:575.98px){.order-actions .btn{flex:1 1 auto}}
+
+/* Customer directory cards: responsive grid and mirrored contact controls. */
+.jm-order-storefront-page #customer-directory-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.jm-order-storefront-page #customer-directory-cards>.col-xl-4{width:100%;max-width:none;padding:0;margin:0!important}
+.jm-order-storefront-page .customer-directory-card{border-radius:12px;box-shadow:0 3px 12px rgba(25,55,90,.06)}
+.jm-order-storefront-page .customer-contact-row{display:flex;direction:rtl;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f4}
+.jm-order-storefront-page .customer-contact-choice{display:flex;direction:rtl;align-items:flex-start;gap:8px;min-width:0;margin:0;flex:1;cursor:pointer}
+.jm-order-storefront-page .customer-contact-radio{width:17px;height:17px;flex:0 0 17px;margin:2px 0 0;accent-color:#1769d2;cursor:pointer}
+.jm-order-storefront-page .customer-contact-value{font-size:13px;line-height:1.7;overflow-wrap:anywhere;color:#344761}
+.jm-order-storefront-page .customer-contact-actions{display:flex;direction:ltr;align-items:center;justify-content:flex-start;gap:9px;flex:0 0 auto;white-space:nowrap}
+.jm-order-storefront-page .customer-contact-actions a{display:inline-flex;align-items:center}
+.jm-order-storefront-page .customer-card-section-header{direction:rtl}
+.jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
+@media(max-width:1100px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:1fr}}
 </style>
 @endpush
 
@@ -445,108 +460,165 @@
 
     const makeDirectoryCard = customer => {
         const col = document.createElement('div');
-        col.className = 'col-12 mb-3';
+        col.className = 'col-xl-4 col-lg-6 col-12 mb-3';
         const card = document.createElement('div');
-        card.className = 'card customer-directory-card border';
+        card.className = 'card customer-directory-card border h-100';
         const body = document.createElement('div');
         body.className = 'card-body p-3';
+
         const heading = document.createElement('div');
-        heading.className = 'd-flex justify-content-between align-items-center flex-wrap mb-2';
+        heading.className = 'd-flex justify-content-between align-items-center mb-3';
+        const nameArea = document.createElement('div');
+        nameArea.className = 'd-flex align-items-center flex-wrap';
         const name = document.createElement('strong');
         name.className = 'customer-directory-name';
         name.textContent = customer.name;
-        heading.appendChild(name);
+        nameArea.appendChild(name);
         if (customer.is_most_delivered) {
             const topBadge = document.createElement('span');
-            topBadge.className = 'badge badge-success';
+            topBadge.className = 'badge badge-success mr-2';
             topBadge.textContent = 'الأكثر تسليمًا';
-            heading.appendChild(topBadge);
+            nameArea.appendChild(topBadge);
         }
+        const editName = document.createElement('button');
+        editName.type = 'button';
+        editName.className = 'btn btn-sm btn-link text-primary p-1';
+        editName.title = 'تعديل اسم العميل';
+        editName.setAttribute('aria-label', 'تعديل اسم العميل');
+        editName.innerHTML = '<i class="fas fa-edit"></i>';
+        editName.addEventListener('click', async () => {
+            const loaded = await selectCustomerFromDirectory(customer.id);
+            if (loaded) openCustomerEditor(customer.id);
+        });
+        heading.append(nameArea, editName);
         body.appendChild(heading);
 
-        const phonesTitle = document.createElement('div');
-        phonesTitle.className = 'font-weight-bold mt-2 mb-1';
-        phonesTitle.textContent = 'أرقام الهواتف المتوفرة';
-        body.appendChild(phonesTitle);
+        const makeSectionHeader = (title, addTitle, onAdd) => {
+            const header = document.createElement('div');
+            header.className = 'd-flex justify-content-between align-items-center mt-3 mb-1 customer-card-section-header';
+            const caption = document.createElement('strong');
+            caption.textContent = title;
+            const add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'btn btn-sm btn-link text-primary p-1';
+            add.title = addTitle;
+            add.setAttribute('aria-label', addTitle);
+            add.innerHTML = '<i class="fas fa-plus-circle fa-lg"></i>';
+            add.addEventListener('click', onAdd);
+            header.append(caption, add);
+            return header;
+        };
+        const openEditor = async () => {
+            const loaded = await selectCustomerFromDirectory(customer.id);
+            if (loaded) openCustomerEditor(customer.id);
+        };
+
+        body.appendChild(makeSectionHeader('أرقام الهواتف المتاحة', 'إضافة رقم', openEditor));
         const phoneList = document.createElement('div');
         phoneList.className = 'customer-card-phone-list';
         const phones = customer.phones || [];
         if (!phones.length) {
             const empty = document.createElement('div');
-            empty.className = 'text-muted small py-1';
+            empty.className = 'text-muted small py-2';
             empty.textContent = 'لا يوجد رقم هاتف نشط';
             phoneList.appendChild(empty);
         }
         phones.forEach(phone => {
             const row = document.createElement('div');
-            row.className = 'd-flex justify-content-between align-items-center border-bottom py-2 flex-wrap';
-            const label = document.createElement('label');
-            label.className = 'mb-0 d-flex align-items-center';
+            row.className = 'customer-contact-row';
+            const right = document.createElement('label');
+            right.className = 'customer-contact-choice';
             const radio = document.createElement('input');
             radio.type = 'radio';
             radio.name = 'directory-phone-' + customer.id;
-            radio.className = 'jm-choice-radio';
+            radio.className = 'customer-contact-radio';
             radio.value = String(phone.id);
             radio.checked = !!phone.isPrimary || (!phones.some(item => item.isPrimary) && phones[0]?.id === phone.id);
-            const check = document.createElement('span');
-            check.className = 'jm-choice-check';
-            check.textContent = '✓';
             const number = document.createElement('span');
-            number.className = 'mr-1';
-            number.textContent = (phone.isPrimary ? '★ ' : '') + phone.number;
-            label.append(radio, check, number);
-            const links = document.createElement('span');
+            number.className = 'customer-contact-value';
+            number.textContent = phone.number;
+            right.append(radio, number);
+
+            const left = document.createElement('div');
+            left.className = 'customer-contact-actions';
             if (phone.isWhatsapp) {
                 const a = document.createElement('a');
                 a.href = 'https://wa.me/' + String(phone.number).replace(/\\D/g, '');
                 a.target = '_blank'; a.rel = 'noopener noreferrer';
-                a.className = 'text-success mx-2'; a.title = 'واتساب';
+                a.className = 'text-success'; a.title = 'واتساب';
                 a.innerHTML = '<i class="fab fa-whatsapp fa-lg"></i>';
-                links.appendChild(a);
+                left.appendChild(a);
             }
             if (phone.isTelegram) {
                 const a = document.createElement('a');
                 a.href = 'https://t.me/+' + String(phone.number).replace(/\\D/g, '');
                 a.target = '_blank'; a.rel = 'noopener noreferrer';
-                a.className = 'text-info mx-2'; a.title = 'تيليجرام';
+                a.className = 'text-info'; a.title = 'تيليجرام';
                 a.innerHTML = '<i class="fab fa-telegram fa-lg"></i>';
-                links.appendChild(a);
+                left.appendChild(a);
             }
-            row.append(label, links);
+            if (phone.isPrimary) {
+                const def = document.createElement('span');
+                def.className = 'badge badge-light border';
+                def.textContent = 'DEFAULT';
+                left.appendChild(def);
+            }
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'btn btn-sm btn-link text-secondary p-1';
+            edit.title = 'تعديل رقم الهاتف';
+            edit.setAttribute('aria-label', 'تعديل رقم الهاتف');
+            edit.innerHTML = '<i class="fas fa-edit"></i>';
+            edit.addEventListener('click', openEditor);
+            left.appendChild(edit);
+            row.append(right, left);
             phoneList.appendChild(row);
         });
         body.appendChild(phoneList);
 
-        const addressesTitle = document.createElement('div');
-        addressesTitle.className = 'font-weight-bold mt-3 mb-1';
-        addressesTitle.textContent = 'العناوين';
-        body.appendChild(addressesTitle);
+        body.appendChild(makeSectionHeader('العناوين المتاحة', 'إضافة عنوان', openEditor));
         const addressList = document.createElement('div');
         addressList.className = 'customer-card-address-list';
         const addresses = customer.addresses || [];
         if (!addresses.length) {
             const empty = document.createElement('div');
-            empty.className = 'text-muted small py-1';
+            empty.className = 'text-muted small py-2';
             empty.textContent = 'لا يوجد عنوان نشط';
             addressList.appendChild(empty);
         }
         addresses.forEach(address => {
-            const label = document.createElement('label');
-            label.className = 'd-flex align-items-start border-bottom py-2 mb-0';
+            const row = document.createElement('div');
+            row.className = 'customer-contact-row customer-address-row';
+            const right = document.createElement('label');
+            right.className = 'customer-contact-choice';
             const radio = document.createElement('input');
             radio.type = 'radio';
             radio.name = 'directory-address-' + customer.id;
-            radio.className = 'jm-choice-radio';
+            radio.className = 'customer-contact-radio';
             radio.value = String(address.id);
             radio.checked = !!address.isPrimary || (!addresses.some(item => item.isPrimary) && addresses[0]?.id === address.id);
-            const check = document.createElement('span');
-            check.className = 'jm-choice-check';
-            check.textContent = '✓';
             const text = document.createElement('span');
-            text.className = 'mr-1';
-            text.textContent = (address.isPrimary ? '★ ' : '') + (address.city ? address.city + ' — ' : '') + address.address;
-            label.append(radio, check, text);
-            addressList.appendChild(label);
+            text.className = 'customer-contact-value';
+            text.textContent = (address.city ? address.city + ' — ' : '') + address.address;
+            right.append(radio, text);
+            const left = document.createElement('div');
+            left.className = 'customer-contact-actions';
+            if (address.isPrimary) {
+                const def = document.createElement('span');
+                def.className = 'badge badge-light border';
+                def.textContent = 'DEFAULT';
+                left.appendChild(def);
+            }
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'btn btn-sm btn-link text-secondary p-1';
+            edit.title = 'تعديل العنوان';
+            edit.setAttribute('aria-label', 'تعديل العنوان');
+            edit.innerHTML = '<i class="fas fa-edit"></i>';
+            edit.addEventListener('click', openEditor);
+            left.appendChild(edit);
+            row.append(right, left);
+            addressList.appendChild(row);
         });
         body.appendChild(addressList);
 
@@ -602,10 +674,7 @@
             edit.type = 'button';
             edit.className = 'btn btn-outline-secondary mr-2';
             edit.innerHTML = '<i class="fas fa-edit ml-1"></i> تعديل بيانات';
-            edit.addEventListener('click', async () => {
-                const loaded = await selectCustomerFromDirectory(customer.id);
-                if (loaded) openCustomerEditor(customer.id);
-            });
+            edit.addEventListener('click', openEditor);
             actions.appendChild(edit);
         }
         body.appendChild(actions);
