@@ -366,6 +366,27 @@ div>
         const phone = document.createElement('small');
         phone.className = 'text-muted d-block';
         phone.textContent = customer.phone || 'لا يوجد هاتف';
+
+        if (customer.is_most_delivered) {
+            const topBadge = document.createElement('span');
+            topBadge.className = 'badge badge-success mt-2';
+            topBadge.textContent = 'الأكثر تسليمًا';
+            body.appendChild(topBadge);
+        }
+
+        const orderStats = document.createElement('div');
+        orderStats.className = 'd-flex flex-wrap mt-2';
+        [
+            { label: 'تم التسليم', count: customer.delivered_orders_count, css: 'badge-success' },
+            { label: 'قيد التجهيز', count: customer.preparing_orders_count, css: 'badge-info' },
+            { label: 'قيد التأكيد', count: customer.pending_confirmation_orders_count, css: 'badge-warning' }
+        ].forEach(stat => {
+            const tag = document.createElement('span');
+            tag.className = 'badge ' + stat.css + ' mr-1 mb-1';
+            tag.textContent = stat.label + ': ' + (Number(stat.count) || 0);
+            orderStats.appendChild(tag);
+        });
+
         const actions = document.createElement('div');
         actions.className = 'btn-group btn-group-sm d-flex mt-2';
         const choose = document.createElement('button');
@@ -386,7 +407,7 @@ div>
             });
             actions.appendChild(edit);
         }
-        body.append(name, phone, actions);
+        body.append(name, phone, orderStats, actions);
         card.appendChild(body);
         col.appendChild(card);
         return col;
@@ -406,11 +427,10 @@ div>
             const payload = await response.json();
             const paginator = payload.customers;
             paginator.data.forEach(customer => directoryCards.appendChild(makeDirectoryCard(customer)));
-            $('customer-directory-title').textContent = phone ? 'نتائج البحث برقم الهاتف' : 'باقي العملاء';
+            $('customer-directory-title').textContent = phone ? 'نتائج البحث برقم الهاتف' : 'كل العملاء — مرتبين حسب عدد الطلبات المسلّمة';
             $('customer-directory-count').textContent = paginator.total + ' عميل';
-            $('top-customer-section').hidden = !!phone;
             if (!paginator.data.length) {
-                $('customer-directory-message').textContent = phone ? 'لا يوجد عميل مسجل بهذا الرقم أو بجزء منه.' : 'لا توجد عملاء آخرون لعرضهم.';
+                $('customer-directory-message').textContent = phone ? 'لا يوجد عميل مسجل بهذا الرقم أو بجزء منه.' : 'لا يوجد عملاء مسجلون حاليًا.';
             } else {
                 $('customer-directory-message').textContent = '';
             }
@@ -447,15 +467,6 @@ div>
         }
     });
     $('customer-search').addEventListener('search', () => loadCustomerDirectory(1, $('customer-search').value.trim()));
-    $('top-customer-cards').addEventListener('click', async event => {
-        const selectButton = event.target.closest('[data-customer-select]');
-        const editButton = event.target.closest('[data-customer-edit]');
-        if (selectButton) await selectCustomerFromDirectory(selectButton.dataset.customerSelect);
-        if (editButton) {
-            await selectCustomerFromDirectory(editButton.dataset.customerEdit);
-            if ($('customer_id').value === String(editButton.dataset.customerEdit)) openCustomerEditor(editButton.dataset.customerEdit);
-        }
-    });
     loadCustomerDirectory();
     let customerHistoryRequest = 0;
     const loadCustomerHistory = async () => {
