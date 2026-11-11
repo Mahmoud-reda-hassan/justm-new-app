@@ -10,7 +10,7 @@ class SalesOrder extends Model
 {
     protected $fillable = [
         'order_number', 'customer_id', 'created_by', 'created_by_party_id',
-        'status', 'shipping_address', 'shipping_address_id', 'shipping_city_id', 'shipping_zone_id', 'shipping_warehouse_id',
+        'status', 'shipping_address', 'shipping_phone', 'shipping_phone_id', 'shipping_address_id', 'shipping_city_id', 'shipping_zone_id', 'shipping_warehouse_id',
         'shipping_zone_name', 'shipping_warehouse_name', 'shipping_fee', 'shipping_fee_min', 'shipping_fee_max',
         'shipping_days', 'shipping_type', 'shipping_date', 'subtotal',
         'discount_total', 'total', 'notes',
@@ -28,6 +28,11 @@ class SalesOrder extends Model
             'discount_total' => 'decimal:2',
             'total' => 'decimal:2',
         ];
+    }
+
+    public function shippingPhone(): BelongsTo
+    {
+        return $this->belongsTo(PartyPhone::class, 'shipping_phone_id');
     }
 
     public function shippingAddress(): BelongsTo
