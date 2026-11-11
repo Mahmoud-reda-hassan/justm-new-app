@@ -10,6 +10,7 @@ use App\Models\PartyPhone;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Services\SalesOrderInventoryService;
+use App\Services\VirtualStockPolicyService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -283,7 +284,7 @@ class SalesOrderController extends Controller
         return view('admin.sales.orders.create', compact('variants', 'cities', 'catalogProducts'));
     }
 
-    public function inventoryAvailability(Request $request, \\App\\Services\\VirtualStockPolicyService $virtualStock): JsonResponse
+    public function inventoryAvailability(Request $request, VirtualStockPolicyService $virtualStock): JsonResponse
     {
         $data = $request->validate(['address_id' => ['required', 'integer', 'exists:party_addresses,id']]);
         $address = PartyAddress::query()
