@@ -1,17 +1,17 @@
 <?php
 
-namespace App\\Http\\Controllers\\Admin;
+namespace App\Http\Controllers\Admin;
 
-use App\\Http\\Controllers\\Controller;
-use App\\Models\\City;
-use App\\Models\\Country;
-use App\\Models\\Governorate;
-use Illuminate\\Database\\Eloquent\\Builder;
-use Illuminate\\Http\\RedirectResponse;
-use Illuminate\\Http\\Request;
-use Illuminate\\View\\View;
-use Illuminate\\Validation\\Rule;
-use Illuminate\\Validation\\ValidationException;
+use App\Http\Controllers\Controller;
+use App\Models\City;
+use App\Models\Country;
+use App\Models\Governorate;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class GeographicSettingsController extends Controller
 {
