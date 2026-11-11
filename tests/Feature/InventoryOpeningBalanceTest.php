@@ -5,6 +5,9 @@ namespace Tests\Feature;
 use App\Models\Company;
 use App\Models\InventoryMovement;
 use App\Models\Permission;
+use App\Models\Party;
+use App\Models\SalesOrder;
+use App\Models\SalesOrderItemReservation;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
@@ -388,8 +391,8 @@ class InventoryOpeningBalanceTest extends TestCase
             'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
             'quantity_on_hand' => 10, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        $customer = AppModelsParty::query()->create(['name' => 'عميل اختبار الحجز']);
-        $order = AppModels\SalesOrder::query()->create([
+        $customer = Party::query()->create(['name' => 'عميل اختبار الحجز']);
+        $order = SalesOrder::query()->create([
             'order_number' => 'RES-NEG-001', 'customer_id' => $customer->id,
             'created_by' => $this->user->id, 'status' => 'draft',
         ]);
@@ -398,7 +401,7 @@ class InventoryOpeningBalanceTest extends TestCase
             'variant_sku' => 'SHIRT-001', 'quantity' => 4, 'list_price' => 300,
             'sale_price' => 300, 'discount_amount' => 0, 'line_total' => 1200,
         ]);
-        \App\Models\SalesOrderItemReservation::query()->create([
+        SalesOrderItemReservation::query()->create([
             'sales_order_item_id' => $orderItem->id, 'warehouse_id' => $this->warehouse->id,
             'product_variant_id' => $this->variant->id, 'requested_quantity' => 4,
             'reserved_quantity' => 4, 'backorder_quantity' => 0, 'status' => 'active',
