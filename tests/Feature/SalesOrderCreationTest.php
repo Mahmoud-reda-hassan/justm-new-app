@@ -644,4 +644,91 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee('class="jm-order-storefront-page"', false);
     }
 
+
+    public function test_order_catalog_availability_uses_virtual_stock_status_policy(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $variant = $this->variant();
+        $address = $this->shippingAddress($customer);
+        $this->setWarehouseStock($address, $variant, 10);
+        $warehouseId = (int) $address->city->shippingZone->warehouse_id;
+
+        foreach ([
+            ['status' => 'draft', 'quantity' => 2, 'number' => 'SO-VIRTUAL-DRAFT'],
+            ['status' => 'cancelled', 'quantity' => 3, 'number' => 'SO-VIRTUAL-CANCELLED'],
+        ] as $row) {
+            $order = SalesOrder::query()->create([
+                'order_number' => $row['number'],
+                'customer_id' => $customer->id,
+                'created_by' => $user->id,
+                'status' => $row['status'],
+                'subtotal' => 0,
+                'discount_total' => 0,
+                'total' => 0,
+            ]);
+            $item = $order->items()->create([
+                'product_variant_id' => $variant->id,
+                'product_name' => 'منتج مبيعات',
+                'variant_sku' => $variant->sku,
+                'quantity' => $row['quantity'],
+                'list_price' => 100,
+                'sale_price' => 100,
+                'discount_amount' => 0,
+                'line_total' => $row['quantity'] * 100,
+            ]);
+            DB::table('sales_order_item_reservations')->insert([
+                'sales_order_item_id' => $item->id,
+                'warehouse_id' => $warehouseId,
+                'product_variant_id' => $variant->id,
+                'requested_quantity' => $row['quantity'],
+                'reserved_quantity' => $row['quantity'],
+                'backorder_quantity' => 0,
+                'status' => 'active',
+                'created_by' => $user->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($user)
+            ->getJson(route('admin.sales.orders.inventory-availability', ['address_id' => $address->id]))
+            ->assertOk()
+            ->assertJsonPath('variants.'.$variant->id.'.available_quantity', 8);
+    }
+
+    public function test_virtual_stock_settings_screen_and_matrix_can_be_saved(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $role = $user->roles()->firstOrFail();
+        $role->permissions()->attach(Permission::query()
+            ->whereIn('key', ['inventory.settings.view', 'inventory.settings.update'])
+            ->pluck('id'));
+
+        $this->actingAs($user)->get(route('admin.inventory.settings'))
+            ->assertOk()
+            ->assertSee('مخزون إنشاء أمر البيع')
+            ->assertSee('مخزون خدمة العملاء')
+            ->assertSee('مخزون أمين المخزن')
+            ->assertSee('إلغاء من لا يستجيب');
+
+        $this->actingAs($user)->post(route('admin.inventory.settings.virtual-stock.update'), [
+            'create_order_statuses' => ['draft', 'preparing'],
+            'customer_service_matrix' => [
+                'draft' => ['draft', 'prepared'],
+                'preparing' => ['prepared'],
+            ],
+            'warehouse_statuses' => ['prepared'],
+        ])->assertRedirect(route('admin.inventory.settings'))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('system_settings', [
+            'setting_key' => 'inventory.virtual_stock.create_order_statuses',
+            'setting_value' => '["draft","preparing"]',
+        ]);
+        $this->assertDatabaseHas('system_settings', [
+            'setting_key' => 'inventory.virtual_stock.warehouse_statuses',
+            'setting_value' => '["prepared"]',
+        ]);
+    }
+
 }
