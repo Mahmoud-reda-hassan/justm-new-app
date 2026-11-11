@@ -189,6 +189,40 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee('data-search=', false);
     }
 
+    public function test_customer_history_endpoint_returns_only_the_selected_customers_recent_orders(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $otherCustomer = $this->customer();
+
+        SalesOrder::query()->create([
+            'order_number' => 'SO-HISTORY-001',
+            'customer_id' => $customer->id,
+            'created_by' => $user->id,
+            'status' => 'draft',
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total' => 110,
+        ]);
+        SalesOrder::query()->create([
+            'order_number' => 'SO-OTHER-CUSTOMER',
+            'customer_id' => $otherCustomer->id,
+            'created_by' => $user->id,
+            'status' => 'draft',
+            'subtotal' => 200,
+            'discount_total' => 0,
+            'total' => 200,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('admin.sales.orders.customer-history', $customer))
+            ->assertOk()
+            ->assertJsonCount(1, 'orders')
+            ->assertJsonPath('orders.0.order_number', 'SO-HISTORY-001')
+            ->assertJsonPath('orders.0.total', '110.00')
+            ->assertJsonMissing(['order_number' => 'SO-OTHER-CUSTOMER']);
+    }
+
     public function test_order_creation_can_choose_a_saved_customer_address(): void
     {
         $user = $this->userWithSalesPermission();
