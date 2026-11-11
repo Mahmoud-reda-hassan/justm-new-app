@@ -442,27 +442,111 @@
 
     const makeDirectoryCard = customer => {
         const col = document.createElement('div');
-        col.className = 'col-xl-3 col-md-4 col-sm-6 mb-2';
+        col.className = 'col-12 mb-3';
         const card = document.createElement('div');
-        card.className = 'card h-100 mb-0 border';
+        card.className = 'card customer-directory-card border';
         const body = document.createElement('div');
         body.className = 'card-body p-3';
+        const heading = document.createElement('div');
+        heading.className = 'd-flex justify-content-between align-items-center flex-wrap mb-2';
         const name = document.createElement('strong');
-        name.className = 'd-block text-truncate';
+        name.className = 'customer-directory-name';
         name.textContent = customer.name;
-        const phone = document.createElement('small');
-        phone.className = 'text-muted d-block';
-        phone.textContent = customer.phone || 'لا يوجد هاتف';
-
+        heading.appendChild(name);
         if (customer.is_most_delivered) {
             const topBadge = document.createElement('span');
-            topBadge.className = 'badge badge-success mt-2';
+            topBadge.className = 'badge badge-success';
             topBadge.textContent = 'الأكثر تسليمًا';
-            body.appendChild(topBadge);
+            heading.appendChild(topBadge);
         }
+        body.appendChild(heading);
+
+        const phonesTitle = document.createElement('div');
+        phonesTitle.className = 'font-weight-bold mt-2 mb-1';
+        phonesTitle.textContent = 'أرقام الهواتف المتوفرة';
+        body.appendChild(phonesTitle);
+        const phoneList = document.createElement('div');
+        phoneList.className = 'customer-card-phone-list';
+        const phones = customer.phones || [];
+        if (!phones.length) {
+            const empty = document.createElement('div');
+            empty.className = 'text-muted small py-1';
+            empty.textContent = 'لا يوجد رقم هاتف نشط';
+            phoneList.appendChild(empty);
+        }
+        phones.forEach(phone => {
+            const row = document.createElement('div');
+            row.className = 'd-flex justify-content-between align-items-center border-bottom py-2 flex-wrap';
+            const label = document.createElement('label');
+            label.className = 'mb-0 d-flex align-items-center';
+            const radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'directory-phone-' + customer.id;
+            radio.value = String(phone.id);
+            radio.checked = !!phone.isPrimary || (!phones.some(item => item.isPrimary) && phones[0]?.id === phone.id);
+            const check = document.createElement('span');
+            check.className = 'jm-choice-check';
+            check.textContent = '✓';
+            const number = document.createElement('span');
+            number.className = 'mr-1';
+            number.textContent = (phone.isPrimary ? '★ ' : '') + phone.number;
+            label.append(radio, check, number);
+            const links = document.createElement('span');
+            if (phone.isWhatsapp) {
+                const a = document.createElement('a');
+                a.href = 'https://wa.me/' + String(phone.number).replace(/\\D/g, '');
+                a.target = '_blank'; a.rel = 'noopener noreferrer';
+                a.className = 'text-success mx-2'; a.title = 'واتساب';
+                a.innerHTML = '<i class="fab fa-whatsapp fa-lg"></i>';
+                links.appendChild(a);
+            }
+            if (phone.isTelegram) {
+                const a = document.createElement('a');
+                a.href = 'https://t.me/+' + String(phone.number).replace(/\\D/g, '');
+                a.target = '_blank'; a.rel = 'noopener noreferrer';
+                a.className = 'text-info mx-2'; a.title = 'تيليجرام';
+                a.innerHTML = '<i class="fab fa-telegram fa-lg"></i>';
+                links.appendChild(a);
+            }
+            row.append(label, links);
+            phoneList.appendChild(row);
+        });
+        body.appendChild(phoneList);
+
+        const addressesTitle = document.createElement('div');
+        addressesTitle.className = 'font-weight-bold mt-3 mb-1';
+        addressesTitle.textContent = 'العناوين';
+        body.appendChild(addressesTitle);
+        const addressList = document.createElement('div');
+        addressList.className = 'customer-card-address-list';
+        const addresses = customer.addresses || [];
+        if (!addresses.length) {
+            const empty = document.createElement('div');
+            empty.className = 'text-muted small py-1';
+            empty.textContent = 'لا يوجد عنوان نشط';
+            addressList.appendChild(empty);
+        }
+        addresses.forEach(address => {
+            const label = document.createElement('label');
+            label.className = 'd-flex align-items-start border-bottom py-2 mb-0';
+            const radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'directory-address-' + customer.id;
+            radio.value = String(address.id);
+            radio.checked = !!address.isPrimary || (!addresses.some(item => item.isPrimary) && addresses[0]?.id === address.id);
+            const check = document.createElement('span');
+            check.className = 'jm-choice-check';
+            check.textContent = '✓';
+            const text = document.createElement('span');
+            text.className = 'mr-1';
+            text.textContent = (address.isPrimary ? '★ ' : '') + (address.city ? address.city + ' — ' : '') + address.address;
+            label.append(radio, check, text);
+            addressList.appendChild(label);
+        });
+        body.appendChild(addressList);
 
         const orderStats = document.createElement('div');
-        orderStats.className = 'd-flex flex-wrap mt-2';
+        orderStats.className = 'd-flex flex-wrap mt-3';
         [
             { label: 'تم التسليم', count: customer.delivered_orders_count, css: 'badge-success' },
             { label: 'قيد التجهيز', count: customer.preparing_orders_count, css: 'badge-info' },
@@ -474,43 +558,52 @@
             tag.textContent = stat.label + ': ' + (Number(stat.count) || 0);
             orderStats.appendChild(tag);
         });
+        body.appendChild(orderStats);
 
         const actions = document.createElement('div');
-        actions.className = 'btn-group btn-group-sm d-flex mt-2';
+        actions.className = 'd-flex mt-3';
         const choose = document.createElement('button');
         choose.type = 'button';
-        choose.className = 'btn btn-outline-primary';
+        choose.className = 'btn btn-outline-primary flex-fill';
         choose.textContent = 'اختيار العميل';
         choose.addEventListener('click', async () => {
+            const selectedPhone = card.querySelector('input[name="directory-phone-' + customer.id + '"]:checked')?.value;
+            const selectedAddress = card.querySelector('input[name="directory-address-' + customer.id + '"]:checked')?.value;
             const loaded = await selectCustomerFromDirectory(customer.id);
             if (!loaded) return;
-            const customerId = $('customer_id').value;
-            const phoneId = $('shipping_phone_id').value;
-            const addressId = $('shipping_address_id').value;
-            const address = (customerAddresses[customerId] || []).find(item => String(item.id) === String(addressId));
-            if (!phoneId || !address || !address.zone) {
-                await Swal.fire({
-                    icon: 'warning',
-                    text: 'لا يمكن المتابعة قبل تحديد رقم هاتف وعنوان مرتبط بمنطقة شحن نشطة. استخدم تعديل بيانات العميل لاستكمال البيانات.'
-                });
+            const phone = (customerPhones[customer.id] || []).find(item => String(item.id) === String(selectedPhone))
+                || (customerPhones[customer.id] || []).find(item => item.isPrimary)
+                || (customerPhones[customer.id] || [])[0];
+            const address = (customerAddresses[customer.id] || []).find(item => String(item.id) === String(selectedAddress))
+                || (customerAddresses[customer.id] || []).find(item => item.isPrimary)
+                || (customerAddresses[customer.id] || [])[0];
+            if (!phone || !address || !address.zone) {
+                await Swal.fire({icon:'warning', text:'لا يمكن المتابعة قبل تحديد رقم هاتف وعنوان مرتبط بمنطقة شحن نشطة.'});
                 return;
             }
+            $('customer-phone-select').value = String(phone.id);
+            $('shipping_phone_id').value = String(phone.id);
+            $('customer-address-select').value = String(address.id);
+            $('shipping_address_id').value = String(address.id);
+            $('shipping_address').value = address.address;
+            renderPhoneDetails(customerPhones[customer.id], phone.id);
+            renderAddressDetails(customerAddresses[customer.id], address.id);
+            applyShippingRoute(address);
             show('step-products');
         });
         actions.appendChild(choose);
         if (@json(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))) {
             const edit = document.createElement('button');
             edit.type = 'button';
-            edit.className = 'btn btn-outline-secondary';
-            edit.innerHTML = '<i class="fas fa-edit ml-1"></i> تعديل العميل';
-            edit.title = 'تعديل العميل';
+            edit.className = 'btn btn-outline-secondary mr-2';
+            edit.innerHTML = '<i class="fas fa-edit ml-1"></i> تعديل بيانات';
             edit.addEventListener('click', async () => {
-                await selectCustomerFromDirectory(customer.id);
-                if ($('customer_id').value === String(customer.id)) openCustomerEditor(customer.id);
+                const loaded = await selectCustomerFromDirectory(customer.id);
+                if (loaded) openCustomerEditor(customer.id);
             });
             actions.appendChild(edit);
         }
-        body.append(name, phone, orderStats, actions);
+        body.appendChild(actions);
         card.appendChild(body);
         col.appendChild(card);
         return col;
