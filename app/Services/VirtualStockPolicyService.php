@@ -129,10 +129,10 @@ class VirtualStockPolicyService
         $matrix = [];
         foreach (self::STATUSES as $row => $label) {
             $matrix[$row] = $this->decodeList(
-                isset($decoded[$row]) && is_array($decoded[$row])
+                array_key_exists($row, $decoded) && is_array($decoded[$row])
                     ? json_encode($decoded[$row])
-                    : null,
-                $fallback[$row]
+                    : '[]',
+                []
             );
         }
 
