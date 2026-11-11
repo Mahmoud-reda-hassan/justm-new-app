@@ -160,6 +160,16 @@ class SalesOrderCreationTest extends TestCase
         $this->assertSame(now()->addDays(2)->toDateString(), $order->shipping_date->toDateString());
     }
 
+    public function test_order_creation_resolves_the_selected_customer_address_from_its_own_address_list(): void
+    {
+        $user = $this->userWithSalesPermission();
+
+        $this->actingAs($user)->get(route('admin.sales.orders.create'))
+            ->assertOk()
+            ->assertSee("const addresses = customerAddresses[$('customer_id').value] || [];", false)
+            ->assertSee("const address = addresses.find(item => String(item.id) === this.value);", false);
+    }
+
     public function test_order_creation_can_choose_a_saved_customer_address(): void
     {
         $user = $this->userWithSalesPermission();
