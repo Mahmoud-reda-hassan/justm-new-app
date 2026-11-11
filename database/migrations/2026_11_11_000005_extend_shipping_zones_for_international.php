@@ -30,6 +30,7 @@ return new class extends Migration {
 
     public function down(): void
     {
+        DB::table('shipping_zones')->where('zone_type', 'international')->delete();
         Schema::dropIfExists('shipping_zone_countries');
 
         Schema::table('shipping_zones', function (Blueprint $table): void {
