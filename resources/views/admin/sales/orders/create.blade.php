@@ -34,6 +34,7 @@
 .jm-order-storefront-page .customer-default-check{display:inline-flex;align-items:center;justify-content:center;margin-inline-start:5px;font-size:14px;font-weight:800}
 .jm-order-storefront-page .customer-card-section-header{direction:rtl}
  .jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
+.jm-order-storefront-page #step-products,.jm-order-storefront-page #step-review{border:0;box-shadow:none;overflow:visible;background:transparent}
 .jm-order-storefront-page #step-products>.card-header,.jm-order-storefront-page #step-review>.card-header{display:none}
 .jm-order-storefront-page #step-products .jm-store-layout{display:block;margin:0}
 .jm-order-storefront-page #step-products .jm-store-products{width:100%;grid-column:auto;grid-row:auto}
@@ -45,15 +46,6 @@
 @media(max-width:767.98px){.jm-order-storefront-page #step-review .jm-store-bottom{grid-template-columns:1fr}}
 @media(max-width:1100px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:1fr}}
-.jm-order-storefront-page .jm-store-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:16px;align-items:start}
-.jm-order-storefront-page .jm-store-products,.jm-order-storefront-page .jm-store-cart{padding:14px;border:1px solid #dce5f0;border-radius:12px;background:#fff;min-width:0}
-.jm-order-storefront-page .jm-store-product-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.jm-order-storefront-page .jm-store-product{border:1px solid #e0e8f2;border-radius:12px;overflow:hidden;background:#fff}
-.jm-order-storefront-page .jm-store-product-image{height:120px;background:#f5f8fc;text-align:center}
-.jm-order-storefront-page .jm-store-product-image img{max-width:100%;max-height:100%;object-fit:contain;padding:8px}
-.jm-order-storefront-page .jm-store-cart{position:sticky;top:15px}
-@media(max-width:991.98px){.jm-order-storefront-page .jm-store-layout{grid-template-columns:1fr}.jm-order-storefront-page .jm-store-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.jm-order-storefront-page .jm-store-cart{position:static}}
-@media(max-width:575.98px){.jm-order-storefront-page .jm-store-product-grid{gap:7px}.jm-order-storefront-page .jm-store-product-image{height:90px}.jm-order-storefront-page .jm-store-products,.jm-order-storefront-page .jm-store-cart{padding:9px}}
 </style>
 @endpush
 
