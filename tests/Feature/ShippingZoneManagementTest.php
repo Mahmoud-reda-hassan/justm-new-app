@@ -161,6 +161,7 @@ class ShippingZoneManagementTest extends TestCase
         $zone = ShippingZone::query()->where('name_ar', 'دول الخليج')->firstOrFail();
         $this->assertSame('international', $zone->zone_type);
         $this->assertNull($zone->warehouse_id);
+        $this->assertNull($zone->shipping_fee_min);
         $this->assertNull($zone->shipping_fee_max);
         $this->assertNull($zone->delivery_days);
         $this->assertTrue($zone->countries()->whereKey($country->id)->exists());
