@@ -51,6 +51,7 @@
             </div>
             <div class="form-group">
                 <div class="custom-control custom-checkbox"><input class="custom-control-input" id="product-visible" type="checkbox" name="is_visible" value="1" @checked(old('is_visible',1))><label class="custom-control-label" for="product-visible">متاح للبيع</label></div>
+                <div class="custom-control custom-checkbox mt-2"><input class="custom-control-input" id="product-preorder" type="checkbox" name="allow_preorder" value="1" @checked(old('allow_preorder'))><label class="custom-control-label" for="product-preorder">السماح بالحجز المسبق عند نفاد المخزون</label></div>
             </div>
             @if($attributeGroups->isNotEmpty())
             <div class="border rounded p-3 mb-3">
@@ -160,7 +161,7 @@
                     <div class="form-group col-md-3"><label>العرض (سم)</label><input class="form-control" name="width_cm" type="number" step="0.001" min="0" value="{{ $product->width_cm }}"></div>
                     <div class="form-group col-md-3"><label>الارتفاع (سم)</label><input class="form-control" name="height_cm" type="number" step="0.001" min="0" value="{{ $product->height_cm }}"></div>
                     <div class="form-group col-md-3"><label>الوزن (كجم)</label><input class="form-control" name="weight_kg" type="number" step="0.001" min="0" value="{{ $product->weight_kg }}"></div>
-                    <div class="form-group col-12"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="visible-{{ $product->id }}" type="checkbox" name="is_visible" value="1" @checked($product->is_visible)><label class="custom-control-label" for="visible-{{ $product->id }}">متاح للبيع</label></div></div>
+                    <div class="form-group col-12"><div class="custom-control custom-checkbox"><input class="custom-control-input" id="visible-{{ $product->id }}" type="checkbox" name="is_visible" value="1" @checked($product->is_visible)><label class="custom-control-label" for="visible-{{ $product->id }}">متاح للبيع</label></div><div class="custom-control custom-checkbox mt-2"><input class="custom-control-input" id="preorder-{{ $product->id }}" type="checkbox" name="allow_preorder" value="1" @checked($product->allow_preorder)><label class="custom-control-label" for="preorder-{{ $product->id }}">السماح بالحجز المسبق عند نفاد المخزون</label></div></div>
                 </div>
                 <button class="btn btn-primary btn-sm">حفظ التعديلات</button>
             </form>
