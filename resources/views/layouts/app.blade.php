@@ -138,8 +138,11 @@
                     </li>
                     @if ($user->hasPermission('sales.orders.view') || $user->hasPermission('parties.view'))
                         <li class="nav-header">العمليات</li>
+                        @if ($user->hasPermission('sales.orders.create'))
+                            <li class="nav-item"><a href="{{ route('admin.sales.orders.create') }}" class="nav-link @if(request()->routeIs('admin.sales.orders.create')) active @endif"><i class="nav-icon fas fa-plus-circle"></i><p>إنشاء أمر البيع</p></a></li>
+                        @endif
                         @if ($user->hasPermission('sales.orders.view'))
-                            <li class="nav-item"><a href="{{ route('admin.sales.orders.index') }}" class="nav-link"><i class="nav-icon fas fa-list-alt"></i><p>أوامر البيع</p></a></li>
+                            <li class="nav-item"><a href="{{ route('admin.sales.orders.index') }}" class="nav-link @if(request()->routeIs('admin.sales.orders.index')) active @endif"><i class="nav-icon fas fa-list-alt"></i><p>قائمة أوامر البيع</p></a></li>
                         @endif
                         @if ($user->hasPermission('parties.view'))
                             <li class="nav-item"><a href="{{ route('admin.parties.index') }}" class="nav-link"><i class="nav-icon fas fa-users"></i><p>الأطراف</p></a></li>
