@@ -458,6 +458,8 @@
         }
     };
 
+    const canEditCustomer = @json(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'));
+
     const makeDirectoryCard = customer => {
         const col = document.createElement('div');
         col.className = 'col-xl-4 col-lg-6 col-12 mb-3';
@@ -480,17 +482,20 @@
             topBadge.textContent = 'الأكثر تسليمًا';
             nameArea.appendChild(topBadge);
         }
-        const editName = document.createElement('button');
-        editName.type = 'button';
-        editName.className = 'btn btn-sm btn-link text-primary p-1';
-        editName.title = 'تعديل اسم العميل';
-        editName.setAttribute('aria-label', 'تعديل اسم العميل');
-        editName.innerHTML = '<i class="fas fa-edit"></i>';
-        editName.addEventListener('click', async () => {
-            const loaded = await selectCustomerFromDirectory(customer.id);
-            if (loaded) openCustomerEditor(customer.id);
-        });
-        heading.append(nameArea, editName);
+        heading.appendChild(nameArea);
+        if (canEditCustomer) {
+            const editName = document.createElement('button');
+            editName.type = 'button';
+            editName.className = 'btn btn-sm btn-link text-primary p-1';
+            editName.title = 'تعديل اسم العميل';
+            editName.setAttribute('aria-label', 'تعديل اسم العميل');
+            editName.innerHTML = '<i class="fas fa-edit"></i>';
+            editName.addEventListener('click', async () => {
+                const loaded = await selectCustomerFromDirectory(customer.id);
+                if (loaded) openCustomerEditor(customer.id);
+            });
+            heading.appendChild(editName);
+        }
         body.appendChild(heading);
 
         const makeSectionHeader = (title, addTitle, onAdd) => {
@@ -505,7 +510,8 @@
             add.setAttribute('aria-label', addTitle);
             add.innerHTML = '<i class="fas fa-plus-circle fa-lg"></i>';
             add.addEventListener('click', onAdd);
-            header.append(caption, add);
+            if (canEditCustomer) header.append(caption, add);
+            else header.appendChild(caption);
             return header;
         };
         const openEditor = async () => {
@@ -570,7 +576,7 @@
             edit.setAttribute('aria-label', 'تعديل رقم الهاتف');
             edit.innerHTML = '<i class="fas fa-edit"></i>';
             edit.addEventListener('click', openEditor);
-            left.appendChild(edit);
+            if (canEditCustomer) left.appendChild(edit);
             row.append(right, left);
             phoneList.appendChild(row);
         });
@@ -669,7 +675,7 @@
             show('step-products');
         });
         actions.appendChild(choose);
-        if (@json(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))) {
+        if (canEditCustomer) {
             const edit = document.createElement('button');
             edit.type = 'button';
             edit.className = 'btn btn-outline-secondary mr-2';
