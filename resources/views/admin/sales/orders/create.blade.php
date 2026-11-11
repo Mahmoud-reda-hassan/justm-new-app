@@ -1143,8 +1143,6 @@
         }
         show('step-products');
     });
-    $('back-customer').addEventListener('click', () => show('step-customer'));
-    $('back-products').addEventListener('click', () => show('step-products'));
 
     $('add-item').addEventListener('click', () => {
         const option = selected();
