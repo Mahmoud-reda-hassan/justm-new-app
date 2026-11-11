@@ -211,11 +211,18 @@ class PartyController extends Controller
             $data['addresses'][0]['is_primary'] = true;
         }
 
-        DB::transaction(function () use ($party, $data): void {
+        $primaryPhone = collect($data['phones'])->firstWhere('is_primary', true) ?? $data['phones'][0];
+        $primaryAddress = collect($data['addresses'])->firstWhere('is_primary', true) ?? $data['addresses'][0];
+
+        DB::transaction(function () use ($party, $data, $primaryPhone, $primaryAddress): void {
             $party->update([
                 'entity_type' => $data['entity_type'],
                 'name' => trim($data['name']),
                 'email' => $data['email'] ?? null,
+                'mobile' => $primaryPhone['type'] === 'mobile' ? trim($primaryPhone['number']) : null,
+                'phone' => $primaryPhone['type'] === 'landline' ? trim($primaryPhone['number']) : null,
+                'city_id' => $primaryAddress['city_id'],
+                'address' => trim($primaryAddress['address']),
             ]);
             $this->syncPhones($party, $data['phones']);
             $this->syncAddresses($party, $data['addresses']);
