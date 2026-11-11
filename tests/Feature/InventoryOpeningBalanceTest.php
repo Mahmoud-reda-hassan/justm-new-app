@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\UserDataScope;
 use App\Models\Warehouse;
 use App\Models\WarehouseType;
+use App\Services\InventorySettingsService;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
