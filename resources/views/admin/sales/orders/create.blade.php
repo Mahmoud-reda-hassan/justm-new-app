@@ -429,10 +429,10 @@
     let inventoryWarehouseId = null;
     let inventoryAvailabilityLoaded = false;
     const loadInventoryAvailability = async address => {
-        if (!address?.warehouseId) return;
+        if (!address?.id || !$('shipping_address_id').value) return;
         const requestId = ++inventoryAvailabilityRequest;
         inventoryAvailabilityLoaded = false;
-        inventoryWarehouseId = String(address.warehouseId);
+        inventoryWarehouseId = address.warehouseId ? String(address.warehouseId) : null;
         $('shipping-route-hint').textContent += ' — جارٍ تحميل المتاح بالمخزن...';
         try {
             const response = await fetch(inventoryAvailabilityUrl + '?address_id=' + encodeURIComponent($('shipping_address_id').value), {
@@ -440,7 +440,7 @@
             });
             if (!response.ok) throw new Error('inventory');
             const payload = await response.json();
-            if (requestId !== inventoryAvailabilityRequest || String(payload.warehouse_id) !== inventoryWarehouseId) return;
+            if (requestId !== inventoryAvailabilityRequest || (inventoryWarehouseId && String(payload.warehouse_id) !== inventoryWarehouseId)) return;
             inventoryAvailabilityLoaded = true;
             catalogProducts.forEach(product => product.variants.forEach(variant => {
                 const availability = payload.variants[String(variant.id)] || {};
@@ -522,7 +522,7 @@
             }));
             customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
                 id: String(item.id), title: item.title, address: item.address,
-                city: item.city, cityId: item.cityId, zone: item.zone || '',
+                city: item.city, cityId: item.cityId, warehouseId: item.warehouseId ?? null, zone: item.zone || '',
                 feeMin: item.feeMin ?? '', feeMax: item.feeMax ?? '',
                 deliveryDays: item.deliveryDays ?? '', isPrimary: !!item.isPrimary
             }));
@@ -1015,7 +1015,7 @@
                 customerOption.dataset.mobile=saved.mobile || saved.phones?.[0]?.number || '';
                 customerOption.dataset.email=saved.email || '';
                 customerPhones[saved.id]=(saved.phones||[]).map(p=>({id:String(p.id),number:p.number,type:p.type,isPrimary:!!p.isPrimary,isWhatsapp:!!p.isWhatsapp,isTelegram:!!p.isTelegram}));
-                customerAddresses[saved.id]=(saved.addresses||[]).map(a=>({id:String(a.id),title:a.title,address:a.address,city:a.city,cityId:a.city_id??a.cityId,zone:a.zone||'',feeMin:a.feeMin??'',feeMax:a.feeMax??'',deliveryDays:a.deliveryDays??'',isPrimary:!!a.isPrimary}));
+                customerAddresses[saved.id]=(saved.addresses||[]).map(a=>({id:String(a.id),title:a.title,address:a.address,city:a.city,cityId:a.city_id??a.cityId,warehouseId:a.warehouseId??a.warehouse_id??null,zone:a.zone||'',feeMin:a.feeMin??'',feeMax:a.feeMax??'',deliveryDays:a.deliveryDays??'',isPrimary:!!a.isPrimary}));
                 $('customer_id').value=String(saved.id);
                 $('customer_id').dispatchEvent(new Event('change'));
                 closeEditor();
