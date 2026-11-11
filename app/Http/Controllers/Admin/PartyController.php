@@ -159,7 +159,7 @@ class PartyController extends Controller
             return $customer;
         });
 
-        return response()->json(['customer' => $this->quickCustomerPayload($customer)]);
+        return response()->json(['customer' => $this->quickCustomerPayload($customer)], 201);
     }
 
     public function quickUpdateCustomer(Request $request, Party $party): JsonResponse
@@ -181,8 +181,8 @@ class PartyController extends Controller
                 'address' => trim($data['address']),
             ]);
 
+            $phone = $party->phones()->where('type', 'mobile')->where('is_active', true)->orderByDesc('is_primary')->orderBy('id')->first();
             $party->phones()->update(['is_primary' => false]);
-            $phone = $party->phones()->where('type', 'mobile')->where('is_active', true)->first();
             if ($phone) {
                 $phone->update(['number' => trim($data['mobile']), 'is_primary' => true, 'is_active' => true]);
             } else {
@@ -194,8 +194,8 @@ class PartyController extends Controller
                 ]);
             }
 
+            $address = $party->addresses()->where('is_active', true)->orderByDesc('is_primary')->orderBy('id')->first();
             $party->addresses()->update(['is_primary' => false]);
-            $address = $party->addresses()->where('is_active', true)->orderBy('id')->first();
             if ($address) {
                 $address->update([
                     'city_id' => $data['city_id'],
