@@ -84,7 +84,7 @@ return new class extends Migration {
         // SQLite rebuilds the table for CHANGE and does not support dropping
         // a foreign key by name. Keep its FK in place and let its grammar
         // rebuild the table; MySQL/MariaDB use the explicit drop/restore path.
-        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+        if (DB::connection()->getDriverName() === 'sqlite') {
             Schema::table('shipping_zones', function (Blueprint $table) use ($nullable): void {
                 $table->unsignedBigInteger('warehouse_id')->nullable($nullable)->change();
             });
