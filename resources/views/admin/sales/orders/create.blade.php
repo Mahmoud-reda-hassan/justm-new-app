@@ -248,11 +248,13 @@
                 option.value = address.id;
                 option.textContent = address.title + (address.city ? ' — ' + address.city : '');
                 select.appendChild(option);
-                if (index === 0) option.selected = true;
+                if (address.isPrimary) option.selected = true;
             });
-            $('shipping_address_id').value = addresses[0].id;
-            $('shipping_address').value = addresses[0].address;
-            applyShippingRoute(addresses[0]);
+            const primaryAddress = addresses.find(address => address.isPrimary) || addresses[0];
+            select.value = String(primaryAddress.id);
+            $('shipping_address_id').value = primaryAddress.id;
+            $('shipping_address').value = primaryAddress.address;
+            applyShippingRoute(primaryAddress);
         } else {
             select.disabled = true;
             const option = document.createElement('option');
@@ -333,7 +335,8 @@
             option.dataset.address = customer.addresses?.[0]?.address || '';
             customerPhones[customer.id] = (customer.phones || []).map(item => ({
                 id: String(item.id), number: item.number, type: item.type,
-                isPrimary: !!item.isPrimary, isWhatsapp: !!item.isWhatsapp
+                isPrimary: !!item.isPrimary, isWhatsapp: !!item.isWhatsapp,
+                isTelegram: !!item.isTelegram
             }));
             customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
                 id: String(item.id), title: item.title, address: item.address,
@@ -376,6 +379,7 @@
         [
             { label: 'تم التسليم', count: customer.delivered_orders_count, css: 'badge-success' },
             { label: 'قيد التجهيز', count: customer.preparing_orders_count, css: 'badge-info' },
+            { label: 'قيد الشحن', count: customer.shipping_orders_count, css: 'badge-primary' },
             { label: 'قيد التأكيد', count: customer.pending_confirmation_orders_count, css: 'badge-warning' }
         ].forEach(stat => {
             const tag = document.createElement('span');
@@ -396,7 +400,7 @@
             const edit = document.createElement('button');
             edit.type = 'button';
             edit.className = 'btn btn-outline-secondary';
-            edit.innerHTML = '<i class="fas fa-edit"></i>';
+            edit.innerHTML = '<i class="fas fa-edit ml-1"></i> تعديل العميل';
             edit.title = 'تعديل العميل';
             edit.addEventListener('click', async () => {
                 await selectCustomerFromDirectory(customer.id);
