@@ -66,6 +66,22 @@ class SalesOrderCustomerDirectoryTest extends TestCase
     {
         $user = $this->salesUser();
         $match = $this->customer('عميل الهاتف', '01055551234');
+        $match->phones()->create([
+            'number' => '01222223333',
+            'type' => 'mobile',
+            'is_primary' => false,
+            'is_whatsapp' => false,
+            'is_telegram' => true,
+            'is_active' => true,
+        ]);
+        $city = City::query()->where('is_active', true)->firstOrFail();
+        $match->addresses()->create([
+            'city_id' => $city->id,
+            'title' => 'عنوان العمل',
+            'address' => 'حلوان شارع رايل ٥٦',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
         $this->customer('01055551234 اسم فقط', '01100000000');
 
         $this->actingAs($user)
@@ -73,7 +89,12 @@ class SalesOrderCustomerDirectoryTest extends TestCase
             ->assertOk()
             ->assertJsonPath('customers.total', 1)
             ->assertJsonPath('customers.data.0.id', $match->id)
-            ->assertJsonPath('customers.data.0.phone', '01055551234');
+            ->assertJsonPath('customers.data.0.phone', '01055551234')
+            ->assertJsonCount(2, 'customers.data.0.phones')
+            ->assertJsonPath('customers.data.0.phones.1.isTelegram', true)
+            ->assertJsonCount(1, 'customers.data.0.addresses')
+            ->assertJsonPath('customers.data.0.addresses.0.address', 'حلوان شارع رايل ٥٦')
+            ->assertJsonPath('customers.data.0.addresses.0.isPrimary', true);
     }
 
     public function test_customer_directory_uses_server_side_pagination_for_remaining_customers(): void
