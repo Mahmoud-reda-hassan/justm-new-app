@@ -148,6 +148,10 @@
                             <li class="nav-item"><a href="{{ route('admin.parties.index') }}" class="nav-link"><i class="nav-icon fas fa-users"></i><p>الأطراف</p></a></li>
                         @endif
                     @endif
+                    @if ($user->hasPermission('inventory.opening_balances.view'))
+                        <li class="nav-header">المخزون</li>
+                        <li class="nav-item"><a href="{{ route('admin.inventory.opening-balances') }}" class="nav-link @if(request()->routeIs('admin.inventory.opening-balances*')) active @endif"><i class="nav-icon fas fa-box-open"></i><p>الأرصدة الافتتاحية</p></a></li>
+                    @endif
                     @if (($user->hasPermission('products.view') || $user->hasPermission('product_categories.view') || $user->hasPermission('product_attributes.view') || $user->hasPermission('units.view')) && $user->hasPermission('structure.scope.manage_all'))
                         <li class="nav-header">كتالوج المنتجات</li>
                         @if ($user->hasPermission('products.view'))<li class="nav-item"><a href="{{ route('admin.products.index') }}" class="nav-link"><i class="nav-icon fas fa-boxes"></i><p>المنتجات</p></a></li>@endif
