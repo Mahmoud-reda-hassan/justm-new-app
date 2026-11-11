@@ -707,9 +707,9 @@ class SalesOrderCreationTest extends TestCase
 
         $this->actingAs($user)->get(route('admin.inventory.settings'))
             ->assertOk()
-            ->assertSee('مخزون إنشاء أمر البيع')
-            ->assertSee('مخزون خدمة العملاء')
-            ->assertSee('مخزون أمين المخزن')
+            ->assertSee('المخزن الوهمي لمنشئ أمر البيع')
+            ->assertSee('المخزن الوهمي لخدمة العملاء')
+            ->assertSee('المخزن الوهمي لأمين المخزن والتجهيز')
             ->assertSee('إلغاء من لا يستجيب');
 
         $this->actingAs($user)->post(route('admin.inventory.settings.virtual-stock.update'), [
