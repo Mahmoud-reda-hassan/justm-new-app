@@ -31,11 +31,12 @@ class SalesOrderInventoryService
             ->lockForUpdate()
             ->first();
 
-        $reservedElsewhere = (float) DB::table('sales_order_item_reservations')
-            ->where('warehouse_id', $warehouse->id)
-            ->where('product_variant_id', $item->product_variant_id)
-            ->where('status', 'active')
-            ->sum('reserved_quantity');
+        $virtualStock = app(VirtualStockPolicyService::class);
+        $reservedElsewhere = $virtualStock->reservedQuantity(
+            (int) $warehouse->id,
+            (int) $item->product_variant_id,
+            $virtualStock->statusesFor('create_order')
+        );
 
         $available = max(0, (float) $stock->quantity_on_hand - $reservedElsewhere);
         $reserved = min($requestedQuantity, $available);
