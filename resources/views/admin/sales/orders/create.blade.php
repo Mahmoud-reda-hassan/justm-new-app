@@ -1378,11 +1378,6 @@
         return true;
     };
 
-    $('to-products').addEventListener('click', () => {
-        if (!validateCustomerStep()) return;
-        show('step-products');
-        renderCatalog();
-    });
 
     $('jmWizardNext').addEventListener('click', () => {
         if (currentStep === 'step-customer') {
