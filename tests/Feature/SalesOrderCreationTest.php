@@ -404,10 +404,18 @@ class SalesOrderCreationTest extends TestCase
         $response = $this->actingAs($user)->postJson(route('admin.parties.quick-customer.store'), [
             'entity_type' => 'individual',
             'name' => 'عميل من شاشة الطلب',
-            'mobile' => '01055554444',
             'email' => 'quick-customer@example.test',
-            'city_id' => $city->id,
-            'address' => 'شارع العميل الجديد',
+            'phones' => [[
+                'number' => '01055554444',
+                'type' => 'mobile',
+                'is_primary' => true,
+            ]],
+            'addresses' => [[
+                'city_id' => $city->id,
+                'title' => 'عنوان العميل',
+                'address' => 'شارع العميل الجديد',
+                'is_primary' => true,
+            ]],
         ]);
 
         $response->assertCreated();
@@ -460,10 +468,29 @@ class SalesOrderCreationTest extends TestCase
         $this->actingAs($user)->putJson(route('admin.parties.quick-customer.update', $customer), [
             'entity_type' => 'company',
             'name' => 'اسم العميل بعد التعديل',
-            'mobile' => '01099998888',
             'email' => 'updated-customer@example.test',
-            'city_id' => $city->id,
-            'address' => 'العنوان بعد التعديل',
+            'phones' => [[
+                'id' => $customer->phones()->firstOrFail()->id,
+                'number' => '01099998888',
+                'type' => 'mobile',
+                'is_primary' => true,
+            ]],
+            'addresses' => [
+                [
+                    'id' => $primary->id,
+                    'city_id' => $city->id,
+                    'title' => 'العنوان الرئيسي',
+                    'address' => 'العنوان بعد التعديل',
+                    'is_primary' => true,
+                ],
+                [
+                    'id' => $secondary->id,
+                    'city_id' => $city->id,
+                    'title' => 'عنوان إضافي',
+                    'address' => 'عنوان إضافي محفوظ',
+                    'is_primary' => false,
+                ],
+            ],
         ])->assertOk()
             ->assertJsonPath('customer.name', 'اسم العميل بعد التعديل')
             ->assertJsonPath('customer.addresses.0.address', 'العنوان بعد التعديل');
