@@ -129,32 +129,47 @@ class PartyController extends Controller
     public function quickStoreCustomer(Request $request): JsonResponse
     {
         $this->authorizePermission($request, 'parties.create');
-        $data = $this->validateQuickCustomer($request);
+        $data = $request->validate([
+            'entity_type' => ['required', Rule::in(['individual', 'company'])],
+            'name' => ['required', 'string', 'max:180'],
+            'email' => ['nullable', 'email', 'max:190'],
+            'phones' => ['required', 'array', 'min:1', 'max:20'],
+            'phones.*.number' => ['required', 'string', 'max:40'],
+            'phones.*.type' => ['required', Rule::in(['mobile', 'landline'])],
+            'phones.*.is_whatsapp' => ['nullable', 'boolean'],
+            'phones.*.is_telegram' => ['nullable', 'boolean'],
+            'phones.*.is_primary' => ['nullable', 'boolean'],
+            'addresses' => ['required', 'array', 'min:1', 'max:30'],
+            'addresses.*.city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
+            'addresses.*.title' => ['required', 'string', 'max:80'],
+            'addresses.*.address' => ['required', 'string', 'max:4000'],
+            'addresses.*.is_primary' => ['nullable', 'boolean'],
+        ]);
+        $this->assertSinglePrimary($data['phones'], 'phones');
+        $this->assertSinglePrimary($data['addresses'], 'addresses');
+        if (! collect($data['phones'])->contains(fn (array $phone): bool => (bool) ($phone['is_primary'] ?? false))) {
+            $data['phones'][0]['is_primary'] = true;
+        }
+        if (! collect($data['addresses'])->contains(fn (array $address): bool => (bool) ($address['is_primary'] ?? false))) {
+            $data['addresses'][0]['is_primary'] = true;
+        }
 
         $customer = DB::transaction(function () use ($data): Party {
+            $primaryPhone = collect($data['phones'])->firstWhere('is_primary', true) ?? $data['phones'][0];
+            $primaryAddress = collect($data['addresses'])->firstWhere('is_primary', true) ?? $data['addresses'][0];
             $customer = Party::query()->create([
                 'entity_type' => $data['entity_type'],
                 'name' => trim($data['name']),
-                'mobile' => trim($data['mobile']),
+                'mobile' => $primaryPhone['type'] === 'mobile' ? trim($primaryPhone['number']) : null,
+                'phone' => $primaryPhone['type'] === 'landline' ? trim($primaryPhone['number']) : null,
                 'email' => $data['email'] ?? null,
-                'city_id' => $data['city_id'],
-                'address' => trim($data['address']),
+                'city_id' => $primaryAddress['city_id'],
+                'address' => trim($primaryAddress['address']),
                 'is_active' => true,
             ]);
             $customer->partyRoles()->create(['role' => 'customer']);
-            $customer->phones()->create([
-                'number' => trim($data['mobile']),
-                'type' => 'mobile',
-                'is_primary' => true,
-                'is_active' => true,
-            ]);
-            $customer->addresses()->create([
-                'city_id' => $data['city_id'],
-                'title' => 'العنوان الرئيسي',
-                'address' => trim($data['address']),
-                'is_primary' => true,
-                'is_active' => true,
-            ]);
+            $this->syncPhones($customer, $data['phones']);
+            $this->syncAddresses($customer, $data['addresses']);
 
             return $customer;
         });
