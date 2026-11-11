@@ -169,51 +169,41 @@ class PartyController extends Controller
             $party->is_active && $party->partyRoles()->where('role', 'customer')->exists(),
             404
         );
-        $data = $this->validateQuickCustomer($request);
+        $data = $request->validate([
+            'entity_type' => ['required', Rule::in(['individual', 'company'])],
+            'name' => ['required', 'string', 'max:180'],
+            'email' => ['nullable', 'email', 'max:190'],
+            'phones' => ['required', 'array', 'min:1', 'max:20'],
+            'phones.*.id' => ['nullable', 'integer'],
+            'phones.*.number' => ['required', 'string', 'max:40'],
+            'phones.*.type' => ['required', Rule::in(['mobile', 'landline'])],
+            'phones.*.is_whatsapp' => ['nullable', 'boolean'],
+            'phones.*.is_telegram' => ['nullable', 'boolean'],
+            'phones.*.is_primary' => ['nullable', 'boolean'],
+            'addresses' => ['required', 'array', 'min:1', 'max:30'],
+            'addresses.*.id' => ['nullable', 'integer'],
+            'addresses.*.city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
+            'addresses.*.title' => ['required', 'string', 'max:80'],
+            'addresses.*.address' => ['required', 'string', 'max:4000'],
+            'addresses.*.is_primary' => ['nullable', 'boolean'],
+        ]);
+        $this->assertSinglePrimary($data['phones'], 'phones');
+        $this->assertSinglePrimary($data['addresses'], 'addresses');
+        if (! collect($data['phones'])->contains(fn (array $phone): bool => (bool) ($phone['is_primary'] ?? false))) {
+            $data['phones'][0]['is_primary'] = true;
+        }
+        if (! collect($data['addresses'])->contains(fn (array $address): bool => (bool) ($address['is_primary'] ?? false))) {
+            $data['addresses'][0]['is_primary'] = true;
+        }
 
         DB::transaction(function () use ($party, $data): void {
             $party->update([
                 'entity_type' => $data['entity_type'],
                 'name' => trim($data['name']),
-                'mobile' => trim($data['mobile']),
                 'email' => $data['email'] ?? null,
-                'city_id' => $data['city_id'],
-                'address' => trim($data['address']),
             ]);
-
-            $phone = $party->phones()->where('type', 'mobile')->where('is_active', true)->orderByDesc('is_primary')->orderBy('id')->first();
-            $party->phones()->update(['is_primary' => false]);
-            if ($phone) {
-                $phone->refresh();
-                $phone->update(['number' => trim($data['mobile']), 'is_primary' => true, 'is_active' => true]);
-            } else {
-                $party->phones()->create([
-                    'number' => trim($data['mobile']),
-                    'type' => 'mobile',
-                    'is_primary' => true,
-                    'is_active' => true,
-                ]);
-            }
-
-            $address = $party->addresses()->where('is_active', true)->orderByDesc('is_primary')->orderBy('id')->first();
-            $party->addresses()->update(['is_primary' => false]);
-            if ($address) {
-                $address->refresh();
-                $address->update([
-                    'city_id' => $data['city_id'],
-                    'address' => trim($data['address']),
-                    'is_primary' => true,
-                    'is_active' => true,
-                ]);
-            } else {
-                $party->addresses()->create([
-                    'city_id' => $data['city_id'],
-                    'title' => 'العنوان الرئيسي',
-                    'address' => trim($data['address']),
-                    'is_primary' => true,
-                    'is_active' => true,
-                ]);
-            }
+            $this->syncPhones($party, $data['phones']);
+            $this->syncAddresses($party, $data['addresses']);
         });
 
         return response()->json(['customer' => $this->quickCustomerPayload($party->fresh())]);
