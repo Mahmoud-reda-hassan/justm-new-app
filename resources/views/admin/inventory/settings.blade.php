@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
-@section('title', 'إعدادات المخازن الوهمية')
-@section('page-title', 'إعدادات المخازن الوهمية')
-@section('breadcrumb', 'المخازن الوهمية / الإعدادات')
+@section('title', 'إعدادات المخازن العامة')
+@section('page-title', 'إعدادات المخازن العامة')
+@section('breadcrumb', 'إعدادات المخازن')
 
 @section('content')
 <div class="row">
