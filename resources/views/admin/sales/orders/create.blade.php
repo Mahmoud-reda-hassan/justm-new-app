@@ -49,9 +49,17 @@
                     <select class="form-control select2" name="customer_id" id="customer_id" required>
                         <option value="">اختر العميل</option>
                         @foreach($customers as $customer)
-                            <option value="{{ $customer->id }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
+                            <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
                         @endforeach
                     </select>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        @if(auth()->user()?->hasPermission('parties.create'))
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="add-customer"><i class="fas fa-user-plus ml-1"></i> إضافة عميل</button>
+                        @endif
+                        @if(auth()->user()?->hasPermission('parties.update'))
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="edit-customer" disabled><i class="fas fa-user-edit ml-1"></i> تعديل بيانات العميل</button>
+                        @endif
+                    </div>
                     <div id="customer-order-history" class="mt-3" aria-live="polite">
                         <div class="text-muted small">اختر العميل لعرض آخر أوامره السابقة.</div>
                     </div>
@@ -218,7 +226,7 @@
             hint.textContent = 'لا توجد منطقة شحن نشطة مرتبطة بمدينة هذا العنوان. لن يمكن حفظ الأمر قبل إعداد منطقة الشحن والمخزن المرتبط بها.';
         }
     };
-    const customerOptions = Array.from($('customer_id').options).slice(1);
+    let customerOptions = Array.from($('customer_id').options).slice(1);
     $('customer-search').addEventListener('input', function () {
         const term = this.value.trim().toLocaleLowerCase();
         const selectedId = $('customer_id').value;
@@ -286,6 +294,120 @@
             panel.textContent = 'تعذر تحميل أوامر العميل السابقة. يمكنك متابعة إنشاء الطلب.';
         }
     };
+    const activeCities = @json($cities->pluck('name_ar', 'id'));
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[char]));
+    const customerEditorUrl = @json(route('admin.parties.quick-customer.store'));
+    const updateCustomerUrl = @json(route('admin.parties.quick-customer.update', ['party' => '__PARTY__']));
+    const csrfToken = $('order-form').querySelector('input[name="_token"]').value;
+
+    const openCustomerEditor = async (customerId = null) => {
+        const option = customerId ? Array.from($('customer_id').options).find(item => item.value === String(customerId)) : null;
+        const addresses = customerId ? (customerAddresses[customerId] || []) : [];
+        const address = addresses[0] || {};
+        const cityOptions = Object.entries(activeCities).map(([id, name]) =>
+            '<option value="' + escapeHtml(id) + '"' + (String(address.cityId || '') === String(id) ? ' selected' : '') + '>' + escapeHtml(name) + '</option>'
+        ).join('');
+        const result = await Swal.fire({
+            title: customerId ? 'تعديل بيانات العميل' : 'إضافة عميل جديد',
+            html: '<div class="text-right">'
+                + '<div class="form-group"><label for="quick-customer-name">اسم العميل</label><input id="quick-customer-name" class="form-control" maxlength="180" value="' + escapeHtml(option?.dataset.name || '') + '"></div>'
+                + '<div class="form-group"><label for="quick-customer-mobile">رقم الهاتف</label><input id="quick-customer-mobile" class="form-control" maxlength="40" value="' + escapeHtml(option?.dataset.mobile || '') + '"></div>'
+                + '<div class="form-group"><label for="quick-customer-email">البريد الإلكتروني (اختياري)</label><input id="quick-customer-email" type="email" class="form-control" maxlength="190" value="' + escapeHtml(option?.dataset.email || '') + '"></div>'
+                + '<div class="form-group"><label for="quick-customer-city">المدينة</label><select id="quick-customer-city" class="form-control"><option value="">اختر المدينة</option>' + cityOptions + '</select></div>'
+                + '<div class="form-group"><label for="quick-customer-address">عنوان التوصيل</label><textarea id="quick-customer-address" class="form-control" rows="2" maxlength="4000">' + escapeHtml(address.address || '') + '</textarea></div>'
+                + '</div>',
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: customerId ? 'حفظ التعديلات' : 'إضافة العميل',
+            cancelButtonText: 'إلغاء',
+            preConfirm: async () => {
+                const data = {
+                    entity_type: 'individual',
+                    name: $('quick-customer-name').value.trim(),
+                    mobile: $('quick-customer-mobile').value.trim(),
+                    email: $('quick-customer-email').value.trim(),
+                    city_id: $('quick-customer-city').value,
+                    address: $('quick-customer-address').value.trim()
+                };
+                if (!data.name || !data.mobile || !data.city_id || !data.address) {
+                    Swal.showValidationMessage('أدخل الاسم ورقم الهاتف والمدينة والعنوان.');
+                    return false;
+                }
+                try {
+                    const response = await fetch(customerId
+                        ? updateCustomerUrl.replace('__PARTY__', encodeURIComponent(customerId))
+                        : customerEditorUrl, {
+                        method: customerId ? 'PUT' : 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    const payload = await response.json();
+                    if (!response.ok) {
+                        const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : payload.message;
+                        throw new Error(firstError || 'تعذر حفظ بيانات العميل.');
+                    }
+                    return payload.customer;
+                } catch (error) {
+                    Swal.showValidationMessage(error.message || 'تعذر حفظ بيانات العميل.');
+                    return false;
+                }
+            }
+        });
+
+        if (!result.isConfirmed || !result.value) return;
+        const customer = result.value;
+        const firstAddress = customer.addresses?.[0] || {};
+        let customerOption = Array.from($('customer_id').options).find(item => item.value === String(customer.id));
+        if (!customerOption) {
+            customerOption = document.createElement('option');
+            customerOption.value = customer.id;
+            $('customer_id').appendChild(customerOption);
+            customerOptions.push(customerOption);
+        }
+        customerOption.textContent = customer.name + ' — ' + customer.mobile;
+        customerOption.dataset.name = customer.name;
+        customerOption.dataset.mobile = customer.mobile || '';
+        customerOption.dataset.email = customer.email || '';
+        customerOption.dataset.address = firstAddress.address || '';
+        customerOption.dataset.search = (customer.name + ' ' + (customer.mobile || '') + ' ' + (customer.phone || '')).toLocaleLowerCase();
+        customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
+            id: String(item.id),
+            title: item.title,
+            address: item.address,
+            city: item.city,
+            cityId: item.city_id,
+            zone: item.zone || '',
+            feeMin: item.feeMin ?? '',
+            feeMax: item.feeMax ?? '',
+            deliveryDays: item.deliveryDays ?? ''
+        }));
+        $('customer-search').value = '';
+        customerOptions.forEach(item => { item.hidden = false; });
+        $('customer_id').value = String(customer.id);
+        if (window.jQuery && jQuery.fn.select2) {
+            jQuery('#customer_id').val(String(customer.id)).trigger('change');
+        } else {
+            $('customer_id').dispatchEvent(new Event('change'));
+        }
+        $('edit-customer')?.removeAttribute('disabled');
+        Swal.fire({ icon: 'success', text: customerId ? 'تم تحديث بيانات العميل.' : 'تمت إضافة العميل.', timer: 1400, showConfirmButton: false });
+    };
+
+    $('add-customer')?.addEventListener('click', () => openCustomerEditor());
+    $('edit-customer')?.addEventListener('click', () => {
+        if ($('customer_id').value) openCustomerEditor($('customer_id').value);
+    });
+    $('customer_id').addEventListener('change', () => {
+        if ($('edit-customer')) $('edit-customer').disabled = !$('customer_id').value;
+    });
+
     $('customer_id').addEventListener('change', () => {
         renderCustomerAddresses();
         loadCustomerHistory();
