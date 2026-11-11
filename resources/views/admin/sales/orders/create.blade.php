@@ -95,7 +95,7 @@
                             <div class="small text-muted" id="customer-directory-message" aria-live="polite"></div>
                         </div>
                     </div>
-                    <select class="form-control d-none" name="customer_id" id="customer_id" required>
+                    <select class="form-control d-none" name="customer_id" id="customer_id">
                         <option value="">اختر العميل</option>
                         @foreach($customers as $customer)
                             <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-entity-type="{{ $customer->entity_type }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}">{{ $customer->name }}</option>
@@ -879,6 +879,11 @@
     });
 
     $('order-form').addEventListener('submit', event => {
+        if (!$('customer_id').value || !$('shipping_phone_id').value || !$('shipping_address_id').value) {
+            event.preventDefault();
+            Swal.fire({ icon: 'warning', text: 'اختر العميل ورقم الهاتف وعنوان التوصيل أولًا.' });
+            return;
+        }
         if (!items.length) {
             event.preventDefault();
             Swal.fire({ icon: 'warning', text: 'أضف منتجًا واحدًا على الأقل.' });
