@@ -1,14 +1,14 @@
 <?php
 
-namespace App\\Http\\Controllers\\Admin;
+namespace App\Http\Controllers\Admin;
 
-use App\\Http\\Controllers\\Controller;
-use Illuminate\\Http\\RedirectResponse;
-use Illuminate\\Http\\Request;
-use Illuminate\\Support\\Facades\\Artisan;
-use Illuminate\\Support\\Facades\\DB;
-use Illuminate\\Support\\Facades\\Schema;
-use Illuminate\\View\\View;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\View\View;
 use Throwable;
 
 class DatabaseUpdateController extends Controller
@@ -45,7 +45,7 @@ class DatabaseUpdateController extends Controller
 
         return $details === ''
             ? $message
-            : $message."\\n\\nتفاصيل الخطأ (وضع التطوير):\\n".$details;
+            : $message."\n\nتفاصيل الخطأ (وضع التطوير):\n".$details;
     }
 
     public function index(Request $request): View
@@ -104,7 +104,7 @@ class DatabaseUpdateController extends Controller
 
             if ($exitCode !== 0) {
                 $output = Artisan::output();
-                report(new \\RuntimeException('Browser database migration command failed. '.$output));
+                report(new \RuntimeException('Browser database migration command failed. '.$output));
 
                 $message = $this->updateFailureMessage(
                     'توقف تحديث قاعدة البيانات بسبب خطأ. لم يتم تشغيل أي Seeder أو إنشاء قاعدة بيانات جديدة. راجع سجل التطبيق.',
@@ -124,7 +124,7 @@ class DatabaseUpdateController extends Controller
 
             $details = $exception->getMessage();
             for ($previous = $exception->getPrevious(); $previous; $previous = $previous->getPrevious()) {
-                $details .= "\\n".$previous->getMessage();
+                $details .= "\n".$previous->getMessage();
             }
 
             return back()->withErrors([
