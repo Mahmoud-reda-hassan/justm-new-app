@@ -15,6 +15,7 @@ use App\Models\WarehouseType;
 use App\Services\BranchManager;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class ShippingZoneManagementTest extends TestCase
@@ -182,6 +183,36 @@ class ShippingZoneManagementTest extends TestCase
         ])->assertForbidden();
 
         $this->assertDatabaseMissing('shipping_zones', ['name_ar' => 'منطقة دولية ممنوعة']);
+    }
+
+
+    public function test_shipping_zone_database_foreign_keys_match_local_and_international_relations(): void
+    {
+        $shippingZoneKeys = Schema::getForeignKeys('shipping_zones');
+        $cityKeys = Schema::getForeignKeys('cities');
+        $orderKeys = Schema::getForeignKeys('sales_orders');
+        $pivotKeys = Schema::getForeignKeys('shipping_zone_countries');
+
+        $this->assertTrue(collect($shippingZoneKeys)->contains(
+            fn (array $key): bool => ($key['columns'] ?? []) === ['warehouse_id']
+                && ($key['foreign_table'] ?? null) === 'warehouses'
+        ));
+        $this->assertTrue(collect($cityKeys)->contains(
+            fn (array $key): bool => ($key['columns'] ?? []) === ['shipping_zone_id']
+                && ($key['foreign_table'] ?? null) === 'shipping_zones'
+        ));
+        $this->assertTrue(collect($orderKeys)->contains(
+            fn (array $key): bool => ($key['columns'] ?? []) === ['shipping_zone_id']
+                && ($key['foreign_table'] ?? null) === 'shipping_zones'
+        ));
+        $this->assertTrue(collect($pivotKeys)->contains(
+            fn (array $key): bool => ($key['columns'] ?? []) === ['shipping_zone_id']
+                && ($key['foreign_table'] ?? null) === 'shipping_zones'
+        ));
+        $this->assertTrue(collect($pivotKeys)->contains(
+            fn (array $key): bool => ($key['columns'] ?? []) === ['country_id']
+                && ($key['foreign_table'] ?? null) === 'countries'
+        ));
     }
 
 }
