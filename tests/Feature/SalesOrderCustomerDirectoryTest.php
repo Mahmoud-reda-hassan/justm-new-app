@@ -6,6 +6,7 @@ use App\Models\City;
 use App\Models\Party;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\SalesOrder;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -86,7 +87,71 @@ class SalesOrderCustomerDirectoryTest extends TestCase
             ->assertJsonPath('customers.per_page', 12)
             ->assertJsonPath('customers.total', 13)
             ->assertJsonPath('customers.last_page', 2)
-            ->assertJsonCount(12, 'customers.data');
+            ->assertJsonCount(12, 'customers.data')
+            ->assertJsonPath('customers.data.0.delivered_orders_count', 0)
+            ->assertJsonPath('customers.data.0.preparing_orders_count', 0)
+            ->assertJsonPath('customers.data.0.pending_confirmation_orders_count', 0)
+            ->assertJsonPath('customers.data.0.is_most_delivered', false);
+    }
+
+    public function test_customer_directory_ranks_by_delivered_orders_and_returns_all_three_order_counts(): void
+    {
+        $user = $this->salesUser();
+        $mostDelivered = $this->customer('الأكثر تسليمًا', '01011111111');
+        $secondDelivered = $this->customer('عميل آخر', '01022222222');
+        $noDelivery = $this->customer('بدون تسليم', '01033333333');
+
+        foreach (['delivered', 'delivered', 'preparing', 'draft'] as $status) {
+            SalesOrder::query()->create([
+                'order_number' => 'SO-'.uniqid(),
+                'customer_id' => $mostDelivered->id,
+                'created_by' => $user->id,
+                'status' => $status,
+                'subtotal' => 100,
+                'discount_total' => 0,
+                'total' => 100,
+            ]);
+        }
+
+        foreach (['delivered', 'preparing', 'pending_confirmation'] as $status) {
+            SalesOrder::query()->create([
+                'order_number' => 'SO-'.uniqid(),
+                'customer_id' => $secondDelivered->id,
+                'created_by' => $user->id,
+                'status' => $status,
+                'subtotal' => 100,
+                'discount_total' => 0,
+                'total' => 100,
+            ]);
+        }
+
+        SalesOrder::query()->create([
+            'order_number' => 'SO-'.uniqid(),
+            'customer_id' => $noDelivery->id,
+            'created_by' => $user->id,
+            'status' => 'draft',
+            'subtotal' => 100,
+            'discount_total' => 0,
+            'total' => 100,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('admin.sales.orders.customers.directory'))
+            ->assertOk()
+            ->assertJsonPath('customers.total', 3)
+            ->assertJsonPath('customers.data.0.id', $mostDelivered->id)
+            ->assertJsonPath('customers.data.0.delivered_orders_count', 2)
+            ->assertJsonPath('customers.data.0.preparing_orders_count', 1)
+            ->assertJsonPath('customers.data.0.pending_confirmation_orders_count', 1)
+            ->assertJsonPath('customers.data.0.is_most_delivered', true)
+            ->assertJsonPath('customers.data.1.id', $secondDelivered->id)
+            ->assertJsonPath('customers.data.1.delivered_orders_count', 1)
+            ->assertJsonPath('customers.data.1.preparing_orders_count', 1)
+            ->assertJsonPath('customers.data.1.pending_confirmation_orders_count', 1)
+            ->assertJsonPath('customers.data.1.is_most_delivered', false)
+            ->assertJsonPath('customers.data.2.id', $noDelivery->id)
+            ->assertJsonPath('customers.data.2.delivered_orders_count', 0)
+            ->assertJsonPath('customers.data.2.is_most_delivered', false);
     }
 
     public function test_customer_selection_returns_all_active_phones_and_addresses(): void
