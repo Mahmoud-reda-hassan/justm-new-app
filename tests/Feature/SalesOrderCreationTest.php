@@ -45,7 +45,7 @@ class SalesOrderCreationTest extends TestCase
             'is_active' => true,
         ]);
         $role->permissions()->sync(Permission::query()
-            ->whereIn('key', ['sales.orders.view', 'sales.orders.create', 'parties.create', 'parties.update', 'structure.scope.manage_all'])
+            ->whereIn('key', ['sales.orders.view', 'sales.orders.create', 'parties.create', 'parties.update', 'structure.scope.manage_all', 'inventory.virtual_stock.view'])
             ->pluck('id'));
         $user->roles()->attach($role);
 
@@ -312,6 +312,46 @@ class SalesOrderCreationTest extends TestCase
             'backorder_quantity' => '2.000',
             'status' => 'active',
         ]);
+    }
+
+    public function test_virtual_stock_screen_subtracts_active_order_reservations_from_real_stock(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $variant = $this->variant();
+        $shippingAddress = $this->shippingAddress($customer);
+        $this->setWarehouseStock($shippingAddress, $variant, 10);
+        $phone = $customer->phones()->create([
+            'number' => '01012345678',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->post(route('admin.sales.orders.store'), [
+            'customer_id' => $customer->id,
+            'shipping_phone_id' => $phone->id,
+            'shipping_address_id' => $shippingAddress->id,
+            'shipping_address' => $shippingAddress->address,
+            'shipping_fee' => 10,
+            'items' => [[
+                'product_variant_id' => $variant->id,
+                'quantity' => 2,
+                'sale_price' => 90,
+            ]],
+        ])->assertRedirect(route('admin.sales.orders.create'));
+
+        $warehouseId = $shippingAddress->city->shippingZone->warehouse_id;
+
+        $this->actingAs($user)
+            ->get(route('admin.inventory.virtual-stock', [
+                'type' => 'create_order',
+                'warehouse_id' => $warehouseId,
+            ]))
+            ->assertOk()
+            ->assertSee('10.000')
+            ->assertSee('2.000')
+            ->assertSee('8.000');
     }
 
     public function test_order_creation_screen_exposes_shipping_date_adjustment(): void
