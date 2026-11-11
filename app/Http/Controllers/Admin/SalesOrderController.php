@@ -57,6 +57,11 @@ class SalesOrderController extends Controller
             ->whereColumn('customer_id', 'parties.id')
             ->where('status', 'preparing');
 
+        $shippingCount = SalesOrder::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('customer_id', 'parties.id')
+            ->where('status', 'shipping');
+
         // Drafts are newly created orders awaiting confirmation in the current workflow.
         $pendingConfirmationCount = SalesOrder::query()
             ->selectRaw('COUNT(*)')
@@ -75,6 +80,7 @@ class SalesOrderController extends Controller
             ->addSelect([
                 'delivered_orders_count' => $deliveredCount,
                 'preparing_orders_count' => $preparingCount,
+                'shipping_orders_count' => $shippingCount,
                 'pending_confirmation_orders_count' => $pendingConfirmationCount,
             ])
             ->with(['phones' => fn ($builder) => $builder
@@ -108,6 +114,7 @@ class SalesOrderController extends Controller
             'phone' => $customer->phones->first()?->number ?: ($customer->mobile ?: $customer->phone),
             'delivered_orders_count' => (int) $customer->delivered_orders_count,
             'preparing_orders_count' => (int) $customer->preparing_orders_count,
+            'shipping_orders_count' => (int) $customer->shipping_orders_count,
             'pending_confirmation_orders_count' => (int) $customer->pending_confirmation_orders_count,
             'is_most_delivered' => $mostDeliveredCount > 0
                 && (int) $customer->delivered_orders_count === (int) $mostDeliveredCount,
@@ -144,6 +151,7 @@ class SalesOrderController extends Controller
                 'type' => $phone->type,
                 'isPrimary' => $phone->is_primary,
                 'isWhatsapp' => $phone->is_whatsapp,
+                'isTelegram' => $phone->is_telegram,
             ])->values(),
             'addresses' => $customer->addresses->map(fn (PartyAddress $address): array => [
                 'id' => $address->id,
