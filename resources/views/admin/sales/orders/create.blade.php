@@ -5,6 +5,7 @@
 @section('breadcrumb', 'إنشاء أمر بيع')
 
 @push('styles')
+<link rel="stylesheet" href="{{ asset('css/order-storefront-legacy.css') }}">
 <style>
     .order-step{display:none}
     .order-step.active{display:block}
@@ -34,8 +35,15 @@
     </div>
 @endif
 
-<form method="post" action="{{ route('admin.sales.orders.store') }}" id="order-form">
+<form method="post" action="{{ route('admin.sales.orders.store') }}" id="order-form" class="jm-order-storefront-page">
     @csrf
+    <nav class="jm-order-steps" aria-label="مراحل إنشاء أمر البيع">
+        <div class="jm-order-step active" data-order-step="step-customer"><span>1</span> بيانات العميل</div>
+        <i aria-hidden="true"></i>
+        <div class="jm-order-step" data-order-step="step-products"><span>2</span> اختيار المنتجات</div>
+        <i aria-hidden="true"></i>
+        <div class="jm-order-step" data-order-step="step-review"><span>3</span> مراجعة وحفظ</div>
+    </nav>
     <input type="hidden" name="shipping_address_id" id="shipping_address_id">
     <input type="hidden" name="shipping_phone_id" id="shipping_phone_id">
     <section class="card card-outline card-primary order-step active" id="step-customer">
@@ -513,7 +521,14 @@
     const steps = ['step-customer', 'step-products', 'step-review'];
     const items = [];
     const money = value => (Number(value) || 0).toFixed(2);
-    const show = id => steps.forEach(step => $(step).classList.toggle('active', step === id));
+    const show = id => {
+        steps.forEach(step => $(step).classList.toggle('active', step === id));
+        document.querySelectorAll('[data-order-step]').forEach((step, index) => {
+            const currentIndex = steps.indexOf(id);
+            step.classList.toggle('active', step.dataset.orderStep === id);
+            step.classList.toggle('done', index < currentIndex);
+        });
+    };
     const selected = () => $('variant-select').selectedOptions[0];
 
     const renderHint = () => {
