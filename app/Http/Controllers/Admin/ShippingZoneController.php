@@ -130,7 +130,8 @@ class ShippingZoneController extends Controller
 
     private function validatedData(Request $request, ?ShippingZone $zone = null): array
     {
-        $type = $request->input('zone_type', $zone?->zone_type ?? 'local');
+        $request->merge(['zone_type' => $request->input('zone_type', $zone?->zone_type ?? 'local')]);
+        $type = $request->input('zone_type');
         $rules = [
             'zone_type' => ['required', Rule::in(['local', 'international'])],
             'name_ar' => ['required', 'string', 'max:100', Rule::unique('shipping_zones', 'name_ar')->where('zone_type', $type)->ignore($zone?->id)],
