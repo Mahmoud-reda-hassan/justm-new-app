@@ -34,9 +34,12 @@
 .jm-order-storefront-page .customer-default-check{display:inline-flex;align-items:center;justify-content:center;margin-inline-start:5px;font-size:14px;font-weight:800}
 .jm-order-storefront-page .customer-card-section-header{direction:rtl}
  .jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
+.jm-order-storefront-page #step-products>.card-header,.jm-order-storefront-page #step-review>.card-header{display:none}
 .jm-order-storefront-page #step-products .jm-store-layout{display:block;margin:0}
 .jm-order-storefront-page #step-products .jm-store-products{width:100%;grid-column:auto;grid-row:auto}
 .jm-order-storefront-page #step-review .jm-store-layout{display:block}
+.jm-order-storefront-page #step-products>.card-body,.jm-order-storefront-page #step-review>.card-body{padding:0;background:transparent}
+.jm-order-storefront-page .jm-wizard-taskbar .jm-order-step{cursor:pointer}
 .jm-order-storefront-page #step-review .jm-store-cart{width:100%;position:static}
 .jm-order-storefront-page #step-review .jm-store-bottom{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:767.98px){.jm-order-storefront-page #step-review .jm-store-bottom{grid-template-columns:1fr}}
@@ -75,13 +78,6 @@
 
 <form method="post" action="{{ route('admin.sales.orders.store') }}" id="order-form" class="jm-order-storefront-page">
     @csrf
-    <nav class="jm-order-steps" aria-label="مراحل إنشاء أمر البيع">
-        <div class="jm-order-step active" data-order-step="step-customer"><span>1</span> بيانات العميل</div>
-        <i aria-hidden="true"></i>
-        <div class="jm-order-step" data-order-step="step-products"><span>2</span> اختيار المنتجات</div>
-        <i aria-hidden="true"></i>
-        <div class="jm-order-step" data-order-step="step-review"><span>3</span> مراجعة وحفظ</div>
-    </nav>
     <input type="hidden" name="shipping_address_id" id="shipping_address_id">
     <input type="hidden" name="shipping_phone_id" id="shipping_phone_id">
     <section class="card card-outline card-primary order-step active" id="step-customer">
@@ -144,9 +140,6 @@
                 </div>
             </div>
         </div>
-        <div class="card-footer order-actions">
-            <button type="button" class="btn btn-primary" id="to-products">التالي: اختيار المنتجات <i class="fas fa-arrow-left mr-1"></i></button>
-        </div>
     </section>
 
     <section class="card card-outline card-primary order-step" id="step-products">
@@ -177,9 +170,6 @@
                     </div>
                 </section>
             </div>
-        </div>
-        <div class="card-footer order-actions">
-            <button type="button" class="btn btn-primary" id="to-review">مراجعة أمر البيع <i class="fas fa-arrow-left mr-1"></i></button>
         </div>
     </section>
     <section class="card card-outline card-primary order-step" id="step-review">
@@ -243,9 +233,6 @@
                     </section>
                 </div>
             </div>
-        </div>
-        <div class="card-footer order-actions">
-            <button type="submit" class="btn btn-success" id="save-order"><i class="fas fa-save ml-1"></i> حفظ أمر البيع كمسودة</button>
         </div>
     </section>
 
@@ -1280,13 +1267,25 @@
         }
     });
 
+    let currentStep = 'step-customer';
     const show = id => {
+        currentStep = id;
         steps.forEach(step => $(step).classList.toggle('active',step===id));
         document.querySelectorAll('[data-order-step]').forEach((step,index)=>{
             const currentIndex=steps.indexOf(id);
             step.classList.toggle('active',step.dataset.orderStep===id);
             step.classList.toggle('done',index<currentIndex);
+            if (step.dataset.orderStep === id) step.setAttribute('aria-current','step');
+            else step.removeAttribute('aria-current');
         });
+        $('jmWizardNext').hidden = id === 'step-review';
+        $('save-order').hidden = id !== 'step-review';
+        $('jmWizardHint').textContent = id === 'step-customer'
+            ? 'اختر العميل ورقم الهاتف وعنوان التوصيل أولًا.'
+            : id === 'step-products'
+                ? 'بعد الانتهاء من اختيار المنتجات، راجع تفاصيل الأمر قبل الحفظ.'
+                : 'راجع تفاصيل الطلب ثم أتمم الحفظ.';
+        if (id === 'step-review') renderReview();
     };
 
     const commitConfiguredProduct = () => {
@@ -1331,28 +1330,55 @@
     renderCatalog();
     renderCart();
 
-    $('to-products').addEventListener('click', () => {
-        if (!$('customer_id').value) { Swal.fire({icon:'warning',text:'اختر العميل أولًا.'}); return; }
-        if (!$('shipping_phone_id').value) { Swal.fire({icon:'warning',text:'اختر رقم هاتف نشطًا للعميل.'}); return; }
+    const validateCustomerStep = () => {
+        if (!$('customer_id').value) { Swal.fire({icon:'warning',text:'اختر العميل أولًا.'}); return false; }
+        if (!$('shipping_phone_id').value) { Swal.fire({icon:'warning',text:'اختر رقم هاتف نشطًا للعميل.'}); return false; }
         const address=(customerAddresses[$('customer_id').value]||[]).find(item=>String(item.id)===$('shipping_address_id').value);
-        if(!address||!address.zone){Swal.fire({icon:'warning',text:'اختر عنوانًا مرتبطًا بمنطقة شحن ومخزن نشطين قبل متابعة الطلب.'});return;}
-        show('step-products');
-        renderCatalog();
-    });
+        if(!address||!address.zone){Swal.fire({icon:'warning',text:'اختر عنوانًا مرتبطًا بمنطقة شحن ومخزن نشطين قبل متابعة الطلب.'});return false;}
+        return true;
+    };
 
-    $('to-review').addEventListener('click', () => {
-        if (!items.length) { Swal.fire({icon:'warning',text:'أضف منتجًا واحدًا على الأقل.'}); return; }
+    const validateOrderStep = () => {
+        if (!items.length) { Swal.fire({icon:'warning',text:'أضف منتجًا واحدًا على الأقل.'}); return false; }
         const address=(customerAddresses[$('customer_id').value]||[]).find(item=>String(item.id)===$('shipping_address_id').value);
-        if(!address||!address.zone){Swal.fire({icon:'warning',text:'عنوان التوصيل غير مرتبط بمنطقة شحن نشطة.'});return;}
+        if(!address||!address.zone){Swal.fire({icon:'warning',text:'عنوان التوصيل غير مرتبط بمنطقة شحن نشطة.'});return false;}
         const fee=Number($('shipping_fee').value);
         if(!Number.isFinite(fee)||fee<Number(address.feeMin)||fee>Number(address.feeMax)){
-            Swal.fire({icon:'warning',text:'رسوم الشحن خارج النطاق المحدد لعنوان العميل.'});return;
+            Swal.fire({icon:'warning',text:'رسوم الشحن خارج النطاق المحدد لعنوان العميل.'});return false;
         }
         if($('shipping_date').disabled||!$('shipping_date').value||$('shipping_date').value<$('shipping_date').min){
-            Swal.fire({icon:'warning',text:'حدد موعد شحن صحيحًا وفق مدة التوصيل للمنطقة.'});return;
+            Swal.fire({icon:'warning',text:'حدد موعد شحن صحيحًا وفق مدة التوصيل للمنطقة.'});return false;
         }
-        renderReview();
-        show('step-review');
+        return true;
+    };
+
+    $('jmWizardNext').addEventListener('click', () => {
+        if (currentStep === 'step-customer') {
+            if (!validateCustomerStep()) return;
+            show('step-products');
+            renderCatalog();
+            return;
+        }
+        if (currentStep === 'step-products') {
+            if (!validateOrderStep()) return;
+            show('step-review');
+        }
+    });
+
+    document.querySelectorAll('[data-order-step]').forEach(step => {
+        const navigate = () => {
+            const target = step.dataset.orderStep;
+            if (target === 'step-products' && !validateCustomerStep()) return;
+            if (target === 'step-review' && (!validateCustomerStep() || !validateOrderStep())) return;
+            show(target);
+        };
+        step.addEventListener('click', navigate);
+        step.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                navigate();
+            }
+        });
     });
 
     $('shipping_fee').addEventListener('input',renderReview);
