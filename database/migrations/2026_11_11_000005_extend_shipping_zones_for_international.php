@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration {
     public function up(): void
@@ -14,6 +15,8 @@ return new class extends Migration {
             $table->unsignedSmallInteger('delivery_days')->nullable()->default(null)->change();
             $table->foreignId('warehouse_id')->nullable()->change();
         });
+
+        DB::table('permissions')->whereIn('key', ['shipping_zones.view', 'shipping_zones.create', 'shipping_zones.update', 'shipping_zones.activate'])->update(['description' => DB::raw("CASE key WHEN 'shipping_zones.view' THEN 'عرض مناطق الشحن' WHEN 'shipping_zones.create' THEN 'إضافة مناطق الشحن' WHEN 'shipping_zones.update' THEN 'تعديل مناطق الشحن' ELSE 'تفعيل وإيقاف مناطق الشحن' END")]);
 
         Schema::create('shipping_zone_countries', function (Blueprint $table): void {
             $table->id();
