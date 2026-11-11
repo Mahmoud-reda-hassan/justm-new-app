@@ -170,6 +170,8 @@ Route::middleware('auth')->group(function (): void {
             ->middleware('permission:inventory.settings.view')->name('settings');
         Route::put('/settings', [InventorySettingsController::class, 'update'])
             ->middleware('permission:inventory.settings.update')->name('settings.update');
+        Route::post('/settings/virtual-stock', [InventorySettingsController::class, 'updateVirtualStockPolicy'])
+            ->middleware('permission:inventory.settings.update')->name('settings.virtual-stock.update');
         Route::get('/opening-balances', [InventoryController::class, 'openingBalances'])
             ->middleware('permission:inventory.opening_balances.view')->name('opening-balances');
         Route::post('/opening-balances', [InventoryController::class, 'storeOpeningBalance'])
