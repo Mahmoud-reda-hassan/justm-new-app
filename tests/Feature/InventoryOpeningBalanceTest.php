@@ -81,6 +81,104 @@ class InventoryOpeningBalanceTest extends TestCase
         ]);
     }
 
+    public function test_inventory_movement_supports_source_and_reversal_links(): void
+    {
+        $original = InventoryMovement::query()->create([
+            'document_no' => 'TR-TRACE-001',
+            'movement_type' => 'transfer',
+            'source_type' => 'sales_order',
+            'source_id' => 123,
+            'idempotency_key' => 'traceability-test-key',
+            'idempotency_hash' => hash('sha256', 'traceability-test'),
+            'warehouse_id' => $this->warehouse->id,
+            'status' => 'posted',
+            'movement_date' => now(),
+            'created_by' => $this->user->id,
+            'posted_by' => $this->user->id,
+            'posted_at' => now(),
+        ]);
+
+        $reversal = InventoryMovement::query()->create([
+            'document_no' => 'TR-TRACE-002',
+            'movement_type' => 'reversal',
+            'warehouse_id' => $this->warehouse->id,
+            'status' => 'posted',
+            'movement_date' => now(),
+            'created_by' => $this->user->id,
+            'posted_by' => $this->user->id,
+            'posted_at' => now(),
+            'reversal_of_id' => $original->id,
+        ]);
+
+        $this->assertSame($original->id, $reversal->reversalOf->id);
+        $this->assertSame($reversal->id, $original->fresh()->reversal->id);
+        $this->assertDatabaseHas('inventory_movements', [
+            'id' => $original->id,
+            'source_type' => 'sales_order',
+            'source_id' => 123,
+            'idempotency_key' => 'traceability-test-key',
+        ]);
+    }
+
+    public function test_inventory_movement_idempotency_key_cannot_be_reused(): void
+    {
+        InventoryMovement::query()->create([
+            'document_no' => 'TR-IDEMP-001',
+            'movement_type' => 'transfer',
+            'idempotency_key' => 'same-operation-key',
+            'warehouse_id' => $this->warehouse->id,
+            'status' => 'posted',
+            'movement_date' => now(),
+            'created_by' => $this->user->id,
+        ]);
+
+        $this->expectException(\\Illuminate\\Database\\QueryException::class);
+
+        InventoryMovement::query()->create([
+            'document_no' => 'TR-IDEMP-002',
+            'movement_type' => 'transfer',
+            'idempotency_key' => 'same-operation-key',
+            'warehouse_id' => $this->warehouse->id,
+            'status' => 'posted',
+            'movement_date' => now(),
+            'created_by' => $this->user->id,
+        ]);
+    }
+
+    public function test_an_inventory_movement_can_be_reversed_only_once(): void
+    {
+        $original = InventoryMovement::query()->create([
+            'document_no' => 'TR-REV-001',
+            'movement_type' => 'transfer',
+            'warehouse_id' => $this->warehouse->id,
+            'status' => 'posted',
+            'movement_date' => now(),
+            'created_by' => $this->user->id,
+        ]);
+
+        InventoryMovement::query()->create([
+            'document_no' => 'TR-REV-002',
+            'movement_type' => 'reversal',
+            'warehouse_id' => $this->warehouse->id,
+            'status' => 'posted',
+            'movement_date' => now(),
+            'created_by' => $this->user->id,
+            'reversal_of_id' => $original->id,
+        ]);
+
+        $this->expectException(\\Illuminate\\Database\\QueryException::class);
+
+        InventoryMovement::query()->create([
+            'document_no' => 'TR-REV-003',
+            'movement_type' => 'reversal',
+            'warehouse_id' => $this->warehouse->id,
+            'status' => 'posted',
+            'movement_date' => now(),
+            'created_by' => $this->user->id,
+            'reversal_of_id' => $original->id,
+        ]);
+    }
+
     public function test_opening_balance_screen_shows_active_warehouse_and_variant(): void
     {
         $this->actingAs($this->user)

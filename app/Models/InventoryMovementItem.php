@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class InventoryMovementItem extends Model
 {
     protected $fillable = [
-        'inventory_movement_id', 'product_variant_id', 'quantity',
-        'unit_cost', 'quantity_before', 'quantity_after',
+        'inventory_movement_id', 'product_variant_id', 'quantity', 'unit_cost',
+        'quantity_before', 'quantity_after', 'destination_quantity_before', 'destination_quantity_after',
     ];
 
     protected function casts(): array
@@ -18,7 +18,7 @@ class InventoryMovementItem extends Model
             'quantity' => 'decimal:3',
             'unit_cost' => 'decimal:4',
             'quantity_before' => 'decimal:3',
-            'quantity_after' => 'decimal:3',
+            'quantity_after' => 'decimal:3',\n            'destination_quantity_before' => 'decimal:3',\n            'destination_quantity_after' => 'decimal:3',
         ];
     }
 
