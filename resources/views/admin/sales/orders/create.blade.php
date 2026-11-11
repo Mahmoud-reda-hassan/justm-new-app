@@ -1269,7 +1269,10 @@
         if (edit) {
             const index = Number(edit.dataset.editCart);
             const item = items[index];
-            if (item) openProductDetails(item.product_id, index);
+            if (item) {
+                show('step-products');
+                openProductDetails(item.product_id, index);
+            }
         }
         if (remove) {
             items.splice(Number(remove.dataset.deleteCart),1);
@@ -1288,8 +1291,9 @@
             if (step.dataset.orderStep === id) step.setAttribute('aria-current','step');
             else step.removeAttribute('aria-current');
         });
-        $('jmWizardNext').hidden = id === 'step-review';
-        $('save-order').hidden = id !== 'step-review';
+        $('jmWizardNext').style.display = id === 'step-review' ? 'none' : 'inline-flex';
+        $('save-order').style.display = id === 'step-review' ? 'inline-flex' : 'none';
+        $('save-order').closest('.order-foot').style.display = id === 'step-review' ? 'flex' : 'none';
         $('jmWizardHint').textContent = id === 'step-customer'
             ? 'اختر العميل ورقم الهاتف وعنوان التوصيل أولًا.'
             : id === 'step-products'
@@ -1346,6 +1350,7 @@
     renderCategories();
     renderCatalog();
     renderCart();
+    show('step-customer');
 
     const validateCustomerStep = () => {
         if (!$('customer_id').value) { Swal.fire({icon:'warning',text:'اختر العميل أولًا.'}); return false; }
