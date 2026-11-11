@@ -160,6 +160,12 @@ Route::middleware('auth')->group(function (): void {
     });
 
     Route::prefix('admin/inventory')->name('admin.inventory.')->group(function (): void {
+        Route::get('/movements', [InventoryController::class, 'movements'])
+            ->middleware('permission:inventory.movements.view')->name('movements');
+        Route::post('/issues', [InventoryController::class, 'storeIssue'])
+            ->middleware('permission:inventory.issues.create')->name('issues.store');
+        Route::post('/transfers', [InventoryController::class, 'storeTransfer'])
+            ->middleware('permission:inventory.transfers.create')->name('transfers.store');
         Route::get('/settings', [InventorySettingsController::class, 'index'])
             ->middleware('permission:inventory.settings.view')->name('settings');
         Route::put('/settings', [InventorySettingsController::class, 'update'])

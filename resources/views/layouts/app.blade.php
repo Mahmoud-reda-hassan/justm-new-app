@@ -148,10 +148,13 @@
                             <li class="nav-item"><a href="{{ route('admin.parties.index') }}" class="nav-link"><i class="nav-icon fas fa-users"></i><p>الأطراف</p></a></li>
                         @endif
                     @endif
-                    @if ($user->hasPermission('inventory.opening_balances.view') || $user->hasPermission('inventory.settings.view'))
+                    @if ($user->hasPermission('inventory.opening_balances.view') || $user->hasPermission('inventory.settings.view') || $user->hasPermission('inventory.movements.view'))
                         <li class="nav-header">المخزون</li>
                         @if ($user->hasPermission('inventory.settings.view'))
                             <li class="nav-item"><a href="{{ route('admin.inventory.settings') }}" class="nav-link @if(request()->routeIs('admin.inventory.settings')) active @endif"><i class="nav-icon fas fa-cogs"></i><p>إعدادات المخازن العامة</p></a></li>
+                        @endif
+                        @if ($user->hasPermission('inventory.movements.view'))
+                            <li class="nav-item"><a href="{{ route('admin.inventory.movements') }}" class="nav-link @if(request()->routeIs('admin.inventory.movements')) active @endif"><i class="nav-icon fas fa-exchange-alt"></i><p>الصرف والتحويل</p></a></li>
                         @endif
                         @if ($user->hasPermission('inventory.opening_balances.view'))
                         <li class="nav-item"><a href="{{ route('admin.inventory.opening-balances') }}" class="nav-link @if(request()->routeIs('admin.inventory.opening-balances*')) active @endif"><i class="nav-icon fas fa-box-open"></i><p>الأرصدة الافتتاحية</p></a></li>

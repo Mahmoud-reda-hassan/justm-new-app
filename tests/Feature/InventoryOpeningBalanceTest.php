@@ -561,4 +561,48 @@ class InventoryOpeningBalanceTest extends TestCase
         }
     }
 
+
+    public function test_issue_screen_and_posting_update_stock_and_create_a_movement(): void
+    {
+        $role = $this->user->roles()->firstOrFail();
+        $role->permissions()->attach(Permission::query()->whereIn('key', ['inventory.movements.view', 'inventory.issues.create'])->pluck('id'));
+        DB::table('warehouse_product_stocks')->insert(['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 10, 'created_at' => now(), 'updated_at' => now()]);
+        $this->actingAs($this->user)->get(route('admin.inventory.movements'))->assertOk()->assertSee('مستند صرف مخزني');
+        $this->actingAs($this->user)->post(route('admin.inventory.issues.store'), [
+            'warehouse_id' => $this->warehouse->id, 'idempotency_key' => 'issue-'.uniqid(),
+            'items' => [['product_variant_id' => $this->variant->id, 'quantity' => 3, 'unit_cost' => 10]],
+        ])->assertRedirect(route('admin.inventory.movements'))->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => '7.000']);
+        $this->assertDatabaseHas('inventory_movements', ['movement_type' => 'issue', 'warehouse_id' => $this->warehouse->id, 'status' => 'posted']);
+    }
+
+    public function test_transfer_posts_both_sides_as_one_movement(): void
+    {
+        $role = $this->user->roles()->firstOrFail();
+        $role->permissions()->attach(Permission::query()->whereIn('key', ['inventory.movements.view', 'inventory.transfers.create'])->pluck('id'));
+        $destination = Warehouse::query()->create(['branch_id' => $this->warehouse->branch_id, 'warehouse_type_id' => $this->warehouse->warehouse_type_id, 'name' => 'مخزن التحويل', 'is_active' => true]);
+        DB::table('warehouse_product_stocks')->insert(['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 10, 'created_at' => now(), 'updated_at' => now()]);
+        $this->actingAs($this->user)->post(route('admin.inventory.transfers.store'), [
+            'source_warehouse_id' => $this->warehouse->id, 'destination_warehouse_id' => $destination->id, 'idempotency_key' => 'transfer-'.uniqid(),
+            'items' => [['product_variant_id' => $this->variant->id, 'quantity' => 4, 'unit_cost' => 10]],
+        ])->assertRedirect(route('admin.inventory.movements'))->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => '6.000']);
+        $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $destination->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => '4.000']);
+        $this->assertDatabaseHas('inventory_movements', ['movement_type' => 'transfer', 'warehouse_id' => $this->warehouse->id, 'destination_warehouse_id' => $destination->id]);
+        $this->assertDatabaseHas('inventory_movement_items', ['destination_quantity_before' => '0.000', 'destination_quantity_after' => '4.000']);
+    }
+
+    public function test_issue_cannot_post_to_a_warehouse_outside_user_scope(): void
+    {
+        $role = $this->user->roles()->firstOrFail();
+        $role->permissions()->attach(Permission::query()->where('key', 'inventory.issues.create')->value('id'));
+        $role->permissions()->detach(Permission::query()->where('key', 'structure.scope.manage_all')->value('id'));
+        $other = Warehouse::query()->create(['branch_id' => $this->warehouse->branch_id, 'warehouse_type_id' => $this->warehouse->warehouse_type_id, 'name' => 'خارج النطاق', 'is_active' => true]);
+        UserDataScope::query()->create(['user_id' => $this->user->id, 'scope_type' => 'warehouse', 'scope_id' => $this->warehouse->id]);
+        $this->actingAs($this->user)->post(route('admin.inventory.issues.store'), [
+            'warehouse_id' => $other->id, 'items' => [['product_variant_id' => $this->variant->id, 'quantity' => 1]],
+        ])->assertNotFound();
+        $this->assertDatabaseCount('inventory_movements', 0);
+    }
+
 }
