@@ -15,6 +15,9 @@
     .jm-choice-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1px solid #adb5bd;border-radius:4px;color:#28a745;font-weight:700;opacity:.25;margin:0 .35rem}
     .jm-choice-radio{position:absolute;opacity:0;pointer-events:none}
     .jm-choice-radio:checked + .jm-choice-check{opacity:1;border-color:#28a745;background:#e8f7ed}
+    #customer-phone-legacy-group,#customer-address-legacy-group,#customer-contact-card,#customer-address-card,#customer-order-history,#edit-customer{display:none!important}
+    .customer-directory-card .customer-directory-name{font-size:1rem}
+    .customer-directory-card label{cursor:pointer}
     @media(max-width:575.98px){.order-actions .btn{flex:1 1 auto}}
 </style>
 @endpush
@@ -75,7 +78,7 @@
                     <select class="form-control d-none" name="customer_id" id="customer_id">
                         <option value="">اختر العميل</option>
                     </select>
-                    <div class="form-group mt-2 mb-2">
+                    <div class="form-group mt-2 mb-2" id="customer-phone-legacy-group">
                         <label for="customer-phone-select">رقم هاتف التواصل والتوصيل</label>
                         <select class="form-control d-none" id="customer-phone-select" disabled>
                             <option value="">اختر العميل أولًا</option>
@@ -102,7 +105,7 @@
                     <input class="form-control" type="number" name="shipping_fee" id="shipping_fee" min="0" step="0.01" value="0">
                     <small class="form-text text-muted" id="shipping-route-hint">اختر عنوانًا لمعرفة منطقة الشحن والرسوم ومدة التوصيل.</small>
                 </div>
-                <div class="form-group col-md-5">
+                <div class="form-group col-md-5" id="customer-address-legacy-group">
                     <label for="customer-address-select">العناوين المحفوظة للعميل</label>
                     <select class="form-control d-none" id="customer-address-select" disabled><option value="">اختر العميل أولًا</option></select>
                 </div>
