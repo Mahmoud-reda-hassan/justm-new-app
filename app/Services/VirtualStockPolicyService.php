@@ -1,8 +1,8 @@
 <?php
 
-namespace App\\Services;
+namespace App\Services;
 
-use Illuminate\\Support\\Facades\\DB;
+use Illuminate\Support\Facades\DB;
 
 class VirtualStockPolicyService
 {
@@ -23,7 +23,7 @@ class VirtualStockPolicyService
 
         return [
             'create_order_statuses' => array_values(array_diff($all, ['cancelled', 'cancelled_unresponsive'])),
-            'customer_service_matrix' => array_fill_keys(self::STATUSES, $all),
+            'customer_service_matrix' => array_fill_keys($all, $all),
             'warehouse_statuses' => ['prepared'],
         ];
     }
