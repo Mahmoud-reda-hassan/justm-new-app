@@ -566,7 +566,10 @@
             if (phone.isPrimary) {
                 const def = document.createElement('span');
                 def.className = 'badge badge-light border';
-                def.textContent = 'DEFAULT';
+                def.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
+                def.title = 'الافتراضي';
+                def.setAttribute('aria-label', 'الافتراضي');
+                def.className = 'customer-default-check text-success';
                 left.appendChild(def);
             }
             const edit = document.createElement('button');
@@ -612,7 +615,10 @@
             if (address.isPrimary) {
                 const def = document.createElement('span');
                 def.className = 'badge badge-light border';
-                def.textContent = 'DEFAULT';
+                def.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
+                def.title = 'الافتراضي';
+                def.setAttribute('aria-label', 'الافتراضي');
+                def.className = 'customer-default-check text-success';
                 left.appendChild(def);
             }
             const edit = document.createElement('button');
