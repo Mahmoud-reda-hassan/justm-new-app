@@ -547,6 +547,14 @@
 
             const left = document.createElement('div');
             left.className = 'customer-contact-actions';
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'btn btn-sm btn-link text-secondary p-1';
+            edit.title = 'تعديل رقم الهاتف';
+            edit.setAttribute('aria-label', 'تعديل رقم الهاتف');
+            edit.innerHTML = '<i class="fas fa-edit"></i>';
+            edit.addEventListener('click', openEditor);
+            if (canEditCustomer) left.appendChild(edit);
             if (phone.isWhatsapp) {
                 const a = document.createElement('a');
                 a.href = 'https://wa.me/' + String(phone.number).replace(/\\D/g, '');
@@ -565,21 +573,12 @@
             }
             if (phone.isPrimary) {
                 const def = document.createElement('span');
-                def.className = 'badge badge-light border';
                 def.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
                 def.title = 'الافتراضي';
                 def.setAttribute('aria-label', 'الافتراضي');
                 def.className = 'customer-default-check text-success';
                 left.appendChild(def);
             }
-            const edit = document.createElement('button');
-            edit.type = 'button';
-            edit.className = 'btn btn-sm btn-link text-secondary p-1';
-            edit.title = 'تعديل رقم الهاتف';
-            edit.setAttribute('aria-label', 'تعديل رقم الهاتف');
-            edit.innerHTML = '<i class="fas fa-edit"></i>';
-            edit.addEventListener('click', openEditor);
-            if (canEditCustomer) left.appendChild(edit);
             row.append(right, left);
             phoneList.appendChild(row);
         });
