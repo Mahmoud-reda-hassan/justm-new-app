@@ -81,6 +81,20 @@ class ProductManagementTest extends TestCase
         $this->actingAs($user)->get(route('admin.products.index'))->assertOk()->assertSee('منتج تجريبي');
     }
 
+    public function test_product_can_be_configured_to_allow_preorders(): void
+    {
+        $user = $this->userWith(['products.create', 'products.view']);
+        $product = $this->createProduct($user, [
+            'name' => 'منتج يسمح بالحجز المسبق',
+            'allow_preorder' => 1,
+        ]);
+
+        $this->assertTrue($product->fresh()->allow_preorder);
+        $this->actingAs($user)->get(route('admin.products.index'))
+            ->assertOk()
+            ->assertSee('السماح بالحجز المسبق عند نفاد المخزون');
+    }
+
     public function test_product_screen_uses_adminlte_and_allows_an_extra_sku_without_attributes(): void
     {
         $user = $this->userWith(['products.view', 'products.create']);
