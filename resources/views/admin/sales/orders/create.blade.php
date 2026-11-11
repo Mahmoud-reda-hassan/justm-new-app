@@ -237,7 +237,7 @@
                 $('shipping_phone_id').value = String(phone.id);
             });
             const number = document.createElement('span');
-            number.textContent = phone.number + (phone.isPrimary ? ' — افتراضي' : '');
+            number.textContent = phone.number + (phone.isPrimary ? ' ★' : '');
             label.append(radio, number);
             const links = document.createElement('span');
             if (phone.isWhatsapp) {
@@ -273,7 +273,7 @@
                 applyShippingRoute(address);
             });
             const text = document.createElement('span');
-            text.textContent = address.title + (address.isPrimary ? ' — افتراضي' : '') +
+            text.textContent = address.title + (address.isPrimary ? ' ★' : '') +
                 (address.city ? ' — ' + address.city : '') + ' — ' + address.address;
             label.append(radio, text); box.appendChild(label);
         });
