@@ -161,6 +161,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/', [SalesOrderController::class, 'index'])->middleware('permission:sales.orders.view')->name('index');
         Route::get('/create', [SalesOrderController::class, 'create'])->middleware('permission:sales.orders.create')->name('create');
         Route::get('/customers/directory', [SalesOrderController::class, 'customerDirectory'])->middleware('permission:sales.orders.create')->name('customers.directory');
+        Route::get('/inventory-availability', [SalesOrderController::class, 'inventoryAvailability'])->middleware('permission:sales.orders.create')->name('inventory-availability');
         Route::get('/customers/{customer}/selection', [SalesOrderController::class, 'customerSelection'])->middleware('permission:sales.orders.create')->name('customers.selection');
         Route::get('/customers/{customer}/history', [SalesOrderController::class, 'customerHistory'])->middleware('permission:sales.orders.create')->name('customer-history');
         Route::post('/', [SalesOrderController::class, 'store'])->middleware('permission:sales.orders.create')->name('store');
