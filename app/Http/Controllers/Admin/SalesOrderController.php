@@ -106,6 +106,7 @@ class SalesOrderController extends Controller
             'shipping_phone_id' => ['required', 'integer', 'exists:party_phones,id'],
             'shipping_address' => ['required', 'string', 'max:2000'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
+            'shipping_date' => ['nullable', 'date_format:Y-m-d'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.product_variant_id' => ['required', 'integer', 'distinct', 'exists:product_variants,id'],
@@ -167,7 +168,13 @@ class SalesOrderController extends Controller
             ]);
         }
 
-        $shippingDate = now()->addDays((int) $zone->delivery_days)->toDateString();
+        $earliestShippingDate = now()->startOfDay()->addDays((int) $zone->delivery_days)->toDateString();
+        $shippingDate = $data['shipping_date'] ?? $earliestShippingDate;
+        if ($shippingDate < $earliestShippingDate) {
+            throw ValidationException::withMessages([
+                'shipping_date' => 'موعد الشحن لا يمكن أن يكون قبل الموعد المتوقع حسب مدة التوصيل المحددة للعنوان ('.$earliestShippingDate.').',
+            ]);
+        }
         $preparedItems = [];
         $subtotal = 0.0;
         $discountTotal = 0.0;
