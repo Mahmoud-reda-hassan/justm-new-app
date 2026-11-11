@@ -215,6 +215,7 @@
     };
     $('customer_id').addEventListener('change', renderCustomerAddresses);
     $('customer-address-select').addEventListener('change', function () {
+        const addresses = customerAddresses[$('customer_id').value] || [];
         const address = addresses.find(item => String(item.id) === this.value);
         if (address) {
             $('shipping_address_id').value = address.id;
