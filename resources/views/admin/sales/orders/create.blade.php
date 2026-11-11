@@ -131,9 +131,6 @@
                 </div>
             </div>
         </div>
-        <div class="card-footer order-actions">
-            <button type="button" class="btn btn-primary" id="to-products">التالي: اختيار المنتجات <i class="fas fa-arrow-left mr-1"></i></button>
-        </div>
     </section>
 
     <section class="card card-outline card-primary order-step" id="step-products">
@@ -1325,10 +1322,13 @@
         $('jmWizardNext').style.display = id === 'step-products' ? 'inline-flex' : 'none';
         $('save-order').style.display = id === 'step-review' ? 'inline-flex' : 'none';
         $('save-order').closest('.order-foot').style.display = id === 'step-review' ? 'flex' : 'none';
+        $('jmWizardNext').innerHTML = id === 'step-products'
+            ? 'مراجعة أمر البيع <i class="fas fa-arrow-left"></i>'
+            : 'اختيار المنتجات <i class="fas fa-arrow-left"></i>';
         $('jmWizardHint').textContent = id === 'step-customer'
             ? 'اختر العميل ورقم الهاتف وعنوان التوصيل أولًا.'
             : id === 'step-products'
-                ? 'بعد الانتهاء من اختيار المنتجات، راجع تفاصيل الأمر قبل الحفظ.'
+                ? 'بعد الانتهاء من اختيار المنتجات، انتقل لمراجعة الأمر.'
                 : 'راجع تفاصيل الطلب ثم أتمم الحفظ.';
         if (id === 'step-review') renderReview();
     };
