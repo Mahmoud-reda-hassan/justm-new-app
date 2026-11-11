@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
-@section('title', 'إعدادات المخازن العامة')
-@section('page-title', 'إعدادات المخازن العامة')
-@section('breadcrumb', 'إعدادات المخازن')
+@section('title', 'إعدادات المخازن الوهمية')
+@section('page-title', 'إعدادات المخازن الوهمية')
+@section('breadcrumb', 'المخازن الوهمية / الإعدادات')
 
 @section('content')
 <div class="row">
@@ -32,7 +32,9 @@
                         @endforeach
                     </div>
 
-                    <div class="mt-3"><a class="btn btn-outline-primary" href="{{ route('admin.inventory.virtual-stock') }}">عرض أرصدة المخازن الوهمية الثلاثة</a></div>
+                    @if(auth()->user()->hasPermission('inventory.virtual_stock.view'))
+                        <div class="mt-3"><a class="btn btn-outline-primary" href="{{ route('admin.inventory.virtual-stock') }}">عرض أرصدة المخازن الوهمية الثلاثة</a></div>
+                    @endif
 
                     <hr>
                     <h5 class="font-weight-bold">2. المخزن الوهمي لخدمة العملاء</h5>
