@@ -169,6 +169,77 @@ class SalesOrderCreationTest extends TestCase
         $this->assertSame(now()->addDays(2)->toDateString(), $order->shipping_date->toDateString());
     }
 
+    public function test_order_can_use_a_later_shipping_date_but_not_earlier_than_zone_delivery_window(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $variant = $this->variant();
+        $shippingAddress = $this->shippingAddress($customer);
+        $phone = $customer->phones()->create([
+            'number' => '01012345678',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+        $chosenDate = now()->addDays(5)->toDateString();
+
+        $this->actingAs($user)->post(route('admin.sales.orders.store'), [
+            'customer_id' => $customer->id,
+            'shipping_phone_id' => $phone->id,
+            'shipping_address_id' => $shippingAddress->id,
+            'shipping_address' => $shippingAddress->address,
+            'shipping_fee' => 10,
+            'shipping_date' => $chosenDate,
+            'items' => [[
+                'product_variant_id' => $variant->id,
+                'quantity' => 1,
+                'sale_price' => 90,
+            ]],
+        ])->assertRedirect(route('admin.sales.orders.create'));
+
+        $this->assertSame($chosenDate, SalesOrder::query()->firstOrFail()->shipping_date->toDateString());
+    }
+
+    public function test_order_rejects_shipping_date_before_the_zone_delivery_window(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $variant = $this->variant();
+        $shippingAddress = $this->shippingAddress($customer);
+        $phone = $customer->phones()->create([
+            'number' => '01012345678',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->post(route('admin.sales.orders.store'), [
+            'customer_id' => $customer->id,
+            'shipping_phone_id' => $phone->id,
+            'shipping_address_id' => $shippingAddress->id,
+            'shipping_address' => $shippingAddress->address,
+            'shipping_fee' => 10,
+            'shipping_date' => now()->toDateString(),
+            'items' => [[
+                'product_variant_id' => $variant->id,
+                'quantity' => 1,
+                'sale_price' => 90,
+            ]],
+        ])->assertSessionHasErrors('shipping_date');
+
+        $this->assertDatabaseCount('sales_orders', 0);
+    }
+
+    public function test_order_creation_screen_exposes_shipping_date_adjustment(): void
+    {
+        $user = $this->userWithSalesPermission();
+
+        $this->actingAs($user)->get(route('admin.sales.orders.create'))
+            ->assertOk()
+            ->assertSee('name="shipping_date"', false)
+            ->assertSee('موعد الشحن المتوقع');
+    }
+
     public function test_order_creation_resolves_the_selected_customer_address_from_its_own_address_list(): void
     {
         $user = $this->userWithSalesPermission();
