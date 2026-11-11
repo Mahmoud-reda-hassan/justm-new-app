@@ -510,6 +510,6 @@ class SalesOrderController extends Controller
             return $order;
         });
 
-        return redirect()->route('admin.sales.orders.create')->with('status', 'تم حفظ أمر البيع '.$order->order_number.' كمسودة. موعد الشحن '.$shippingDate.'، والمخزن '.$warehouse->name.'. لم يتم حجز مخزون أو إنشاء قيد مالي.');
+        return redirect()->route('admin.sales.orders.create')->with('status', 'تم حفظ أمر البيع '.$order->order_number.' كمسودة. موعد الشحن '.$shippingDate.'، والمخزن '.$warehouse->name.'. تم حجز المتاح بالمخزن، وتسجيل العجز ككمية طلب مسبق للأصناف التي تسمح بذلك؛ لم يتم إنشاء قيد مالي.');
     }
 }
