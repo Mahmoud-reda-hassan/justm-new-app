@@ -26,16 +26,18 @@ return new class extends Migration {
         // engines rejecting MODIFY/CHANGE while the column participates in FK.
         $this->setWarehouseNullable(true);
 
-        DB::table('permissions')->whereIn('key', [
-            'shipping_zones.view', 'shipping_zones.create',
-            'shipping_zones.update', 'shipping_zones.activate',
-        ])->update([
-            'description' => DB::raw("CASE key
-                WHEN 'shipping_zones.view' THEN 'عرض مناطق الشحن'
-                WHEN 'shipping_zones.create' THEN 'إضافة مناطق الشحن'
-                WHEN 'shipping_zones.update' THEN 'تعديل مناطق الشحن'
-                ELSE 'تفعيل وإيقاف مناطق الشحن' END"),
-        ]);
+        // Update each permission separately. Avoid a raw CASE expression on
+        // the column named "key", which is reserved in MariaDB/MySQL syntax.
+        foreach ([
+            'shipping_zones.view' => 'عرض مناطق الشحن',
+            'shipping_zones.create' => 'إضافة مناطق الشحن',
+            'shipping_zones.update' => 'تعديل مناطق الشحن',
+            'shipping_zones.activate' => 'تفعيل وإيقاف مناطق الشحن',
+        ] as $permissionKey => $description) {
+            DB::table('permissions')
+                ->where('key', $permissionKey)
+                ->update(['description' => $description]);
+        }
 
         if (! Schema::hasTable('shipping_zone_countries')) {
             Schema::create('shipping_zone_countries', function (Blueprint $table): void {
