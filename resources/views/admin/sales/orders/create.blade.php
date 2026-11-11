@@ -1053,8 +1053,9 @@
             return;
         }
         $('jmStoreProductGrid').innerHTML = filtered.map(product => {
-            const prices = product.variants.map(variant => Number(variant.list_price) || 0);
-            const min = Math.min(...prices), max = Math.max(...prices);
+            const minimumPrices = product.variants.map(variant => Number(variant.minimum_sale_price) || 0);
+            const listPrices = product.variants.map(variant => Number(variant.list_price) || 0);
+            const min = Math.min(...minimumPrices), max = Math.max(...listPrices);
             const priceText = min === max ? money(min) : money(min) + ' - ' + money(max);
             const image = product.image || '/img/product-default-3d.svg';
             return '<article class="jm-store-product">'
