@@ -91,6 +91,7 @@ class SalesOrderCustomerDirectoryTest extends TestCase
             ->assertJsonPath('customers.data.0.delivered_orders_count', 0)
             ->assertJsonPath('customers.data.0.preparing_orders_count', 0)
             ->assertJsonPath('customers.data.0.pending_confirmation_orders_count', 0)
+            ->assertJsonPath('customers.data.0.shipping_orders_count', 0)
             ->assertJsonPath('customers.data.0.is_most_delivered', false);
     }
 
@@ -101,7 +102,7 @@ class SalesOrderCustomerDirectoryTest extends TestCase
         $secondDelivered = $this->customer('عميل آخر', '01022222222');
         $noDelivery = $this->customer('بدون تسليم', '01033333333');
 
-        foreach (['delivered', 'delivered', 'preparing', 'draft'] as $status) {
+        foreach (['delivered', 'delivered', 'preparing', 'shipping', 'draft'] as $status) {
             SalesOrder::query()->create([
                 'order_number' => 'SO-'.uniqid(),
                 'customer_id' => $mostDelivered->id,
@@ -142,11 +143,13 @@ class SalesOrderCustomerDirectoryTest extends TestCase
             ->assertJsonPath('customers.data.0.id', $mostDelivered->id)
             ->assertJsonPath('customers.data.0.delivered_orders_count', 2)
             ->assertJsonPath('customers.data.0.preparing_orders_count', 1)
+            ->assertJsonPath('customers.data.0.shipping_orders_count', 1)
             ->assertJsonPath('customers.data.0.pending_confirmation_orders_count', 1)
             ->assertJsonPath('customers.data.0.is_most_delivered', true)
             ->assertJsonPath('customers.data.1.id', $secondDelivered->id)
             ->assertJsonPath('customers.data.1.delivered_orders_count', 1)
             ->assertJsonPath('customers.data.1.preparing_orders_count', 1)
+            ->assertJsonPath('customers.data.1.shipping_orders_count', 0)
             ->assertJsonPath('customers.data.1.pending_confirmation_orders_count', 1)
             ->assertJsonPath('customers.data.1.is_most_delivered', false)
             ->assertJsonPath('customers.data.2.id', $noDelivery->id)
@@ -179,6 +182,8 @@ class SalesOrderCustomerDirectoryTest extends TestCase
             ->assertJsonPath('customer.id', $customer->id)
             ->assertJsonCount(2, 'customer.phones')
             ->assertJsonPath('customer.phones.0.number', '01012345678')
+            ->assertJsonPath('customer.phones.0.isWhatsapp', true)
+            ->assertJsonPath('customer.phones.0.isTelegram', true)
             ->assertJsonCount(1, 'customer.addresses')
             ->assertJsonPath('customer.addresses.0.isPrimary', true);
     }
