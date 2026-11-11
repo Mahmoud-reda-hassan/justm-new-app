@@ -283,7 +283,7 @@ class SalesOrderController extends Controller
         return view('admin.sales.orders.create', compact('variants', 'cities', 'catalogProducts'));
     }
 
-    public function inventoryAvailability(Request $request): JsonResponse
+    public function inventoryAvailability(Request $request, \\App\\Services\\VirtualStockPolicyService $virtualStock): JsonResponse
     {
         $data = $request->validate(['address_id' => ['required', 'integer', 'exists:party_addresses,id']]);
         $address = PartyAddress::query()
@@ -303,18 +303,24 @@ class SalesOrderController extends Controller
             'عنوان التوصيل غير مرتبط بمخزن بيع مباشر نشط.'
         );
 
+        $countedStatuses = $virtualStock->statusesFor('create_order');
         $stocks = DB::table('warehouse_product_stocks as stock')
             ->leftJoin('sales_order_item_reservations as reservations', function ($join): void {
                 $join->on('reservations.warehouse_id', '=', 'stock.warehouse_id')
                     ->on('reservations.product_variant_id', '=', 'stock.product_variant_id')
                     ->where('reservations.status', '=', 'active');
             })
+            ->leftJoin('sales_order_items as reserved_items', 'reserved_items.id', '=', 'reservations.sales_order_item_id')
+            ->leftJoin('sales_orders as reserved_orders', function ($join) use ($countedStatuses): void {
+                $join->on('reserved_orders.id', '=', 'reserved_items.sales_order_id')
+                    ->whereIn('reserved_orders.status', $countedStatuses);
+            })
             ->where('stock.warehouse_id', $warehouse->id)
             ->groupBy('stock.product_variant_id', 'stock.quantity_on_hand')
             ->get([
                 'stock.product_variant_id',
                 'stock.quantity_on_hand',
-                DB::raw('COALESCE(SUM(reservations.reserved_quantity), 0) as reserved_quantity'),
+                DB::raw('COALESCE(SUM(CASE WHEN reserved_orders.id IS NULL THEN 0 ELSE reservations.reserved_quantity END), 0) as reserved_quantity'),
             ])
             ->keyBy('product_variant_id');
 
