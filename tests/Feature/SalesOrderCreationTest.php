@@ -44,7 +44,7 @@ class SalesOrderCreationTest extends TestCase
             'is_active' => true,
         ]);
         $role->permissions()->sync(Permission::query()
-            ->whereIn('key', ['sales.orders.view', 'sales.orders.create', 'parties.create', 'parties.update'])
+            ->whereIn('key', ['sales.orders.view', 'sales.orders.create', 'parties.create', 'parties.update', 'structure.scope.manage_all'])
             ->pluck('id'));
         $user->roles()->attach($role);
 
