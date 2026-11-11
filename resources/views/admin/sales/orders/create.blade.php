@@ -609,38 +609,104 @@
 
     const openCustomerEditor = async (customerId = null) => {
         const option = customerId ? Array.from($('customer_id').options).find(item => item.value === String(customerId)) : null;
-        const addresses = customerId ? (customerAddresses[customerId] || []) : [];
-        const address = addresses[0] || {};
+        const phones = customerId ? (customerPhones[customerId] || []).map(item => ({...item})) : [];
+        const addresses = customerId ? (customerAddresses[customerId] || []).map(item => ({...item})) : [];
         const cityOptions = Object.entries(activeCities).map(([id, name]) =>
-            '<option value="' + escapeHtml(id) + '"' + (String(address.cityId || '') === String(id) ? ' selected' : '') + '>' + escapeHtml(name) + '</option>'
+            '<option value="' + escapeHtml(id) + '">' + escapeHtml(name) + '</option>'
         ).join('');
         const result = await Swal.fire({
             title: customerId ? 'تعديل بيانات العميل' : 'إضافة عميل جديد',
+            width: '900px',
             html: '<div class="text-right">'
                 + '<div class="form-group"><label for="quick-customer-type">نوع العميل</label><select id="quick-customer-type" class="form-control"><option value="individual"' + ((option?.dataset.entityType || 'individual') === 'individual' ? ' selected' : '') + '>فرد</option><option value="company"' + (option?.dataset.entityType === 'company' ? ' selected' : '') + '>شركة</option></select></div>'
                 + '<div class="form-group"><label for="quick-customer-name">اسم العميل</label><input id="quick-customer-name" class="form-control" maxlength="180" value="' + escapeHtml(option?.dataset.name || '') + '"></div>'
-                + '<div class="form-group"><label for="quick-customer-mobile">رقم الهاتف</label><input id="quick-customer-mobile" class="form-control" maxlength="40" value="' + escapeHtml(option?.dataset.mobile || '') + '"></div>'
                 + '<div class="form-group"><label for="quick-customer-email">البريد الإلكتروني (اختياري)</label><input id="quick-customer-email" type="email" class="form-control" maxlength="190" value="' + escapeHtml(option?.dataset.email || '') + '"></div>'
-                + '<div class="form-group"><label for="quick-customer-city">المدينة</label><select id="quick-customer-city" class="form-control"><option value="">اختر المدينة</option>' + cityOptions + '</select></div>'
-                + '<div class="form-group"><label for="quick-customer-address">عنوان التوصيل</label><textarea id="quick-customer-address" class="form-control" rows="2" maxlength="4000">' + escapeHtml(address.address || '') + '</textarea></div>'
+                + '<div class="card card-outline card-info"><div class="card-header py-2 d-flex justify-content-between"><strong>أرقام الهواتف</strong><button type="button" id="quick-add-phone" class="btn btn-sm btn-outline-primary">إضافة رقم</button></div><div class="card-body p-2" id="quick-phone-list"></div></div>'
+                + '<div class="card card-outline card-secondary mt-3"><div class="card-header py-2 d-flex justify-content-between"><strong>العناوين</strong><button type="button" id="quick-add-address" class="btn btn-sm btn-outline-primary">إضافة عنوان</button></div><div class="card-body p-2" id="quick-address-list"></div></div>'
                 + '</div>',
             focusConfirm: false,
             showCancelButton: true,
-            confirmButtonText: customerId ? 'حفظ التعديلات' : 'إضافة العميل',
+            confirmButtonText: 'حفظ بيانات العميل',
             cancelButtonText: 'إلغاء',
+            didOpen: () => {
+                const phoneList = $('quick-phone-list');
+                const addressList = $('quick-address-list');
+                const addPhoneRow = phone => {
+                    const row = document.createElement('div');
+                    row.className = 'border rounded p-2 mb-2 quick-phone-row';
+                    row.dataset.id = phone?.id || '';
+                    row.innerHTML = '<div class="form-row align-items-center">'
+                        + '<div class="col-md-4 mb-2"><label>رقم الهاتف</label><input class="form-control phone-number" maxlength="40" value="' + escapeHtml(phone?.number || '') + '"></div>'
+                        + '<div class="col-md-3 mb-2"><label>النوع</label><select class="form-control phone-type"><option value="mobile">محمول</option><option value="landline">أرضي</option></select></div>'
+                        + '<div class="col-md-3 mb-2"><label class="d-block">التطبيقات</label><label class="mr-2"><input type="checkbox" class="phone-whatsapp"> واتساب</label><label><input type="checkbox" class="phone-telegram"> تيليجرام</label></div>'
+                        + '<div class="col-md-2 mb-2"><label class="d-block">افتراضي</label><label><input type="radio" name="quick-primary-phone" class="phone-primary"> أساسي</label><button type="button" class="btn btn-sm btn-link text-danger remove-phone d-block p-0">حذف</button></div>'
+                        + '</div>';
+                    row.querySelector('.phone-type').value = phone?.type || 'mobile';
+                    row.querySelector('.phone-whatsapp').checked = !!phone?.isWhatsapp;
+                    row.querySelector('.phone-telegram').checked = !!phone?.isTelegram;
+                    row.querySelector('.phone-primary').checked = !!phone?.isPrimary;
+                    row.querySelector('.remove-phone').addEventListener('click', () => row.remove());
+                    phoneList.appendChild(row);
+                };
+                const addAddressRow = address => {
+                    const row = document.createElement('div');
+                    row.className = 'border rounded p-2 mb-2 quick-address-row';
+                    row.dataset.id = address?.id || '';
+                    row.innerHTML = '<div class="form-row">'
+                        + '<div class="col-md-3 mb-2"><label>اسم العنوان</label><input class="form-control address-title" maxlength="80" value="' + escapeHtml(address?.title || 'عنوان جديد') + '"></div>'
+                        + '<div class="col-md-4 mb-2"><label>المدينة</label><select class="form-control address-city"><option value="">اختر المدينة</option>' + cityOptions + '</select></div>'
+                        + '<div class="col-md-5 mb-2"><label>العنوان بالتفصيل</label><textarea class="form-control address-text" rows="2" maxlength="4000">' + escapeHtml(address?.address || '') + '</textarea></div>'
+                        + '<div class="col-12 d-flex justify-content-between align-items-center"><label class="mb-0"><input type="radio" name="quick-primary-address" class="address-primary"> العنوان الافتراضي</label><button type="button" class="btn btn-sm btn-link text-danger remove-address">حذف</button></div>'
+                        + '</div>';
+                    row.querySelector('.address-city').value = String(address?.cityId || '');
+                    row.querySelector('.address-primary').checked = !!address?.isPrimary;
+                    row.querySelector('.remove-address').addEventListener('click', () => row.remove());
+                    addressList.appendChild(row);
+                };
+                phones.forEach(addPhoneRow);
+                addresses.forEach(addAddressRow);
+                if (!phones.length) addPhoneRow({type:'mobile',isPrimary:true});
+                if (!addresses.length) addAddressRow({title:'العنوان الرئيسي',isPrimary:true});
+                $('quick-add-phone').addEventListener('click', () => addPhoneRow({type:'mobile'}));
+                $('quick-add-address').addEventListener('click', () => addAddressRow({title:'عنوان جديد'}));
+            },
             preConfirm: async () => {
+                const phoneRows = Array.from(document.querySelectorAll('.quick-phone-row'));
+                const addressRows = Array.from(document.querySelectorAll('.quick-address-row'));
                 const data = {
                     entity_type: $('quick-customer-type').value,
                     name: $('quick-customer-name').value.trim(),
-                    mobile: $('quick-customer-mobile').value.trim(),
                     email: $('quick-customer-email').value.trim(),
-                    city_id: $('quick-customer-city').value,
-                    address: $('quick-customer-address').value.trim()
+                    phones: phoneRows.map(row => ({
+                        ...(row.dataset.id ? {id:Number(row.dataset.id)} : {}),
+                        number: row.querySelector('.phone-number').value.trim(),
+                        type: row.querySelector('.phone-type').value,
+                        is_whatsapp: row.querySelector('.phone-whatsapp').checked,
+                        is_telegram: row.querySelector('.phone-telegram').checked,
+                        is_primary: row.querySelector('.phone-primary').checked
+                    })),
+                    addresses: addressRows.map(row => ({
+                        ...(row.dataset.id ? {id:Number(row.dataset.id)} : {}),
+                        title: row.querySelector('.address-title').value.trim(),
+                        city_id: row.querySelector('.address-city').value,
+                        address: row.querySelector('.address-text').value.trim(),
+                        is_primary: row.querySelector('.address-primary').checked
+                    }))
                 };
-                if (!data.name || !data.mobile || !data.city_id || !data.address) {
-                    Swal.showValidationMessage('أدخل الاسم ورقم الهاتف والمدينة والعنوان.');
+                if (!data.name || !data.phones.length || data.phones.some(item => !item.number)) {
+                    Swal.showValidationMessage('أدخل اسم العميل ورقم هاتف واحدًا على الأقل.');
                     return false;
                 }
+                if (!data.addresses.length || data.addresses.some(item => !item.title || !item.city_id || !item.address)) {
+                    Swal.showValidationMessage('أدخل عنوانًا واحدًا على الأقل وحدد المدينة لكل عنوان.');
+                    return false;
+                }
+                if (data.phones.filter(item => item.is_primary).length > 1 || data.addresses.filter(item => item.is_primary).length > 1) {
+                    Swal.showValidationMessage('حدد رقمًا افتراضيًا واحدًا وعنوانًا افتراضيًا واحدًا فقط.');
+                    return false;
+                }
+                if (!data.phones.some(item => item.is_primary)) data.phones[0].is_primary = true;
+                if (!data.addresses.some(item => item.is_primary)) data.addresses[0].is_primary = true;
                 try {
                     const response = await fetch(customerId
                         ? updateCustomerUrl.replace('__PARTY__', encodeURIComponent(customerId))
@@ -652,7 +718,14 @@
                             'X-CSRF-TOKEN': csrfToken,
                             'X-Requested-With': 'XMLHttpRequest'
                         },
-                        body: JSON.stringify(data)
+                        body: JSON.stringify(customerId ? data : {
+                            entity_type: data.entity_type,
+                            name: data.name,
+                            mobile: data.phones.find(item => item.type === 'mobile')?.number || data.phones[0].number,
+                            email: data.email,
+                            city_id: data.addresses.find(item => item.is_primary)?.city_id || data.addresses[0].city_id,
+                            address: data.addresses.find(item => item.is_primary)?.address || data.addresses[0].address
+                        })
                     });
                     const payload = await response.json();
                     if (!response.ok) {
@@ -677,42 +750,28 @@
             $('customer_id').appendChild(customerOption);
             customerOptions.push(customerOption);
         }
-        customerOption.textContent = customer.name + ' — ' + customer.mobile;
+        customerOption.textContent = customer.name;
         customerOption.dataset.name = customer.name;
         customerOption.dataset.entityType = customer.entity_type || 'individual';
-        customerOption.dataset.mobile = customer.mobile || '';
+        customerOption.dataset.mobile = customer.mobile || customer.phones?.[0]?.number || '';
         customerOption.dataset.email = customer.email || '';
         customerOption.dataset.address = firstAddress.address || '';
-        customerOption.dataset.search = (customer.name + ' ' + (customer.mobile || '') + ' ' + (customer.phone || '')).toLocaleLowerCase();
         customerPhones[customer.id] = (customer.phones || []).map(item => ({
-            id: String(item.id),
-            number: item.number,
-            type: item.type,
-            isPrimary: !!item.isPrimary,
-            isWhatsapp: !!item.isWhatsapp,
-            isTelegram: !!item.isTelegram
+            id: String(item.id), number: item.number, type: item.type,
+            isPrimary: !!item.isPrimary, isWhatsapp: !!item.isWhatsapp, isTelegram: !!item.isTelegram
         }));
         customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
-            id: String(item.id),
-            title: item.title,
-            address: item.address,
-            city: item.city,
-            cityId: item.city_id,
-            zone: item.zone || '',
-            feeMin: item.feeMin ?? '',
-            feeMax: item.feeMax ?? '',
-            deliveryDays: item.deliveryDays ?? ''
+            id: String(item.id), title: item.title, address: item.address,
+            city: item.city, cityId: item.city_id ?? item.cityId,
+            zone: item.zone || '', feeMin: item.feeMin ?? '',
+            feeMax: item.feeMax ?? '', deliveryDays: item.deliveryDays ?? '',
+            isPrimary: !!item.isPrimary
         }));
-        $('customer-search').value = '';
-        customerOptions.forEach(item => { item.hidden = false; });
         $('customer_id').value = String(customer.id);
-        if (window.jQuery && jQuery.fn.select2) {
-            jQuery('#customer_id').val(String(customer.id)).trigger('change');
-        } else {
-            $('customer_id').dispatchEvent(new Event('change'));
-        }
+        $('customer_id').dispatchEvent(new Event('change'));
         $('edit-customer')?.removeAttribute('disabled');
-        Swal.fire({ icon: 'success', text: customerId ? 'تم تحديث بيانات العميل.' : 'تمت إضافة العميل.', timer: 1400, showConfirmButton: false });
+        await loadCustomerDirectory(1, $('customer-search').value.trim());
+        Swal.fire({ icon: 'success', text: 'تم حفظ بيانات العميل.', timer: 1400, showConfirmButton: false });
     };
 
     $('add-customer')?.addEventListener('click', () => openCustomerEditor());
