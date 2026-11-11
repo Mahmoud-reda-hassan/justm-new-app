@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ShippingZone extends Model
 {
     protected $fillable = [
-        'name_ar', 'name_en', 'shipping_fee_min', 'shipping_fee_max',
+        'name_ar', 'name_en', 'zone_type', 'shipping_fee_min', 'shipping_fee_max',
         'delivery_days', 'shipping_type', 'warehouse_id', 'is_active',
     ];
 
@@ -31,5 +32,10 @@ class ShippingZone extends Model
     public function cities(): HasMany
     {
         return $this->hasMany(City::class);
+    }
+
+    public function countries(): BelongsToMany
+    {
+        return $this->belongsToMany(Country::class, 'shipping_zone_countries')->withTimestamps();
     }
 }
