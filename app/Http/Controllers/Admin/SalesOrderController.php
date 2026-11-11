@@ -91,7 +91,9 @@ class SalesOrderController extends Controller
             ->orderBy('sku')
             ->get();
 
-        return view('admin.sales.orders.create', compact('customers', 'variants'));
+        $cities = City::query()->where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar']);
+
+        return view('admin.sales.orders.create', compact('customers', 'variants', 'cities'));
     }
 
     public function store(Request $request): RedirectResponse
