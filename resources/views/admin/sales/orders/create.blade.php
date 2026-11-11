@@ -33,7 +33,13 @@
 .jm-order-storefront-page .customer-contact-edit{display:flex;align-items:center;justify-content:flex-start;flex:0 0 30px}
 .jm-order-storefront-page .customer-default-check{display:inline-flex;align-items:center;justify-content:center;margin-inline-start:5px;font-size:14px;font-weight:800}
 .jm-order-storefront-page .customer-card-section-header{direction:rtl}
-.jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
+ .jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
+.jm-order-storefront-page #step-products .jm-store-layout{display:block;margin:0}
+.jm-order-storefront-page #step-products .jm-store-products{width:100%;grid-column:auto;grid-row:auto}
+.jm-order-storefront-page #step-review .jm-store-layout{display:block}
+.jm-order-storefront-page #step-review .jm-store-cart{width:100%;position:static}
+.jm-order-storefront-page #step-review .jm-store-bottom{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:767.98px){.jm-order-storefront-page #step-review .jm-store-bottom{grid-template-columns:1fr}}
 @media(max-width:1100px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:1fr}}
 .jm-order-storefront-page .jm-store-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:16px;align-items:start}
@@ -144,82 +150,105 @@
     </section>
 
     <section class="card card-outline card-primary order-step" id="step-products">
-      <div class="card-header"><h3 class="card-title">2. اختيار المنتجات</h3></div>
-      <div class="card-body">
-        <div class="form-row">
-          <div class="form-group col-md-7"><input class="form-control" type="search" id="store-product-search" placeholder="ابحث باسم المنتج أو الكود أو المواصفات"></div>
-          <div class="form-group col-md-5"><select class="form-control" id="store-category-filter"><option value="">كل الأقسام</option>@foreach($variants->pluck("product.category.name")->filter()->unique()->sort() as $categoryName)<option value="{{ e($categoryName) }}">{{ $categoryName }}</option>@endforeach</select></div>
+        <div class="card-header"><h3 class="card-title">2. اختيار المنتجات</h3></div>
+        <div class="card-body">
+            <div class="jm-client-step-intro">
+                <h5>اختيار المنتجات</h5>
+                <p>ابحث عن المنتج أو تصفح الأقسام، ثم افتح تفاصيله لاختيار المواصفات والكمية وسعر البيع.</p>
+            </div>
+            <div class="jm-store-layout" dir="rtl">
+                <section class="jm-store-products" aria-label="كتالوج المنتجات">
+                    <div class="jm-store-section-head">
+                        <div><h5>اختار المنتجات</h5><p>ابحث عن المنتج أو تصفح الأقسام</p></div>
+                        <span class="jm-store-count" id="jmProductCount">{{ $catalogProducts->count() }} منتج</span>
+                    </div>
+                    <div class="jm-store-tools">
+                        <div class="jm-store-search"><i class="fas fa-search"></i><input id="jmStoreSearch" type="search" placeholder="ابحث باسم المنتج أو الكود أو المواصفات..."></div>
+                        <div class="jm-store-categories" id="jmStoreCategories"><button type="button" class="active" data-category="all">كل الأقسام</button></div>
+                    </div>
+                    <div id="jmStoreProductGrid" class="jm-store-product-grid">
+                        <div class="jm-store-loading"><i class="fas fa-spinner fa-spin"></i> جارٍ تجهيز المنتجات...</div>
+                    </div>
+                    <div id="jmProductDetails" class="jm-product-details" hidden></div>
+                    <div class="jm-step1-selection-status">
+                        <span><i class="fas fa-shopping-basket"></i> المنتجات المختارة</span>
+                        <strong><span id="jmStep1CartCount">0</span> قطعة</strong>
+                        <small>سيتم عرض تفاصيل السلة في خطوة مراجعة الطلب.</small>
+                    </div>
+                </section>
+            </div>
         </div>
-        <div class="jm-store-layout" dir="rtl">
-          <section class="jm-store-products"><div class="d-flex justify-content-between mb-3"><strong>كتالوج المنتجات</strong><small class="text-muted" id="store-product-count">{{ $variants->count() }} اختيار متاح</small></div>
-            <div class="jm-store-product-grid" id="store-product-grid">
-            @foreach($variants as $variant)
-              <article class="jm-store-product" data-product-card data-search="{{ e($variant->product->name." ".$variant->sku." ".$variant->variant_name." ".$variant->attributeValues->pluck("value")->implode(" ")) }}" data-category="{{ e($variant->product->category->name ?? "") }}">
-                <div class="jm-store-product-image">@if($variant->product->image_path)<img src="{{ \Illuminate\Support\Facades\Storage::url($variant->product->image_path) }}" alt="{{ e($variant->product->name) }}" loading="lazy">@else<span class="text-muted small">لا توجد صورة</span>@endif</div>
-                <div class="p-3"><strong>{{ $variant->product->name }}</strong><div class="small text-muted">{{ $variant->product->category->name ?? "بدون قسم" }}</div>
-                  <div class="small mt-2">الكود: <b dir="ltr">{{ $variant->sku }}</b></div><div class="small text-muted">{{ $variant->attributeValues->pluck("value")->implode(" / ") }}</div>
-                  <div class="small mt-2">سعر القائمة: <b>{{ number_format((float)$variant->list_price,2) }}</b> ج.م</div>
-                  <div class="form-row mt-2"><div class="col-5"><label class="small">الكمية</label><input class="form-control form-control-sm" type="number" min="0.001" step="0.001" value="1" data-card-quantity></div><div class="col-7"><label class="small">سعر البيع</label><input class="form-control form-control-sm" type="number" min="{{ $variant->minimum_sale_price }}" max="{{ $variant->list_price }}" step="0.01" value="{{ $variant->list_price }}" data-card-price></div></div>
-                  <button type="button" class="btn btn-primary btn-block mt-3" data-add-variant data-id="{{ $variant->id }}">إضافة للسلة</button>
-                </div>
-              </article>
-            @endforeach
-            </div><div class="text-center text-muted py-4" id="store-no-products" hidden>لا توجد منتجات مطابقة.</div>
-          </section>
-          <aside class="jm-store-cart"><div class="d-flex justify-content-between"><strong><i class="fas fa-shopping-cart ml-1"></i> سلة الطلب</strong><span class="badge badge-primary" id="store-cart-count">0</span></div><div id="store-cart-items" class="mt-3">السلة فارغة.</div><hr><div class="d-flex justify-content-between"><span>قيمة البيع</span><b id="store-cart-subtotal">0.00</b></div><div class="d-flex justify-content-between"><span>إجمالي الخصم</span><b id="store-cart-discount">0.00</b></div></aside>
+        <div class="card-footer order-actions">
+            <button type="button" class="btn btn-primary" id="to-review">مراجعة أمر البيع <i class="fas fa-arrow-left mr-1"></i></button>
         </div>
-        <div class="d-none"><select id="variant-select"><option value="">اختر كود المنتج</option>@foreach($variants as $variant)<option value="{{ $variant->id }}" data-name="{{ e($variant->product->name) }}" data-sku="{{ e($variant->sku) }}" data-list="{{ $variant->list_price }}" data-min="{{ $variant->minimum_sale_price }}">{{ $variant->product->name }}</option>@endforeach</select><input id="item-quantity" value="1"><input id="item-price"><div id="price-hint"></div><button type="button" id="add-item">إضافة</button></div>
-      </div>
-      <div class="card-footer order-actions"><button type="button" class="btn btn-primary" id="to-review">مراجعة أمر البيع <i class="fas fa-arrow-left mr-1"></i></button></div>
     </section>
     <section class="card card-outline card-primary order-step" id="step-review">
         <div class="card-header"><h3 class="card-title">3. مراجعة الطلب</h3></div>
         <div class="card-body">
-            <p class="text-muted">راجع بيانات الشحن وتفاصيل البنود والأسعار والخصومات قبل الحفظ.</p>
-            <div class="card card-outline card-info mb-3">
-                <div class="card-header"><h3 class="card-title">بيانات الشحن</h3></div>
-                <div class="card-body">
-                    <div class="form-row">
-                        <div class="form-group col-md-4">
-                            <label for="shipping_fee">رسوم الشحن</label>
-                            <input class="form-control" type="number" name="shipping_fee" id="shipping_fee" min="0" step="0.01" value="0">
-                            <small class="form-text text-muted" id="shipping-route-hint">تُحدد الرسوم حسب عنوان التوصيل.</small>
-                        </div>
-                        <div class="form-group col-md-8">
+            <div class="jm-client-step-intro">
+                <h5>مراجعة السلة وإتمام الحفظ</h5>
+                <p>راجع بيانات العميل والمنتجات ورسوم الشحن وموعده قبل حفظ أمر البيع.</p>
+            </div>
+            <div class="jm-client-review" id="review-customer-card">
+                <div class="jm-client-review-head"><h5>بيانات العميل</h5><span>بيانات التواصل والتوصيل المختارة</span></div>
+                <p class="mb-0"><strong id="review-customer-name">—</strong><br><span id="review-customer-phone">—</span><br><span id="review-customer-address">—</span></p>
+            </div>
+            <div class="jm-store-layout" dir="rtl">
+                <aside class="jm-store-cart" aria-label="سلة الطلب">
+                    <div class="jm-store-cart-head"><h5><i class="fas fa-shopping-cart"></i> سلة الطلب</h5><span id="store-cart-count">0</span></div>
+                    <div id="store-cart-items" class="jm-cart-items" aria-live="polite">
+                        <div class="jm-cart-empty-inline"><i class="fas fa-basket-shopping"></i><strong>السلة فارغة</strong><span>ارجع لاختيار المنتجات وأضف الأصناف المطلوبة.</span></div>
+                    </div>
+                </aside>
+            </div>
+            <div class="jm-store-bottom">
+                <div class="col-lg-4">
+                    <section class="jm-order-summary">
+                        <p class="lead">ملخص الحساب</p>
+                        <table class="table">
+                            <tr><th style="width:48%">قيمة المنتجات:</th><td id="subtotal">0.00</td></tr>
+                            <tr><th>إجمالي الخصم:</th><td id="discount-total">0.00</td></tr>
+                            <tr>
+                                <th>قيمة الشحن:</th>
+                                <td>
+                                    <input class="form-control form-control-sm" type="number" name="shipping_fee" id="shipping_fee" min="0" step="0.01" value="0" aria-describedby="shipping-route-hint">
+                                    <small class="form-text text-muted" id="shipping-route-hint">تُحدد الرسوم حسب عنوان التوصيل.</small>
+                                </td>
+                            </tr>
+                            <tr><th>الإجمالي النهائي:</th><td id="grand-total">0.00</td></tr>
+                        </table>
+                    </section>
+                </div>
+                <div class="col-lg-4">
+                    <section class="jm-order-extra">
+                        <div class="jm-order-extra-head"><b><i class="fas fa-truck"></i> بيانات التوصيل وموعد الشحن</b></div>
+                        <div class="form-group">
                             <label for="shipping_address">عنوان التوصيل (يمكن تعديله لهذا الطلب)</label>
                             <textarea class="form-control" name="shipping_address" id="shipping_address" rows="2" maxlength="2000"></textarea>
                         </div>
-                        <div class="form-group col-md-4 mb-0">
+                        <div class="form-group mb-0">
                             <label for="shipping_date">موعد الشحن المتوقع</label>
                             <input class="form-control" type="date" name="shipping_date" id="shipping_date" disabled>
                             <small class="form-text text-muted">يمكن تأجيل الموعد، ولا يمكن اختياره قبل مدة التوصيل المحددة للمنطقة.</small>
                         </div>
-                    </div>
+                    </section>
                 </div>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover table-striped">
-                    <thead><tr><th>المنتج</th><th>الكمية</th><th>سعر القائمة</th><th>سعر البيع</th><th>الخصم</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead>
-                    <tbody id="review-items"></tbody>
-                </table>
-            </div>
-            <div class="row order-totals">
-                <div class="col-md-3 col-6"><div class="description-block border-left"><span class="description-text">قيمة البيع</span><h5 class="description-header" id="subtotal">0.00</h5></div></div>
-                <div class="col-md-3 col-6"><div class="description-block border-left"><span class="description-text">إجمالي الخصم</span><h5 class="description-header" id="discount-total">0.00</h5></div></div>
-                <div class="col-md-3 col-6"><div class="description-block border-left"><span class="description-text">الشحن</span><h5 class="description-header" id="shipping-total">0.00</h5></div></div>
-                <div class="col-md-3 col-6"><div class="description-block"><span class="description-text">الإجمالي النهائي</span><h5 class="description-header text-primary" id="grand-total">0.00</h5></div></div>
-            </div>
-            <div class="form-group mt-3">
-                <label for="order-notes">ملاحظات</label>
-                <textarea class="form-control" id="order-notes" name="notes" rows="2" maxlength="5000"></textarea>
+                <div class="col-lg-4">
+                    <section class="jm-order-extra">
+                        <div class="jm-order-extra-head"><b><i class="fas fa-clipboard-list"></i> ملاحظات العميل</b></div>
+                        <div class="form-group mb-0">
+                            <label for="order-notes">ملاحظات</label>
+                            <textarea class="form-control" id="order-notes" name="notes" rows="5" maxlength="5000"></textarea>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
         <div class="card-footer order-actions">
-            <button type="button" class="btn btn-default" id="back-products"><i class="fas fa-arrow-right ml-1"></i> رجوع للمنتجات</button>
             <button type="submit" class="btn btn-success" id="save-order"><i class="fas fa-save ml-1"></i> حفظ أمر البيع كمسودة</button>
         </div>
     </section>
-</form>
+
 @endsection
 
 @push('scripts')
@@ -989,125 +1018,233 @@
 
 
     const steps = ['step-customer', 'step-products', 'step-review'];
+    const catalogProducts = @json($catalogProducts);
     const items = [];
     const money = value => (Number(value) || 0).toFixed(2);
-    const renderStoreCart = () => {
-      const holder = $("store-cart-items");
-      if (!items.length) { holder.innerHTML = '<div class="text-muted text-center py-3">السلة فارغة.</div>'; }
-      else { holder.innerHTML = items.map((item,index) => '<div class="border-bottom py-2"><strong>'+String(item.name).replace(/[&<>]/g,"")+'</strong><div class="small text-muted">'+item.sku+' — '+item.quantity+' × '+money(item.price)+'</div><div class="d-flex justify-content-between align-items-center"><b>'+money(item.quantity*item.price)+'</b><span><button type="button" class="btn btn-xs btn-outline-primary" data-cart-edit="'+index+'">تعديل</button> <button type="button" class="btn btn-xs btn-outline-danger" data-cart-remove="'+index+'">حذف</button></span></div></div>').join(""); }
-      $("store-cart-count").textContent = items.reduce((sum,item)=>sum+item.quantity,0);
-      $("store-cart-subtotal").textContent = money(items.reduce((sum,item)=>sum+item.price*item.quantity,0));
-      $("store-cart-discount").textContent = money(items.reduce((sum,item)=>sum+(item.list-item.price)*item.quantity,0));
-    };
-    const filterStoreCatalog = () => {
-      const term=$("store-product-search").value.trim().toLocaleLowerCase("ar"), category=$("store-category-filter").value; let count=0;
-      document.querySelectorAll("[data-product-card]").forEach(card=>{const match=(!term||card.dataset.search.toLocaleLowerCase("ar").includes(term))&&(!category||card.dataset.category===category);card.hidden=!match;if(match)count++;});
-      $("store-product-count").textContent=count+" اختيار متاح"; $("store-no-products").hidden=count>0;
-    };
-    $("store-product-search").addEventListener("input",filterStoreCatalog);
-    $("store-category-filter").addEventListener("change",filterStoreCatalog);
-    $("store-product-grid").addEventListener("click",event=>{
-      const button=event.target.closest("[data-add-variant]"); if(!button)return;
-      const card=button.closest("[data-product-card]"), variantId=button.dataset.id, option=$("variant-select").querySelector('option[value="'+variantId+'"]');
-      const quantity=Number(card.querySelector("[data-card-quantity]").value), price=Number(card.querySelector("[data-card-price]").value);
-      if(!option||!(quantity>0)||!Number.isFinite(quantity)){Swal.fire({icon:"warning",text:"أدخل كمية صحيحة."});return;}
-      if(!Number.isFinite(price)||price<Number(option.dataset.min)||price>Number(option.dataset.list)){Swal.fire({icon:"warning",text:"سعر البيع خارج النطاق المسموح."});return;}
-      $("variant-select").value=variantId; $("item-quantity").value=String(quantity); $("item-price").value=String(price); $("add-item").click();
-    });
-    $("store-cart-items").addEventListener("click",event=>{
-      const edit=event.target.closest("[data-cart-edit]"), remove=event.target.closest("[data-cart-remove]");
-      if(remove){items.splice(Number(remove.dataset.cartRemove),1);renderReview();}
-      if(edit){const row=$("review-items").children[Number(edit.dataset.cartEdit)];row?.querySelector(".edit-item")?.click();}
-    });
+    const escape = escapeHtml;
+    let activeProduct = null;
+    let activeVariant = null;
+    let editingIndex = null;
+    let activeCategory = 'all';
 
-    const show = id => {
-        steps.forEach(step => $(step).classList.toggle('active', step === id));
-        document.querySelectorAll('[data-order-step]').forEach((step, index) => {
-            const currentIndex = steps.indexOf(id);
-            step.classList.toggle('active', step.dataset.orderStep === id);
-            step.classList.toggle('done', index < currentIndex);
-        });
-    };
-    const selected = () => $('variant-select').selectedOptions[0];
+    const productSearchText = product => [
+        product.name, product.category,
+        ...(product.variants || []).flatMap(variant => [
+            variant.sku, variant.variant_name,
+            ...(variant.attributes || []).map(attribute => attribute.value)
+        ])
+    ].join(' ').toLocaleLowerCase('ar');
 
-    const renderHint = () => {
-        const option = selected();
-        if (!option || !option.value) {
-            $('price-hint').textContent = 'اختر كود المنتج لعرض الحد الأدنى وسعر القائمة.';
-            $('item-price').value = '';
+    const renderCategories = () => {
+        const names = [...new Set(catalogProducts.map(product => product.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+        $('jmStoreCategories').innerHTML = '<button type="button" class="active" data-category="all">كل الأقسام</button>'
+            + names.map(name => '<button type="button" data-category="' + escape(name) + '">' + escape(name) + '</button>').join('');
+    };
+
+    const renderCatalog = () => {
+        const term = $('jmStoreSearch').value.trim().toLocaleLowerCase('ar');
+        const filtered = catalogProducts.filter(product =>
+            (activeCategory === 'all' || product.category === activeCategory)
+            && (!term || productSearchText(product).includes(term))
+        );
+        $('jmProductCount').textContent = filtered.length + ' من ' + catalogProducts.length + ' منتج';
+        if (!filtered.length) {
+            $('jmStoreProductGrid').innerHTML = '<div class="jm-store-empty-results"><i class="fas fa-search"></i><strong>لا توجد نتائج مطابقة</strong><span>جرّب اسمًا آخر أو اختر قسمًا مختلفًا.</span></div>';
             return;
         }
-        $('item-price').value = option.dataset.list;
-        $('price-hint').textContent = 'الحد الأدنى: ' + money(option.dataset.min) + ' — سعر القائمة: ' + money(option.dataset.list);
+        $('jmStoreProductGrid').innerHTML = filtered.map(product => {
+            const prices = product.variants.map(variant => Number(variant.list_price) || 0);
+            const min = Math.min(...prices), max = Math.max(...prices);
+            const priceText = min === max ? money(min) : money(min) + ' - ' + money(max);
+            const image = product.image || '/img/product-default-3d.svg';
+            return '<article class="jm-store-product">'
+                + '<div class="jm-store-product-image"><img src="' + escape(image) + '" alt="' + escape(product.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div>'
+                + '<div class="jm-store-product-body"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
+                + '<div class="jm-store-product-category">' + escape(product.category || 'بدون قسم') + '</div>'
+                + '<div class="jm-store-product-meta"><span>' + product.variants.length + ' اختيار متاح</span><span class="jm-store-product-price">' + priceText + ' <small>ج.م</small></span></div>'
+                + '<button type="button" class="jm-store-add" data-open-product="' + escape(product.id) + '"><i class="fas fa-cart-plus"></i> تفاصيل وإضافة</button></div></article>';
+        }).join('');
+    };
+
+    const closeProductDetails = () => {
+        $('jmProductDetails').hidden = true;
+        $('jmProductDetails').innerHTML = '';
+        $('jmStoreProductGrid').hidden = false;
+        document.querySelector('.jm-store-tools').hidden = false;
+        document.querySelector('.jm-store-section-head').hidden = false;
+        activeProduct = null;
+        activeVariant = null;
+        editingIndex = null;
+    };
+
+    const openProductDetails = (productId, editIndex = null) => {
+        const product = catalogProducts.find(item => String(item.id) === String(productId));
+        if (!product) return;
+        activeProduct = product;
+        editingIndex = editIndex;
+        activeVariant = null;
+        const groups = new Map();
+        product.variants.forEach(variant => (variant.attributes || []).forEach(attribute => {
+            if (!groups.has(String(attribute.group_id))) {
+                groups.set(String(attribute.group_id), {id:String(attribute.group_id), name:attribute.group_name, values:new Map()});
+            }
+            groups.get(String(attribute.group_id)).values.set(String(attribute.value_id), attribute.value);
+        }));
+        const groupRows = [...groups.values()];
+        const firstImage = product.image || '/img/product-default-3d.svg';
+        const selectors = groupRows.map(group =>
+            '<div class="form-group"><label>' + escape(group.name) + '</label><select class="form-control jm-variant-select" data-group-id="' + escape(group.id) + '"><option value="">اختر ' + escape(group.name) + '</option>'
+            + [...group.values.entries()].map(([id,value])=>'<option value="' + escape(id) + '">' + escape(value) + '</option>').join('')
+            + '</select></div>'
+        ).join('');
+        const existing = editIndex !== null ? items[editIndex] : null;
+        $('jmStoreProductGrid').hidden = true;
+        document.querySelector('.jm-store-tools').hidden = true;
+        document.querySelector('.jm-store-section-head').hidden = true;
+        $('jmProductDetails').hidden = false;
+        $('jmProductDetails').innerHTML =
+            '<div class="jm-detail-top"><button type="button" class="btn btn-default jm-detail-back"><i class="fas fa-arrow-right"></i> رجوع للمنتجات</button><span class="jm-detail-step">تفاصيل المنتج</span></div>'
+            + '<div class="row jm-detail-layout" dir="rtl"><div class="col-lg-6"><div class="jm-gallery"><div class="jm-gallery-main"><img id="jmGalleryMain" src="' + escape(firstImage) + '" alt="' + escape(product.name) + '" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div></div></div>'
+            + '<div class="col-lg-6"><div class="jm-detail-info"><div class="jm-detail-category">' + escape(product.category || '') + '</div><h3>' + escape(product.name) + '</h3><p class="jm-detail-description">' + escape(product.description || '') + '</p><div class="jm-detail-divider"></div>'
+            + (groupRows.length ? '<h5>اختر مواصفات المنتج</h5><div class="jm-detail-variants">' + selectors + '</div>' : '')
+            + '<div id="jmVariantStatus" class="jm-variant-status" role="status">' + (groupRows.length ? 'اختر جميع المواصفات لعرض السعر.' : '') + '</div>'
+            + '<div class="jm-detail-controls" id="jmDetailControls" hidden><div class="jm-price-range-info" id="jmPriceRangeInfo"></div><div class="row"><div class="col-12"><label for="jmDetailPrice">سعر البيع النهائي للوحدة</label><input id="jmDetailPrice" class="form-control" type="number" min="0" step="0.01"></div>'
+            + '<div class="col-6 mt-3"><label>الكمية المطلوبة</label><div class="input-group"><div class="input-group-prepend"><button type="button" class="btn btn-outline-secondary" id="jmQtyMinus">−</button></div><input id="jmDetailQty" class="form-control text-center" type="number" min="0.001" step="0.001" value="1"><div class="input-group-append"><button type="button" class="btn btn-outline-secondary" id="jmQtyPlus">+</button></div></div></div>'
+            + '<div class="col-6 mt-3"><label>كود المنتج</label><div class="jm-stock-value" id="jmDetailSku">—</div></div></div>'
+            + '<div class="jm-detail-total"><span>إجمالي الصنف بعد الخصم</span><strong id="jmDetailTotal">0.00 ج.م</strong></div></div>'
+            + '<div class="jm-detail-actions"><button type="button" id="jmAddConfiguredProduct" class="btn btn-primary btn-lg" disabled><i class="fas fa-cart-plus"></i> ' + (existing ? 'حفظ التعديلات' : 'إضافة إلى السلة') + '</button></div></div></div></div>';
+
+        if (groupRows.length) {
+            $('jmProductDetails').querySelectorAll('.jm-variant-select').forEach(select => select.addEventListener('change', resolveVariant));
+        } else {
+            activateVariant(product.variants[0], existing);
+        }
+        if (existing) {
+            groupRows.forEach(group => {
+                const attribute = existing.attributes.find(item => String(item.group_id) === group.id);
+                const select = $('jmProductDetails').querySelector('[data-group-id="' + group.id + '"]');
+                if (select && attribute) select.value = String(attribute.value_id);
+            });
+            resolveVariant();
+        }
+        $('jmProductDetails').querySelector('#jmAddConfiguredProduct').addEventListener('click', commitConfiguredProduct);
+        $('jmProductDetails').querySelector('#jmDetailPrice').addEventListener('input', updateDetailTotal);
+        $('jmProductDetails').querySelector('#jmDetailQty').addEventListener('input', updateDetailTotal);
+        $('jmProductDetails').querySelector('.jm-detail-back').addEventListener('click', closeProductDetails);
+        $('jmProductDetails').querySelector('#jmQtyMinus').addEventListener('click', () => {
+            $('jmDetailQty').value = Math.max(.001, (Number($('jmDetailQty').value) || 1) - 1);
+            updateDetailTotal();
+        });
+        $('jmProductDetails').querySelector('#jmQtyPlus').addEventListener('click', () => {
+            $('jmDetailQty').value = (Number($('jmDetailQty').value) || 0) + 1;
+            updateDetailTotal();
+        });
+    };
+
+    const resolveVariant = () => {
+        if (!activeProduct) return;
+        const selected = {};
+        let missing = false;
+        $('jmProductDetails').querySelectorAll('.jm-variant-select').forEach(select => {
+            selected[select.dataset.groupId] = select.value;
+            if (!select.value) missing = true;
+        });
+        if (missing) {
+            $('jmDetailControls').hidden = true;
+            $('jmVariantStatus').textContent = 'اختر جميع المواصفات لعرض السعر.';
+            $('jmAddConfiguredProduct').disabled = true;
+            return;
+        }
+        const variant = activeProduct.variants.find(item =>
+            (item.attributes || []).length === Object.keys(selected).length
+            && item.attributes.every(attribute => selected[String(attribute.group_id)] === String(attribute.value_id))
+        );
+        if (!variant) {
+            $('jmDetailControls').hidden = true;
+            $('jmVariantStatus').textContent = 'التركيبة المحددة غير متاحة.';
+            $('jmVariantStatus').classList.add('text-danger');
+            $('jmAddConfiguredProduct').disabled = true;
+            return;
+        }
+        activateVariant(variant, editingIndex !== null ? items[editingIndex] : null);
+    };
+
+    const activateVariant = (variant, existing = null) => {
+        if (!variant) return;
+        activeVariant = variant;
+        $('jmDetailControls').hidden = false;
+        $('jmVariantStatus').textContent = 'تم تحديد كود المنتج. أدخل الكمية وسعر البيع.';
+        $('jmVariantStatus').classList.remove('text-danger');
+        $('jmDetailSku').textContent = variant.sku;
+        $('jmDetailPrice').min = variant.minimum_sale_price;
+        $('jmDetailPrice').max = variant.list_price;
+        $('jmDetailPrice').value = existing && String(existing.id) === String(variant.id) ? existing.price : variant.list_price;
+        $('jmDetailQty').value = existing && String(existing.id) === String(variant.id) ? existing.quantity : 1;
+        $('jmPriceRangeInfo').textContent = 'السعر المسموح من ' + money(variant.minimum_sale_price) + ' إلى ' + money(variant.list_price) + ' جنيه.';
+        updateDetailTotal();
+    };
+
+    const updateDetailTotal = () => {
+        if (!activeVariant) return;
+        const price = Number($('jmDetailPrice').value);
+        const quantity = Number($('jmDetailQty').value);
+        const validPrice = Number.isFinite(price) && price >= Number(activeVariant.minimum_sale_price) && price <= Number(activeVariant.list_price);
+        const validQuantity = Number.isFinite(quantity) && quantity > 0;
+        $('jmDetailPrice').classList.toggle('is-invalid', !validPrice);
+        $('jmDetailTotal').textContent = validPrice && validQuantity ? money(price * quantity) + ' ج.م' : '0.00 ج.م';
+        $('jmAddConfiguredProduct').disabled = !(validPrice && validQuantity);
+        if (!validPrice) $('jmVariantStatus').textContent = 'سعر البيع خارج النطاق المسموح.';
+        else if (!validQuantity) $('jmVariantStatus').textContent = 'أدخل كمية صحيحة أكبر من صفر.';
+        else $('jmVariantStatus').textContent = 'السعر والكمية صحيحان.';
+    };
+
+    const renderCart = () => {
+        const count = items.reduce((sum,item)=>sum+Number(item.quantity||0),0);
+        $('store-cart-count').textContent = Number.isInteger(count) ? count : count.toFixed(2);
+        $('jmStep1CartCount').textContent = Number.isInteger(count) ? count : count.toFixed(2);
+        if (!items.length) {
+            $('store-cart-items').innerHTML = '<div class="jm-cart-empty-inline"><i class="fas fa-basket-shopping"></i><strong>السلة فارغة</strong><span>ارجع لاختيار المنتجات وأضف الأصناف المطلوبة.</span></div>';
+            return;
+        }
+        $('store-cart-items').innerHTML = items.map((item,index) => {
+            const options = (item.attributes || []).map(attribute=>attribute.group_name + ': ' + attribute.value).join(' · ');
+            const line = Number(item.price) * Number(item.quantity);
+            return '<article class="jm-cart-item"><div class="jm-cart-item-image"><img src="' + escape(item.image || '/img/product-default-3d.svg') + '" alt="' + escape(item.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div>'
+                + '<div class="jm-cart-item-main"><div class="jm-cart-item-title-row"><div><strong>' + escape(item.name) + '</strong><small>' + escape(item.category || '') + '</small></div><span class="jm-cart-item-code">' + escape(item.sku) + '</span></div>'
+                + (options ? '<div class="jm-cart-item-options">' + escape(options) + '</div>' : '')
+                + '<div class="jm-cart-item-data"><span>الكمية <b>' + escape(item.quantity) + '</b></span><span>سعر الوحدة <b>' + money(item.price) + ' ج.م</b></span>'
+                + (Number(item.list) > Number(item.price) ? '<span>خصم الوحدة <b>' + money(Number(item.list)-Number(item.price)) + ' ج.م</b></span>' : '')
+                + '<strong class="jm-cart-item-total">' + money(line) + ' ج.م</strong></div>'
+                + '<div class="jm-cart-item-actions"><button type="button" data-edit-cart="' + index + '" class="btn"><i class="fas fa-pen"></i> تعديل</button><button type="button" data-delete-cart="' + index + '" class="btn jm-delete-cart-product"><i class="fas fa-trash-alt"></i> حذف</button></div></div></article>';
+        }).join('');
+    };
+
+    const renderCustomerSummary = () => {
+        const customerId = $('customer_id').value;
+        const customer = $('customer_id').selectedOptions[0];
+        const phone = (customerPhones[customerId] || []).find(item => String(item.id) === $('shipping_phone_id').value);
+        const address = (customerAddresses[customerId] || []).find(item => String(item.id) === $('shipping_address_id').value);
+        $('review-customer-name').textContent = customer?.textContent || '—';
+        $('review-customer-phone').textContent = phone?.number || '—';
+        $('review-customer-address').textContent = address ? [address.title,address.city,address.address].filter(Boolean).join(' — ') : '—';
     };
 
     const renderReview = () => {
-        const body = $('review-items');
-        body.innerHTML = '';
-        let subtotal = 0;
-        let discountTotal = 0;
-
-        items.forEach((item, index) => {
-            const discount = (item.list - item.price) * item.quantity;
-            const line = item.price * item.quantity;
-            subtotal += line;
-            discountTotal += discount;
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = '<td><strong></strong><br><small class="text-muted"></small></td><td></td><td></td><td></td><td></td><td></td><td><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-primary edit-item">تعديل</button><button type="button" class="btn btn-outline-danger remove-item">حذف</button></div></td>';
-            tr.children[0].querySelector('strong').textContent = item.name;
-            tr.children[0].querySelector('small').textContent = item.sku;
-            [item.quantity, money(item.list), money(item.price), money(discount), money(line)].forEach((value, cell) => {
-                tr.children[cell + 1].textContent = value;
-            });
-
-            tr.querySelector('.edit-item').addEventListener('click', async () => {
-                const result = await Swal.fire({
-                    title: 'تعديل بند الطلب',
-                    html: '<div class="text-right"><label for="swal-item-quantity">الكمية</label><input id="swal-item-quantity" class="swal2-input" type="number" min="0.001" step="0.001" value="' + item.quantity + '"><label for="swal-item-price">سعر البيع</label><input id="swal-item-price" class="swal2-input" type="number" min="0" step="0.01" value="' + item.price + '"><small class="text-muted d-block">السعر المسموح من ' + money(item.min) + ' إلى ' + money(item.list) + '</small></div>',
-                    focusConfirm: false,
-                    showCancelButton: true,
-                    confirmButtonText: 'حفظ التعديل',
-                    cancelButtonText: 'إلغاء',
-                    preConfirm: () => {
-                        const quantity = Number($('swal-item-quantity').value);
-                        const price = Number($('swal-item-price').value);
-                        if (!(quantity > 0) || !Number.isFinite(quantity)) {
-                            Swal.showValidationMessage('أدخل كمية صحيحة.');
-                            return false;
-                        }
-                        if (!Number.isFinite(price) || price < item.min || price > item.list) {
-                            Swal.showValidationMessage('سعر البيع خارج النطاق المسموح.');
-                            return false;
-                        }
-                        return { quantity, price };
-                    }
-                });
-                if (result.isConfirmed) {
-                    item.quantity = result.value.quantity;
-                    item.price = result.value.price;
-                    renderReview();
-                }
-            });
-
-            tr.querySelector('.remove-item').addEventListener('click', () => {
-                items.splice(index, 1);
-                renderReview();
-                if (!items.length) show('step-products');
-            });
-            body.appendChild(tr);
+        let subtotal = 0, discountTotal = 0;
+        items.forEach(item => {
+            subtotal += Number(item.price) * Number(item.quantity);
+            discountTotal += (Number(item.list) - Number(item.price)) * Number(item.quantity);
         });
-
         const shipping = Number($('shipping_fee').value) || 0;
         $('subtotal').textContent = money(subtotal);
         $('discount-total').textContent = money(discountTotal);
-        $('shipping-total').textContent = money(shipping);
         $('grand-total').textContent = money(subtotal + shipping);
-        renderStoreCart();
+        renderCart();
+        renderCustomerSummary();
 
         document.querySelectorAll('#order-form input[name^="items["]').forEach(input => input.remove());
-        items.forEach((item, index) => {
-            [['product_variant_id', item.id], ['quantity', item.quantity], ['sale_price', item.price]].forEach(([key, value]) => {
+        items.forEach((item,index) => {
+            [['product_variant_id',item.id],['quantity',item.quantity],['sale_price',item.price]].forEach(([key,value]) => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'items[' + index + '][' + key + ']';
@@ -1117,109 +1254,118 @@
         });
     };
 
-    $('customer_id').addEventListener('change', () => {
-        const option = $('customer_id').selectedOptions[0];
-        $('shipping_address').value = option?.dataset.address || '';
+    $('jmStoreSearch').addEventListener('input', renderCatalog);
+    $('jmStoreCategories').addEventListener('click', event => {
+        const button = event.target.closest('[data-category]');
+        if (!button) return;
+        activeCategory = button.dataset.category;
+        $('jmStoreCategories').querySelectorAll('button').forEach(item=>item.classList.toggle('active',item===button));
+        renderCatalog();
     });
-    $('variant-select').addEventListener('change', renderHint);
-    if (window.jQuery && jQuery.fn.select2) {
-        $('.select2').select2({ dir: 'rtl', width: '100%' });
-    }
+    $('jmStoreProductGrid').addEventListener('click', event => {
+        const button = event.target.closest('[data-open-product]');
+        if (button) openProductDetails(button.dataset.openProduct);
+    });
+    $('store-cart-items').addEventListener('click', event => {
+        const edit = event.target.closest('[data-edit-cart]');
+        const remove = event.target.closest('[data-delete-cart]');
+        if (edit) {
+            const index = Number(edit.dataset.editCart);
+            const item = items[index];
+            if (item) openProductDetails(item.product_id, index);
+        }
+        if (remove) {
+            items.splice(Number(remove.dataset.deleteCart),1);
+            renderReview();
+        }
+    });
+
+    const show = id => {
+        steps.forEach(step => $(step).classList.toggle('active',step===id));
+        document.querySelectorAll('[data-order-step]').forEach((step,index)=>{
+            const currentIndex=steps.indexOf(id);
+            step.classList.toggle('active',step.dataset.orderStep===id);
+            step.classList.toggle('done',index<currentIndex);
+        });
+    };
+
+    const commitConfiguredProduct = () => {
+        if (!activeVariant) return;
+        const quantity = Number($('jmDetailQty').value);
+        const price = Number($('jmDetailPrice').value);
+        if (!(quantity > 0) || !Number.isFinite(quantity) || !Number.isFinite(price)
+            || price < Number(activeVariant.minimum_sale_price) || price > Number(activeVariant.list_price)) {
+            updateDetailTotal();
+            return;
+        }
+        const item = {
+            id:String(activeVariant.id),
+            product_id:String(activeProduct.id),
+            name:activeProduct.name,
+            category:activeProduct.category,
+            image:activeProduct.image,
+            sku:activeVariant.sku,
+            variant_name:activeVariant.variant_name,
+            attributes:activeVariant.attributes || [],
+            list:Number(activeVariant.list_price),
+            min:Number(activeVariant.minimum_sale_price),
+            quantity,
+            price
+        };
+        if (editingIndex !== null) {
+            items[editingIndex] = item;
+        } else {
+            const existingIndex = items.findIndex(row=>String(row.id)===item.id);
+            if (existingIndex >= 0) {
+                items[existingIndex].quantity = Number(items[existingIndex].quantity) + quantity;
+                items[existingIndex].price = price;
+            } else {
+                items.push(item);
+            }
+        }
+        closeProductDetails();
+        renderReview();
+    };
+
+    renderCategories();
+    renderCatalog();
+    renderCart();
 
     $('to-products').addEventListener('click', () => {
-        if (!$('customer_id').value) {
-            Swal.fire({ icon: 'warning', text: 'اختر العميل أولًا.' });
-            return;
-        }
-        if (!$('shipping_phone_id').value) {
-            Swal.fire({ icon: 'warning', text: 'اختر رقم هاتف نشطًا للعميل.' });
-            return;
-        }
-        const selectedAddress = (customerAddresses[$('customer_id').value] || [])
-            .find(address => String(address.id) === $('shipping_address_id').value);
-        if (!selectedAddress || !selectedAddress.zone) {
-            Swal.fire({ icon: 'warning', text: 'اختر عنوانًا مرتبطًا بمنطقة شحن ومخزن نشطين قبل متابعة الطلب.' });
-            return;
-        }
+        if (!$('customer_id').value) { Swal.fire({icon:'warning',text:'اختر العميل أولًا.'}); return; }
+        if (!$('shipping_phone_id').value) { Swal.fire({icon:'warning',text:'اختر رقم هاتف نشطًا للعميل.'}); return; }
+        const address=(customerAddresses[$('customer_id').value]||[]).find(item=>String(item.id)===$('shipping_address_id').value);
+        if(!address||!address.zone){Swal.fire({icon:'warning',text:'اختر عنوانًا مرتبطًا بمنطقة شحن ومخزن نشطين قبل متابعة الطلب.'});return;}
         show('step-products');
-    });
-
-    $('add-item').addEventListener('click', () => {
-        const option = selected();
-        const quantity = Number($('item-quantity').value);
-        const price = Number($('item-price').value);
-        if (!option?.value) {
-            Swal.fire({ icon: 'warning', text: 'اختر المنتج أولًا.' });
-            return;
-        }
-        if (!(quantity > 0) || !Number.isFinite(quantity)) {
-            Swal.fire({ icon: 'warning', text: 'أدخل كمية صحيحة.' });
-            return;
-        }
-        if (!Number.isFinite(price) || price < Number(option.dataset.min) || price > Number(option.dataset.list)) {
-            Swal.fire({ icon: 'warning', text: 'سعر البيع خارج النطاق المسموح.' });
-            return;
-        }
-
-        const existing = items.find(item => item.id === option.value);
-        if (existing) {
-            existing.quantity += quantity;
-            existing.price = price;
-        } else {
-            items.push({
-                id: option.value,
-                name: option.dataset.name,
-                sku: option.dataset.sku,
-                list: Number(option.dataset.list),
-                min: Number(option.dataset.min),
-                quantity,
-                price
-            });
-        }
-
-        $('variant-select').value = '';
-        if (window.jQuery && jQuery.fn.select2) jQuery('#variant-select').val(null).trigger('change');
-        $('item-quantity').value = '1';
-        renderHint();
-        $('price-hint').textContent = 'تمت إضافة المنتج. يمكنك اختيار منتج آخر.';
-        renderReview();
+        renderCatalog();
     });
 
     $('to-review').addEventListener('click', () => {
-        if (!items.length) {
-            Swal.fire({ icon: 'warning', text: 'أضف منتجًا واحدًا على الأقل.' });
-            return;
+        if (!items.length) { Swal.fire({icon:'warning',text:'أضف منتجًا واحدًا على الأقل.'}); return; }
+        const address=(customerAddresses[$('customer_id').value]||[]).find(item=>String(item.id)===$('shipping_address_id').value);
+        if(!address||!address.zone){Swal.fire({icon:'warning',text:'عنوان التوصيل غير مرتبط بمنطقة شحن نشطة.'});return;}
+        const fee=Number($('shipping_fee').value);
+        if(!Number.isFinite(fee)||fee<Number(address.feeMin)||fee>Number(address.feeMax)){
+            Swal.fire({icon:'warning',text:'رسوم الشحن خارج النطاق المحدد لعنوان العميل.'});return;
         }
-        const selectedAddress = (customerAddresses[$('customer_id').value] || [])
-            .find(address => String(address.id) === $('shipping_address_id').value);
-        if (!selectedAddress || !selectedAddress.zone) {
-            Swal.fire({ icon: 'warning', text: 'عنوان التوصيل غير مرتبط بمنطقة شحن نشطة.' });
-            return;
-        }
-        const fee = Number($('shipping_fee').value);
-        if (!Number.isFinite(fee) || fee < Number(selectedAddress.feeMin) || fee > Number(selectedAddress.feeMax)) {
-            Swal.fire({ icon: 'warning', text: 'رسوم الشحن خارج النطاق المحدد لعنوان العميل.' });
-            return;
-        }
-        if ($('shipping_date').disabled || !$('shipping_date').value || $('shipping_date').value < $('shipping_date').min) {
-            Swal.fire({ icon: 'warning', text: 'حدد موعد شحن صحيحًا وفق مدة التوصيل للمنطقة.' });
-            return;
+        if($('shipping_date').disabled||!$('shipping_date').value||$('shipping_date').value<$('shipping_date').min){
+            Swal.fire({icon:'warning',text:'حدد موعد شحن صحيحًا وفق مدة التوصيل للمنطقة.'});return;
         }
         renderReview();
         show('step-review');
     });
 
+    $('shipping_fee').addEventListener('input',renderReview);
+    $('customer_id').addEventListener('change',renderCustomerSummary);
     $('order-form').addEventListener('submit', event => {
-        if (!$('customer_id').value || !$('shipping_phone_id').value || !$('shipping_address_id').value) {
+        if (!$('customer_id').value || !$('shipping_phone_id').value || !$('shipping_address_id').value || !items.length) {
             event.preventDefault();
-            Swal.fire({ icon: 'warning', text: 'اختر العميل ورقم الهاتف وعنوان التوصيل أولًا.' });
+            Swal.fire({icon:'warning',text:'أكمل بيانات العميل وأضف منتجًا واحدًا على الأقل.'});
             return;
         }
-        if (!items.length) {
-            event.preventDefault();
-            Swal.fire({ icon: 'warning', text: 'أضف منتجًا واحدًا على الأقل.' });
-        }
+        renderReview();
     });
+
 })();
 </script>
 @endpush
