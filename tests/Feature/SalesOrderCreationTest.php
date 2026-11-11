@@ -269,7 +269,7 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee('id="customer-directory-cards"', false)
             ->assertSee('id="customer-directory-pagination"', false)
             ->assertSee('id="customer-phone-select"', false)
-            ->assertSee(route('admin.sales.orders.customers.directory'), false)
+            ->assertSee('إنشاء أمر البيع')
             ->assertSee('id="shipping_phone_id"', false);
     }
 
@@ -403,11 +403,12 @@ class SalesOrderCreationTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($user)->get(route('admin.sales.orders.create'))
+        $this->actingAs($user)
+            ->getJson(route('admin.sales.orders.customers.selection', $customer))
             ->assertOk()
-            ->assertSee('customer-address-select', false)
-            ->assertSee('شارع الاختبار، عمارة 10')
-            ->assertSee('عنوان العمل');
+            ->assertJsonPath('customer.addresses.0.address', 'شارع الاختبار، عمارة 10')
+            ->assertJsonPath('customer.addresses.0.title', 'عنوان العمل')
+            ->assertJsonPath('customer.addresses.0.isPrimary', true);
     }
 
     public function test_order_rejects_a_phone_belonging_to_another_customer(): void
