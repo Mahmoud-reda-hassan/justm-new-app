@@ -74,9 +74,13 @@
                     </select>
                     <div class="form-group mt-2 mb-2">
                         <label for="customer-phone-select">رقم هاتف التواصل والتوصيل</label>
-                        <select class="form-control" id="customer-phone-select" disabled>
+                        <select class="form-control d-none" id="customer-phone-select" disabled>
                             <option value="">اختر العميل أولًا</option>
                         </select>
+                    </div>
+                    <div id="customer-contact-card" class="card card-outline card-info mt-2 d-none">
+                        <div class="card-header py-2"><strong id="customer-contact-name">بيانات العميل</strong></div>
+                        <div class="card-body py-2" id="customer-phone-details"></div>
                     </div>
                     <div class="d-flex flex-wrap gap-2 mt-2">
                         @if(auth()->user()?->hasPermission('parties.create') && auth()->user()?->hasPermission('structure.scope.manage_all'))
@@ -97,10 +101,14 @@
                 </div>
                 <div class="form-group col-md-5">
                     <label for="customer-address-select">العناوين المحفوظة للعميل</label>
-                    <select class="form-control" id="customer-address-select" disabled><option value="">اختر العميل أولًا</option></select>
+                    <select class="form-control d-none" id="customer-address-select" disabled><option value="">اختر العميل أولًا</option></select>
                 </div>
                 <div class="form-group col-md-7">
-                    <label for="shipping_address">عنوان التوصيل (يمكن تعديله لهذا الطلب)</label>
+                    <div id="customer-address-card" class="card card-outline card-secondary mb-2 d-none">
+                        <div class="card-header py-2"><strong>اختيار عنوان التوصيل</strong></div>
+                        <div class="card-body py-2" id="customer-address-details"></div>
+                    </div>
+                    <label for="shipping_address> (يمكن تعديله لهذا الطلب)</label>
                     <textarea class="form-control" name="shipping_address" id="shipping_address" rows="2" maxlength="2000"></textarea>
                 </div>
                 <div class="form-group col-md-4">
@@ -209,6 +217,65 @@
         }));
         return map;
     }, {});
+    const renderPhoneDetails = (phones, selectedId) => {
+        const box = $('customer-phone-details');
+        box.replaceChildren();
+        $('customer-contact-card').classList.remove('d-none');
+        phones.forEach(phone => {
+            const row = document.createElement('div');
+            row.className = 'd-flex justify-content-between align-items-center border-bottom py-2';
+            const label = document.createElement('label');
+            label.className = 'mb-0';
+            const radio = document.createElement('input');
+            radio.type = 'radio'; radio.name = 'customer_phone_choice';
+            radio.value = String(phone.id); radio.checked = String(phone.id) === String(selectedId);
+            radio.className = 'ml-2';
+            radio.addEventListener('change', () => {
+                $('customer-phone-select').value = String(phone.id);
+                $('shipping_phone_id').value = String(phone.id);
+            });
+            const number = document.createElement('span');
+            number.textContent = phone.number + (phone.isPrimary ? ' — افتراضي' : '');
+            label.append(radio, number);
+            const links = document.createElement('span');
+            if (phone.isWhatsapp) {
+                const a = document.createElement('a');
+                a.href = 'https://wa.me/' + String(phone.number).replace(/\D/g, '');
+                a.target = '_blank'; a.rel = 'noopener noreferrer'; a.className = 'text-success ml-3';
+                a.innerHTML = '<i class="fab fa-whatsapp fa-lg"></i>'; a.title = 'واتساب'; links.appendChild(a);
+            }
+            if (phone.isTelegram) {
+                const a = document.createElement('a');
+                a.href = 'https://t.me/+' + String(phone.number).replace(/\D/g, '');
+                a.target = '_blank'; a.rel = 'noopener noreferrer'; a.className = 'text-info';
+                a.innerHTML = '<i class="fab fa-telegram fa-lg"></i>'; a.title = 'تيليجرام'; links.appendChild(a);
+            }
+            row.append(label, links); box.appendChild(row);
+        });
+    };
+    const renderAddressDetails = (addresses, selectedId) => {
+        const card = $('customer-address-card');
+        const box = $('customer-address-details');
+        box.replaceChildren(); card.classList.remove('d-none');
+        addresses.forEach(address => {
+            const label = document.createElement('label');
+            label.className = 'd-block border-bottom py-2 mb-0';
+            const radio = document.createElement('input');
+            radio.type = 'radio'; radio.name = 'customer_address_choice';
+            radio.value = String(address.id); radio.checked = String(address.id) === String(selectedId);
+            radio.className = 'ml-2';
+            radio.addEventListener('change', () => {
+                $('customer-address-select').value = String(address.id);
+                $('shipping_address_id').value = String(address.id);
+                $('shipping_address').value = address.address;
+                applyShippingRoute(address);
+            });
+            const text = document.createElement('span');
+            text.textContent = address.title + (address.isPrimary ? ' — افتراضي' : '') +
+                (address.city ? ' — ' + address.city : '') + ' — ' + address.address;
+            label.append(radio, text); box.appendChild(label);
+        });
+    };
     const renderCustomerPhones = () => {
         const select = $('customer-phone-select');
         const phones = customerPhones[$('customer_id').value] || [];
@@ -217,6 +284,8 @@
             select.disabled = true;
             select.appendChild(new Option('لا يوجد رقم هاتف نشط للعميل', ''));
             $('shipping_phone_id').value = '';
+            $('customer-contact-card').classList.add('d-none');
+            $('customer-phone-details').replaceChildren();
             return;
         }
         select.disabled = false;
@@ -255,6 +324,7 @@
             $('shipping_address_id').value = primaryAddress.id;
             $('shipping_address').value = primaryAddress.address;
             applyShippingRoute(primaryAddress);
+            renderAddressDetails(addresses, primaryAddress.id);
         } else {
             select.disabled = true;
             const option = document.createElement('option');
@@ -262,6 +332,8 @@
             option.textContent = 'لا توجد عناوين محفوظة';
             select.appendChild(option);
             $('shipping_address_id').value = '';
+            $('customer-address-card').classList.add('d-none');
+            $('customer-address-details').replaceChildren();
             $('shipping_address').value = selectedCustomer?.dataset.address || '';
             $('shipping-route-hint').textContent = 'لا يوجد عنوان محفوظ مرتبط بمنطقة شحن؛ أضف عنوانًا للعميل واربط مدينته بمنطقة شحن أولًا.';
             $('shipping_fee').value = 0;
@@ -658,6 +730,7 @@
             $('shipping_address_id').value = address.id;
             $('shipping_address').value = address.address;
             applyShippingRoute(address);
+            renderAddressDetails(addresses, address.id);
         }
     });
     renderCustomerPhones();
