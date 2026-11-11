@@ -83,10 +83,17 @@ class SalesOrderController extends Controller
                 'shipping_orders_count' => $shippingCount,
                 'pending_confirmation_orders_count' => $pendingConfirmationCount,
             ])
-            ->with(['phones' => fn ($builder) => $builder
-                ->where('is_active', true)
-                ->orderByDesc('is_primary')
-                ->orderBy('id')])
+            ->with([
+                'phones' => fn ($builder) => $builder
+                    ->where('is_active', true)
+                    ->orderByDesc('is_primary')
+                    ->orderBy('id'),
+                'addresses' => fn ($builder) => $builder
+                    ->where('is_active', true)
+                    ->with(['city.shippingZone.warehouse.branch.company', 'city.shippingZone.warehouse.type'])
+                    ->orderByDesc('is_primary')
+                    ->orderBy('id'),
+            ])
             ->where('is_active', true)
             ->whereHas('partyRoles', fn (Builder $builder) => $builder->where('role', 'customer'));
 
@@ -112,6 +119,31 @@ class SalesOrderController extends Controller
             'id' => $customer->id,
             'name' => $customer->name,
             'phone' => $customer->phones->first()?->number ?: ($customer->mobile ?: $customer->phone),
+            'phones' => $customer->phones->map(fn (PartyPhone $phone): array => [
+                'id' => $phone->id,
+                'number' => $phone->number,
+                'type' => $phone->type,
+                'isPrimary' => (bool) $phone->is_primary,
+                'isWhatsapp' => (bool) $phone->is_whatsapp,
+                'isTelegram' => (bool) $phone->is_telegram,
+            ])->values(),
+            'addresses' => $customer->addresses->map(fn (PartyAddress $address): array => [
+                'id' => $address->id,
+                'title' => $address->title,
+                'address' => $address->address,
+                'city' => $address->city?->name_ar,
+                'cityId' => $address->city_id,
+                'zone' => $address->city?->shippingZone?->is_active
+                    && $address->city?->shippingZone?->warehouse?->is_active
+                    && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch'
+                    && $address->city?->shippingZone?->warehouse?->branch?->is_active
+                    && $address->city?->shippingZone?->warehouse?->branch?->company?->is_active
+                        ? $address->city?->shippingZone?->name_ar : '',
+                'feeMin' => $address->city?->shippingZone?->shipping_fee_min,
+                'feeMax' => $address->city?->shippingZone?->shipping_fee_max,
+                'deliveryDays' => $address->city?->shippingZone?->delivery_days,
+                'isPrimary' => (bool) $address->is_primary,
+            ])->values(),
             'delivered_orders_count' => (int) $customer->delivered_orders_count,
             'preparing_orders_count' => (int) $customer->preparing_orders_count,
             'shipping_orders_count' => (int) $customer->shipping_orders_count,
