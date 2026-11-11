@@ -157,6 +157,13 @@ Route::middleware('auth')->group(function (): void {
         Route::patch('/{zone}/active', [ShippingZoneController::class, 'setActive'])->middleware('permission:shipping_zones.activate')->name('active');
     });
 
+    Route::prefix('admin/inventory')->name('admin.inventory.')->group(function (): void {
+        Route::get('/opening-balances', [InventoryController::class, 'openingBalances'])
+            ->middleware('permission:inventory.opening_balances.view')->name('opening-balances');
+        Route::post('/opening-balances', [InventoryController::class, 'storeOpeningBalance'])
+            ->middleware('permission:inventory.opening_balances.create')->name('opening-balances.store');
+    });
+
     Route::prefix('admin/sales/orders')->name('admin.sales.orders.')->group(function (): void {
         Route::get('/', [SalesOrderController::class, 'index'])->middleware('permission:sales.orders.view')->name('index');
         Route::get('/create', [SalesOrderController::class, 'create'])->middleware('permission:sales.orders.create')->name('create');
