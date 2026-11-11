@@ -72,7 +72,7 @@
     <section class="card card-outline card-primary order-step active" id="step-customer">
         <div class="card-header"><h3 class="card-title">1. بيانات العميل</h3></div>
         <div class="card-body">
-            <p class="text-muted">اختر العميل وحدد عنوان التوصيل. رسوم الشحن مستقلة على مستوى أمر البيع.</p>
+            <p class="text-muted">اختر العميل ورقم الهاتف وعنوان التوصيل.</p>
             <div class="form-row">
                 <div class="form-group col-lg-6">
                     <div class="card card-outline card-secondary mb-3">
@@ -117,11 +117,6 @@
                         <div class="text-muted small">اختر العميل لعرض آخر أوامره السابقة.</div>
                     </div>
                 </div>
-                <div class="form-group col-lg-3">
-                    <label for="shipping_fee">رسوم الشحن</label>
-                    <input class="form-control" type="number" name="shipping_fee" id="shipping_fee" min="0" step="0.01" value="0">
-                    <small class="form-text text-muted" id="shipping-route-hint">اختر عنوانًا لمعرفة منطقة الشحن والرسوم ومدة التوصيل.</small>
-                </div>
                 <div class="form-group col-md-5" id="customer-address-legacy-group">
                     <label for="customer-address-select">العناوين المحفوظة للعميل</label>
                     <select class="form-control d-none" id="customer-address-select" disabled><option value="">اختر العميل أولًا</option></select>
@@ -131,13 +126,6 @@
                         <div class="card-header py-2"><strong>اختيار عنوان التوصيل</strong></div>
                         <div class="card-body py-2" id="customer-address-details"></div>
                     </div>
-                    <label for="shipping_address">عنوان التوصيل (يمكن تعديله لهذا الطلب)</label>
-                    <textarea class="form-control" name="shipping_address" id="shipping_address" rows="2" maxlength="2000"></textarea>
-                </div>
-                <div class="form-group col-md-4">
-                    <label for="shipping_date">موعد الشحن المتوقع</label>
-                    <input class="form-control" type="date" name="shipping_date" id="shipping_date" disabled>
-                    <small class="form-text text-muted">يمكن تأجيل الموعد، ولا يمكن اختياره قبل مدة التوصيل المحددة للمنطقة.</small>
                 </div>
             </div>
         </div>
@@ -186,7 +174,28 @@
     <section class="card card-outline card-primary order-step" id="step-review">
         <div class="card-header"><h3 class="card-title">3. مراجعة الطلب</h3></div>
         <div class="card-body">
-            <p class="text-muted">راجع تفاصيل البنود والأسعار والخصومات ورسوم الشحن. يمكنك تعديل أي بند أو حذفه قبل الحفظ.</p>
+            <p class="text-muted">راجع بيانات الشحن وتفاصيل البنود والأسعار والخصومات قبل الحفظ.</p>
+            <div class="card card-outline card-info mb-3">
+                <div class="card-header"><h3 class="card-title">بيانات الشحن</h3></div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label for="shipping_fee">رسوم الشحن</label>
+                            <input class="form-control" type="number" name="shipping_fee" id="shipping_fee" min="0" step="0.01" value="0">
+                            <small class="form-text text-muted" id="shipping-route-hint">تُحدد الرسوم حسب عنوان التوصيل.</small>
+                        </div>
+                        <div class="form-group col-md-8">
+                            <label for="shipping_address">عنوان التوصيل (يمكن تعديله لهذا الطلب)</label>
+                            <textarea class="form-control" name="shipping_address" id="shipping_address" rows="2" maxlength="2000"></textarea>
+                        </div>
+                        <div class="form-group col-md-4 mb-0">
+                            <label for="shipping_date">موعد الشحن المتوقع</label>
+                            <input class="form-control" type="date" name="shipping_date" id="shipping_date" disabled>
+                            <small class="form-text text-muted">يمكن تأجيل الموعد، ولا يمكن اختياره قبل مدة التوصيل المحددة للمنطقة.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table class="table table-bordered table-hover table-striped">
                     <thead><tr><th>المنتج</th><th>الكمية</th><th>سعر القائمة</th><th>سعر البيع</th><th>الخصم</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead>
@@ -1101,11 +1110,6 @@
             Swal.fire({ icon: 'warning', text: 'اختر عنوانًا مرتبطًا بمنطقة شحن ومخزن نشطين قبل متابعة الطلب.' });
             return;
         }
-        const fee = Number($('shipping_fee').value);
-        if (!Number.isFinite(fee) || fee < Number(selectedAddress.feeMin) || fee > Number(selectedAddress.feeMax)) {
-            Swal.fire({ icon: 'warning', text: 'رسوم الشحن خارج النطاق المحدد لعنوان العميل.' });
-            return;
-        }
         show('step-products');
     });
     $('back-customer').addEventListener('click', () => show('step-customer'));
@@ -1154,6 +1158,21 @@
     $('to-review').addEventListener('click', () => {
         if (!items.length) {
             Swal.fire({ icon: 'warning', text: 'أضف منتجًا واحدًا على الأقل.' });
+            return;
+        }
+        const selectedAddress = (customerAddresses[$('customer_id').value] || [])
+            .find(address => String(address.id) === $('shipping_address_id').value);
+        if (!selectedAddress || !selectedAddress.zone) {
+            Swal.fire({ icon: 'warning', text: 'عنوان التوصيل غير مرتبط بمنطقة شحن نشطة.' });
+            return;
+        }
+        const fee = Number($('shipping_fee').value);
+        if (!Number.isFinite(fee) || fee < Number(selectedAddress.feeMin) || fee > Number(selectedAddress.feeMax)) {
+            Swal.fire({ icon: 'warning', text: 'رسوم الشحن خارج النطاق المحدد لعنوان العميل.' });
+            return;
+        }
+        if ($('shipping_date').disabled || !$('shipping_date').value || $('shipping_date').value < $('shipping_date').min) {
+            Swal.fire({ icon: 'warning', text: 'حدد موعد شحن صحيحًا وفق مدة التوصيل للمنطقة.' });
             return;
         }
         renderReview();
