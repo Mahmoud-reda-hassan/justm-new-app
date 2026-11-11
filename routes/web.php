@@ -160,6 +160,8 @@ Route::middleware('auth')->group(function (): void {
     });
 
     Route::prefix('admin/inventory')->name('admin.inventory.')->group(function (): void {
+        Route::get('/virtual-stock', [VirtualStockController::class, 'index'])
+            ->middleware('permission:inventory.virtual_stock.view')->name('virtual-stock');
         Route::get('/movements', [InventoryController::class, 'movements'])
             ->middleware('permission:inventory.movements.view')->name('movements');
         Route::post('/issues', [InventoryController::class, 'storeIssue'])
