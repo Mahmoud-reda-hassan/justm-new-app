@@ -154,7 +154,7 @@
                             <li class="nav-item"><a href="{{ route('admin.inventory.virtual-stock') }}" class="nav-link @if(request()->routeIs('admin.inventory.virtual-stock')) active @endif"><i class="nav-icon fas fa-boxes"></i><p>المخازن الوهمية</p></a></li>
                         @endif
                         @if ($user->hasPermission('inventory.settings.view'))
-                            <li class="nav-item"><a href="{{ route('admin.inventory.settings') }}" class="nav-link @if(request()->routeIs('admin.inventory.settings')) active @endif"><i class="nav-icon fas fa-cogs"></i><p>إعدادات المخازن الوهمية</p></a></li>
+                            <li class="nav-item"><a href="{{ route('admin.inventory.settings') }}" class="nav-link @if(request()->routeIs('admin.inventory.settings')) active @endif"><i class="nav-icon fas fa-cogs"></i><p>إعدادات المخازن العامة</p></a></li>
                         @endif
                         @if ($user->hasPermission('inventory.movements.view'))
                             <li class="nav-item"><a href="{{ route('admin.inventory.movements') }}" class="nav-link @if(request()->routeIs('admin.inventory.movements')) active @endif"><i class="nav-icon fas fa-exchange-alt"></i><p>الصرف والتحويل</p></a></li>
