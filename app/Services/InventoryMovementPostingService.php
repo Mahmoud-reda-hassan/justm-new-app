@@ -64,7 +64,7 @@ class InventoryMovementPostingService
                     'quantity_before' => $before,
                     'quantity_after' => $after,
                 ]);
-                $stock->update(['quantity_on_hand' => $after]);
+                DB::table('warehouse_product_stocks')->where('warehouse_id', $warehouse->id)->where('product_variant_id', $variantId)->update(['quantity_on_hand' => $after, 'updated_at' => now()]);
             }
 
             return $movement->load('items.variant.product', 'warehouse');
@@ -144,8 +144,8 @@ class InventoryMovementPostingService
                     'destination_quantity_before' => $destinationBefore,
                     'destination_quantity_after' => $destinationAfter,
                 ]);
-                $source->update(['quantity_on_hand' => $sourceAfter]);
-                $destination->update(['quantity_on_hand' => $destinationAfter]);
+                DB::table('warehouse_product_stocks')->where('warehouse_id', $sourceWarehouseId)->where('product_variant_id', $variantId)->update(['quantity_on_hand' => $sourceAfter, 'updated_at' => now()]);
+                DB::table('warehouse_product_stocks')->where('warehouse_id', $destinationWarehouseId)->where('product_variant_id', $variantId)->update(['quantity_on_hand' => $destinationAfter, 'updated_at' => now()]);
             }
 
             return $movement->load('items.variant.product', 'warehouse', 'destinationWarehouse');
