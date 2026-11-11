@@ -8,7 +8,7 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('inventory_movements', function (Blueprint $table): void {
-            $table->boolean('negative_stock_allowed')->default(false)->after('movement_type');
+            $table->boolean('negative_stock_allowed')->nullable()->after('movement_type');
         });
     }
 

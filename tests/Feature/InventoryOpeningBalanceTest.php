@@ -250,6 +250,7 @@ class InventoryOpeningBalanceTest extends TestCase
             'status' => 'posted',
             'created_by' => $this->user->id,
             'posted_by' => $this->user->id,
+            'negative_stock_allowed' => 0,
         ]);
         $this->assertDatabaseHas('inventory_movement_items', [
             'product_variant_id' => $this->variant->id,
