@@ -8,6 +8,7 @@ use App\Models\PartyAddress;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,33 @@ class SalesOrderController extends Controller
         $orders = $query->latest('id')->paginate(20)->withQueryString();
 
         return view('admin.sales.orders.index', compact('orders'));
+    }
+
+    public function customerHistory(Request $request, Party $customer): JsonResponse
+    {
+        abort_unless(
+            $customer->is_active && $customer->partyRoles()->where('role', 'customer')->exists(),
+            404
+        );
+
+        $orders = SalesOrder::query()
+            ->where('customer_id', $customer->id)
+            ->when(
+                $request->user()->party_id && $request->user()->party?->partyRoles()
+                    ->whereIn('role', ['marketer', 'sales_intermediary'])->exists(),
+                fn (Builder $query) => $query->where('created_by_party_id', $request->user()->party_id),
+            )
+            ->latest('id')
+            ->limit(5)
+            ->get(['order_number', 'status', 'total', 'created_at'])
+            ->map(fn (SalesOrder $order): array => [
+                'order_number' => $order->order_number,
+                'status' => $order->status,
+                'total' => $order->total,
+                'date' => $order->created_at?->toDateString(),
+            ]);
+
+        return response()->json(['orders' => $orders]);
     }
 
     public function create(Request $request): View
