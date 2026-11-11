@@ -28,8 +28,10 @@
 .jm-order-storefront-page .customer-contact-choice{display:flex;direction:rtl;align-items:flex-start;gap:8px;min-width:0;margin:0;flex:1;cursor:pointer}
 .jm-order-storefront-page .customer-contact-radio{width:17px;height:17px;flex:0 0 17px;margin:2px 0 0;accent-color:#1769d2;cursor:pointer}
 .jm-order-storefront-page .customer-contact-value{font-size:13px;line-height:1.7;overflow-wrap:anywhere;color:#344761}
-.jm-order-storefront-page .customer-contact-actions{display:flex;direction:ltr;align-items:center;justify-content:flex-start;gap:9px;flex:0 0 auto;white-space:nowrap}
-.jm-order-storefront-page .customer-contact-actions a{display:inline-flex;align-items:center}
+.jm-order-storefront-page .customer-contact-middle{display:flex;direction:ltr;align-items:center;justify-content:center;gap:12px;flex:0 0 auto;white-space:nowrap}
+.jm-order-storefront-page .customer-contact-middle a{display:inline-flex;align-items:center}
+.jm-order-storefront-page .customer-contact-edit{display:flex;align-items:center;justify-content:flex-start;flex:0 0 30px}
+.jm-order-storefront-page .customer-default-check{display:inline-flex;align-items:center;justify-content:center;margin-inline-start:5px;font-size:14px;font-weight:800}
 .jm-order-storefront-page .customer-card-section-header{direction:rtl}
 .jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
 @media(max-width:1100px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -532,6 +534,8 @@
         phones.forEach(phone => {
             const row = document.createElement('div');
             row.className = 'customer-contact-row';
+
+            // Right: selection circle, phone number, and default check.
             const right = document.createElement('label');
             right.className = 'customer-contact-choice';
             const radio = document.createElement('input');
@@ -543,10 +547,40 @@
             const number = document.createElement('span');
             number.className = 'customer-contact-value';
             number.textContent = phone.number;
-            right.append(radio, number);
+            right.appendChild(radio);
+            right.appendChild(number);
+            if (phone.isPrimary) {
+                const def = document.createElement('span');
+                def.className = 'customer-default-check text-success';
+                def.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
+                def.title = 'الرقم الافتراضي';
+                def.setAttribute('aria-label', 'الرقم الافتراضي');
+                right.appendChild(def);
+            }
 
+            // Middle: WhatsApp and Telegram icons only when enabled for this number.
+            const middle = document.createElement('div');
+            middle.className = 'customer-contact-middle';
+            if (phone.isWhatsapp) {
+                const a = document.createElement('a');
+                a.href = 'https://wa.me/' + String(phone.number).replace(/\\D/g, '');
+                a.target = '_blank'; a.rel = 'noopener noreferrer';
+                a.className = 'text-success'; a.title = 'واتساب';
+                a.innerHTML = '<i class="fab fa-whatsapp fa-lg"></i>';
+                middle.appendChild(a);
+            }
+            if (phone.isTelegram) {
+                const a = document.createElement('a');
+                a.href = 'https://t.me/+' + String(phone.number).replace(/\\D/g, '');
+                a.target = '_blank'; a.rel = 'noopener noreferrer';
+                a.className = 'text-info'; a.title = 'تيليجرام';
+                a.innerHTML = '<i class="fab fa-telegram fa-lg"></i>';
+                middle.appendChild(a);
+            }
+
+            // Left: edit icon.
             const left = document.createElement('div');
-            left.className = 'customer-contact-actions';
+            left.className = 'customer-contact-edit';
             const edit = document.createElement('button');
             edit.type = 'button';
             edit.className = 'btn btn-sm btn-link text-secondary p-1';
@@ -555,31 +589,8 @@
             edit.innerHTML = '<i class="fas fa-edit"></i>';
             edit.addEventListener('click', openEditor);
             if (canEditCustomer) left.appendChild(edit);
-            if (phone.isWhatsapp) {
-                const a = document.createElement('a');
-                a.href = 'https://wa.me/' + String(phone.number).replace(/\\D/g, '');
-                a.target = '_blank'; a.rel = 'noopener noreferrer';
-                a.className = 'text-success'; a.title = 'واتساب';
-                a.innerHTML = '<i class="fab fa-whatsapp fa-lg"></i>';
-                left.appendChild(a);
-            }
-            if (phone.isTelegram) {
-                const a = document.createElement('a');
-                a.href = 'https://t.me/+' + String(phone.number).replace(/\\D/g, '');
-                a.target = '_blank'; a.rel = 'noopener noreferrer';
-                a.className = 'text-info'; a.title = 'تيليجرام';
-                a.innerHTML = '<i class="fab fa-telegram fa-lg"></i>';
-                left.appendChild(a);
-            }
-            if (phone.isPrimary) {
-                const def = document.createElement('span');
-                def.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
-                def.title = 'الافتراضي';
-                def.setAttribute('aria-label', 'الافتراضي');
-                def.className = 'customer-default-check text-success';
-                left.appendChild(def);
-            }
-            row.append(right, left);
+
+            row.append(left, middle, right);
             phoneList.appendChild(row);
         });
         body.appendChild(phoneList);
