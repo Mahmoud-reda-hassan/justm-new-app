@@ -43,6 +43,124 @@ class SalesOrderController extends Controller
         return view('admin.sales.orders.index', compact('orders'));
     }
 
+    public function customerDirectory(Request $request): JsonResponse
+    {
+        $phone = trim((string) $request->query('phone', ''));
+        $topIds = $this->topCustomerIds();
+
+        $confirmedOrderCount = SalesOrder::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('customer_id', 'parties.id')
+            ->where('status', 'confirmed');
+
+        $query = Party::query()
+            ->select(['id', 'name', 'mobile', 'phone'])
+            ->addSelect(['confirmed_orders_count' => $confirmedOrderCount])
+            ->with(['phones' => fn ($builder) => $builder
+                ->where('is_active', true)
+                ->orderByDesc('is_primary')
+                ->orderBy('id')])
+            ->where('is_active', true)
+            ->whereHas('partyRoles', fn (Builder $builder) => $builder->where('role', 'customer'));
+
+        if ($phone !== '') {
+            // Search only phone fields; a match is returned regardless of the current page or top-customer group.
+            $term = '%'.$phone.'%';
+            $query->where(function (Builder $builder) use ($term): void {
+                $builder->whereHas('phones', fn (Builder $phones) => $phones
+                    ->where('is_active', true)
+                    ->where('number', 'like', $term))
+                    ->orWhere('mobile', 'like', $term)
+                    ->orWhere('phone', 'like', $term);
+            });
+        } else {
+            $query->whereNotIn('parties.id', $topIds ?: [0]);
+        }
+
+        $customers = $query->orderBy('name')
+            ->paginate(12)
+            ->withQueryString();
+
+        $customers->getCollection()->transform(fn (Party $customer): array => [
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'phone' => $customer->phones->first()?->number ?: ($customer->mobile ?: $customer->phone),
+            'confirmed_orders_count' => (int) $customer->confirmed_orders_count,
+        ]);
+
+        return response()->json([
+            'customers' => $customers,
+            'top_customer_ids' => $topIds,
+        ]);
+    }
+
+    public function customerSelection(Party $customer): JsonResponse
+    {
+        abort_unless(
+            $customer->is_active && $customer->partyRoles()->where('role', 'customer')->exists(),
+            404
+        );
+
+        $customer->load([
+            'phones' => fn ($query) => $query->where('is_active', true)->orderByDesc('is_primary')->orderBy('id'),
+            'addresses' => fn ($query) => $query->where('is_active', true)->with([
+                'city.shippingZone.warehouse.branch.company',
+                'city.shippingZone.warehouse.type',
+            ])->orderByDesc('is_primary')->orderBy('id'),
+        ]);
+
+        return response()->json(['customer' => [
+            'id' => $customer->id,
+            'entity_type' => $customer->entity_type,
+            'name' => $customer->name,
+            'mobile' => $customer->mobile,
+            'phone' => $customer->phone,
+            'email' => $customer->email,
+            'phones' => $customer->phones->map(fn (PartyPhone $phone): array => [
+                'id' => $phone->id,
+                'number' => $phone->number,
+                'type' => $phone->type,
+                'isPrimary' => $phone->is_primary,
+                'isWhatsapp' => $phone->is_whatsapp,
+            ])->values(),
+            'addresses' => $customer->addresses->map(fn (PartyAddress $address): array => [
+                'id' => $address->id,
+                'title' => $address->title,
+                'address' => $address->address,
+                'city' => $address->city?->name_ar,
+                'cityId' => $address->city_id,
+                'zone' => $address->city?->shippingZone?->is_active
+                    && $address->city?->shippingZone?->warehouse?->is_active
+                    && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch'
+                    && $address->city?->shippingZone?->warehouse?->branch?->is_active
+                    && $address->city?->shippingZone?->warehouse?->branch?->company?->is_active
+                        ? $address->city?->shippingZone?->name_ar : '',
+                'feeMin' => $address->city?->shippingZone?->shipping_fee_min,
+                'feeMax' => $address->city?->shippingZone?->shipping_fee_max,
+                'deliveryDays' => $address->city?->shippingZone?->delivery_days,
+                'isPrimary' => $address->is_primary,
+            ])->values(),
+        ]]);
+    }
+
+    private function topCustomerIds(): array
+    {
+        $confirmedOrderCount = SalesOrder::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('customer_id', 'parties.id')
+            ->where('status', 'confirmed');
+
+        return Party::query()
+            ->where('is_active', true)
+            ->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'customer'))
+            ->addSelect(['confirmed_orders_count' => $confirmedOrderCount])
+            ->orderByDesc('confirmed_orders_count')
+            ->orderBy('name')
+            ->limit(8)
+            ->pluck('id')
+            ->all();
+    }
+
     public function customerHistory(Request $request, Party $customer): JsonResponse
     {
         abort_unless(
@@ -72,15 +190,26 @@ class SalesOrderController extends Controller
 
     public function create(Request $request): View
     {
+        $confirmedOrderCount = SalesOrder::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('customer_id', 'parties.id')
+            ->where('status', 'confirmed');
+
+        // The first cards show customers with the most confirmed sales orders.
+        // The remaining directory is loaded separately with server-side pagination.
         $customers = Party::query()
+            ->select(['id', 'name', 'entity_type', 'email', 'phone', 'mobile', 'address'])
+            ->addSelect(['confirmed_orders_count' => $confirmedOrderCount])
             ->with([
                 'phones' => fn ($query) => $query->where('is_active', true)->orderByDesc('is_primary')->orderBy('id'),
                 'addresses' => fn ($query) => $query->where('is_active', true)->with(['city.shippingZone.warehouse.branch.company', 'city.shippingZone.warehouse.type'])->orderByDesc('is_primary')->orderBy('id'),
             ])
             ->where('is_active', true)
             ->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'customer'))
+            ->orderByDesc('confirmed_orders_count')
             ->orderBy('name')
-            ->get(['id', 'name', 'entity_type', 'email', 'phone', 'mobile', 'address']);
+            ->limit(8)
+            ->get();
 
         $variants = ProductVariant::query()
             ->with(['product', 'attributeValues.group'])
