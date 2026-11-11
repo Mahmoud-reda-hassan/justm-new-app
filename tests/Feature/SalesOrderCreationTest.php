@@ -170,6 +170,25 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee("const address = addresses.find(item => String(item.id) === this.value);", false);
     }
 
+    public function test_order_creation_screen_supports_customer_search_by_name_and_phone(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $customer->phones()->create([
+            'number' => '01012345678',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->get(route('admin.sales.orders.create'))
+            ->assertOk()
+            ->assertSee('id="customer-search"', false)
+            ->assertSee('بحث العميل بالاسم أو رقم الهاتف')
+            ->assertSee('01012345678')
+            ->assertSee('data-search=', false);
+    }
+
     public function test_order_creation_can_choose_a_saved_customer_address(): void
     {
         $user = $this->userWithSalesPermission();
