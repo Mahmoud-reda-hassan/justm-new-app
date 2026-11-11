@@ -155,7 +155,7 @@
             <div class="jm-store-product-grid" id="store-product-grid">
             @foreach($variants as $variant)
               <article class="jm-store-product" data-product-card data-search="{{ e($variant->product->name." ".$variant->sku." ".$variant->variant_name." ".$variant->attributeValues->pluck("value")->implode(" ")) }}" data-category="{{ e($variant->product->category->name ?? "") }}">
-                <div class="jm-store-product-image"><img src="{{ $variant->product->image_path ? IlluminateSupportFacadesStorage::url($variant->product->image_path) : asset("img/product-default-3d.svg") }}" alt="{{ e($variant->product->name) }}" loading="lazy"></div>
+                <div class="jm-store-product-image">@if($variant->product->image_path)<img src="{{ \\Illuminate\\Support\\Facades\\Storage::url($variant->product->image_path) }}" alt="{{ e($variant->product->name) }}" loading="lazy">@else<span class="text-muted small">لا توجد صورة</span>@endif</div>
                 <div class="p-3"><strong>{{ $variant->product->name }}</strong><div class="small text-muted">{{ $variant->product->category->name ?? "بدون قسم" }}</div>
                   <div class="small mt-2">الكود: <b dir="ltr">{{ $variant->sku }}</b></div><div class="small text-muted">{{ $variant->attributeValues->pluck("value")->implode(" / ") }}</div>
                   <div class="small mt-2">سعر القائمة: <b>{{ number_format((float)$variant->list_price,2) }}</b> ج.م</div>
