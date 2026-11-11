@@ -183,6 +183,7 @@ class SalesOrderCreationTest extends TestCase
     {
         $user = $this->userWithSalesPermission();
         $customer = $this->customer();
+        $customer->update(['email' => 'company-customer@example.test']);
         $customer->phones()->create([
             'number' => '01012345678',
             'type' => 'mobile',
@@ -195,6 +196,8 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee('id="customer-search"', false)
             ->assertSee('بحث العميل بالاسم أو رقم الهاتف')
             ->assertSee('id="customer-phone-select"', false)
+            ->assertSee('data-entity-type="company"', false)
+            ->assertSee('data-email="company-customer@example.test"', false)
             ->assertSee('id="shipping_phone_id"', false)
             ->assertSee('data-phone', false)
             ->assertSee('01012345678')
