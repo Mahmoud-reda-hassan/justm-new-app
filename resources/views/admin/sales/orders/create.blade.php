@@ -108,7 +108,7 @@
                         <div class="card-header py-2"><strong>اختيار عنوان التوصيل</strong></div>
                         <div class="card-body py-2" id="customer-address-details"></div>
                     </div>
-                    <label for="shipping_address> (يمكن تعديله لهذا الطلب)</label>
+                    <label for="shipping_address">عنوان التوصيل (يمكن تعديله لهذا الطلب)</label>
                     <textarea class="form-control" name="shipping_address" id="shipping_address" rows="2" maxlength="2000"></textarea>
                 </div>
                 <div class="form-group col-md-4">
@@ -685,7 +685,8 @@
             number: item.number,
             type: item.type,
             isPrimary: !!item.isPrimary,
-            isWhatsapp: !!item.isWhatsapp
+            isWhatsapp: !!item.isWhatsapp,
+            isTelegram: !!item.isTelegram
         }));
         customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
             id: String(item.id),
