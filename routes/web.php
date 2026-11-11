@@ -150,6 +150,7 @@ Route::middleware('auth')->group(function (): void {
     Route::prefix('admin/sales/orders')->name('admin.sales.orders.')->group(function (): void {
         Route::get('/', [SalesOrderController::class, 'index'])->middleware('permission:sales.orders.view')->name('index');
         Route::get('/create', [SalesOrderController::class, 'create'])->middleware('permission:sales.orders.create')->name('create');
+        Route::get('/customers/{customer}/history', [SalesOrderController::class, 'customerHistory'])->middleware('permission:sales.orders.create')->name('customer-history');
         Route::post('/', [SalesOrderController::class, 'store'])->middleware('permission:sales.orders.create')->name('store');
     });
 });
