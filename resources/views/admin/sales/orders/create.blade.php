@@ -1312,7 +1312,14 @@
             price
         };
         if (editingIndex !== null) {
-            items[editingIndex] = item;
+            const duplicateIndex = items.findIndex((row,index)=>index !== editingIndex && String(row.id) === item.id);
+            if (duplicateIndex >= 0) {
+                items[duplicateIndex].quantity = Number(items[duplicateIndex].quantity) + quantity;
+                items[duplicateIndex].price = price;
+                items.splice(editingIndex,1);
+            } else {
+                items[editingIndex] = item;
+            }
         } else {
             const existingIndex = items.findIndex(row=>String(row.id)===item.id);
             if (existingIndex >= 0) {
