@@ -142,6 +142,13 @@ Route::middleware('auth')->group(function (): void {
         Route::patch('/{party}/active', [\App\Http\Controllers\Admin\PartyController::class, 'setActive'])->middleware('permission:parties.activate')->name('active');
     });
 
+    Route::prefix('admin/geography')->name('admin.geography.')->group(function (): void {
+        Route::get('/{entity}', [GeographicSettingsController::class, 'index'])->whereIn('entity', ['countries', 'governorates', 'cities'])->name('index');
+        Route::post('/{entity}', [GeographicSettingsController::class, 'store'])->whereIn('entity', ['countries', 'governorates', 'cities'])->name('store');
+        Route::put('/{entity}/{id}', [GeographicSettingsController::class, 'update'])->whereIn('entity', ['countries', 'governorates', 'cities'])->whereNumber('id')->name('update');
+        Route::patch('/{entity}/{id}/active', [GeographicSettingsController::class, 'setActive'])->whereIn('entity', ['countries', 'governorates', 'cities'])->whereNumber('id')->name('active');
+    });
+
     Route::prefix('admin/shipping/zones')->name('admin.shipping.zones.')->group(function (): void {
         Route::get('/', [ShippingZoneController::class, 'index'])->middleware('permission:shipping_zones.view')->name('index');
         Route::post('/', [ShippingZoneController::class, 'store'])->middleware('permission:shipping_zones.create')->name('store');
