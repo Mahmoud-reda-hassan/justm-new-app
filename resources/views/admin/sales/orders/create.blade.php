@@ -1215,7 +1215,7 @@
                 + '<div class="jm-cart-item-data"><span>الكمية <b>' + escape(item.quantity) + '</b></span><span>سعر الوحدة <b>' + money(item.price) + ' ج.م</b></span>'
                 + (Number(item.list) > Number(item.price) ? '<span>خصم الوحدة <b>' + money(Number(item.list)-Number(item.price)) + ' ج.م</b></span>' : '')
                 + '<strong class="jm-cart-item-total">' + money(line) + ' ج.م</strong></div>'
-                + '<div class="jm-cart-item-actions"><button type="button" data-edit-cart="' + index + '" class="btn"><i class="fas fa-pen"></i> تعديل</button><button type="button" data-delete-cart="' + index + '" class="btn jm-delete-cart-product"><i class="fas fa-trash-alt"></i> حذف</button></div></div></article>';
+                + '<div class="jm-cart-item-actions"><button type="button" data-edit-cart="' + index + '" class="btn" aria-label="تعديل بند الطلب" title="تعديل بند الطلب"><i class="fas fa-pen"></i> تعديل</button><button type="button" data-delete-cart="' + index + '" class="btn jm-delete-cart-product"><i class="fas fa-trash-alt"></i> حذف</button></div></div></article>';
         }).join('');
     };
 
