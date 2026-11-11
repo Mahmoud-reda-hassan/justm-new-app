@@ -730,173 +730,130 @@
         const option = customerId ? Array.from($('customer_id').options).find(item => item.value === String(customerId)) : null;
         const phones = customerId ? (customerPhones[customerId] || []).map(item => ({...item})) : [];
         const addresses = customerId ? (customerAddresses[customerId] || []).map(item => ({...item})) : [];
-        const cityOptions = Object.entries(activeCities).map(([id, name]) =>
+        const searchCard = $('customer-search').closest('.card');
+        searchCard?.classList.add('d-none');
+        directoryCards.classList.add('d-none');
+        directoryPagination.classList.add('d-none');
+        const editor = document.createElement('div');
+        editor.className = 'card card-outline card-primary mt-2';
+        editor.id = 'customer-inline-editor';
+        const cityOptions = Object.entries(activeCities).map(([id,name]) =>
             '<option value="' + escapeHtml(id) + '">' + escapeHtml(name) + '</option>'
         ).join('');
-        const result = await Swal.fire({
-            title: customerId ? 'تعديل بيانات العميل' : 'إضافة عميل جديد',
-            width: '900px',
-            html: '<div class="text-right">'
-                + '<div class="form-group"><label for="quick-customer-type">نوع العميل</label><select id="quick-customer-type" class="form-control"><option value="individual"' + ((option?.dataset.entityType || 'individual') === 'individual' ? ' selected' : '') + '>فرد</option><option value="company"' + (option?.dataset.entityType === 'company' ? ' selected' : '') + '>شركة</option></select></div>'
-                + '<div class="form-group"><label for="quick-customer-name">اسم العميل</label><input id="quick-customer-name" class="form-control" maxlength="180" value="' + escapeHtml(option?.dataset.name || '') + '"></div>'
-                + '<div class="form-group"><label for="quick-customer-email">البريد الإلكتروني (اختياري)</label><input id="quick-customer-email" type="email" class="form-control" maxlength="190" value="' + escapeHtml(option?.dataset.email || '') + '"></div>'
-                + '<div class="card card-outline card-info"><div class="card-header py-2 d-flex justify-content-between"><strong>أرقام الهواتف</strong><button type="button" id="quick-add-phone" class="btn btn-sm btn-outline-primary">إضافة رقم</button></div><div class="card-body p-2" id="quick-phone-list"></div></div>'
-                + '<div class="card card-outline card-secondary mt-3"><div class="card-header py-2 d-flex justify-content-between"><strong>العناوين</strong><button type="button" id="quick-add-address" class="btn btn-sm btn-outline-primary">إضافة عنوان</button></div><div class="card-body p-2" id="quick-address-list"></div></div>'
-                + '</div>',
-            focusConfirm: false,
-            showCancelButton: true,
-            confirmButtonText: 'حفظ بيانات العميل',
-            cancelButtonText: 'إلغاء',
-            willOpen: () => {
-                $('customer-search').closest('.card')?.classList.add('d-none');
-            },
-            willClose: () => {
-                $('customer-search').closest('.card')?.classList.remove('d-none');
-            },
-            didOpen: () => {
-                const phoneList = $('quick-phone-list');
-                const addressList = $('quick-address-list');
-                const addPhoneRow = phone => {
-                    const row = document.createElement('div');
-                    row.className = 'border rounded p-2 mb-2 quick-phone-row';
-                    row.dataset.id = phone?.id || '';
-                    row.innerHTML = '<div class="form-row align-items-center">'
-                        + '<div class="col-md-4 mb-2"><label>رقم الهاتف</label><input class="form-control phone-number" maxlength="40" value="' + escapeHtml(phone?.number || '') + '"></div>'
-                        + '<div class="col-md-3 mb-2"><label>النوع</label><select class="form-control phone-type"><option value="mobile">محمول</option><option value="landline">أرضي</option></select></div>'
-                        + '<div class="col-md-3 mb-2"><label class="d-block">التطبيقات</label><label class="mr-2"><input type="checkbox" class="phone-whatsapp"> واتساب</label><label><input type="checkbox" class="phone-telegram"> تيليجرام</label></div>'
-                        + '<div class="col-md-2 mb-2"><label class="d-block">افتراضي</label><label><input type="radio" name="quick-primary-phone" class="phone-primary"> أساسي</label><button type="button" class="btn btn-sm btn-link text-danger remove-phone d-block p-0">حذف</button></div>'
-                        + '</div>';
-                    row.querySelector('.phone-type').value = phone?.type || 'mobile';
-                    row.querySelector('.phone-whatsapp').checked = !!phone?.isWhatsapp;
-                    row.querySelector('.phone-telegram').checked = !!phone?.isTelegram;
-                    row.querySelector('.phone-primary').checked = !!phone?.isPrimary;
-                    row.querySelector('.remove-phone').addEventListener('click', () => row.remove());
-                    phoneList.appendChild(row);
+        editor.innerHTML = '<div class="card-header"><strong>' + (customerId ? 'تعديل بيانات العميل' : 'إضافة عميل') + '</strong></div>'
+            + '<div class="card-body"><div class="form-group"><label>اسم العميل</label><input id="inline-customer-name" class="form-control" maxlength="180" value="' + escapeHtml(option?.dataset.name || '') + '"></div>'
+            + '<div class="form-group"><label>البريد الإلكتروني (اختياري)</label><input id="inline-customer-email" type="email" class="form-control" value="' + escapeHtml(option?.dataset.email || '') + '"></div>'
+            + '<div class="d-flex justify-content-between align-items-center mb-2"><strong>أرقام الهواتف</strong><button type="button" class="btn btn-sm btn-outline-primary" id="inline-add-phone">إضافة هاتف</button></div><div id="inline-phone-list"></div>'
+            + '<div class="d-flex justify-content-between align-items-center mb-2 mt-3"><strong>العناوين</strong><button type="button" class="btn btn-sm btn-outline-primary" id="inline-add-address">إضافة عنوان</button></div><div id="inline-address-list"></div>'
+            + '</div><div class="card-footer d-flex flex-wrap"><button type="button" class="btn btn-primary ml-2" id="inline-save-customer">حفظ البيانات</button><button type="button" class="btn btn-default" id="inline-cancel-customer">إلغاء</button></div>';
+        directoryCards.parentElement.appendChild(editor);
+        const phoneList = editor.querySelector('#inline-phone-list');
+        const addressList = editor.querySelector('#inline-address-list');
+        const addPhone = phone => {
+            const row = document.createElement('div');
+            row.className = 'border rounded p-2 mb-2 inline-phone-row';
+            row.dataset.id = phone?.id || '';
+            row.innerHTML = '<div class="form-row align-items-center"><div class="col-md-4 mb-2"><label>رقم الهاتف</label><input class="form-control p-number" value="' + escapeHtml(phone?.number || '') + '" maxlength="40"></div>'
+                + '<div class="col-md-2 mb-2"><label>النوع</label><select class="form-control p-type"><option value="mobile">محمول</option><option value="landline">أرضي</option></select></div>'
+                + '<div class="col-md-3 mb-2"><label class="d-block">التطبيقات</label><label class="mr-2"><input type="checkbox" class="p-wa"> واتساب</label><label><input type="checkbox" class="p-tg"> تيليجرام</label></div>'
+                + '<div class="col-md-2 mb-2"><label><input type="radio" name="inline-primary-phone" class="p-primary"> افتراضي</label></div><div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger p-remove">حذف</button></div></div>';
+            row.querySelector('.p-type').value = phone?.type || 'mobile';
+            row.querySelector('.p-wa').checked = !!phone?.isWhatsapp;
+            row.querySelector('.p-tg').checked = !!phone?.isTelegram;
+            row.querySelector('.p-primary').checked = !!phone?.isPrimary;
+            row.querySelector('.p-remove').addEventListener('click',()=>row.remove());
+            phoneList.appendChild(row);
+        };
+        const addAddress = address => {
+            const row = document.createElement('div');
+            row.className = 'border rounded p-2 mb-2 inline-address-row';
+            row.dataset.id = address?.id || '';
+            row.innerHTML = '<div class="form-row"><div class="col-md-3 mb-2"><label>اسم العنوان</label><input class="form-control a-title" value="' + escapeHtml(address?.title || 'عنوان جديد') + '" maxlength="80"></div>'
+                + '<div class="col-md-3 mb-2"><label>المدينة</label><select class="form-control a-city"><option value="">اختر المدينة</option>' + cityOptions + '</select></div>'
+                + '<div class="col-md-5 mb-2"><label>العنوان بالتفصيل</label><textarea class="form-control a-text" rows="2" maxlength="4000">' + escapeHtml(address?.address || '') + '</textarea></div>'
+                + '<div class="col-md-1 d-flex flex-column justify-content-between"><label><input type="radio" name="inline-primary-address" class="a-primary"> افتراضي</label><button type="button" class="btn btn-sm btn-outline-danger a-remove">حذف</button></div></div>';
+            row.querySelector('.a-city').value = String(address?.cityId || '');
+            row.querySelector('.a-primary').checked = !!address?.isPrimary;
+            row.querySelector('.a-remove').addEventListener('click',()=>row.remove());
+            addressList.appendChild(row);
+        };
+        phones.forEach(addPhone);
+        addresses.forEach(addAddress);
+        if (!phones.length) addPhone({isPrimary:true,type:'mobile'});
+        if (!addresses.length) addAddress({isPrimary:true,title:'العنوان الرئيسي'});
+        editor.querySelector('#inline-add-phone').addEventListener('click',()=>addPhone({type:'mobile'}));
+        editor.querySelector('#inline-add-address').addEventListener('click',()=>addAddress({title:'عنوان جديد'}));
+        const closeEditor = () => {
+            editor.remove();
+            searchCard?.classList.remove('d-none');
+            directoryCards.classList.remove('d-none');
+            directoryPagination.classList.remove('d-none');
+        };
+        editor.querySelector('#inline-cancel-customer').addEventListener('click',closeEditor);
+        editor.querySelector('#inline-save-customer').addEventListener('click',async()=>{
+            const phoneRows = Array.from(editor.querySelectorAll('.inline-phone-row'));
+            const addressRows = Array.from(editor.querySelectorAll('.inline-address-row'));
+            const payload = {
+                entity_type: option?.dataset.entityType || 'individual',
+                name: editor.querySelector('#inline-customer-name').value.trim(),
+                email: editor.querySelector('#inline-customer-email').value.trim(),
+                phones: phoneRows.map(row=>({
+                    ...(row.dataset.id ? {id:Number(row.dataset.id)} : {}),
+                    number:row.querySelector('.p-number').value.trim(),
+                    type:row.querySelector('.p-type').value,
+                    is_whatsapp:row.querySelector('.p-wa').checked,
+                    is_telegram:row.querySelector('.p-tg').checked,
+                    is_primary:row.querySelector('.p-primary').checked
+                })),
+                addresses:addressRows.map(row=>({
+                    ...(row.dataset.id ? {id:Number(row.dataset.id)} : {}),
+                    title:row.querySelector('.a-title').value.trim(),
+                    city_id:row.querySelector('.a-city').value,
+                    address:row.querySelector('.a-text').value.trim(),
+                    is_primary:row.querySelector('.a-primary').checked
+                }))
+            };
+            if(!payload.name || !payload.phones.length || payload.phones.some(p=>!p.number) || !payload.addresses.length || payload.addresses.some(a=>!a.city_id || !a.address || !a.title)){
+                Swal.fire({icon:'warning',text:'أكمل اسم العميل ورقم هاتف واحدًا على الأقل وعنوانًا صحيحًا واحدًا على الأقل.'}); return;
+            }
+            if(payload.phones.filter(p=>p.is_primary).length>1 || payload.addresses.filter(a=>a.is_primary).length>1){
+                Swal.fire({icon:'warning',text:'حدد رقمًا افتراضيًا واحدًا وعنوانًا افتراضيًا واحدًا فقط.'}); return;
+            }
+            if(!payload.phones.some(p=>p.is_primary)) payload.phones[0].is_primary=true;
+            if(!payload.addresses.some(a=>a.is_primary)) payload.addresses[0].is_primary=true;
+            const button=editor.querySelector('#inline-save-customer');
+            button.disabled=true;
+            try{
+                const url=customerId?updateCustomerUrl.replace('__PARTY__',encodeURIComponent(customerId)):customerEditorUrl;
+                const body=customerId?payload:{
+                    entity_type:payload.entity_type,name:payload.name,email:payload.email,
+                    mobile:payload.phones.find(p=>p.type==='mobile')?.number || payload.phones[0].number,
+                    city_id:payload.addresses.find(a=>a.is_primary)?.city_id || payload.addresses[0].city_id,
+                    address:payload.addresses.find(a=>a.is_primary)?.address || payload.addresses[0].address
                 };
-                const addAddressRow = address => {
-                    const row = document.createElement('div');
-                    row.className = 'border rounded p-2 mb-2 quick-address-row';
-                    row.dataset.id = address?.id || '';
-                    row.innerHTML = '<div class="form-row">'
-                        + '<div class="col-md-3 mb-2"><label>اسم العنوان</label><input class="form-control address-title" maxlength="80" value="' + escapeHtml(address?.title || 'عنوان جديد') + '"></div>'
-                        + '<div class="col-md-4 mb-2"><label>المدينة</label><select class="form-control address-city"><option value="">اختر المدينة</option>' + cityOptions + '</select></div>'
-                        + '<div class="col-md-5 mb-2"><label>العنوان بالتفصيل</label><textarea class="form-control address-text" rows="2" maxlength="4000">' + escapeHtml(address?.address || '') + '</textarea></div>'
-                        + '<div class="col-12 d-flex justify-content-between align-items-center"><label class="mb-0"><input type="radio" name="quick-primary-address" class="address-primary"> العنوان الافتراضي</label><button type="button" class="btn btn-sm btn-link text-danger remove-address">حذف</button></div>'
-                        + '</div>';
-                    row.querySelector('.address-city').value = String(address?.cityId || '');
-                    row.querySelector('.address-primary').checked = !!address?.isPrimary;
-                    row.querySelector('.remove-address').addEventListener('click', () => row.remove());
-                    addressList.appendChild(row);
-                };
-                phones.forEach(addPhoneRow);
-                addresses.forEach(addAddressRow);
-                if (!phones.length) addPhoneRow({type:'mobile',isPrimary:true});
-                if (!addresses.length) addAddressRow({title:'العنوان الرئيسي',isPrimary:true});
-                $('quick-add-phone').addEventListener('click', () => addPhoneRow({type:'mobile'}));
-                $('quick-add-address').addEventListener('click', () => addAddressRow({title:'عنوان جديد'}));
-            },
-            preConfirm: async () => {
-                const phoneRows = Array.from(document.querySelectorAll('.quick-phone-row'));
-                const addressRows = Array.from(document.querySelectorAll('.quick-address-row'));
-                const data = {
-                    entity_type: $('quick-customer-type').value,
-                    name: $('quick-customer-name').value.trim(),
-                    email: $('quick-customer-email').value.trim(),
-                    phones: phoneRows.map(row => ({
-                        ...(row.dataset.id ? {id:Number(row.dataset.id)} : {}),
-                        number: row.querySelector('.phone-number').value.trim(),
-                        type: row.querySelector('.phone-type').value,
-                        is_whatsapp: row.querySelector('.phone-whatsapp').checked,
-                        is_telegram: row.querySelector('.phone-telegram').checked,
-                        is_primary: row.querySelector('.phone-primary').checked
-                    })),
-                    addresses: addressRows.map(row => ({
-                        ...(row.dataset.id ? {id:Number(row.dataset.id)} : {}),
-                        title: row.querySelector('.address-title').value.trim(),
-                        city_id: row.querySelector('.address-city').value,
-                        address: row.querySelector('.address-text').value.trim(),
-                        is_primary: row.querySelector('.address-primary').checked
-                    }))
-                };
-                if (!data.name || !data.phones.length || data.phones.some(item => !item.number)) {
-                    Swal.showValidationMessage('أدخل اسم العميل ورقم هاتف واحدًا على الأقل.');
-                    return false;
-                }
-                if (!data.addresses.length || data.addresses.some(item => !item.title || !item.city_id || !item.address)) {
-                    Swal.showValidationMessage('أدخل عنوانًا واحدًا على الأقل وحدد المدينة لكل عنوان.');
-                    return false;
-                }
-                if (data.phones.filter(item => item.is_primary).length > 1 || data.addresses.filter(item => item.is_primary).length > 1) {
-                    Swal.showValidationMessage('حدد رقمًا افتراضيًا واحدًا وعنوانًا افتراضيًا واحدًا فقط.');
-                    return false;
-                }
-                if (!data.phones.some(item => item.is_primary)) data.phones[0].is_primary = true;
-                if (!data.addresses.some(item => item.is_primary)) data.addresses[0].is_primary = true;
-                try {
-                    const response = await fetch(customerId
-                        ? updateCustomerUrl.replace('__PARTY__', encodeURIComponent(customerId))
-                        : customerEditorUrl, {
-                        method: customerId ? 'PUT' : 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': csrfToken,
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: JSON.stringify(customerId ? data : {
-                            entity_type: data.entity_type,
-                            name: data.name,
-                            mobile: data.phones.find(item => item.type === 'mobile')?.number || data.phones[0].number,
-                            email: data.email,
-                            city_id: data.addresses.find(item => item.is_primary)?.city_id || data.addresses[0].city_id,
-                            address: data.addresses.find(item => item.is_primary)?.address || data.addresses[0].address
-                        })
-                    });
-                    const payload = await response.json();
-                    if (!response.ok) {
-                        const firstError = payload.errors ? Object.values(payload.errors).flat()[0] : payload.message;
-                        throw new Error(firstError || 'تعذر حفظ بيانات العميل.');
-                    }
-                    return payload.customer;
-                } catch (error) {
-                    Swal.showValidationMessage(error.message || 'تعذر حفظ بيانات العميل.');
-                    return false;
-                }
+                const response=await fetch(url,{method:customerId?'PUT':'POST',headers:{'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrfToken,'X-Requested-With':'XMLHttpRequest'},body:JSON.stringify(body)});
+                const result=await response.json();
+                if(!response.ok) throw new Error(result.message || (result.errors ? Object.values(result.errors).flat()[0] : 'تعذر حفظ بيانات العميل.'));
+                const saved=result.customer;
+                let customerOption=Array.from($('customer_id').options).find(item=>item.value===String(saved.id));
+                if(!customerOption){customerOption=new Option(saved.name,saved.id);$('customer_id').appendChild(customerOption);customerOptions.push(customerOption);}
+                customerOption.textContent=saved.name;
+                customerOption.dataset.name=saved.name;
+                customerOption.dataset.entityType=saved.entity_type || 'individual';
+                customerOption.dataset.mobile=saved.mobile || saved.phones?.[0]?.number || '';
+                customerOption.dataset.email=saved.email || '';
+                customerPhones[saved.id]=(saved.phones||[]).map(p=>({id:String(p.id),number:p.number,type:p.type,isPrimary:!!p.isPrimary,isWhatsapp:!!p.isWhatsapp,isTelegram:!!p.isTelegram}));
+                customerAddresses[saved.id]=(saved.addresses||[]).map(a=>({id:String(a.id),title:a.title,address:a.address,city:a.city,cityId:a.city_id??a.cityId,zone:a.zone||'',feeMin:a.feeMin??'',feeMax:a.feeMax??'',deliveryDays:a.deliveryDays??'',isPrimary:!!a.isPrimary}));
+                $('customer_id').value=String(saved.id);
+                $('customer_id').dispatchEvent(new Event('change'));
+                closeEditor();
+                await loadCustomerDirectory(1,$('customer-search').value.trim());
+                Swal.fire({icon:'success',text:'تم حفظ بيانات العميل.',timer:1400,showConfirmButton:false});
+            }catch(error){
+                Swal.fire({icon:'error',text:error.message || 'تعذر حفظ بيانات العميل.'});
+                button.disabled=false;
             }
         });
-
-        if (!result.isConfirmed || !result.value) return;
-        const customer = result.value;
-        const firstAddress = customer.addresses?.[0] || {};
-        let customerOption = Array.from($('customer_id').options).find(item => item.value === String(customer.id));
-        if (!customerOption) {
-            customerOption = document.createElement('option');
-            customerOption.value = customer.id;
-            $('customer_id').appendChild(customerOption);
-            customerOptions.push(customerOption);
-        }
-        customerOption.textContent = customer.name;
-        customerOption.dataset.name = customer.name;
-        customerOption.dataset.entityType = customer.entity_type || 'individual';
-        customerOption.dataset.mobile = customer.mobile || customer.phones?.[0]?.number || '';
-        customerOption.dataset.email = customer.email || '';
-        customerOption.dataset.address = firstAddress.address || '';
-        customerPhones[customer.id] = (customer.phones || []).map(item => ({
-            id: String(item.id), number: item.number, type: item.type,
-            isPrimary: !!item.isPrimary, isWhatsapp: !!item.isWhatsapp, isTelegram: !!item.isTelegram
-        }));
-        customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
-            id: String(item.id), title: item.title, address: item.address,
-            city: item.city, cityId: item.city_id ?? item.cityId,
-            zone: item.zone || '', feeMin: item.feeMin ?? '',
-            feeMax: item.feeMax ?? '', deliveryDays: item.deliveryDays ?? '',
-            isPrimary: !!item.isPrimary
-        }));
-        $('customer_id').value = String(customer.id);
-        $('customer_id').dispatchEvent(new Event('change'));
-        $('edit-customer')?.removeAttribute('disabled');
-        await loadCustomerDirectory(1, $('customer-search').value.trim());
-        Swal.fire({ icon: 'success', text: 'تم حفظ بيانات العميل.', timer: 1400, showConfirmButton: false });
     };
 
     $('add-customer')?.addEventListener('click', () => openCustomerEditor());
