@@ -469,8 +469,7 @@
 
     $('customer_id').addEventListener('change', () => {
         renderCustomerPhones();
-        renderCustomerPhones();
-    renderCustomerAddresses();
+        renderCustomerAddresses();
         loadCustomerHistory();
     });
     $('customer-address-select').addEventListener('change', function () {
@@ -482,6 +481,7 @@
             applyShippingRoute(address);
         }
     });
+    renderCustomerPhones();
     renderCustomerAddresses();
 
 
@@ -589,6 +589,21 @@
     $('to-products').addEventListener('click', () => {
         if (!$('customer_id').value) {
             Swal.fire({ icon: 'warning', text: 'اختر العميل أولًا.' });
+            return;
+        }
+        if (!$('shipping_phone_id').value) {
+            Swal.fire({ icon: 'warning', text: 'اختر رقم هاتف نشطًا للعميل.' });
+            return;
+        }
+        const selectedAddress = (customerAddresses[$('customer_id').value] || [])
+            .find(address => String(address.id) === $('shipping_address_id').value);
+        if (!selectedAddress || !selectedAddress.zone) {
+            Swal.fire({ icon: 'warning', text: 'اختر عنوانًا مرتبطًا بمنطقة شحن ومخزن نشطين قبل متابعة الطلب.' });
+            return;
+        }
+        const fee = Number($('shipping_fee').value);
+        if (!Number.isFinite(fee) || fee < Number(selectedAddress.feeMin) || fee > Number(selectedAddress.feeMax)) {
+            Swal.fire({ icon: 'warning', text: 'رسوم الشحن خارج النطاق المحدد لعنوان العميل.' });
             return;
         }
         show('step-products');
