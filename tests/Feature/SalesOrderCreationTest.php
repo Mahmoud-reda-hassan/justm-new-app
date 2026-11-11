@@ -20,6 +20,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class SalesOrderCreationTest extends TestCase
@@ -124,12 +125,25 @@ class SalesOrderCreationTest extends TestCase
         ]);
     }
 
+    private function setWarehouseStock(\App\Models\PartyAddress $address, ProductVariant $variant, float $quantity): void
+    {
+        $address->loadMissing('city.shippingZone');
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $address->city->shippingZone->warehouse_id,
+            'product_variant_id' => $variant->id,
+            'quantity_on_hand' => $quantity,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     public function test_order_is_saved_as_draft_with_price_discount_and_shipping_snapshots(): void
     {
         $user = $this->userWithSalesPermission();
         $customer = $this->customer();
         $variant = $this->variant();
         $shippingAddress = $this->shippingAddress($customer);
+        $this->setWarehouseStock($shippingAddress, $variant, 10);
         $phone = $customer->phones()->create([
             'number' => '01012345678',
             'type' => 'mobile',
@@ -175,6 +189,7 @@ class SalesOrderCreationTest extends TestCase
         $customer = $this->customer();
         $variant = $this->variant();
         $shippingAddress = $this->shippingAddress($customer);
+        $this->setWarehouseStock($shippingAddress, $variant, 10);
         $phone = $customer->phones()->create([
             'number' => '01012345678',
             'type' => 'mobile',
@@ -228,6 +243,75 @@ class SalesOrderCreationTest extends TestCase
         ])->assertSessionHasErrors('shipping_date');
 
         $this->assertDatabaseCount('sales_orders', 0);
+    }
+
+    public function test_order_rejects_quantity_above_available_when_preorder_is_disabled(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $variant = $this->variant();
+        $shippingAddress = $this->shippingAddress($customer);
+        $this->setWarehouseStock($shippingAddress, $variant, 1);
+        $phone = $customer->phones()->create([
+            'number' => '01012345678',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->post(route('admin.sales.orders.store'), [
+            'customer_id' => $customer->id,
+            'shipping_phone_id' => $phone->id,
+            'shipping_address_id' => $shippingAddress->id,
+            'shipping_address' => $shippingAddress->address,
+            'shipping_fee' => 10,
+            'items' => [[
+                'product_variant_id' => $variant->id,
+                'quantity' => 2,
+                'sale_price' => 90,
+            ]],
+        ])->assertSessionHasErrors('items');
+
+        $this->assertDatabaseCount('sales_orders', 0);
+        $this->assertDatabaseCount('sales_order_item_reservations', 0);
+    }
+
+    public function test_preorder_product_reserves_available_quantity_and_tracks_the_shortage(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $variant = $this->variant();
+        $variant->product->update(['allow_preorder' => true]);
+        $shippingAddress = $this->shippingAddress($customer);
+        $this->setWarehouseStock($shippingAddress, $variant, 1);
+        $phone = $customer->phones()->create([
+            'number' => '01012345678',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->post(route('admin.sales.orders.store'), [
+            'customer_id' => $customer->id,
+            'shipping_phone_id' => $phone->id,
+            'shipping_address_id' => $shippingAddress->id,
+            'shipping_address' => $shippingAddress->address,
+            'shipping_fee' => 10,
+            'items' => [[
+                'product_variant_id' => $variant->id,
+                'quantity' => 3,
+                'sale_price' => 90,
+            ]],
+        ])->assertRedirect(route('admin.sales.orders.create'));
+
+        $this->assertDatabaseHas('sales_order_item_reservations', [
+            'warehouse_id' => $shippingAddress->city->shippingZone->warehouse_id,
+            'product_variant_id' => $variant->id,
+            'requested_quantity' => '3.000',
+            'reserved_quantity' => '1.000',
+            'backorder_quantity' => '2.000',
+            'status' => 'active',
+        ]);
     }
 
     public function test_order_creation_screen_exposes_shipping_date_adjustment(): void
