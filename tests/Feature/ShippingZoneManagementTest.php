@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\City;
+use App\Models\Country;
 use App\Models\Company;
 use App\Models\Permission;
 use App\Models\Role;
@@ -143,4 +144,43 @@ class ShippingZoneManagementTest extends TestCase
         $this->assertDatabaseMissing('shipping_zones', ['name_ar' => 'المنطقة الثانية']);
         $this->assertSame($existing->id, $city->fresh()->shipping_zone_id);
     }
+
+    public function test_international_zone_can_cover_active_countries_without_local_warehouse_or_tariff(): void
+    {
+        $user = $this->userWith(['shipping_zones.create', 'structure.scope.manage_all']);
+        app(DatabaseSeeder::class)->run();
+        $country = Country::query()->where('is_active', true)->firstOrFail();
+
+        $this->actingAs($user)->post(route('admin.shipping.zones.store'), [
+            'zone_type' => 'international',
+            'name_ar' => 'دول الخليج',
+            'name_en' => 'Gulf Countries',
+            'country_ids' => [$country->id],
+        ])->assertSessionHasNoErrors();
+
+        $zone = ShippingZone::query()->where('name_ar', 'دول الخليج')->firstOrFail();
+        $this->assertSame('international', $zone->zone_type);
+        $this->assertNull($zone->warehouse_id);
+        $this->assertNull($zone->shipping_fee_max);
+        $this->assertNull($zone->delivery_days);
+        $this->assertTrue($zone->countries()->whereKey($country->id)->exists());
+        $this->assertSame(0, $zone->cities()->count());
+    }
+
+    public function test_international_zone_management_requires_global_structure_scope(): void
+    {
+        $user = $this->userWith(['shipping_zones.create']);
+        app(DatabaseSeeder::class)->run();
+        $country = Country::query()->where('is_active', true)->firstOrFail();
+
+        $this->actingAs($user)->post(route('admin.shipping.zones.store'), [
+            'zone_type' => 'international',
+            'name_ar' => 'منطقة دولية ممنوعة',
+            'name_en' => 'Forbidden international zone',
+            'country_ids' => [$country->id],
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('shipping_zones', ['name_ar' => 'منطقة دولية ممنوعة']);
+    }
+
 }
