@@ -67,7 +67,7 @@ class VirtualStockPolicyService
                 ['setting_key' => $key],
                 [
                     'setting_value' => json_encode($value, JSON_UNESCAPED_UNICODE),
-                    'description' => 'سياسة احتساب المخزون الافتراضي حسب حالة أمر البيع والمنظور',
+                    'description' => 'سياسة احتساب المخازن الوهمية حسب حالة أمر البيع ونوع المخزن الوهمي',
                     'updated_by' => $userId,
                     'created_at' => now(),
                     'updated_at' => now(),
