@@ -36,10 +36,9 @@
  .jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
 .jm-order-storefront-page #step-products,.jm-order-storefront-page #step-review{border:0;box-shadow:none;overflow:visible;background:transparent}
 .jm-order-storefront-page #step-products>.card-header,.jm-order-storefront-page #step-review>.card-header{display:none}
-.jm-order-storefront-page #step-products .jm-store-layout{display:block;margin:0}
-.jm-order-storefront-page #step-products .jm-store-products{width:100%;grid-column:auto;grid-row:auto}
 .jm-order-storefront-page #step-review .jm-store-layout{display:block}
 .jm-order-storefront-page #step-products>.card-body,.jm-order-storefront-page #step-review>.card-body{padding:0;background:transparent}
+.jm-order-storefront-page #step-products .jm-store-layout{margin:0 0 18px}
 .jm-order-storefront-page .jm-wizard-taskbar .jm-order-step{cursor:pointer}
 .jm-order-storefront-page #step-review .jm-store-cart{width:100%;position:static}
 .jm-order-storefront-page #step-review .jm-store-bottom{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -164,6 +163,12 @@
                         <small>سيتم عرض تفاصيل السلة في خطوة مراجعة الطلب.</small>
                     </div>
                 </section>
+                <aside class="jm-store-cart" aria-label="سلة المنتجات المختارة">
+                    <div class="jm-store-cart-head"><h5><i class="fas fa-shopping-cart"></i> سلة الطلب</h5><span id="jm-product-cart-count">0</span></div>
+                    <div id="jm-product-cart-items" class="jm-cart-items" aria-live="polite">
+                        <div class="jm-cart-empty-inline"><i class="fas fa-basket-shopping"></i><strong>السلة فارغة</strong><span>أضف المنتجات من الكتالوج لتظهر تفاصيلها هنا.</span></div>
+                    </div>
+                </aside>
             </div>
         </div>
     </section>
@@ -1201,23 +1206,24 @@
 
     const renderCart = () => {
         const count = items.reduce((sum,item)=>sum+Number(item.quantity||0),0);
-        $('store-cart-count').textContent = Number.isInteger(count) ? count : count.toFixed(2);
-        $('jmStep1CartCount').textContent = Number.isInteger(count) ? count : count.toFixed(2);
-        if (!items.length) {
-            $('store-cart-items').innerHTML = '<div class="jm-cart-empty-inline"><i class="fas fa-basket-shopping"></i><strong>السلة فارغة</strong><span>ارجع لاختيار المنتجات وأضف الأصناف المطلوبة.</span></div>';
-            return;
-        }
-        $('store-cart-items').innerHTML = items.map((item,index) => {
+        const countText = Number.isInteger(count) ? count : count.toFixed(2);
+        $('store-cart-count').textContent = countText;
+        $('jm-product-cart-count').textContent = countText;
+        $('jmStep1CartCount').textContent = countText;
+        const empty = '<div class="jm-cart-empty-inline"><i class="fas fa-basket-shopping"></i><strong>السلة فارغة</strong><span>أضف المنتجات من الكتالوج لتظهر تفاصيلها هنا.</span></div>';
+        const markup = items.length ? items.map((item,index) => {
             const options = (item.attributes || []).map(attribute=>attribute.group_name + ': ' + attribute.value).join(' · ');
             const line = Number(item.price) * Number(item.quantity);
-            return '<article class="jm-cart-item"><div class="jm-cart-item-image"><img src="' + escape(item.image || '/img/product-default-3d.svg') + '" alt="' + escape(item.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div>'
+            return '<article class="jm-cart-item"><div class="jm-cart-item-image"><img src="' + escape(item.image || '/img/product-default-3d.svg') + '" alt="' + escape(item.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\\'/img/product-default-3d.svg\\';"></div>'
                 + '<div class="jm-cart-item-main"><div class="jm-cart-item-title-row"><div><strong>' + escape(item.name) + '</strong><small>' + escape(item.category || '') + '</small></div><span class="jm-cart-item-code">' + escape(item.sku) + '</span></div>'
                 + (options ? '<div class="jm-cart-item-options">' + escape(options) + '</div>' : '')
                 + '<div class="jm-cart-item-data"><span>الكمية <b>' + escape(item.quantity) + '</b></span><span>سعر الوحدة <b>' + money(item.price) + ' ج.م</b></span>'
                 + (Number(item.list) > Number(item.price) ? '<span>خصم الوحدة <b>' + money(Number(item.list)-Number(item.price)) + ' ج.م</b></span>' : '')
                 + '<strong class="jm-cart-item-total">' + money(line) + ' ج.م</strong></div>'
-                + '<div class="jm-cart-item-actions"><button type="button" data-edit-cart="' + index + '" class="btn" aria-label="تعديل بند الطلب" title="تعديل بند الطلب"><i class="fas fa-pen"></i> تعديل</button><button type="button" data-delete-cart="' + index + '" class="btn jm-delete-cart-product"><i class="fas fa-trash-alt"></i> حذف</button></div></div></article>';
-        }).join('');
+                + '<div class="jm-cart-item-actions"><button type="button" data-edit-cart="' + index + '" class="btn"><i class="fas fa-pen"></i> تعديل</button><button type="button" data-delete-cart="' + index + '" class="btn jm-delete-cart-product"><i class="fas fa-trash-alt"></i> حذف</button></div></div></article>';
+        }).join('') : empty;
+        $('store-cart-items').innerHTML = markup;
+        $('jm-product-cart-items').innerHTML = markup;
     };
 
     const renderCustomerSummary = () => {
@@ -1267,7 +1273,7 @@
         const button = event.target.closest('[data-open-product]');
         if (button) openProductDetails(button.dataset.openProduct);
     });
-    $('store-cart-items').addEventListener('click', event => {
+    const handleCartAction = event => {
         const edit = event.target.closest('[data-edit-cart]');
         const remove = event.target.closest('[data-delete-cart]');
         if (edit) {
@@ -1282,7 +1288,9 @@
             items.splice(Number(remove.dataset.deleteCart),1);
             renderReview();
         }
-    });
+    };
+    $('store-cart-items').addEventListener('click', handleCartAction);
+    $('jm-product-cart-items').addEventListener('click', handleCartAction);
 
     let currentStep = 'step-customer';
     const show = id => {
