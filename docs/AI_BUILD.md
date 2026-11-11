@@ -4312,8 +4312,17 @@
 - شاشة خدمة العملاء تسمح باختيار حالة الأمر المفتوح لتطبيق صف المصفوفة الخاص بها.
 - صلاحية مستقلة inventory.virtual_stock.view عبر Migration جديدة، مع رابط في القائمة الجانبية.
 - تحديث مسميات إعدادات المخازن وربط شاشة الإعدادات بشاشة العرض.
-- أضيف اختبار Feature لصلاحية الوصول وعرض الأنواع الثلاثة؛ لم تُتحقق نتيجة تشغيل الاختبارات أو CI بعد على HEAD الحالي.
+- أضيفت اختبارات Feature لصلاحية الوصول وعرض الأنواع الثلاثة، ولحساب المتاح بطرح الحجز النشط من الرصيد الحقيقي. نجح Laravel CI رقم [43113567798](https://github.com/Mahmoud-reda-hassan/justm-new-app/actions/runs/43113567798) على commit الكود `ff5d2cce099bf1af00bbaf052bc83e408c1282db`: **180 اختبارًا و806 assertions**.
 
 التفاصيل في INVENTORY_SHIPPING_CUSTODY_WORKFLOW_AR.md، القسم 16.
 
 **الحدود:** لا تُشغّل Migration على قاعدة تشغيل ولا تنشر التغييرات دون موافقة. لا تزال دورة انتقال الحالات واستهلاك/تحرير الحجز عند الصرف الفعلي خارج نطاق هذه الشاشة.
+
+## نقطة الاستكمال الحالية — 2026-11-12
+
+- **فرع التنفيذ:** rebuild-v2. آخر commit كود واختبار تم التحقق منه: ff5d2cce099bf1af00bbaf052bc83e408c1282db. أضيفت بعده تحديثات توثيق فقط؛ افحص HEAD الحالي قبل أي تعديل جديد.
+- **آخر تحقق CI للكود:** Laravel CI رقم [43113567798](https://github.com/Mahmoud-reda-hassan/justm-new-app/actions/runs/43113567798) ناجح: 180 اختبارًا و806 assertions.
+- **المنفذ في المهمة الأخيرة:** إعدادات المخازن الوهمية الثلاثة، شاشة العرض الموحدة، اختيار المخزن الحقيقي والبحث، تفصيل الحجز حسب الحالة، صلاحية العرض، واختبارات الحساب والوصول.
+- **ملفات الاستكمال:** app/Services/VirtualStockPolicyService.php، app/Http/Controllers/Admin/VirtualStockController.php، resources/views/admin/inventory/settings.blade.php، resources/views/admin/inventory/virtual-stock.blade.php، docs/INVENTORY_SHIPPING_CUSTODY_WORKFLOW_AR.md القسم 16.
+- **المتبقي:** إسناد صلاحية inventory.virtual_stock.view للأدوار التشغيلية المطلوبة، ثم ربط انتقالات حالات أوامر البيع باستهلاك/تحرير الحجز عند الصرف الفعلي. لا تُشغّل Migration على قاعدة تشغيل ولا تنشر دون موافقة.
+- **لم يحدث:** لا نشر على Plesk ولا دمج إلى main ولا تعديل لقاعدة بيانات فعلية.
