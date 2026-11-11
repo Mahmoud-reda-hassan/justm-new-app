@@ -44,7 +44,7 @@ class SalesOrderCreationTest extends TestCase
             'is_active' => true,
         ]);
         $role->permissions()->sync(Permission::query()
-            ->whereIn('key', ['sales.orders.view', 'sales.orders.create'])
+            ->whereIn('key', ['sales.orders.view', 'sales.orders.create', 'parties.create', 'parties.update'])
             ->pluck('id'));
         $user->roles()->attach($role);
 
@@ -221,6 +221,89 @@ class SalesOrderCreationTest extends TestCase
             ->assertJsonPath('orders.0.order_number', 'SO-HISTORY-001')
             ->assertJsonPath('orders.0.total', '110.00')
             ->assertJsonMissing(['order_number' => 'SO-OTHER-CUSTOMER']);
+    }
+
+    public function test_customer_can_be_created_from_order_wizard_with_primary_phone_and_shipping_address(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $city = City::query()->where('is_active', true)->firstOrFail();
+
+        $response = $this->actingAs($user)->postJson(route('admin.parties.quick-customer.store'), [
+            'entity_type' => 'individual',
+            'name' => 'عميل من شاشة الطلب',
+            'mobile' => '01055554444',
+            'email' => 'quick-customer@example.test',
+            'city_id' => $city->id,
+            'address' => 'شارع العميل الجديد',
+        ]);
+
+        $response->assertCreated();
+        $customer = Party::query()->where('name', 'عميل من شاشة الطلب')->firstOrFail();
+        $this->assertSame(['customer'], $customer->assignedRoles());
+        $this->assertSame('01055554444', $customer->mobile);
+        $this->assertSame('شارع العميل الجديد', $customer->address);
+        $this->assertDatabaseHas('party_phones', [
+            'party_id' => $customer->id,
+            'number' => '01055554444',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('party_addresses', [
+            'party_id' => $customer->id,
+            'city_id' => $city->id,
+            'address' => 'شارع العميل الجديد',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+        $response->assertJsonPath('customer.id', $customer->id);
+    }
+
+    public function test_customer_can_be_edited_without_removing_secondary_addresses(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $city = City::query()->where('is_active', true)->firstOrFail();
+        $customer->phones()->create([
+            'number' => '01011112222',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+        $primary = $customer->addresses()->create([
+            'city_id' => $city->id,
+            'title' => 'العنوان الرئيسي',
+            'address' => 'العنوان القديم',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+        $secondary = $customer->addresses()->create([
+            'city_id' => $city->id,
+            'title' => 'عنوان إضافي',
+            'address' => 'عنوان إضافي محفوظ',
+            'is_primary' => false,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->putJson(route('admin.parties.quick-customer.update', $customer), [
+            'entity_type' => 'company',
+            'name' => 'اسم العميل بعد التعديل',
+            'mobile' => '01099998888',
+            'email' => 'updated-customer@example.test',
+            'city_id' => $city->id,
+            'address' => 'العنوان بعد التعديل',
+        ])->assertOk()
+            ->assertJsonPath('customer.name', 'اسم العميل بعد التعديل')
+            ->assertJsonPath('customer.addresses.0.address', 'العنوان بعد التعديل');
+
+        $this->assertSame('01099998888', $customer->fresh()->mobile);
+        $this->assertSame('company', $customer->fresh()->entity_type);
+        $this->assertSame('العنوان بعد التعديل', $primary->fresh()->address);
+        $this->assertTrue($primary->fresh()->is_primary);
+        $this->assertTrue($secondary->fresh()->is_active);
+        $this->assertFalse($secondary->fresh()->is_primary);
+        $this->assertSame(1, $customer->phones()->where('is_primary', true)->count());
+        $this->assertSame(1, $customer->addresses()->where('is_primary', true)->count());
+        $this->assertSame(['customer'], $customer->fresh()->assignedRoles());
     }
 
     public function test_order_creation_can_choose_a_saved_customer_address(): void
