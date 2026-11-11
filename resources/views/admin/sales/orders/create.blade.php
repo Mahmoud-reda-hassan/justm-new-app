@@ -60,34 +60,8 @@
                                 <input class="form-control" type="search" id="customer-search" inputmode="numeric" autocomplete="off" placeholder="اكتب رقم الهاتف">
                                 <div class="input-group-append"><button class="btn btn-primary" type="button" id="customer-search-btn"><i class="fas fa-search ml-1"></i> بحث</button></div>
                             </div>
-                            <div id="top-customer-section">
-                                <h6 class="text-primary font-weight-bold mb-2">الأكثر شراءً</h6>
-                                <div class="row" id="top-customer-cards">
-                                    @forelse($customers as $customer)
-                                        <div class="col-xl-3 col-md-4 col-sm-6 mb-2">
-                                            <div class="card h-100 mb-0 border">
-                                                <div class="card-body p-3">
-                                                    <strong class="d-block text-truncate">{{ $customer->name }}</strong>
-                                                    <small class="text-muted d-block">{{ $customer->phones->first()?->number ?: ($customer->mobile ?: $customer->phone ?: 'لا يوجد هاتف') }}</small>
-                                                    @if((int) $customer->confirmed_orders_count > 0)
-                                                        <small class="text-success d-block mt-1">{{ (int) $customer->confirmed_orders_count }} أمر بيع مؤكد</small>
-                                                    @endif
-                                                    <div class="btn-group btn-group-sm d-flex mt-2">
-                                                        <button type="button" class="btn btn-outline-primary" data-customer-select="{{ $customer->id }}">اختيار العميل</button>
-                                                        @if(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))
-                                                            <button type="button" class="btn btn-outline-secondary" data-customer-edit="{{ $customer->id }}" title="تعديل العميل"><i class="fas fa-edit"></i></button>
-                                                        @endif
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @empty
-                                        <div class="col-12 text-muted small">لا توجد أوامر بيع مؤكدة كافية لعرض عملاء الأكثر شراءً.</div>
-                                    @endforelse
-                                </div>
-                            </div>
                             <div class="d-flex justify-content-between align-items-center flex-wrap mt-3 mb-2">
-                                <strong id="customer-directory-title">باقي العملاء</strong>
+                                <strong id="customer-directory-title">العملاء</strong>
                                 <small class="text-muted" id="customer-directory-count"></small>
                             </div>
                             <div class="row" id="customer-directory-cards" aria-live="polite"></div>
@@ -97,9 +71,6 @@
                     </div>
                     <select class="form-control d-none" name="customer_id" id="customer_id">
                         <option value="">اختر العميل</option>
-                        @foreach($customers as $customer)
-                            <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-entity-type="{{ $customer->entity_type }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}">{{ $customer->name }}</option>
-                        @endforeach
                     </select>
                     <div class="form-group mt-2 mb-2">
                         <label for="customer-phone-select">رقم هاتف التواصل والتوصيل</label>
@@ -115,25 +86,10 @@
                             <button type="button" class="btn btn-sm btn-outline-secondary" id="edit-customer" disabled><i class="fas fa-user-edit ml-1"></i> تعديل بيانات العميل</button>
                         @endif
                     </div>
-                    <div id="customer-phone-data" class="d-none">
-                        @foreach($customers as $customer)
-                            <div data-customer-id="{{ $customer->id }}">
-                                @foreach($customer->phones as $phone)
-                                    <span data-phone data-id="{{ $phone->id }}" data-number="{{ $phone->number }}" data-type="{{ $phone->type }}" data-primary="{{ $phone->is_primary ? '1' : '0' }}" data-whatsapp="{{ $phone->is_whatsapp ? '1' : '0' }}"></span>
-                                @endforeach
-                            </div>
-                        @endforeach
-                    </div>
                     <div id="customer-order-history" class="mt-3" aria-live="polite">
                         <div class="text-muted small">اختر العميل لعرض آخر أوامره السابقة.</div>
                     </div>
-                    <div id="customer-address-data" class="d-none">
-                        @foreach($customers as $customer)
-                            <div data-customer-id="{{ $customer->id }}">
-                                @foreach($customer->addresses as $address)
-                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}" data-city-id="{{ $address->city_id }}" data-zone="{{ $address->city?->shippingZone?->is_active && $address->city?->shippingZone?->warehouse?->is_active && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch' && $address->city?->shippingZone?->warehouse?->branch?->is_active && $address->city?->shippingZone?->warehouse?->branch?->company?->is_active ? $address->city?->shippingZone?->name_ar : '' }}" data-fee-min="{{ $address->city?->shippingZone?->shipping_fee_min }}" data-fee-max="{{ $address->city?->shippingZone?->shipping_fee_max }}" data-delivery-days="{{ $address->city?->shippingZone?->delivery_days }}"></span>
-                                @endforeach
-                            </div>
+div>
                         @endforeach
                     </div>
                 </div>
