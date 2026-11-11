@@ -427,9 +427,11 @@
     const inventoryAvailabilityUrl = @json(route('admin.sales.orders.inventory-availability'));
     let inventoryAvailabilityRequest = 0;
     let inventoryWarehouseId = null;
+    let inventoryAvailabilityLoaded = false;
     const loadInventoryAvailability = async address => {
         if (!address?.warehouseId) return;
         const requestId = ++inventoryAvailabilityRequest;
+        inventoryAvailabilityLoaded = false;
         inventoryWarehouseId = String(address.warehouseId);
         $('shipping-route-hint').textContent += ' — جارٍ تحميل المتاح بالمخزن...';
         try {
@@ -439,6 +441,7 @@
             if (!response.ok) throw new Error('inventory');
             const payload = await response.json();
             if (requestId !== inventoryAvailabilityRequest || String(payload.warehouse_id) !== inventoryWarehouseId) return;
+            inventoryAvailabilityLoaded = true;
             catalogProducts.forEach(product => product.variants.forEach(variant => {
                 const availability = payload.variants[String(variant.id)] || {};
                 variant.available_quantity = Number(availability.available_quantity) || 0;
@@ -448,7 +451,8 @@
             $('shipping-route-hint').textContent = $('shipping-route-hint').textContent.replace(' — جارٍ تحميل المتاح بالمخزن...', '') + ' — تم تحديث المتاح من مخزن العنوان.';
         } catch (error) {
             if (requestId === inventoryAvailabilityRequest) {
-                $('shipping-route-hint').textContent += ' — تعذر تحميل كميات المخزون؛ سيتم التحقق منها عند الحفظ.';
+                inventoryAvailabilityLoaded = false;
+                $('shipping-route-hint').textContent += ' — تعذر تحميل كميات المخزون؛ أعد اختيار العنوان للمحاولة.';
             }
         }
     };
@@ -477,6 +481,7 @@
             shippingDate.min = '';
             shippingDate.disabled = true;
             inventoryAvailabilityRequest++;
+            inventoryAvailabilityLoaded = false;
             inventoryWarehouseId = null;
             hint.textContent = 'لا توجد منطقة شحن نشطة مرتبطة بمدينة هذا العنوان. لن يمكن حفظ الأمر قبل إعداد منطقة الشحن والمخزن المرتبط بها.';
         }
@@ -1113,6 +1118,10 @@
     };
 
     const openProductDetails = (productId, editIndex = null) => {
+        if (!inventoryAvailabilityLoaded) {
+            Swal.fire({ icon: 'info', text: 'انتظر تحميل الكميات من مخزن عنوان العميل قبل اختيار المنتجات.' });
+            return;
+        }
         const product = catalogProducts.find(item => String(item.id) === String(productId));
         if (!product) return;
         activeProduct = product;
