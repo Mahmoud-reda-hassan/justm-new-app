@@ -7,7 +7,11 @@
 @section('content')
 <div class="mb-3"><a class="btn btn-default btn-sm" href="{{ route('dashboard') }}"><i class="fas fa-arrow-right ml-1"></i> العودة للوحة التحكم</a></div>
 @if(session('status'))<div class="alert alert-success">{{ session('status') }}</div>@endif
-@if($errors->any())<div class="alert alert-danger">{{ $errors->first() }}</div>@endif
+@if($errors->any())
+    <div class="alert alert-danger">
+        <pre class="mb-0 text-wrap" style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ $errors->first() }}</pre>
+    </div>
+@endif
 
 <div class="row">
     <div class="col-lg-4 col-md-6">
