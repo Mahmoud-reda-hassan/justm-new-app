@@ -102,6 +102,11 @@
                     <label for="shipping_address">عنوان التوصيل (يمكن تعديله لهذا الطلب)</label>
                     <textarea class="form-control" name="shipping_address" id="shipping_address" rows="2" maxlength="2000"></textarea>
                 </div>
+                <div class="form-group col-md-4">
+                    <label for="shipping_date">موعد الشحن المتوقع</label>
+                    <input class="form-control" type="date" name="shipping_date" id="shipping_date" disabled>
+                    <small class="form-text text-muted">يمكن تأجيل الموعد، ولا يمكن اختياره قبل مدة التوصيل المحددة للمنطقة.</small>
+                </div>
             </div>
         </div>
         <div class="card-footer order-actions">
@@ -259,20 +264,40 @@
             $('shipping_fee').value = 0;
             $('shipping_fee').min = 0;
             $('shipping_fee').removeAttribute('max');
+            $('shipping_date').value = '';
+            $('shipping_date').min = '';
+            $('shipping_date').disabled = true;
         }
+    };
+    const localDateString = date => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
     };
     const applyShippingRoute = address => {
         const fee = $('shipping_fee');
         const hint = $('shipping-route-hint');
+        const shippingDate = $('shipping_date');
         if (address.zone && address.feeMin !== '' && address.feeMax !== '') {
             fee.min = address.feeMin;
             fee.max = address.feeMax;
             fee.value = address.feeMin;
+            const earliest = new Date();
+            earliest.setHours(0, 0, 0, 0);
+            earliest.setDate(earliest.getDate() + (Number(address.deliveryDays) || 0));
+            const earliestValue = localDateString(earliest);
+            shippingDate.disabled = false;
+            shippingDate.min = earliestValue;
+            if (!shippingDate.value || shippingDate.value < earliestValue) shippingDate.value = earliestValue;
             hint.textContent = 'منطقة الشحن: ' + address.zone + ' — الرسوم من ' + Number(address.feeMin).toFixed(2) + ' إلى ' + Number(address.feeMax).toFixed(2) + ' جنيه — مدة التوصيل المتوقعة: ' + address.deliveryDays + ' يوم';
         } else {
             fee.value = 0;
             fee.min = 0;
             fee.removeAttribute('max');
+            shippingDate.value = '';
+            shippingDate.min = '';
+            shippingDate.disabled = true;
             hint.textContent = 'لا توجد منطقة شحن نشطة مرتبطة بمدينة هذا العنوان. لن يمكن حفظ الأمر قبل إعداد منطقة الشحن والمخزن المرتبط بها.';
         }
     };
