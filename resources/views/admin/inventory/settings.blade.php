@@ -8,16 +8,16 @@
 <div class="row">
     <div class="col-12">
         <div class="card card-outline card-primary">
-            <div class="card-header"><h3 class="card-title">المخزون الافتراضي حسب حالات أوامر البيع</h3></div>
+            <div class="card-header"><h3 class="card-title">إعدادات المخازن الوهمية الثلاثة</h3></div>
             <form method="POST" action="{{ route('admin.inventory.settings.virtual-stock.update') }}">
                 @csrf
                 <div class="card-body">
                     <div class="alert alert-info">
-                        هذه الإعدادات تتحكم في الكميات المحجوزة افتراضيًا عند عرض المتاح لكل شاشة. لا تغيّر الرصيد الفعلي ولا تنشئ حركة صرف مخزني.
+                        كل مخزن وهمي يحسب المتاح للمنتج بطرح كميات الحجوزات الواقعة في الحالات المحددة له من رصيد المخزن الحقيقي. الإعدادات لا تنشئ أرصدة فعلية ولا حركات صرف.
                     </div>
 
-                    <h5 class="font-weight-bold">1. مخزون إنشاء أمر البيع</h5>
-                    <p class="text-muted">حدد حالات أوامر البيع التي تخصم كمياتها من المخزون الأصلي عند إنشاء أمر بيع جديد.</p>
+                    <h5 class="font-weight-bold">1. المخزن الوهمي لمنشئ أمر البيع</h5>
+                    <p class="text-muted">حدد حالات أوامر البيع التي تخصم كمياتها من المخزون الحقيقي عند إنشاء أمر بيع جديد.</p>
                     <div class="row">
                         @foreach($stockStatuses as $status => $label)
                             <div class="col-xl-3 col-md-4 col-6 mb-2">
@@ -32,9 +32,11 @@
                         @endforeach
                     </div>
 
+                    <div class="mt-3"><a class="btn btn-outline-primary" href="{{ route('admin.inventory.virtual-stock') }}">عرض أرصدة المخازن الوهمية الثلاثة</a></div>
+
                     <hr>
-                    <h5 class="font-weight-bold">2. مخزون خدمة العملاء</h5>
-                    <p class="text-muted">كل صف يمثل حالة أمر البيع المفتوح في شاشة خدمة العملاء، وكل عمود يحدد الحالات التي تخصم كمياتها من المخزون الأصلي في هذه الشاشة.</p>
+                    <h5 class="font-weight-bold">2. المخزن الوهمي لخدمة العملاء</h5>
+                    <p class="text-muted">كل صف يمثل حالة أمر البيع المفتوح في شاشة خدمة العملاء، وكل عمود يحدد الحالات التي تخصم كمياتها من المخزون الحقيقي في هذه الشاشة.</p>
                     <div class="table-responsive">
                         <table class="table table-bordered table-sm text-center virtual-stock-matrix">
                             <thead class="thead-light">
@@ -66,7 +68,7 @@
                     <small class="text-muted">عند فتح أمر قائم، يُستثنى الأمر الحالي وحده من حساب المتاح، ولا يُفك حجزه بسبب هذا الاستثناء.</small>
 
                     <hr>
-                    <h5 class="font-weight-bold">3. مخزون أمين المخزن / التجهيز</h5>
+                    <h5 class="font-weight-bold">3. المخزن الوهمي لأمين المخزن والتجهيز</h5>
                     <p class="text-muted">حدد الحالات التي تخصم كمياتها من المتاح المعروض لمسؤول التجهيز. الافتراضي هو خصم الطلبات التي تم تجهيزها فقط.</p>
                     <div class="custom-control custom-checkbox">
                         <input class="custom-control-input" type="checkbox" id="warehouse-prepared"
@@ -75,11 +77,11 @@
                         <label class="custom-control-label" for="warehouse-prepared">تم التجهيز</label>
                     </div>
                     <div class="alert alert-secondary mt-3 mb-0">
-                        الرصيد الفعلي لا يتغير بتثبيت التجهيز؛ المتاح الظاهر لموظف المخزن في منظور التجهيز هو الرصيد الأصلي ناقص كميات «تم التجهيز» فقط. الصرف للمندوب حركة فعلية مستقلة.
+                        الرصيد الفعلي لا يتغير بتثبيت التجهيز؛ المتاح الظاهر لموظف المخزن في المخزن الوهمي للتجهيز هو الرصيد الأصلي ناقص كميات «تم التجهيز» فقط. الصرف للمندوب حركة فعلية مستقلة.
                     </div>
                 </div>
                 <div class="card-footer">
-                    <button type="submit" class="btn btn-primary">حفظ إعدادات المخزون الافتراضي</button>
+                    <button type="submit" class="btn btn-primary">حفظ إعدادات المخازن الوهمية</button>
                 </div>
             </form>
         </div>
