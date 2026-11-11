@@ -87,7 +87,7 @@
                             <button type="button" class="btn btn-sm btn-outline-primary" id="add-customer"><i class="fas fa-user-plus ml-1"></i> إضافة عميل</button>
                         @endif
                         @if(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))
-                            <button type="button" class="btn btn-sm btn-outline-secondary" id="edit-customer" disabled><i class="fas fa-user-edit ml-1"></i> تعديل بيانات العميل</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="edit-customer" disabled><i class="fas fa-user-edit ml-1"></i> تعديل العميل</button>
                         @endif
                     </div>
                     <div id="customer-order-history" class="mt-3" aria-live="polite">
@@ -203,7 +203,8 @@
             zone: node.dataset.zone,
             feeMin: node.dataset.feeMin,
             feeMax: node.dataset.feeMax,
-            deliveryDays: node.dataset.deliveryDays
+            deliveryDays: node.dataset.deliveryDays,
+            isPrimary: node.dataset.primary === '1'
         }));
         return map;
     }, {});
@@ -213,7 +214,8 @@
             number: node.dataset.number,
             type: node.dataset.type,
             isPrimary: node.dataset.primary === '1',
-            isWhatsapp: node.dataset.whatsapp === '1'
+            isWhatsapp: node.dataset.whatsapp === '1',
+            isTelegram: node.dataset.telegram === '1'
         }));
         return map;
     }, {});
