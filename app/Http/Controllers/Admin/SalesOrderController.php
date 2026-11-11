@@ -46,16 +46,37 @@ class SalesOrderController extends Controller
     public function customerDirectory(Request $request): JsonResponse
     {
         $phone = trim((string) $request->query('phone', ''));
-        $topIds = $this->topCustomerIds();
 
-        $confirmedOrderCount = SalesOrder::query()
+        $deliveredCount = SalesOrder::query()
             ->selectRaw('COUNT(*)')
             ->whereColumn('customer_id', 'parties.id')
-            ->where('status', 'confirmed');
+            ->where('status', 'delivered');
+
+        $preparingCount = SalesOrder::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('customer_id', 'parties.id')
+            ->where('status', 'preparing');
+
+        // Drafts are newly created orders awaiting confirmation in the current workflow.
+        $pendingConfirmationCount = SalesOrder::query()
+            ->selectRaw('COUNT(*)')
+            ->whereColumn('customer_id', 'parties.id')
+            ->whereIn('status', ['draft', 'pending_confirmation']);
+
+        $mostDeliveredCount = SalesOrder::query()
+            ->where('status', 'delivered')
+            ->selectRaw('COUNT(*) as aggregate')
+            ->groupBy('customer_id')
+            ->orderByDesc('aggregate')
+            ->value('aggregate') ?? 0;
 
         $query = Party::query()
             ->select(['id', 'name', 'mobile', 'phone'])
-            ->addSelect(['confirmed_orders_count' => $confirmedOrderCount])
+            ->addSelect([
+                'delivered_orders_count' => $deliveredCount,
+                'preparing_orders_count' => $preparingCount,
+                'pending_confirmation_orders_count' => $pendingConfirmationCount,
+            ])
             ->with(['phones' => fn ($builder) => $builder
                 ->where('is_active', true)
                 ->orderByDesc('is_primary')
@@ -64,7 +85,7 @@ class SalesOrderController extends Controller
             ->whereHas('partyRoles', fn (Builder $builder) => $builder->where('role', 'customer'));
 
         if ($phone !== '') {
-            // Search only phone fields; a match is returned regardless of the current page or top-customer group.
+            // Search only phone fields; matches are independent of pagination.
             $term = '%'.$phone.'%';
             $query->where(function (Builder $builder) use ($term): void {
                 $builder->whereHas('phones', fn (Builder $phones) => $phones
@@ -73,11 +94,11 @@ class SalesOrderController extends Controller
                     ->orWhere('mobile', 'like', $term)
                     ->orWhere('phone', 'like', $term);
             });
-        } else {
-            $query->whereNotIn('parties.id', $topIds ?: [0]);
         }
 
-        $customers = $query->orderBy('name')
+        $customers = $query
+            ->orderByDesc('delivered_orders_count')
+            ->orderBy('name')
             ->paginate(12)
             ->withQueryString();
 
@@ -85,13 +106,14 @@ class SalesOrderController extends Controller
             'id' => $customer->id,
             'name' => $customer->name,
             'phone' => $customer->phones->first()?->number ?: ($customer->mobile ?: $customer->phone),
-            'confirmed_orders_count' => (int) $customer->confirmed_orders_count,
+            'delivered_orders_count' => (int) $customer->delivered_orders_count,
+            'preparing_orders_count' => (int) $customer->preparing_orders_count,
+            'pending_confirmation_orders_count' => (int) $customer->pending_confirmation_orders_count,
+            'is_most_delivered' => $mostDeliveredCount > 0
+                && (int) $customer->delivered_orders_count === (int) $mostDeliveredCount,
         ]);
 
-        return response()->json([
-            'customers' => $customers,
-            'top_customer_ids' => $topIds,
-        ]);
+        return response()->json(['customers' => $customers]);
     }
 
     public function customerSelection(Party $customer): JsonResponse
@@ -143,25 +165,6 @@ class SalesOrderController extends Controller
         ]]);
     }
 
-    private function topCustomerIds(): array
-    {
-        $confirmedOrderCount = SalesOrder::query()
-            ->selectRaw('COUNT(*)')
-            ->whereColumn('customer_id', 'parties.id')
-            ->where('status', 'confirmed');
-
-        return Party::query()
-            ->where('is_active', true)
-            ->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'customer'))
-            ->whereIn('id', SalesOrder::query()->select('customer_id')->where('status', 'confirmed')->distinct())
-            ->addSelect(['confirmed_orders_count' => $confirmedOrderCount])
-            ->orderByDesc('confirmed_orders_count')
-            ->orderBy('name')
-            ->limit(8)
-            ->pluck('id')
-            ->all();
-    }
-
     public function customerHistory(Request $request, Party $customer): JsonResponse
     {
         abort_unless(
@@ -191,28 +194,6 @@ class SalesOrderController extends Controller
 
     public function create(Request $request): View
     {
-        $confirmedOrderCount = SalesOrder::query()
-            ->selectRaw('COUNT(*)')
-            ->whereColumn('customer_id', 'parties.id')
-            ->where('status', 'confirmed');
-
-        // The first cards show customers with the most confirmed sales orders.
-        // The remaining directory is loaded separately with server-side pagination.
-        $customers = Party::query()
-            ->select(['id', 'name', 'entity_type', 'email', 'phone', 'mobile', 'address'])
-            ->addSelect(['confirmed_orders_count' => $confirmedOrderCount])
-            ->with([
-                'phones' => fn ($query) => $query->where('is_active', true)->orderByDesc('is_primary')->orderBy('id'),
-                'addresses' => fn ($query) => $query->where('is_active', true)->with(['city.shippingZone.warehouse.branch.company', 'city.shippingZone.warehouse.type'])->orderByDesc('is_primary')->orderBy('id'),
-            ])
-            ->where('is_active', true)
-            ->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'customer'))
-            ->whereIn('id', SalesOrder::query()->select('customer_id')->where('status', 'confirmed')->distinct())
-            ->orderByDesc('confirmed_orders_count')
-            ->orderBy('name')
-            ->limit(8)
-            ->get();
-
         $variants = ProductVariant::query()
             ->with(['product', 'attributeValues.group'])
             ->where('is_active', true)
@@ -226,7 +207,7 @@ class SalesOrderController extends Controller
 
         $cities = City::query()->where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar']);
 
-        return view('admin.sales.orders.create', compact('customers', 'variants', 'cities'));
+        return view('admin.sales.orders.create', compact('variants', 'cities'));
     }
 
     public function store(Request $request): RedirectResponse
