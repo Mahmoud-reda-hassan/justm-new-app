@@ -89,9 +89,6 @@
                     <div id="customer-order-history" class="mt-3" aria-live="polite">
                         <div class="text-muted small">اختر العميل لعرض آخر أوامره السابقة.</div>
                     </div>
-div>
-                        @endforeach
-                    </div>
                 </div>
                 <div class="form-group col-lg-3">
                     <label for="shipping_fee">رسوم الشحن</label>
