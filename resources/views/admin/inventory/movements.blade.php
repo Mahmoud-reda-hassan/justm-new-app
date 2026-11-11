@@ -56,3 +56,17 @@
 </tr>@empty<tr><td colspan="8" class="text-center text-muted py-4">لا توجد مستندات صرف أو تحويل حتى الآن.</td></tr>@endforelse
 </tbody></table>{{ $movements->links() }}</div></div>
 @endsection
+
+@push('scripts')
+<script>
+document.querySelectorAll('form[action*="/admin/inventory/issues"], form[action*="/admin/inventory/transfers"]').forEach(function (form) {
+    form.addEventListener('submit', function () {
+        form.querySelectorAll('tbody tr').forEach(function (row) {
+            const select = row.querySelector('select[name$="[product_variant_id]"]');
+            const quantity = row.querySelector('input[name$="[quantity]"]');
+            if (select && quantity && !select.value && !quantity.value) row.remove();
+        });
+    });
+});
+</script>
+@endpush
