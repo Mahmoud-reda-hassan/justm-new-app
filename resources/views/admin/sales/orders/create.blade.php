@@ -236,6 +236,24 @@
         </div>
     </section>
 
+    <div class="jm-wizard-taskbar" role="region" aria-label="إجراءات أمر البيع">
+        <nav class="jm-order-steps" aria-label="مراحل إنشاء أمر البيع">
+            <div class="jm-order-step active" data-order-step="step-customer" role="button" tabindex="0"><span>1</span> بيانات العميل</div>
+            <i aria-hidden="true"></i>
+            <div class="jm-order-step" data-order-step="step-products" role="button" tabindex="0"><span>2</span> اختيار المنتجات</div>
+            <i aria-hidden="true"></i>
+            <div class="jm-order-step" data-order-step="step-review" role="button" tabindex="0"><span>3</span> مراجعة وحفظ</div>
+        </nav>
+        <div class="jm-wizard-navigation" dir="rtl">
+            <span id="jmWizardHint" role="status">ابدأ باختيار العميل ورقم الهاتف وعنوان التوصيل.</span>
+            <button type="button" id="jmWizardNext" class="btn btn-primary">اختيار المنتجات <i class="fas fa-arrow-left"></i></button>
+        </div>
+        <div class="order-foot">
+            <button type="submit" class="btn btn-success" id="save-order"><i class="fas fa-save ml-1"></i> حفظ أمر البيع كمسودة</button>
+        </div>
+    </div>
+    </form>
+
 @endsection
 
 @push('scripts')
