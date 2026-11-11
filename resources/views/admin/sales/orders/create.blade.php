@@ -52,6 +52,9 @@
                             <option value="{{ $customer->id }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
                         @endforeach
                     </select>
+                    <div id="customer-order-history" class="mt-3" aria-live="polite">
+                        <div class="text-muted small">اختر العميل لعرض آخر أوامره السابقة.</div>
+                    </div>
                     <div id="customer-address-data" class="d-none">
                         @foreach($customers as $customer)
                             <div data-customer-id="{{ $customer->id }}">
@@ -229,7 +232,64 @@
             if (window.jQuery && jQuery.fn.select2) jQuery('#customer_id').val(null).trigger('change');
         }
     });
-    $('customer_id').addEventListener('change', renderCustomerAddresses);
+    let customerHistoryRequest = 0;
+    const loadCustomerHistory = async () => {
+        const requestId = ++customerHistoryRequest;
+        const customerId = $('customer_id').value;
+        const panel = $('customer-order-history');
+        panel.replaceChildren();
+        if (!customerId) {
+            panel.textContent = 'اختر العميل لعرض آخر أوامره السابقة.';
+            return;
+        }
+
+        panel.textContent = 'جارٍ تحميل أوامر العميل السابقة...';
+        const url = @json(route('admin.sales.orders.customer-history', ['customer' => '__CUSTOMER__']));
+        try {
+            const response = await fetch(url.replace('__CUSTOMER__', encodeURIComponent(customerId)), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) throw new Error('history');
+            const payload = await response.json();
+            if (requestId !== customerHistoryRequest) return;
+
+            panel.replaceChildren();
+            const heading = document.createElement('strong');
+            heading.className = 'd-block mb-2';
+            heading.textContent = 'آخر أوامر العميل';
+            panel.appendChild(heading);
+
+            if (!payload.orders || payload.orders.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'text-muted small';
+                empty.textContent = 'لا توجد أوامر سابقة لهذا العميل.';
+                panel.appendChild(empty);
+                return;
+            }
+
+            const labels = { draft: 'مسودة', pending: 'قيد المراجعة', confirmed: 'مؤكد', cancelled: 'ملغي' };
+            const list = document.createElement('div');
+            list.className = 'list-group';
+            payload.orders.forEach(order => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item py-2 d-flex justify-content-between align-items-center flex-wrap';
+                const details = document.createElement('span');
+                details.textContent = (order.order_number || 'أمر بيع') + ' — ' + (labels[order.status] || order.status) + ' — ' + (order.date || '');
+                const total = document.createElement('strong');
+                total.textContent = Number(order.total || 0).toFixed(2) + ' جنيه';
+                item.append(details, total);
+                list.appendChild(item);
+            });
+            panel.appendChild(list);
+        } catch (error) {
+            if (requestId !== customerHistoryRequest) return;
+            panel.textContent = 'تعذر تحميل أوامر العميل السابقة. يمكنك متابعة إنشاء الطلب.';
+        }
+    };
+    $('customer_id').addEventListener('change', () => {
+        renderCustomerAddresses();
+        loadCustomerHistory();
+    });
     $('customer-address-select').addEventListener('change', function () {
         const addresses = customerAddresses[$('customer_id').value] || [];
         const address = addresses.find(item => String(item.id) === this.value);
