@@ -130,9 +130,16 @@ class SalesOrderCreationTest extends TestCase
         $customer = $this->customer();
         $variant = $this->variant();
         $shippingAddress = $this->shippingAddress($customer);
+        $phone = $customer->phones()->create([
+            'number' => '01012345678',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
 
         $this->actingAs($user)->post(route('admin.sales.orders.store'), [
             'customer_id' => $customer->id,
+            'shipping_phone_id' => $phone->id,
             'shipping_address_id' => $shippingAddress->id,
             'shipping_address' => $shippingAddress->address,
             'shipping_fee' => 10,
@@ -152,6 +159,8 @@ class SalesOrderCreationTest extends TestCase
         $this->assertSame('90.00', $order->items->first()->sale_price);
         $this->assertSame('20.00', $order->items->first()->discount_amount);
         $this->assertSame($shippingAddress->id, $order->shipping_address_id);
+        $this->assertSame($phone->id, $order->shipping_phone_id);
+        $this->assertSame('01012345678', $order->shipping_phone);
         $this->assertSame($shippingAddress->city_id, $order->shipping_city_id);
         $this->assertNotNull($order->shipping_zone_id);
         $this->assertNotNull($order->shipping_warehouse_id);
@@ -326,16 +335,54 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee('عنوان العمل');
     }
 
+    public function test_order_rejects_a_phone_belonging_to_another_customer(): void
+    {
+        $user = $this->userWithSalesPermission();
+        $customer = $this->customer();
+        $otherCustomer = $this->customer();
+        $variant = $this->variant();
+        $shippingAddress = $this->shippingAddress($customer);
+        $otherPhone = $otherCustomer->phones()->create([
+            'number' => '01077776666',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->from(route('admin.sales.orders.create'))
+            ->post(route('admin.sales.orders.store'), [
+                'customer_id' => $customer->id,
+                'shipping_phone_id' => $otherPhone->id,
+                'shipping_address_id' => $shippingAddress->id,
+                'shipping_address' => $shippingAddress->address,
+                'shipping_fee' => 10,
+                'items' => [[
+                    'product_variant_id' => $variant->id,
+                    'quantity' => 1,
+                    'sale_price' => 90,
+                ]],
+            ])->assertSessionHasErrors('shipping_phone_id');
+
+        $this->assertDatabaseCount('sales_orders', 0);
+    }
+
     public function test_order_rejects_sale_price_below_variant_minimum_and_saves_nothing(): void
     {
         $user = $this->userWithSalesPermission();
         $customer = $this->customer();
         $variant = $this->variant();
         $shippingAddress = $this->shippingAddress($customer);
+        $phone = $customer->phones()->create([
+            'number' => '01011112222',
+            'type' => 'mobile',
+            'is_primary' => true,
+            'is_active' => true,
+        ]);
 
         $this->actingAs($user)->from(route('admin.sales.orders.create'))
             ->post(route('admin.sales.orders.store'), [
                 'customer_id' => $customer->id,
+                'shipping_phone_id' => $phone->id,
                 'shipping_address_id' => $shippingAddress->id,
                 'shipping_address' => $shippingAddress->address,
                 'shipping_fee' => 10,
