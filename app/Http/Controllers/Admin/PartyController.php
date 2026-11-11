@@ -8,6 +8,7 @@ use App\Models\Party;
 use App\Models\PartyAddress;
 use App\Models\PartyPhone;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -123,6 +124,142 @@ class PartyController extends Controller
         });
 
         return back()->with('status', 'تم تحديث بيانات الطرف وصفاته.');
+    }
+
+    public function quickStoreCustomer(Request $request): JsonResponse
+    {
+        $this->authorizePermission($request, 'parties.create');
+        $data = $this->validateQuickCustomer($request);
+
+        $customer = DB::transaction(function () use ($data): Party {
+            $customer = Party::query()->create([
+                'entity_type' => $data['entity_type'],
+                'name' => trim($data['name']),
+                'mobile' => trim($data['mobile']),
+                'email' => $data['email'] ?? null,
+                'city_id' => $data['city_id'],
+                'address' => trim($data['address']),
+                'is_active' => true,
+            ]);
+            $customer->partyRoles()->create(['role' => 'customer']);
+            $customer->phones()->create([
+                'number' => trim($data['mobile']),
+                'type' => 'mobile',
+                'is_primary' => true,
+                'is_active' => true,
+            ]);
+            $customer->addresses()->create([
+                'city_id' => $data['city_id'],
+                'title' => 'العنوان الرئيسي',
+                'address' => trim($data['address']),
+                'is_primary' => true,
+                'is_active' => true,
+            ]);
+
+            return $customer;
+        });
+
+        return response()->json(['customer' => $this->quickCustomerPayload($customer)]);
+    }
+
+    public function quickUpdateCustomer(Request $request, Party $party): JsonResponse
+    {
+        $this->authorizePermission($request, 'parties.update');
+        abort_unless(
+            $party->is_active && $party->partyRoles()->where('role', 'customer')->exists(),
+            404
+        );
+        $data = $this->validateQuickCustomer($request);
+
+        DB::transaction(function () use ($party, $data): void {
+            $party->update([
+                'entity_type' => $data['entity_type'],
+                'name' => trim($data['name']),
+                'mobile' => trim($data['mobile']),
+                'email' => $data['email'] ?? null,
+                'city_id' => $data['city_id'],
+                'address' => trim($data['address']),
+            ]);
+
+            $phone = $party->phones()->where('type', 'mobile')->where('is_primary', true)->first();
+            if ($phone) {
+                $phone->update(['number' => trim($data['mobile']), 'is_active' => true]);
+            } else {
+                $party->phones()->create([
+                    'number' => trim($data['mobile']),
+                    'type' => 'mobile',
+                    'is_primary' => true,
+                    'is_active' => true,
+                ]);
+            }
+
+            $address = $party->addresses()->where('is_primary', true)->first();
+            if ($address) {
+                $address->update([
+                    'city_id' => $data['city_id'],
+                    'address' => trim($data['address']),
+                    'is_active' => true,
+                ]);
+            } else {
+                $party->addresses()->create([
+                    'city_id' => $data['city_id'],
+                    'title' => 'العنوان الرئيسي',
+                    'address' => trim($data['address']),
+                    'is_primary' => true,
+                    'is_active' => true,
+                ]);
+            }
+        });
+
+        return response()->json(['customer' => $this->quickCustomerPayload($party->fresh())]);
+    }
+
+    private function validateQuickCustomer(Request $request): array
+    {
+        return $request->validate([
+            'entity_type' => ['required', Rule::in(['individual', 'company'])],
+            'name' => ['required', 'string', 'max:180'],
+            'mobile' => ['required', 'string', 'max:40'],
+            'email' => ['nullable', 'email', 'max:190'],
+            'city_id' => ['required', 'integer', Rule::exists('cities', 'id')->where('is_active', true)],
+            'address' => ['required', 'string', 'max:4000'],
+        ]);
+    }
+
+    private function quickCustomerPayload(Party $customer): array
+    {
+        $customer->load([
+            'phones' => fn ($query) => $query->where('is_active', true)->orderByDesc('is_primary')->orderBy('id'),
+            'addresses' => fn ($query) => $query->where('is_active', true)->with([
+                'city.shippingZone.warehouse.branch.company',
+                'city.shippingZone.warehouse.type',
+            ])->orderByDesc('is_primary')->orderBy('id'),
+        ]);
+
+        return [
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'mobile' => $customer->mobile,
+            'phone' => $customer->phone,
+            'email' => $customer->email,
+            'addresses' => $customer->addresses->map(fn (PartyAddress $address): array => [
+                'id' => $address->id,
+                'title' => $address->title,
+                'address' => $address->address,
+                'city' => $address->city?->name_ar,
+                'city_id' => $address->city_id,
+                'zone' => $address->city?->shippingZone?->is_active
+                    && $address->city?->shippingZone?->warehouse?->is_active
+                    && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch'
+                    && $address->city?->shippingZone?->warehouse?->branch?->is_active
+                    && $address->city?->shippingZone?->warehouse?->branch?->company?->is_active
+                        ? $address->city?->shippingZone?->name_ar : '',
+                'feeMin' => $address->city?->shippingZone?->shipping_fee_min,
+                'feeMax' => $address->city?->shippingZone?->shipping_fee_max,
+                'deliveryDays' => $address->city?->shippingZone?->delivery_days,
+                'isPrimary' => $address->is_primary,
+            ])->values(),
+        ];
     }
 
     public function setActive(Request $request, Party $party): RedirectResponse
