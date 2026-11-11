@@ -80,7 +80,7 @@ class SalesOrderController extends Controller
             ->where('is_active', true)
             ->whereHas('partyRoles', fn (Builder $query) => $query->where('role', 'customer'))
             ->orderBy('name')
-            ->get(['id', 'name', 'phone', 'mobile', 'address']);
+            ->get(['id', 'name', 'entity_type', 'email', 'phone', 'mobile', 'address']);
 
         $variants = ProductVariant::query()
             ->with(['product', 'attributeValues.group'])
