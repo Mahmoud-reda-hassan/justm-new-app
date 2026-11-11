@@ -148,8 +148,11 @@
                             <li class="nav-item"><a href="{{ route('admin.parties.index') }}" class="nav-link"><i class="nav-icon fas fa-users"></i><p>الأطراف</p></a></li>
                         @endif
                     @endif
-                    @if ($user->hasPermission('inventory.opening_balances.view') || $user->hasPermission('inventory.settings.view') || $user->hasPermission('inventory.movements.view'))
+                    @if ($user->hasPermission('inventory.opening_balances.view') || $user->hasPermission('inventory.settings.view') || $user->hasPermission('inventory.movements.view') || $user->hasPermission('inventory.virtual_stock.view'))
                         <li class="nav-header">المخزون</li>
+                        @if ($user->hasPermission('inventory.virtual_stock.view'))
+                            <li class="nav-item"><a href="{{ route('admin.inventory.virtual-stock') }}" class="nav-link @if(request()->routeIs('admin.inventory.virtual-stock')) active @endif"><i class="nav-icon fas fa-boxes"></i><p>المخازن الوهمية</p></a></li>
+                        @endif
                         @if ($user->hasPermission('inventory.settings.view'))
                             <li class="nav-item"><a href="{{ route('admin.inventory.settings') }}" class="nav-link @if(request()->routeIs('admin.inventory.settings')) active @endif"><i class="nav-icon fas fa-cogs"></i><p>إعدادات المخازن العامة</p></a></li>
                         @endif
