@@ -24,7 +24,7 @@
 .jm-order-storefront-page #customer-directory-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .jm-order-storefront-page #customer-directory-cards>.col-xl-4{width:100%;max-width:none;padding:0;margin:0!important}
 .jm-order-storefront-page .customer-directory-card{border-radius:12px;box-shadow:0 3px 12px rgba(25,55,90,.06)}
-.jm-order-storefront-page .customer-contact-row{display:flex;direction:rtl;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f4}
+.jm-order-storefront-page .customer-contact-row{display:flex;direction:ltr;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f4}
 .jm-order-storefront-page .customer-contact-choice{display:flex;direction:rtl;align-items:flex-start;gap:8px;min-width:0;margin:0;flex:1;cursor:pointer}
 .jm-order-storefront-page .customer-contact-radio{width:17px;height:17px;flex:0 0 17px;margin:2px 0 0;accent-color:#1769d2;cursor:pointer}
 .jm-order-storefront-page .customer-contact-value{font-size:13px;line-height:1.7;overflow-wrap:anywhere;color:#344761}
