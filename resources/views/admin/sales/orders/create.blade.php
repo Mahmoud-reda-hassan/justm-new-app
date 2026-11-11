@@ -43,11 +43,13 @@
             <p class="text-muted">اختر العميل وحدد عنوان التوصيل. رسوم الشحن مستقلة على مستوى أمر البيع.</p>
             <div class="form-row">
                 <div class="form-group col-lg-6">
+                    <label for="customer-search">بحث العميل بالاسم أو رقم الهاتف</label>
+                    <input class="form-control mb-2" type="search" id="customer-search" autocomplete="off" placeholder="اكتب اسم العميل أو رقم الهاتف">
                     <label for="customer_id">العميل</label>
                     <select class="form-control select2" name="customer_id" id="customer_id" required>
                         <option value="">اختر العميل</option>
                         @foreach($customers as $customer)
-                            <option value="{{ $customer->id }}" data-address="{{ e($customer->address ?? '') }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
+                            <option value="{{ $customer->id }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
                         @endforeach
                     </select>
                     <div id="customer-address-data" class="d-none">
@@ -213,6 +215,20 @@
             hint.textContent = 'لا توجد منطقة شحن نشطة مرتبطة بمدينة هذا العنوان. لن يمكن حفظ الأمر قبل إعداد منطقة الشحن والمخزن المرتبط بها.';
         }
     };
+    const customerOptions = Array.from($('customer_id').options).slice(1);
+    $('customer-search').addEventListener('input', function () {
+        const term = this.value.trim().toLocaleLowerCase();
+        const selectedId = $('customer_id').value;
+        customerOptions.forEach(option => {
+            const matches = !term || (option.dataset.search || '').includes(term);
+            option.hidden = !matches && option.value !== selectedId;
+        });
+        if (selectedId && $('customer_id').selectedOptions[0]?.hidden) {
+            $('customer_id').value = '';
+            $('customer_id').dispatchEvent(new Event('change'));
+            if (window.jQuery && jQuery.fn.select2) jQuery('#customer_id').val(null).trigger('change');
+        }
+    });
     $('customer_id').addEventListener('change', renderCustomerAddresses);
     $('customer-address-select').addEventListener('change', function () {
         const addresses = customerAddresses[$('customer_id').value] || [];
