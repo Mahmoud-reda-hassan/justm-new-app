@@ -11,7 +11,7 @@ class InventoryMovement extends Model
 {
     protected $fillable = [
         'document_no', 'movement_type', 'source_type', 'source_id', 'idempotency_key', 'idempotency_hash',
-        'reversal_of_id', 'warehouse_id', 'destination_warehouse_id', 'status', 'movement_date',
+        'reversal_of_id', 'negative_stock_allowed', 'warehouse_id', 'destination_warehouse_id', 'status', 'movement_date',
         'notes', 'created_by', 'posted_by', 'posted_at',
     ];
 
@@ -20,6 +20,7 @@ class InventoryMovement extends Model
         return [
             'movement_date' => 'datetime',
             'posted_at' => 'datetime',
+            'negative_stock_allowed' => 'boolean',
         ];
     }
 

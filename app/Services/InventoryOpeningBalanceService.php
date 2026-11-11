@@ -13,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryOpeningBalanceService
 {
+    public function __construct(private readonly InventorySettingsService $settings) {}
+
     /**
      * Record and post one opening-balance document atomically.
      *
@@ -26,6 +28,7 @@ class InventoryOpeningBalanceService
         }
 
         return DB::transaction(function () use ($warehouseId, $items, $userId, $notes): InventoryMovement {
+            $negativeStockAllowed = $this->settings->allowsNegativeStock(lockForUpdate: true);
             $warehouse = Warehouse::query()
                 ->whereKey($warehouseId)
                 ->where('is_active', true)
@@ -64,6 +67,7 @@ class InventoryOpeningBalanceService
             $movement = InventoryMovement::query()->create([
                 'document_no' => 'OB-'.$warehouse->id.'-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)),
                 'movement_type' => 'opening_balance',
+                'negative_stock_allowed' => $negativeStockAllowed,
                 'warehouse_id' => $warehouse->id,
                 'status' => 'posted',
                 'movement_date' => now(),

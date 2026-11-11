@@ -379,4 +379,117 @@ class InventoryOpeningBalanceTest extends TestCase
         $this->assertDatabaseCount('inventory_movements', 0);
         $this->assertDatabaseCount('warehouse_product_stocks', 0);
     }
+
+    public function test_issue_is_blocked_by_global_policy_and_reservations_without_partial_effect(): void
+    {
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $order = \\App\\Models\\SalesOrder::query()->create([
+            'order_number' => 'RES-NEG-001',
+        ]);
+        $orderItem = \\App\\Models\\SalesOrderItem::query()->create([
+            'sales_order_id' => $order->id, 'product_variant_id' => $this->variant->id,
+            'quantity' => 4, 'unit_price' => 300, 'total' => 1200,
+        ]);
+        \\App\\Models\\SalesOrderItemReservation::query()->create([
+            'sales_order_item_id' => $orderItem->id, 'warehouse_id' => $this->warehouse->id,
+            'product_variant_id' => $this->variant->id, 'requested_quantity' => 4,
+            'reserved_quantity' => 4, 'backorder_quantity' => 0, 'status' => 'active',
+            'created_by' => $this->user->id,
+        ]);
+
+        try {
+            app(InventoryMovementPostingService::class)->issue($this->warehouse->id, [[
+                'product_variant_id' => $this->variant->id, 'quantity' => 7,
+            ]], $this->user->id);
+            $this->fail('Expected the reserved quantity to be protected.');
+        } catch (\\Illuminate\\Validation\\ValidationException) {
+            $this->assertDatabaseCount('inventory_movements', 0);
+            $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 10]);
+        }
+    }
+
+    public function test_issue_can_make_stock_negative_when_global_policy_allows_it_and_keeps_snapshot(): void
+    {
+        DB::table('system_settings')->where('setting_key', 'inventory.allow_negative_stock')->update(['setting_value' => '1']);
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => 2, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $movement = app(InventoryMovementPostingService::class)->issue($this->warehouse->id, [[
+            'product_variant_id' => $this->variant->id, 'quantity' => 5,
+        ]], $this->user->id, 'صرف مع السماح بالسالب');
+
+        $this->assertSame(true, $movement->negative_stock_allowed);
+        $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => -3]);
+        DB::table('system_settings')->where('setting_key', 'inventory.allow_negative_stock')->update(['setting_value' => '0']);
+        $this->assertTrue($movement->fresh()->negative_stock_allowed);
+    }
+
+    public function test_transfer_is_atomic_and_checks_source_available_stock(): void
+    {
+        $destination = Warehouse::query()->create([
+            'branch_id' => $this->warehouse->branch_id, 'warehouse_type_id' => $this->warehouse->warehouse_type_id,
+            'name' => 'مخزن التحويل', 'is_active' => true,
+        ]);
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => 3, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        try {
+            app(InventoryMovementPostingService::class)->transfer($this->warehouse->id, $destination->id, [[
+                'product_variant_id' => $this->variant->id, 'quantity' => 4,
+            ]], $this->user->id);
+            $this->fail('Expected insufficient source stock to reject transfer.');
+        } catch (\\Illuminate\\Validation\\ValidationException) {
+            $this->assertDatabaseCount('inventory_movements', 0);
+            $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 3]);
+            $this->assertDatabaseMissing('warehouse_product_stocks', ['warehouse_id' => $destination->id, 'product_variant_id' => $this->variant->id]);
+        }
+    }
+
+    public function test_transfer_allows_negative_source_only_when_policy_enabled_and_records_both_sides(): void
+    {
+        $destination = Warehouse::query()->create([
+            'branch_id' => $this->warehouse->branch_id, 'warehouse_type_id' => $this->warehouse->warehouse_type_id,
+            'name' => 'مخزن التحويل المسموح', 'is_active' => true,
+        ]);
+        DB::table('system_settings')->where('setting_key', 'inventory.allow_negative_stock')->update(['setting_value' => '1']);
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => 2, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $movement = app(InventoryMovementPostingService::class)->transfer($this->warehouse->id, $destination->id, [[
+            'product_variant_id' => $this->variant->id, 'quantity' => 5,
+        ]], $this->user->id, 'تحويل تجريبي');
+
+        $this->assertTrue($movement->negative_stock_allowed);
+        $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => -3]);
+        $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $destination->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 5]);
+        $this->assertDatabaseHas('inventory_movement_items', [
+            'inventory_movement_id' => $movement->id, 'quantity_before' => 2, 'quantity_after' => -3,
+            'destination_quantity_before' => 0, 'destination_quantity_after' => 5,
+        ]);
+    }
+
+    public function test_idempotent_issue_returns_the_original_document_without_double_posting(): void
+    {
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $payload = [['product_variant_id' => $this->variant->id, 'quantity' => 2]];
+        $service = app(InventoryMovementPostingService::class);
+        $first = $service->issue($this->warehouse->id, $payload, $this->user->id, null, 'issue-once-001');
+        $second = $service->issue($this->warehouse->id, $payload, $this->user->id, null, 'issue-once-001');
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, InventoryMovement::query()->where('idempotency_key', 'issue-once-001')->count());
+        $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 8]);
+    }
+
 }
