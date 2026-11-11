@@ -73,6 +73,22 @@ class SalesOrderCustomerDirectoryTest extends TestCase
             ->assertJsonPath('customers.data.0.phone', '01055551234');
     }
 
+    public function test_customer_directory_uses_server_side_pagination_for_remaining_customers(): void
+    {
+        $user = $this->salesUser();
+        for ($index = 1; $index <= 13; $index++) {
+            $this->customer('عميل صفحة '.$index, '010'.str_pad((string) $index, 8, '0', STR_PAD_LEFT));
+        }
+
+        $this->actingAs($user)
+            ->getJson(route('admin.sales.orders.customers.directory'))
+            ->assertOk()
+            ->assertJsonPath('customers.per_page', 12)
+            ->assertJsonPath('customers.total', 13)
+            ->assertJsonPath('customers.last_page', 2)
+            ->assertJsonCount(12, 'customers.data');
+    }
+
     public function test_customer_selection_returns_all_active_phones_and_addresses(): void
     {
         $user = $this->salesUser();
