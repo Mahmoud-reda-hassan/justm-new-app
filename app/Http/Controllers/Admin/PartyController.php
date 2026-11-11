@@ -181,7 +181,8 @@ class PartyController extends Controller
                 'address' => trim($data['address']),
             ]);
 
-            $phone = $party->phones()->where('type', 'mobile')->where('is_primary', true)->first();
+            $party->phones()->update(['is_primary' => false]);
+            $phone = $party->phones()->where('type', 'mobile')->where('is_active', true)->first();
             if ($phone) {
                 $phone->update(['number' => trim($data['mobile']), 'is_active' => true]);
             } else {
@@ -193,7 +194,8 @@ class PartyController extends Controller
                 ]);
             }
 
-            $address = $party->addresses()->where('is_primary', true)->first();
+            $party->addresses()->update(['is_primary' => false]);
+            $address = $party->addresses()->where('is_active', true)->orderBy('id')->first();
             if ($address) {
                 $address->update([
                     'city_id' => $data['city_id'],
@@ -238,6 +240,7 @@ class PartyController extends Controller
 
         return [
             'id' => $customer->id,
+            'entity_type' => $customer->entity_type,
             'name' => $customer->name,
             'mobile' => $customer->mobile,
             'phone' => $customer->phone,
