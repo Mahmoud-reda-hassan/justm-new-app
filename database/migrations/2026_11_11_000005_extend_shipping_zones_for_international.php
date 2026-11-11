@@ -51,7 +51,7 @@ return new class extends Migration {
 
     public function down(): void
     {
-        if (Schema::hasTable('shipping_zones')) {
+        if (Schema::hasColumn('shipping_zones', 'zone_type')) {
             DB::table('shipping_zones')->where('zone_type', 'international')->delete();
         }
 
