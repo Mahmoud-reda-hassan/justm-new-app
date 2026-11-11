@@ -253,6 +253,7 @@ class PartyController extends Controller
                 'type' => $phone->type,
                 'isPrimary' => $phone->is_primary,
                 'isWhatsapp' => $phone->is_whatsapp,
+                'isTelegram' => $phone->is_telegram,
             ])->values(),
             'email' => $customer->email,
             'addresses' => $customer->addresses->map(fn (PartyAddress $address): array => [
