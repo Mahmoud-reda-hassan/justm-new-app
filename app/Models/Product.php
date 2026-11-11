@@ -11,7 +11,7 @@ class Product extends Model
 {
     protected $fillable = [
         'category_id', 'unit_id', 'name', 'description', 'image_path',
-        'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'is_visible', 'is_active',
+        'length_cm', 'width_cm', 'height_cm', 'weight_kg', 'is_visible', 'allow_preorder', 'is_active',
     ];
 
     protected function casts(): array
@@ -22,6 +22,7 @@ class Product extends Model
             'height_cm' => 'decimal:3',
             'weight_kg' => 'decimal:3',
             'is_visible' => 'boolean',
+            'allow_preorder' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
