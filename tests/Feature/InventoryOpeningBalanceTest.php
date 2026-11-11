@@ -500,4 +500,64 @@ class InventoryOpeningBalanceTest extends TestCase
         $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 8]);
     }
 
+
+    public function test_negative_stock_requires_a_reason_when_global_policy_allows_it(): void
+    {
+        DB::table('system_settings')->where('setting_key', 'inventory.allow_negative_stock')->update(['setting_value' => '1']);
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => 1, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        try {
+            app(InventoryMovementPostingService::class)->issue($this->warehouse->id, [[
+                'product_variant_id' => $this->variant->id, 'quantity' => 2,
+            ]], $this->user->id);
+            $this->fail('A reason is required for a negative balance.');
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            $this->assertArrayHasKey('notes', $exception->errors());
+            $this->assertDatabaseCount('inventory_movements', 0);
+            $this->assertDatabaseHas('warehouse_product_stocks', [
+                'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 1,
+            ]);
+        }
+    }
+
+    public function test_allowing_negative_stock_does_not_allow_consuming_another_orders_reservation(): void
+    {
+        DB::table('system_settings')->where('setting_key', 'inventory.allow_negative_stock')->update(['setting_value' => '1']);
+        DB::table('warehouse_product_stocks')->insert([
+            'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
+            'quantity_on_hand' => 10, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $customer = Party::query()->create(['name' => 'عميل حجز']);
+        $order = SalesOrder::query()->create([
+            'order_number' => 'RES-NEG-002', 'customer_id' => $customer->id,
+            'created_by' => $this->user->id, 'status' => 'draft',
+        ]);
+        $item = $order->items()->create([
+            'product_variant_id' => $this->variant->id, 'product_name' => 'قميص تجريبي',
+            'variant_sku' => 'SHIRT-001', 'quantity' => 4, 'list_price' => 300,
+            'sale_price' => 300, 'discount_amount' => 0, 'line_total' => 1200,
+        ]);
+        SalesOrderItemReservation::query()->create([
+            'sales_order_item_id' => $item->id, 'warehouse_id' => $this->warehouse->id,
+            'product_variant_id' => $this->variant->id, 'requested_quantity' => 4,
+            'reserved_quantity' => 4, 'backorder_quantity' => 0, 'status' => 'active',
+            'created_by' => $this->user->id,
+        ]);
+
+        try {
+            app(InventoryMovementPostingService::class)->issue($this->warehouse->id, [[
+                'product_variant_id' => $this->variant->id, 'quantity' => 7,
+            ]], $this->user->id, 'صرف غير مرتبط بطلب');
+            $this->fail('Active reservations must remain protected.');
+        } catch (\Illuminate\Validation\ValidationException) {
+            $this->assertDatabaseCount('inventory_movements', 0);
+            $this->assertDatabaseHas('sales_order_item_reservations', [
+                'sales_order_item_id' => $item->id, 'status' => 'active', 'reserved_quantity' => 4,
+            ]);
+        }
+    }
+
 }

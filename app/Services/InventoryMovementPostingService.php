@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\InventoryMovement;
 use App\Models\InventoryMovementItem;
+use App\Models\ProductVariant;
 use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -31,6 +32,7 @@ class InventoryMovementPostingService
         return DB::transaction(function () use ($warehouseId, $items, $userId, $notes, $idempotencyKey, $sourceType, $sourceId): InventoryMovement {
             $negativeAllowed = $this->settings->allowsNegativeStock(lockForUpdate: true);
             $warehouse = Warehouse::query()->whereKey($warehouseId)->where('is_active', true)->lockForUpdate()->firstOrFail();
+            $this->assertActiveVariants($items);
             $hash = $this->payloadHash('issue', $warehouseId, null, $items, $notes, $sourceType, $sourceId);
 
             if ($existing = $this->findIdempotent($idempotencyKey, $hash)) {
@@ -49,13 +51,16 @@ class InventoryMovementPostingService
                 $stock = $stocks[$warehouse->id.':'.$variantId];
                 $before = (float) $stock->quantity_on_hand;
                 $available = $before - (float) ($reserved[$variantId] ?? 0);
-                if (! $negativeAllowed && $item['quantity'] > $available + 0.000001) {
+                if ($item['quantity'] > $available + 0.000001 && (! $negativeAllowed || (float) ($reserved[$variantId] ?? 0) > 0.000001)) {
                     throw ValidationException::withMessages([
                         'items' => 'الكمية المطلوب صرفها للصنف '.$variantId.' أكبر من الرصيد الحر بعد استبعاد الحجوزات (المتاح: '.number_format(max(0, $available), 3).').',
                     ]);
                 }
 
                 $after = round($before - $item['quantity'], 3);
+                if ($after < 0 && blank($notes)) {
+                    throw ValidationException::withMessages(['notes' => 'اذكر سبب الحركة عند السماح بترحيل رصيد سالب.']);
+                }
                 InventoryMovementItem::query()->create([
                     'inventory_movement_id' => $movement->id,
                     'product_variant_id' => $variantId,
@@ -103,6 +108,7 @@ class InventoryMovementPostingService
                 throw ValidationException::withMessages(['warehouse_id' => 'المخزن المصدر أو المستلم غير موجود أو غير نشط.']);
             }
 
+            $this->assertActiveVariants($items);
             $hash = $this->payloadHash('transfer', $sourceWarehouseId, $destinationWarehouseId, $items, $notes, $sourceType, $sourceId);
             if ($existing = $this->findIdempotent($idempotencyKey, $hash)) {
                 return $existing;
@@ -133,6 +139,9 @@ class InventoryMovementPostingService
                 }
 
                 $sourceAfter = round($sourceBefore - $item['quantity'], 3);
+                if ($sourceAfter < 0 && blank($notes)) {
+                    throw ValidationException::withMessages(['notes' => 'اذكر سبب التحويل عند السماح بترحيل رصيد سالب.']);
+                }
                 $destinationAfter = round($destinationBefore + $item['quantity'], 3);
                 InventoryMovementItem::query()->create([
                     'inventory_movement_id' => $movement->id,
@@ -150,6 +159,21 @@ class InventoryMovementPostingService
 
             return $movement->load('items.variant.product', 'warehouse', 'destinationWarehouse');
         }, 3);
+    }
+
+    private function assertActiveVariants(array $items): void
+    {
+        $ids = array_column($items, 'product_variant_id');
+        $activeCount = ProductVariant::query()
+            ->whereIn('id', $ids)
+            ->where('is_active', true)
+            ->whereHas('product', fn ($query) => $query->where('is_active', true))
+            ->lockForUpdate()
+            ->count();
+
+        if ($activeCount !== count($ids)) {
+            throw ValidationException::withMessages(['items' => 'يوجد صنف غير موجود أو غير نشط.']);
+        }
     }
 
     private function normalizeItems(array $items): array
