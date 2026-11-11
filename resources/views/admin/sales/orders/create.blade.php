@@ -1028,6 +1028,7 @@
     const money = value => (Number(value) || 0).toFixed(2);
     const escape = escapeHtml;
     let activeProduct = null;
+    let activeProductImages = [];
     let activeVariant = null;
     let editingIndex = null;
     let activeCategory = 'all';
@@ -1087,6 +1088,7 @@
         const product = catalogProducts.find(item => String(item.id) === String(productId));
         if (!product) return;
         activeProduct = product;
+        activeProductImages = [product.image || '/img/product-default-3d.svg'];
         editingIndex = editIndex;
         activeVariant = null;
         const groups = new Map();
@@ -1097,7 +1099,7 @@
             groups.get(String(attribute.group_id)).values.set(String(attribute.value_id), attribute.value);
         }));
         const groupRows = [...groups.values()];
-        const firstImage = product.image || '/img/product-default-3d.svg';
+        const firstImage = activeProductImages[0];
         const selectors = groupRows.map(group =>
             '<div class="form-group"><label>' + escape(group.name) + '</label><select class="form-control jm-variant-select" data-group-id="' + escape(group.id) + '"><option value="">اختر ' + escape(group.name) + '</option>'
             + [...group.values.entries()].map(([id,value])=>'<option value="' + escape(id) + '">' + escape(value) + '</option>').join('')
@@ -1110,7 +1112,7 @@
         $('jmProductDetails').hidden = false;
         $('jmProductDetails').innerHTML =
             '<div class="jm-detail-top"><button type="button" class="btn btn-default jm-detail-back"><i class="fas fa-arrow-right"></i> رجوع للمنتجات</button><span class="jm-detail-step">تفاصيل المنتج</span></div>'
-            + '<div class="row jm-detail-layout" dir="rtl"><div class="col-lg-6"><div class="jm-gallery"><div class="jm-gallery-main"><img id="jmGalleryMain" src="' + escape(firstImage) + '" alt="' + escape(product.name) + '" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div></div></div>'
+            + '<div class="row jm-detail-layout" dir="rtl"><div class="col-lg-6"><div class="jm-gallery"><div class="jm-gallery-main"><button type="button" class="jm-gallery-nav jm-gallery-prev" aria-label="الصورة السابقة" hidden><i class="fas fa-chevron-right"></i></button><img id="jmGalleryMain" src="' + escape(firstImage) + '" alt="' + escape(product.name) + '" onerror="this.onerror=null;this.src=\\'/img/product-default-3d.svg\\';"><button type="button" class="jm-gallery-nav jm-gallery-next" aria-label="الصورة التالية" hidden><i class="fas fa-chevron-left"></i></button></div><div class="jm-gallery-thumbs" id="jmGalleryThumbs"><button type="button" class="jm-gallery-thumb active" data-index="0"><img src="' + escape(firstImage) + '" alt="صورة المنتج"></button></div></div></div>'
             + '<div class="col-lg-6"><div class="jm-detail-info"><div class="jm-detail-category">' + escape(product.category || '') + '</div><h3>' + escape(product.name) + '</h3><p class="jm-detail-description">' + escape(product.description || '') + '</p><div class="jm-detail-divider"></div>'
             + (groupRows.length ? '<h5>اختر مواصفات المنتج</h5><div class="jm-detail-variants">' + selectors + '</div>' : '')
             + '<div id="jmVariantStatus" class="jm-variant-status" role="status">' + (groupRows.length ? 'اختر جميع المواصفات لعرض السعر.' : '') + '</div>'
@@ -1260,6 +1262,23 @@
             });
         });
     };
+
+    $('jmProductDetails').addEventListener('click', event => {
+        const thumb = event.target.closest('.jm-gallery-thumb');
+        if (thumb) {
+            const index = Number(thumb.dataset.index);
+            $('jmGalleryMain').src = activeProductImages[index] || activeProductImages[0];
+            $('jmProductDetails').querySelectorAll('.jm-gallery-thumb').forEach((button,i)=>button.classList.toggle('active',i===index));
+            return;
+        }
+        const arrow = event.target.closest('.jm-gallery-prev, .jm-gallery-next');
+        if (arrow && activeProductImages.length > 1) {
+            let index = activeProductImages.indexOf($('jmGalleryMain').getAttribute('src'));
+            index = (index + (arrow.classList.contains('jm-gallery-next') ? 1 : -1) + activeProductImages.length) % activeProductImages.length;
+            $('jmGalleryMain').src = activeProductImages[index];
+            $('jmProductDetails').querySelectorAll('.jm-gallery-thumb').forEach((button,i)=>button.classList.toggle('active',i===index));
+        }
+    });
 
     $('jmStoreSearch').addEventListener('input', renderCatalog);
     $('jmStoreCategories').addEventListener('click', event => {
