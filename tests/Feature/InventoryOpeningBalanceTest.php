@@ -15,9 +15,11 @@ use App\Models\UserDataScope;
 use App\Models\Warehouse;
 use App\Models\WarehouseType;
 use App\Services\InventorySettingsService;
+use App\Services\InventoryMovementPostingService;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class InventoryOpeningBalanceTest extends TestCase
@@ -386,14 +388,17 @@ class InventoryOpeningBalanceTest extends TestCase
             'warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id,
             'quantity_on_hand' => 10, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        $order = \\App\\Models\\SalesOrder::query()->create([
-            'order_number' => 'RES-NEG-001',
+        $customer = AppModelsParty::query()->create(['name' => 'عميل اختبار الحجز']);
+        $order = AppModels\SalesOrder::query()->create([
+            'order_number' => 'RES-NEG-001', 'customer_id' => $customer->id,
+            'created_by' => $this->user->id, 'status' => 'draft',
         ]);
-        $orderItem = \\App\\Models\\SalesOrderItem::query()->create([
-            'sales_order_id' => $order->id, 'product_variant_id' => $this->variant->id,
-            'quantity' => 4, 'unit_price' => 300, 'total' => 1200,
+        $orderItem = $order->items()->create([
+            'product_variant_id' => $this->variant->id, 'product_name' => 'قميص تجريبي',
+            'variant_sku' => 'SHIRT-001', 'quantity' => 4, 'list_price' => 300,
+            'sale_price' => 300, 'discount_amount' => 0, 'line_total' => 1200,
         ]);
-        \\App\\Models\\SalesOrderItemReservation::query()->create([
+        \App\Models\SalesOrderItemReservation::query()->create([
             'sales_order_item_id' => $orderItem->id, 'warehouse_id' => $this->warehouse->id,
             'product_variant_id' => $this->variant->id, 'requested_quantity' => 4,
             'reserved_quantity' => 4, 'backorder_quantity' => 0, 'status' => 'active',
@@ -405,7 +410,7 @@ class InventoryOpeningBalanceTest extends TestCase
                 'product_variant_id' => $this->variant->id, 'quantity' => 7,
             ]], $this->user->id);
             $this->fail('Expected the reserved quantity to be protected.');
-        } catch (\\Illuminate\\Validation\\ValidationException) {
+        } catch (\Illuminate\Validation\ValidationException) {
             $this->assertDatabaseCount('inventory_movements', 0);
             $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 10]);
         }
@@ -445,7 +450,7 @@ class InventoryOpeningBalanceTest extends TestCase
                 'product_variant_id' => $this->variant->id, 'quantity' => 4,
             ]], $this->user->id);
             $this->fail('Expected insufficient source stock to reject transfer.');
-        } catch (\\Illuminate\\Validation\\ValidationException) {
+        } catch (\Illuminate\Validation\ValidationException) {
             $this->assertDatabaseCount('inventory_movements', 0);
             $this->assertDatabaseHas('warehouse_product_stocks', ['warehouse_id' => $this->warehouse->id, 'product_variant_id' => $this->variant->id, 'quantity_on_hand' => 3]);
             $this->assertDatabaseMissing('warehouse_product_stocks', ['warehouse_id' => $destination->id, 'product_variant_id' => $this->variant->id]);
