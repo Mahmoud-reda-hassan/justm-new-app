@@ -49,7 +49,7 @@
                     <select class="form-control select2" name="customer_id" id="customer_id" required>
                         <option value="">اختر العميل</option>
                         @foreach($customers as $customer)
-                            <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
+                            <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-entity-type="{{ $customer->entity_type }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
                         @endforeach
                     </select>
                     <div class="d-flex flex-wrap gap-2 mt-2">
@@ -67,7 +67,7 @@
                         @foreach($customers as $customer)
                             <div data-customer-id="{{ $customer->id }}">
                                 @foreach($customer->addresses as $address)
-                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}" data-zone="{{ $address->city?->shippingZone?->is_active && $address->city?->shippingZone?->warehouse?->is_active && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch' && $address->city?->shippingZone?->warehouse?->branch?->is_active && $address->city?->shippingZone?->warehouse?->branch?->company?->is_active ? $address->city?->shippingZone?->name_ar : '' }}" data-fee-min="{{ $address->city?->shippingZone?->shipping_fee_min }}" data-fee-max="{{ $address->city?->shippingZone?->shipping_fee_max }}" data-delivery-days="{{ $address->city?->shippingZone?->delivery_days }}"></span>
+                                    <span data-address data-id="{{ $address->id }}" data-title="{{ $address->title }}" data-address-text="{{ $address->address }}" data-city="{{ $address->city?->name_ar }}" data-city-id="{{ $address->city_id }}" data-zone="{{ $address->city?->shippingZone?->is_active && $address->city?->shippingZone?->warehouse?->is_active && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch' && $address->city?->shippingZone?->warehouse?->branch?->is_active && $address->city?->shippingZone?->warehouse?->branch?->company?->is_active ? $address->city?->shippingZone?->name_ar : '' }}" data-fee-min="{{ $address->city?->shippingZone?->shipping_fee_min }}" data-fee-max="{{ $address->city?->shippingZone?->shipping_fee_max }}" data-delivery-days="{{ $address->city?->shippingZone?->delivery_days }}"></span>
                                 @endforeach
                             </div>
                         @endforeach
@@ -169,6 +169,7 @@
             title: node.dataset.title,
             address: node.dataset.addressText,
             city: node.dataset.city,
+            cityId: node.dataset.cityId,
             zone: node.dataset.zone,
             feeMin: node.dataset.feeMin,
             feeMax: node.dataset.feeMax,
@@ -312,6 +313,7 @@
         const result = await Swal.fire({
             title: customerId ? 'تعديل بيانات العميل' : 'إضافة عميل جديد',
             html: '<div class="text-right">'
+                + '<div class="form-group"><label for="quick-customer-type">نوع العميل</label><select id="quick-customer-type" class="form-control"><option value="individual"' + ((option?.dataset.entityType || 'individual') === 'individual' ? ' selected' : '') + '>فرد</option><option value="company"' + (option?.dataset.entityType === 'company' ? ' selected' : '') + '>شركة</option></select></div>'
                 + '<div class="form-group"><label for="quick-customer-name">اسم العميل</label><input id="quick-customer-name" class="form-control" maxlength="180" value="' + escapeHtml(option?.dataset.name || '') + '"></div>'
                 + '<div class="form-group"><label for="quick-customer-mobile">رقم الهاتف</label><input id="quick-customer-mobile" class="form-control" maxlength="40" value="' + escapeHtml(option?.dataset.mobile || '') + '"></div>'
                 + '<div class="form-group"><label for="quick-customer-email">البريد الإلكتروني (اختياري)</label><input id="quick-customer-email" type="email" class="form-control" maxlength="190" value="' + escapeHtml(option?.dataset.email || '') + '"></div>'
@@ -324,7 +326,7 @@
             cancelButtonText: 'إلغاء',
             preConfirm: async () => {
                 const data = {
-                    entity_type: 'individual',
+                    entity_type: $('quick-customer-type').value,
                     name: $('quick-customer-name').value.trim(),
                     mobile: $('quick-customer-mobile').value.trim(),
                     email: $('quick-customer-email').value.trim(),
@@ -373,6 +375,7 @@
         }
         customerOption.textContent = customer.name + ' — ' + customer.mobile;
         customerOption.dataset.name = customer.name;
+        customerOption.dataset.entityType = customer.entity_type || 'individual';
         customerOption.dataset.mobile = customer.mobile || '';
         customerOption.dataset.email = customer.email || '';
         customerOption.dataset.address = firstAddress.address || '';
