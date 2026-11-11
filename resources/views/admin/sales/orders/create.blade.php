@@ -36,6 +36,15 @@
 .jm-order-storefront-page .customer-card-section-header>button{margin-left:0!important}
 @media(max-width:1100px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.jm-order-storefront-page #customer-directory-cards{grid-template-columns:1fr}}
+.jm-order-storefront-page .jm-store-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:16px;align-items:start}
+.jm-order-storefront-page .jm-store-products,.jm-order-storefront-page .jm-store-cart{padding:14px;border:1px solid #dce5f0;border-radius:12px;background:#fff;min-width:0}
+.jm-order-storefront-page .jm-store-product-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.jm-order-storefront-page .jm-store-product{border:1px solid #e0e8f2;border-radius:12px;overflow:hidden;background:#fff}
+.jm-order-storefront-page .jm-store-product-image{height:120px;background:#f5f8fc;text-align:center}
+.jm-order-storefront-page .jm-store-product-image img{max-width:100%;max-height:100%;object-fit:contain;padding:8px}
+.jm-order-storefront-page .jm-store-cart{position:sticky;top:15px}
+@media(max-width:991.98px){.jm-order-storefront-page .jm-store-layout{grid-template-columns:1fr}.jm-order-storefront-page .jm-store-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.jm-order-storefront-page .jm-store-cart{position:static}}
+@media(max-width:575.98px){.jm-order-storefront-page .jm-store-product-grid{gap:7px}.jm-order-storefront-page .jm-store-product-image{height:90px}.jm-order-storefront-page .jm-store-products,.jm-order-storefront-page .jm-store-cart{padding:9px}}
 </style>
 @endpush
 
@@ -135,42 +144,34 @@
     </section>
 
     <section class="card card-outline card-primary order-step" id="step-products">
-        <div class="card-header"><h3 class="card-title">2. اختيار المنتجات</h3></div>
-        <div class="card-body">
-            <p class="text-muted">اختر كود المنتج والكمية وسعر البيع. السعر لا يقل عن الحد الأدنى ولا يزيد عن سعر القائمة.</p>
-            <div class="form-row align-items-end">
-                <div class="form-group col-lg-6">
-                    <label for="variant-select">المنتج / الكود</label>
-                    <select class="form-control select2" id="variant-select">
-                        <option value="">اختر كود المنتج</option>
-                        @foreach($variants as $variant)
-                            <option value="{{ $variant->id }}" data-name="{{ e($variant->product->name) }}" data-sku="{{ e($variant->sku) }}" data-list="{{ $variant->list_price }}" data-min="{{ $variant->minimum_sale_price }}">
-                                {{ $variant->product->name }} — {{ $variant->variant_name ?: $variant->sku }}
-                                @foreach($variant->attributeValues as $value) / {{ $value->value }} @endforeach
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="form-group col-md-3 col-lg-2">
-                    <label for="item-quantity">الكمية</label>
-                    <input class="form-control" id="item-quantity" type="number" min="0.001" step="0.001" value="1">
-                </div>
-                <div class="form-group col-md-3 col-lg-2">
-                    <label for="item-price">سعر البيع</label>
-                    <input class="form-control" id="item-price" type="number" min="0" step="0.01">
-                </div>
-                <div class="form-group col-lg-2">
-                    <button type="button" class="btn btn-primary btn-block" id="add-item"><i class="fas fa-plus ml-1"></i> إضافة المنتج</button>
-                </div>
-            </div>
-            <div class="callout callout-info mb-0" id="price-hint">اختر كود المنتج لعرض الحد الأدنى وسعر القائمة.</div>
+      <div class="card-header"><h3 class="card-title">2. اختيار المنتجات</h3></div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group col-md-7"><input class="form-control" type="search" id="store-product-search" placeholder="ابحث باسم المنتج أو الكود أو المواصفات"></div>
+          <div class="form-group col-md-5"><select class="form-control" id="store-category-filter"><option value="">كل الأقسام</option>@foreach($variants->pluck("product.category.name")->filter()->unique()->sort() as $categoryName)<option value="{{ e($categoryName) }}">{{ $categoryName }}</option>@endforeach</select></div>
         </div>
-        <div class="card-footer order-actions">
-            <button type="button" class="btn btn-default" id="back-customer"><i class="fas fa-arrow-right ml-1"></i> رجوع للعميل</button>
-            <button type="button" class="btn btn-primary" id="to-review">مراجعة الطلب <i class="fas fa-arrow-left mr-1"></i></button>
+        <div class="jm-store-layout" dir="rtl">
+          <section class="jm-store-products"><div class="d-flex justify-content-between mb-3"><strong>كتالوج المنتجات</strong><small class="text-muted" id="store-product-count">{{ $variants->count() }} اختيار متاح</small></div>
+            <div class="jm-store-product-grid" id="store-product-grid">
+            @foreach($variants as $variant)
+              <article class="jm-store-product" data-product-card data-search="{{ e($variant->product->name." ".$variant->sku." ".$variant->variant_name." ".$variant->attributeValues->pluck("value")->implode(" ")) }}" data-category="{{ e($variant->product->category->name ?? "") }}">
+                <div class="jm-store-product-image"><img src="{{ $variant->product->image_path ? IlluminateSupportFacadesStorage::url($variant->product->image_path) : asset("img/product-default-3d.svg") }}" alt="{{ e($variant->product->name) }}" loading="lazy"></div>
+                <div class="p-3"><strong>{{ $variant->product->name }}</strong><div class="small text-muted">{{ $variant->product->category->name ?? "بدون قسم" }}</div>
+                  <div class="small mt-2">الكود: <b dir="ltr">{{ $variant->sku }}</b></div><div class="small text-muted">{{ $variant->attributeValues->pluck("value")->implode(" / ") }}</div>
+                  <div class="small mt-2">سعر القائمة: <b>{{ number_format((float)$variant->list_price,2) }}</b> ج.م</div>
+                  <div class="form-row mt-2"><div class="col-5"><label class="small">الكمية</label><input class="form-control form-control-sm" type="number" min="0.001" step="0.001" value="1" data-card-quantity></div><div class="col-7"><label class="small">سعر البيع</label><input class="form-control form-control-sm" type="number" min="{{ $variant->minimum_sale_price }}" max="{{ $variant->list_price }}" step="0.01" value="{{ $variant->list_price }}" data-card-price></div></div>
+                  <button type="button" class="btn btn-primary btn-block mt-3" data-add-variant data-id="{{ $variant->id }}">إضافة للسلة</button>
+                </div>
+              </article>
+            @endforeach
+            </div><div class="text-center text-muted py-4" id="store-no-products" hidden>لا توجد منتجات مطابقة.</div>
+          </section>
+          <aside class="jm-store-cart"><div class="d-flex justify-content-between"><strong><i class="fas fa-shopping-cart ml-1"></i> سلة الطلب</strong><span class="badge badge-primary" id="store-cart-count">0</span></div><div id="store-cart-items" class="mt-3">السلة فارغة.</div><hr><div class="d-flex justify-content-between"><span>قيمة البيع</span><b id="store-cart-subtotal">0.00</b></div><div class="d-flex justify-content-between"><span>إجمالي الخصم</span><b id="store-cart-discount">0.00</b></div></aside>
         </div>
+        <div class="d-none"><select id="variant-select"><option value="">اختر كود المنتج</option>@foreach($variants as $variant)<option value="{{ $variant->id }}" data-name="{{ e($variant->product->name) }}" data-sku="{{ e($variant->sku) }}" data-list="{{ $variant->list_price }}" data-min="{{ $variant->minimum_sale_price }}">{{ $variant->product->name }}</option>@endforeach</select><input id="item-quantity" value="1"><input id="item-price"><div id="price-hint"></div><button type="button" id="add-item">إضافة</button></div>
+      </div>
+      <div class="card-footer order-actions"><button type="button" class="btn btn-primary" id="to-review">مراجعة أمر البيع <i class="fas fa-arrow-left mr-1"></i></button></div>
     </section>
-
     <section class="card card-outline card-primary order-step" id="step-review">
         <div class="card-header"><h3 class="card-title">3. مراجعة الطلب</h3></div>
         <div class="card-body">
@@ -990,6 +991,35 @@
     const steps = ['step-customer', 'step-products', 'step-review'];
     const items = [];
     const money = value => (Number(value) || 0).toFixed(2);
+    const renderStoreCart = () => {
+      const holder = $("store-cart-items");
+      if (!items.length) { holder.innerHTML = '<div class="text-muted text-center py-3">السلة فارغة.</div>'; }
+      else { holder.innerHTML = items.map((item,index) => '<div class="border-bottom py-2"><strong>'+String(item.name).replace(/[&<>]/g,"")+'</strong><div class="small text-muted">'+item.sku+' — '+item.quantity+' × '+money(item.price)+'</div><div class="d-flex justify-content-between align-items-center"><b>'+money(item.quantity*item.price)+'</b><span><button type="button" class="btn btn-xs btn-outline-primary" data-cart-edit="'+index+'">تعديل</button> <button type="button" class="btn btn-xs btn-outline-danger" data-cart-remove="'+index+'">حذف</button></span></div></div>').join(""); }
+      $("store-cart-count").textContent = items.reduce((sum,item)=>sum+item.quantity,0);
+      $("store-cart-subtotal").textContent = money(items.reduce((sum,item)=>sum+item.price*item.quantity,0));
+      $("store-cart-discount").textContent = money(items.reduce((sum,item)=>sum+(item.list-item.price)*item.quantity,0));
+    };
+    const filterStoreCatalog = () => {
+      const term=$("store-product-search").value.trim().toLocaleLowerCase("ar"), category=$("store-category-filter").value; let count=0;
+      document.querySelectorAll("[data-product-card]").forEach(card=>{const match=(!term||card.dataset.search.toLocaleLowerCase("ar").includes(term))&&(!category||card.dataset.category===category);card.hidden=!match;if(match)count++;});
+      $("store-product-count").textContent=count+" اختيار متاح"; $("store-no-products").hidden=count>0;
+    };
+    $("store-product-search").addEventListener("input",filterStoreCatalog);
+    $("store-category-filter").addEventListener("change",filterStoreCatalog);
+    $("store-product-grid").addEventListener("click",event=>{
+      const button=event.target.closest("[data-add-variant]"); if(!button)return;
+      const card=button.closest("[data-product-card]"), variantId=button.dataset.id, option=$("variant-select").querySelector('option[value="'+variantId+'"]');
+      const quantity=Number(card.querySelector("[data-card-quantity]").value), price=Number(card.querySelector("[data-card-price]").value);
+      if(!option||!(quantity>0)||!Number.isFinite(quantity)){Swal.fire({icon:"warning",text:"أدخل كمية صحيحة."});return;}
+      if(!Number.isFinite(price)||price<Number(option.dataset.min)||price>Number(option.dataset.list)){Swal.fire({icon:"warning",text:"سعر البيع خارج النطاق المسموح."});return;}
+      $("variant-select").value=variantId; $("item-quantity").value=String(quantity); $("item-price").value=String(price); $("add-item").click();
+    });
+    $("store-cart-items").addEventListener("click",event=>{
+      const edit=event.target.closest("[data-cart-edit]"), remove=event.target.closest("[data-cart-remove]");
+      if(remove){items.splice(Number(remove.dataset.cartRemove),1);renderReview();}
+      if(edit){const row=$("review-items").children[Number(edit.dataset.cartEdit)];row?.querySelector(".edit-item")?.click();}
+    });
+
     const show = id => {
         steps.forEach(step => $(step).classList.toggle('active', step === id));
         document.querySelectorAll('[data-order-step]').forEach((step, index) => {
@@ -1073,6 +1103,7 @@
         $('discount-total').textContent = money(discountTotal);
         $('shipping-total').textContent = money(shipping);
         $('grand-total').textContent = money(subtotal + shipping);
+        renderStoreCart();
 
         document.querySelectorAll('#order-form input[name^="items["]').forEach(input => input.remove());
         items.forEach((item, index) => {
@@ -1153,6 +1184,7 @@
         $('item-quantity').value = '1';
         renderHint();
         $('price-hint').textContent = 'تمت إضافة المنتج. يمكنك اختيار منتج آخر.';
+        renderReview();
     });
 
     $('to-review').addEventListener('click', () => {
