@@ -194,6 +194,9 @@ class SalesOrderCreationTest extends TestCase
             ->assertOk()
             ->assertSee('id="customer-search"', false)
             ->assertSee('بحث العميل بالاسم أو رقم الهاتف')
+            ->assertSee('id="customer-phone-select"', false)
+            ->assertSee('id="shipping_phone_id"', false)
+            ->assertSee('data-phone', false)
             ->assertSee('01012345678')
             ->assertSee('data-search=', false);
     }
@@ -406,6 +409,8 @@ class SalesOrderCreationTest extends TestCase
             ->assertSee('order-step active', false)
             ->assertSee('id="step-products"', false)
             ->assertSee('id="step-review"', false)
+            ->assertSee('اختر رقم هاتف نشطًا للعميل.')
+            ->assertSee('اختر عنوانًا مرتبطًا بمنطقة شحن ومخزن نشطين')
             ->assertSee('تعديل بند الطلب')
             ->assertSee('حفظ أمر البيع كمسودة');
     }
