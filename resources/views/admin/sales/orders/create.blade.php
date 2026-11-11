@@ -424,11 +424,40 @@
         const day = String(date.getDate()).padStart(2, '0');
         return year + '-' + month + '-' + day;
     };
+    const inventoryAvailabilityUrl = @json(route('admin.sales.orders.inventory-availability'));
+    let inventoryAvailabilityRequest = 0;
+    let inventoryWarehouseId = null;
+    const loadInventoryAvailability = async address => {
+        if (!address?.warehouseId) return;
+        const requestId = ++inventoryAvailabilityRequest;
+        inventoryWarehouseId = String(address.warehouseId);
+        $('shipping-route-hint').textContent += ' — جارٍ تحميل المتاح بالمخزن...';
+        try {
+            const response = await fetch(inventoryAvailabilityUrl + '?address_id=' + encodeURIComponent($('shipping_address_id').value), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) throw new Error('inventory');
+            const payload = await response.json();
+            if (requestId !== inventoryAvailabilityRequest || String(payload.warehouse_id) !== inventoryWarehouseId) return;
+            catalogProducts.forEach(product => product.variants.forEach(variant => {
+                const availability = payload.variants[String(variant.id)] || {};
+                variant.available_quantity = Number(availability.available_quantity) || 0;
+                variant.allow_preorder = Boolean(availability.allow_preorder);
+            }));
+            renderCatalog();
+            $('shipping-route-hint').textContent = $('shipping-route-hint').textContent.replace(' — جارٍ تحميل المتاح بالمخزن...', '') + ' — تم تحديث المتاح من مخزن العنوان.';
+        } catch (error) {
+            if (requestId === inventoryAvailabilityRequest) {
+                $('shipping-route-hint').textContent += ' — تعذر تحميل كميات المخزون؛ سيتم التحقق منها عند الحفظ.';
+            }
+        }
+    };
     const applyShippingRoute = address => {
         const fee = $('shipping_fee');
         const hint = $('shipping-route-hint');
         const shippingDate = $('shipping_date');
         if (address.zone && address.feeMin !== '' && address.feeMax !== '') {
+            loadInventoryAvailability(address);
             fee.min = address.feeMin;
             fee.max = address.feeMax;
             fee.value = address.feeMin;
@@ -447,6 +476,8 @@
             shippingDate.value = '';
             shippingDate.min = '';
             shippingDate.disabled = true;
+            inventoryAvailabilityRequest++;
+            inventoryWarehouseId = null;
             hint.textContent = 'لا توجد منطقة شحن نشطة مرتبطة بمدينة هذا العنوان. لن يمكن حفظ الأمر قبل إعداد منطقة الشحن والمخزن المرتبط بها.';
         }
     };
@@ -1178,7 +1209,7 @@
         if (!variant) return;
         activeVariant = variant;
         $('jmDetailControls').hidden = false;
-        $('jmVariantStatus').textContent = 'تم تحديد كود المنتج. أدخل الكمية وسعر البيع.';
+        $('jmVariantStatus').textContent = 'المتاح بالمخزن: ' + Number(variant.available_quantity || 0).toFixed(3) + (variant.allow_preorder ? ' — يسمح بالحجز المسبق عند نفاد الكمية.' : ' — لا يسمح بالحجز المسبق.');
         $('jmVariantStatus').classList.remove('text-danger');
         $('jmDetailSku').textContent = variant.sku;
         $('jmDetailPrice').min = variant.minimum_sale_price;
@@ -1194,12 +1225,15 @@
         const price = Number($('jmDetailPrice').value);
         const quantity = Number($('jmDetailQty').value);
         const validPrice = Number.isFinite(price) && price >= Number(activeVariant.minimum_sale_price) && price <= Number(activeVariant.list_price);
-        const validQuantity = Number.isFinite(quantity) && quantity > 0;
+        const validQuantity = Number.isFinite(quantity) && quantity > 0
+            && (Boolean(activeVariant.allow_preorder) || quantity <= Number(activeVariant.available_quantity || 0));
         $('jmDetailPrice').classList.toggle('is-invalid', !validPrice);
         $('jmDetailTotal').textContent = validPrice && validQuantity ? money(price * quantity) + ' ج.م' : '0.00 ج.م';
         $('jmAddConfiguredProduct').disabled = !(validPrice && validQuantity);
         if (!validPrice) $('jmVariantStatus').textContent = 'سعر البيع خارج النطاق المسموح.';
-        else if (!validQuantity) $('jmVariantStatus').textContent = 'أدخل كمية صحيحة أكبر من صفر.';
+        else if (!validQuantity) $('jmVariantStatus').textContent = Number(activeVariant.available_quantity || 0) > 0
+            ? 'الكمية المطلوبة أكبر من المتاح بالمخزن.' : 'لا توجد كمية متاحة، وهذا الصنف لا يسمح بالحجز المسبق.';
+        else if (quantity > Number(activeVariant.available_quantity || 0)) $('jmVariantStatus').textContent = 'سيتم حجز المتاح (' + Number(activeVariant.available_quantity || 0).toFixed(3) + ') وتسجيل الباقي كطلب مسبق.';
         else $('jmVariantStatus').textContent = 'السعر والكمية صحيحان.';
     };
 
