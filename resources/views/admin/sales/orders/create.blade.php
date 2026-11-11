@@ -297,6 +297,8 @@
         const primary = phones.find(phone => phone.isPrimary) || phones[0];
         select.value = String(primary.id);
         $('shipping_phone_id').value = String(primary.id);
+        $('customer-contact-name').textContent = $('customer_id').selectedOptions[0]?.textContent || 'بيانات العميل';
+        renderPhoneDetails(phones, primary.id);
     };
     $('customer-phone-select').addEventListener('change', function () {
         $('shipping_phone_id').value = this.value;
