@@ -132,7 +132,7 @@ class InventoryMovementPostingService
                 $destinationBefore = (float) $destination->quantity_on_hand;
                 $available = $sourceBefore - (float) ($reserved[$variantId] ?? 0);
 
-                if (! $negativeAllowed && $item['quantity'] > $available + 0.000001) {
+                if ($item['quantity'] > $available + 0.000001 && (! $negativeAllowed || (float) ($reserved[$variantId] ?? 0) > 0.000001)) {
                     throw ValidationException::withMessages([
                         'items' => 'الكمية المطلوب تحويلها للصنف '.$variantId.' أكبر من الرصيد الحر في المخزن المصدر بعد استبعاد الحجوزات (المتاح: '.number_format(max(0, $available), 3).').',
                     ]);
