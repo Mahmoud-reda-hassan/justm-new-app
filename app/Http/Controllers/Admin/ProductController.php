@@ -86,6 +86,7 @@ class ProductController extends Controller
             'height_cm' => ['nullable', 'numeric', 'min:0'],
             'weight_kg' => ['nullable', 'numeric', 'min:0'],
             'is_visible' => ['nullable', 'boolean'],
+            'allow_preorder' => ['nullable', 'boolean'],
             'attribute_group_ids' => ['nullable', 'array', 'max:12'],
             'attribute_group_ids.*' => ['integer', 'distinct', Rule::exists('product_attribute_groups', 'id')->where('is_active', true)],
             'initial_variant.sku' => ['required', 'string', 'max:50', 'unique:product_variants,sku'],
@@ -107,6 +108,7 @@ class ProductController extends Controller
         $valueIds = $this->validatedAttributeValues($groupIds, $variantData['attribute_value_ids'] ?? [], 'initial_variant.attribute_value_ids');
         unset($data['attribute_group_ids'], $data['initial_variant']);
         $data['is_visible'] = $request->boolean('is_visible');
+        $data['allow_preorder'] = $request->boolean('allow_preorder');
 
         DB::transaction(function () use ($data, $groupIds, $variantData, $valueIds): void {
             $product = Product::query()->create($data + ['is_active' => true]);
@@ -138,8 +140,10 @@ class ProductController extends Controller
             'height_cm' => ['nullable', 'numeric', 'min:0'],
             'weight_kg' => ['nullable', 'numeric', 'min:0'],
             'is_visible' => ['nullable', 'boolean'],
+            'allow_preorder' => ['nullable', 'boolean'],
         ]);
         $data['is_visible'] = $request->boolean('is_visible');
+        $data['allow_preorder'] = $request->boolean('allow_preorder');
         $oldImage = $product->image_path;
         if ($request->hasFile('image')) {
             $data['image_path'] = $request->file('image')->store('products', 'public');
