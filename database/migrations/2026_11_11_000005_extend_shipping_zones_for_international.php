@@ -9,9 +9,9 @@ return new class extends Migration {
     {
         Schema::table('shipping_zones', function (Blueprint $table): void {
             $table->string('zone_type', 20)->default('local')->after('name_en')->index();
-            $table->decimal('shipping_fee_min', 12, 2)->nullable()->change();
+            $table->decimal('shipping_fee_min', 12, 2)->nullable()->default(null)->change();
             $table->decimal('shipping_fee_max', 12, 2)->nullable()->change();
-            $table->unsignedSmallInteger('delivery_days')->nullable()->change();
+            $table->unsignedSmallInteger('delivery_days')->nullable()->default(null)->change();
             $table->foreignId('warehouse_id')->nullable()->change();
         });
 
