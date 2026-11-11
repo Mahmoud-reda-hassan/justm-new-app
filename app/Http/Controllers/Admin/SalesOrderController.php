@@ -102,6 +102,7 @@ class SalesOrderController extends Controller
         $data = $request->validate([
             'customer_id' => ['required', 'integer', 'exists:parties,id'],
             'shipping_address_id' => ['required', 'integer', 'exists:party_addresses,id'],
+            'shipping_phone_id' => ['required', 'integer', 'exists:party_phones,id'],
             'shipping_address' => ['required', 'string', 'max:2000'],
             'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
             'notes' => ['nullable', 'string', 'max:5000'],
@@ -119,6 +120,18 @@ class SalesOrderController extends Controller
 
         if (! $customer) {
             throw ValidationException::withMessages(['customer_id' => 'العميل غير نشط أو لا يحمل صفة عميل.']);
+        }
+
+        $shippingPhone = PartyPhone::query()
+            ->whereKey($data['shipping_phone_id'])
+            ->where('party_id', $customer->id)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $shippingPhone) {
+            throw ValidationException::withMessages([
+                'shipping_phone_id' => 'رقم الهاتف المختار غير نشط أو لا يخص العميل المحدد.',
+            ]);
         }
 
         $shippingAddress = PartyAddress::query()
@@ -197,10 +210,12 @@ class SalesOrderController extends Controller
         }
 
         $shippingFee = round((float) ($data['shipping_fee'] ?? 0), 2);
-        $order = DB::transaction(function () use ($request, $data, $customer, $shippingAddress, $zone, $warehouse, $shippingDate, $preparedItems, $subtotal, $discountTotal, $shippingFee): SalesOrder {
+        $order = DB::transaction(function () use ($request, $data, $customer, $shippingPhone, $shippingAddress, $zone, $warehouse, $shippingDate, $preparedItems, $subtotal, $discountTotal, $shippingFee): SalesOrder {
             $order = SalesOrder::query()->create([
                 'customer_id' => $customer->id,
                 'shipping_address_id' => $shippingAddress->id,
+                'shipping_phone_id' => $shippingPhone->id,
+                'shipping_phone' => $shippingPhone->number,
                 'shipping_city_id' => $shippingAddress->city_id,
                 'shipping_zone_id' => $zone->id,
                 'shipping_warehouse_id' => $warehouse->id,
