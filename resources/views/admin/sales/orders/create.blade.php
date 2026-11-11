@@ -52,13 +52,53 @@
             <p class="text-muted">اختر العميل وحدد عنوان التوصيل. رسوم الشحن مستقلة على مستوى أمر البيع.</p>
             <div class="form-row">
                 <div class="form-group col-lg-6">
-                    <label for="customer-search">بحث العميل بالاسم أو رقم الهاتف</label>
-                    <input class="form-control mb-2" type="search" id="customer-search" autocomplete="off" placeholder="اكتب اسم العميل أو رقم الهاتف">
-                    <label for="customer_id">العميل</label>
-                    <select class="form-control select2" name="customer_id" id="customer_id" required>
+                    <div class="card card-outline card-secondary mb-3">
+                        <div class="card-header"><h3 class="card-title"><i class="fas fa-users ml-1"></i> دليل العملاء</h3></div>
+                        <div class="card-body">
+                            <label for="customer-search">بحث برقم هاتف العميل فقط</label>
+                            <div class="input-group mb-3">
+                                <input class="form-control" type="search" id="customer-search" inputmode="numeric" autocomplete="off" placeholder="اكتب رقم الهاتف">
+                                <div class="input-group-append"><button class="btn btn-primary" type="button" id="customer-search-btn"><i class="fas fa-search ml-1"></i> بحث</button></div>
+                            </div>
+                            <div id="top-customer-section">
+                                <h6 class="text-primary font-weight-bold mb-2">الأكثر شراءً</h6>
+                                <div class="row" id="top-customer-cards">
+                                    @forelse($customers as $customer)
+                                        <div class="col-xl-3 col-md-4 col-sm-6 mb-2">
+                                            <div class="card h-100 mb-0 border">
+                                                <div class="card-body p-3">
+                                                    <strong class="d-block text-truncate">{{ $customer->name }}</strong>
+                                                    <small class="text-muted d-block">{{ $customer->phones->first()?->number ?: ($customer->mobile ?: $customer->phone ?: 'لا يوجد هاتف') }}</small>
+                                                    @if((int) $customer->confirmed_orders_count > 0)
+                                                        <small class="text-success d-block mt-1">{{ (int) $customer->confirmed_orders_count }} أمر بيع مؤكد</small>
+                                                    @endif
+                                                    <div class="btn-group btn-group-sm d-flex mt-2">
+                                                        <button type="button" class="btn btn-outline-primary" data-customer-select="{{ $customer->id }}">اختيار العميل</button>
+                                                        @if(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))
+                                                            <button type="button" class="btn btn-outline-secondary" data-customer-edit="{{ $customer->id }}" title="تعديل العميل"><i class="fas fa-edit"></i></button>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @empty
+                                        <div class="col-12 text-muted small">لا توجد أوامر بيع مؤكدة كافية لعرض عملاء الأكثر شراءً.</div>
+                                    @endforelse
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap mt-3 mb-2">
+                                <strong id="customer-directory-title">باقي العملاء</strong>
+                                <small class="text-muted" id="customer-directory-count"></small>
+                            </div>
+                            <div class="row" id="customer-directory-cards" aria-live="polite"></div>
+                            <div class="d-flex justify-content-center align-items-center flex-wrap mt-2" id="customer-directory-pagination"></div>
+                            <div class="small text-muted" id="customer-directory-message" aria-live="polite"></div>
+                        </div>
+                    </div>
+                    <select class="form-control d-none" name="customer_id" id="customer_id" required>
                         <option value="">اختر العميل</option>
                         @foreach($customers as $customer)
-                            <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-entity-type="{{ $customer->entity_type }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}" data-search="{{ e(mb_strtolower($customer->name.' '.$customer->phone.' '.$customer->mobile.' '.$customer->phones->pluck('number')->implode(' '))) }}">{{ $customer->name }} — {{ $customer->phones->firstWhere('is_primary', true)?->number ?: ($customer->mobile ?: $customer->phone) }}</option>
+                            <option value="{{ $customer->id }}" data-name="{{ e($customer->name) }}" data-entity-type="{{ $customer->entity_type }}" data-mobile="{{ e($customer->mobile ?? $customer->phone ?? '') }}" data-email="{{ e($customer->email ?? '') }}" data-address="{{ e($customer->address ?? '') }}">{{ $customer->name }}</option>
                         @endforeach
                     </select>
                     <div class="form-group mt-2 mb-2">
@@ -310,19 +350,157 @@
         }
     };
     let customerOptions = Array.from($('customer_id').options).slice(1);
-    $('customer-search').addEventListener('input', function () {
-        const term = this.value.trim().toLocaleLowerCase();
-        const selectedId = $('customer_id').value;
-        customerOptions.forEach(option => {
-            const matches = !term || (option.dataset.search || '').includes(term);
-            option.hidden = !matches && option.value !== selectedId;
-        });
-        if (selectedId && $('customer_id').selectedOptions[0]?.hidden) {
-            $('customer_id').value = '';
+    const directoryUrl = @json(route('admin.sales.orders.customers.directory'));
+    const selectionUrl = @json(route('admin.sales.orders.customers.selection', ['customer' => '__CUSTOMER__']));
+    const directoryCards = $('customer-directory-cards');
+    const directoryPagination = $('customer-directory-pagination');
+
+    const selectCustomerFromDirectory = async customerId => {
+        const message = $('customer-directory-message');
+        message.textContent = 'جارٍ تحميل بيانات العميل...';
+        try {
+            const response = await fetch(selectionUrl.replace('__CUSTOMER__', encodeURIComponent(customerId)), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) throw new Error('selection');
+            const payload = await response.json();
+            const customer = payload.customer;
+            let option = Array.from($('customer_id').options).find(item => item.value === String(customer.id));
+            if (!option) {
+                option = document.createElement('option');
+                option.value = customer.id;
+                $('customer_id').appendChild(option);
+                customerOptions.push(option);
+            }
+            option.textContent = customer.name;
+            option.dataset.name = customer.name;
+            option.dataset.entityType = customer.entity_type || 'individual';
+            option.dataset.mobile = customer.mobile || customer.phone || '';
+            option.dataset.email = customer.email || '';
+            option.dataset.address = customer.addresses?.[0]?.address || '';
+            customerPhones[customer.id] = (customer.phones || []).map(item => ({
+                id: String(item.id), number: item.number, type: item.type,
+                isPrimary: !!item.isPrimary, isWhatsapp: !!item.isWhatsapp
+            }));
+            customerAddresses[customer.id] = (customer.addresses || []).map(item => ({
+                id: String(item.id), title: item.title, address: item.address,
+                city: item.city, cityId: item.cityId, zone: item.zone || '',
+                feeMin: item.feeMin ?? '', feeMax: item.feeMax ?? '',
+                deliveryDays: item.deliveryDays ?? '', isPrimary: !!item.isPrimary
+            }));
+            $('customer_id').value = String(customer.id);
             $('customer_id').dispatchEvent(new Event('change'));
-            if (window.jQuery && jQuery.fn.select2) jQuery('#customer_id').val(null).trigger('change');
+            message.textContent = 'تم اختيار العميل. راجع الهاتف والعنوان قبل المتابعة.';
+            $('edit-customer')?.removeAttribute('disabled');
+        } catch (error) {
+            message.textContent = 'تعذر تحميل بيانات العميل. حاول مرة أخرى.';
+        }
+    };
+
+    const makeDirectoryCard = customer => {
+        const col = document.createElement('div');
+        col.className = 'col-xl-3 col-md-4 col-sm-6 mb-2';
+        const card = document.createElement('div');
+        card.className = 'card h-100 mb-0 border';
+        const body = document.createElement('div');
+        body.className = 'card-body p-3';
+        const name = document.createElement('strong');
+        name.className = 'd-block text-truncate';
+        name.textContent = customer.name;
+        const phone = document.createElement('small');
+        phone.className = 'text-muted d-block';
+        phone.textContent = customer.phone || 'لا يوجد هاتف';
+        const actions = document.createElement('div');
+        actions.className = 'btn-group btn-group-sm d-flex mt-2';
+        const choose = document.createElement('button');
+        choose.type = 'button';
+        choose.className = 'btn btn-outline-primary';
+        choose.textContent = 'اختيار العميل';
+        choose.addEventListener('click', () => selectCustomerFromDirectory(customer.id));
+        actions.appendChild(choose);
+        if (@json(auth()->user()?->hasPermission('parties.update') && auth()->user()?->hasPermission('structure.scope.manage_all'))) {
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'btn btn-outline-secondary';
+            edit.innerHTML = '<i class="fas fa-edit"></i>';
+            edit.title = 'تعديل العميل';
+            edit.addEventListener('click', async () => {
+                await selectCustomerFromDirectory(customer.id);
+                if ($('customer_id').value === String(customer.id)) openCustomerEditor(customer.id);
+            });
+            actions.appendChild(edit);
+        }
+        body.append(name, phone, actions);
+        card.appendChild(body);
+        col.appendChild(card);
+        return col;
+    };
+
+    const loadCustomerDirectory = async (page = 1, phone = '') => {
+        directoryCards.replaceChildren();
+        directoryPagination.replaceChildren();
+        $('customer-directory-message').textContent = 'جارٍ تحميل العملاء...';
+        const query = new URLSearchParams({ page: String(page) });
+        if (phone) query.set('phone', phone);
+        try {
+            const response = await fetch(directoryUrl + '?' + query.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) throw new Error('directory');
+            const payload = await response.json();
+            const paginator = payload.customers;
+            paginator.data.forEach(customer => directoryCards.appendChild(makeDirectoryCard(customer)));
+            $('customer-directory-title').textContent = phone ? 'نتائج البحث برقم الهاتف' : 'باقي العملاء';
+            $('customer-directory-count').textContent = paginator.total + ' عميل';
+            $('top-customer-section').hidden = !!phone;
+            if (!paginator.data.length) {
+                $('customer-directory-message').textContent = phone ? 'لا يوجد عميل مسجل بهذا الرقم أو بجزء منه.' : 'لا توجد عملاء آخرون لعرضهم.';
+            } else {
+                $('customer-directory-message').textContent = '';
+            }
+            if (paginator.current_page > 1) {
+                const previous = document.createElement('button');
+                previous.type = 'button';
+                previous.className = 'btn btn-default btn-sm mx-1';
+                previous.textContent = 'السابق';
+                previous.addEventListener('click', () => loadCustomerDirectory(paginator.current_page - 1, phone));
+                directoryPagination.appendChild(previous);
+            }
+            const pageLabel = document.createElement('span');
+            pageLabel.className = 'small text-muted mx-2';
+            pageLabel.textContent = 'صفحة ' + paginator.current_page + ' من ' + paginator.last_page;
+            directoryPagination.appendChild(pageLabel);
+            if (paginator.current_page < paginator.last_page) {
+                const next = document.createElement('button');
+                next.type = 'button';
+                next.className = 'btn btn-default btn-sm mx-1';
+                next.textContent = 'التالي';
+                next.addEventListener('click', () => loadCustomerDirectory(paginator.current_page + 1, phone));
+                directoryPagination.appendChild(next);
+            }
+        } catch (error) {
+            $('customer-directory-message').textContent = 'تعذر تحميل دليل العملاء.';
+        }
+    };
+
+    $('customer-search-btn').addEventListener('click', () => loadCustomerDirectory(1, $('customer-search').value.trim()));
+    $('customer-search').addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            loadCustomerDirectory(1, $('customer-search').value.trim());
         }
     });
+    $('customer-search').addEventListener('search', () => loadCustomerDirectory(1, $('customer-search').value.trim()));
+    $('top-customer-cards').addEventListener('click', async event => {
+        const selectButton = event.target.closest('[data-customer-select]');
+        const editButton = event.target.closest('[data-customer-edit]');
+        if (selectButton) await selectCustomerFromDirectory(selectButton.dataset.customerSelect);
+        if (editButton) {
+            await selectCustomerFromDirectory(editButton.dataset.customerEdit);
+            if ($('customer_id').value === String(editButton.dataset.customerEdit)) openCustomerEditor(editButton.dataset.customerEdit);
+        }
+    });
+    loadCustomerDirectory();
     let customerHistoryRequest = 0;
     const loadCustomerHistory = async () => {
         const requestId = ++customerHistoryRequest;
