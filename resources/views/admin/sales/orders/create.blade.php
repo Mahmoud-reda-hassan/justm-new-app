@@ -12,6 +12,9 @@
     .order-totals .description-header{font-size:1.15rem;font-weight:700}
     .order-totals .description-text{font-size:.85rem}
     .order-actions{display:flex;gap:.5rem;justify-content:flex-start;flex-wrap:wrap}
+    .jm-choice-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1px solid #adb5bd;border-radius:4px;color:#28a745;font-weight:700;opacity:.25;margin:0 .35rem}
+    .jm-choice-radio{position:absolute;opacity:0;pointer-events:none}
+    .jm-choice-radio:checked + .jm-choice-check{opacity:1;border-color:#28a745;background:#e8f7ed}
     @media(max-width:575.98px){.order-actions .btn{flex:1 1 auto}}
 </style>
 @endpush
@@ -231,14 +234,17 @@
             const radio = document.createElement('input');
             radio.type = 'radio'; radio.name = 'customer_phone_choice';
             radio.value = String(phone.id); radio.checked = String(phone.id) === String(selectedId);
-            radio.className = 'ml-2';
+            radio.className = 'jm-choice-radio';
+            const check = document.createElement('span');
+            check.className = 'jm-choice-check';
+            check.textContent = '✓';
             radio.addEventListener('change', () => {
                 $('customer-phone-select').value = String(phone.id);
                 $('shipping_phone_id').value = String(phone.id);
             });
             const number = document.createElement('span');
             number.textContent = phone.number + (phone.isPrimary ? ' ★' : '');
-            label.append(radio, number);
+            label.append(radio, check, number);
             const links = document.createElement('span');
             if (phone.isWhatsapp) {
                 const a = document.createElement('a');
@@ -265,7 +271,10 @@
             const radio = document.createElement('input');
             radio.type = 'radio'; radio.name = 'customer_address_choice';
             radio.value = String(address.id); radio.checked = String(address.id) === String(selectedId);
-            radio.className = 'ml-2';
+            radio.className = 'jm-choice-radio';
+            const check = document.createElement('span');
+            check.className = 'jm-choice-check';
+            check.textContent = '✓';
             radio.addEventListener('change', () => {
                 $('customer-address-select').value = String(address.id);
                 $('shipping_address_id').value = String(address.id);
@@ -275,7 +284,7 @@
             const text = document.createElement('span');
             text.textContent = address.title + (address.isPrimary ? ' ★' : '') +
                 (address.city ? ' — ' + address.city : '') + ' — ' + address.address;
-            label.append(radio, text); box.appendChild(label);
+            label.append(radio, check, text); box.appendChild(label);
         });
     };
     const renderCustomerPhones = () => {
@@ -645,6 +654,12 @@
             showCancelButton: true,
             confirmButtonText: 'حفظ بيانات العميل',
             cancelButtonText: 'إلغاء',
+            willOpen: () => {
+                $('customer-search').closest('.card')?.classList.add('d-none');
+            },
+            willClose: () => {
+                $('customer-search').closest('.card')?.classList.remove('d-none');
+            },
             didOpen: () => {
                 const phoneList = $('quick-phone-list');
                 const addressList = $('quick-address-list');
