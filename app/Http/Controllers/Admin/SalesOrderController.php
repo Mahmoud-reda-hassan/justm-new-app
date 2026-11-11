@@ -9,6 +9,7 @@ use App\Models\PartyAddress;
 use App\Models\PartyPhone;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
+use App\Services\SalesOrderInventoryService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -134,6 +135,7 @@ class SalesOrderController extends Controller
                 'address' => $address->address,
                 'city' => $address->city?->name_ar,
                 'cityId' => $address->city_id,
+                'warehouseId' => $address->city?->shippingZone?->warehouse_id,
                 'zone' => $address->city?->shippingZone?->is_active
                     && $address->city?->shippingZone?->warehouse?->is_active
                     && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch'
@@ -192,6 +194,7 @@ class SalesOrderController extends Controller
                 'address' => $address->address,
                 'city' => $address->city?->name_ar,
                 'cityId' => $address->city_id,
+                'warehouseId' => $address->city?->shippingZone?->warehouse_id,
                 'zone' => $address->city?->shippingZone?->is_active
                     && $address->city?->shippingZone?->warehouse?->is_active
                     && $address->city?->shippingZone?->warehouse?->type?->key === 'sales_dispatch'
@@ -258,6 +261,7 @@ class SalesOrderController extends Controller
                 'category' => $product->category?->name ?? 'بدون قسم',
                 'description' => $product->description ?? '',
                 'image' => $product->image_path ? Storage::url($product->image_path) : null,
+                'allow_preorder' => (bool) $product->allow_preorder,
                 'variants' => $productVariants->map(fn (ProductVariant $variant): array => [
                     'id' => (string) $variant->id,
                     'sku' => $variant->sku,
@@ -277,6 +281,59 @@ class SalesOrderController extends Controller
         $cities = City::query()->where('is_active', true)->orderBy('name_ar')->get(['id', 'name_ar']);
 
         return view('admin.sales.orders.create', compact('variants', 'cities', 'catalogProducts'));
+    }
+
+    public function inventoryAvailability(Request $request): JsonResponse
+    {
+        $data = $request->validate(['address_id' => ['required', 'integer', 'exists:party_addresses,id']]);
+        $address = PartyAddress::query()
+            ->with(['city.shippingZone.warehouse.branch.company', 'city.shippingZone.warehouse.type'])
+            ->whereKey($data['address_id'])
+            ->where('is_active', true)
+            ->first();
+
+        $warehouse = $address?->city?->shippingZone?->warehouse;
+        abort_unless(
+            $address && $address->city?->is_active
+            && $address->city?->shippingZone?->is_active
+            && $warehouse?->is_active && $warehouse->branch?->is_active
+            && $warehouse->branch?->company?->is_active
+            && $warehouse->type?->key === 'sales_dispatch',
+            422,
+            'عنوان التوصيل غير مرتبط بمخزن بيع مباشر نشط.'
+        );
+
+        $stocks = DB::table('warehouse_product_stocks as stock')
+            ->leftJoin('sales_order_item_reservations as reservations', function ($join): void {
+                $join->on('reservations.warehouse_id', '=', 'stock.warehouse_id')
+                    ->on('reservations.product_variant_id', '=', 'stock.product_variant_id')
+                    ->where('reservations.status', '=', 'active');
+            })
+            ->where('stock.warehouse_id', $warehouse->id)
+            ->groupBy('stock.product_variant_id', 'stock.quantity_on_hand')
+            ->get([
+                'stock.product_variant_id',
+                'stock.quantity_on_hand',
+                DB::raw('COALESCE(SUM(reservations.reserved_quantity), 0) as reserved_quantity'),
+            ])
+            ->keyBy('product_variant_id');
+
+        $variants = ProductVariant::query()
+            ->with('product:id,allow_preorder')
+            ->where('is_active', true)
+            ->get(['id', 'product_id'])
+            ->mapWithKeys(function (ProductVariant $variant) use ($stocks): array {
+                $stock = $stocks->get($variant->id);
+                $onHand = (float) ($stock->quantity_on_hand ?? 0);
+                $reserved = (float) ($stock->reserved_quantity ?? 0);
+
+                return [$variant->id => [
+                    'available_quantity' => max(0, $onHand - $reserved),
+                    'allow_preorder' => (bool) $variant->product->allow_preorder,
+                ]];
+            });
+
+        return response()->json(['warehouse_id' => $warehouse->id, 'variants' => $variants]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -390,6 +447,7 @@ class SalesOrderController extends Controller
 
             $preparedItems[] = [
                 'variant' => $variant,
+                'allow_preorder' => (bool) $variant->product->allow_preorder,
                 'quantity' => $quantity,
                 'list_price' => $listPrice,
                 'sale_price' => $salePrice,
@@ -430,7 +488,7 @@ class SalesOrderController extends Controller
 
             foreach ($preparedItems as $item) {
                 $variant = $item['variant'];
-                $order->items()->create([
+                $orderItem = $order->items()->create([
                     'product_variant_id' => $variant->id,
                     'product_name' => $variant->product->name,
                     'variant_sku' => $variant->sku,
@@ -440,6 +498,13 @@ class SalesOrderController extends Controller
                     'discount_amount' => $item['discount_amount'],
                     'line_total' => $item['line_total'],
                 ]);
+                app(SalesOrderInventoryService::class)->reserve(
+                    $orderItem,
+                    $warehouse,
+                    (float) $item['quantity'],
+                    (bool) $item['allow_preorder'],
+                    (int) $request->user()->id,
+                );
             }
 
             return $order;
