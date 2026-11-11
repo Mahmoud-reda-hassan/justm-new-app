@@ -31,6 +31,11 @@ class DatabaseUpdatePageTest extends TestCase
         $this->actingAs($user)->get(route('admin.system.database-updates'))
             ->assertOk()
             ->assertSee('تحديث قاعدة البيانات');
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(route('admin.system.database-updates'), false)
+            ->assertSee('تحديث قاعدة البيانات');
     }
 
     public function test_database_update_page_uses_adminlte_cards_and_migration_table(): void
