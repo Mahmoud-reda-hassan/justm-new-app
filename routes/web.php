@@ -136,8 +136,8 @@ Route::middleware('auth')->group(function (): void {
     Route::prefix('admin/parties')->name('admin.parties.')->group(function (): void {
         Route::get('/', [\App\Http\Controllers\Admin\PartyController::class, 'index'])->middleware('permission:parties.view')->name('index');
         Route::post('/', [\App\Http\Controllers\Admin\PartyController::class, 'store'])->middleware('permission:parties.create')->name('store');
-        Route::post('/quick-customer', [\\App\\Http\\Controllers\\Admin\\PartyController::class, 'quickStoreCustomer'])->middleware('permission:parties.create')->name('quick-customer.store');
-        Route::put('/{party}/quick-customer', [\\App\\Http\\Controllers\\Admin\\PartyController::class, 'quickUpdateCustomer'])->middleware('permission:parties.update')->name('quick-customer.update');
+        Route::post('/quick-customer', [\App\Http\Controllers\Admin\PartyController::class, 'quickStoreCustomer'])->middleware('permission:parties.create')->name('quick-customer.store');
+        Route::put('/{party}/quick-customer', [\App\Http\Controllers\Admin\PartyController::class, 'quickUpdateCustomer'])->middleware('permission:parties.update')->name('quick-customer.update');
         Route::put('/{party}', [\App\Http\Controllers\Admin\PartyController::class, 'update'])->middleware('permission:parties.update')->name('update');
         Route::patch('/{party}/active', [\App\Http\Controllers\Admin\PartyController::class, 'setActive'])->middleware('permission:parties.activate')->name('active');
     });
