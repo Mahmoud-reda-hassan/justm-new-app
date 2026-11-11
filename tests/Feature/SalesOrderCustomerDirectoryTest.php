@@ -54,6 +54,8 @@ class SalesOrderCustomerDirectoryTest extends TestCase
             'number' => $phone,
             'type' => 'mobile',
             'is_primary' => true,
+            'is_whatsapp' => true,
+            'is_telegram' => true,
             'is_active' => true,
         ]);
 
