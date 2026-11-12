@@ -101,12 +101,30 @@ class reports_BE {
 
 	public function SalesMovementReport(){
 
-		// استقبال المعلمات من DataTables
-		$start  = $_POST['start'];
-		$length = $_POST['length'];
-		$search = $_POST['search']['value'];
-		$where = "";
-		// الاستعلام الرئيسي
+		$start  = max(0, (int)($_POST['start'] ?? 0));
+		$length = max(1, (int)($_POST['length'] ?? 40000));
+		$search = trim((string)($_POST['search']['value'] ?? ''));
+
+		// الفترة الافتراضية: آخر 30 يومًا شاملة اليوم.
+		$today = new DateTimeImmutable('today');
+		$defaultFrom = $today->modify('-29 days')->format('Y-m-d');
+		$defaultTo = $today->format('Y-m-d');
+
+		$isValidDate = static function ($value) {
+			if (!is_string($value) || $value === '') {
+				return false;
+			}
+			$date = DateTime::createFromFormat('!Y-m-d', $value);
+			return $date instanceof DateTime && $date->format('Y-m-d') === $value;
+		};
+
+		$dateFrom = $_POST['start_date'] ?? '';
+		$dateTo = $_POST['end_date'] ?? '';
+		if (!$isValidDate($dateFrom) || !$isValidDate($dateTo) || $dateFrom > $dateTo) {
+			$dateFrom = $defaultFrom;
+			$dateTo = $defaultTo;
+		}
+
 		$sql = 'SELECT *
 				FROM  (SELECT  A.ORDER_TYPE_ID,
 				   A.SUB_ORDER_ID,
@@ -192,40 +210,64 @@ class reports_BE {
 				   M.DISCOUNT,
 				   M.DELIVERED_QTY,
 				   M.PRO_STATUSE) AS ORDER_VIEW ';
-		$limit = " LIMIT :start, :length";
-		
-		// إضافة البحث
-		if (!empty($search)) {
-		    $where .= "WHERE (B.BR_NAME LIKE :search OR 
-		    				  S.STO_NAME LIKE :search1 OR PR.PRO_NAME LIKE :search2)";
-		}
-		
-		$stmtAll = $this->conn->prepare($sql);
-		$stmtAll->execute();
-		
-		$stmt = $this->conn->prepare($sql.$where.$limit);
-	
-		// تمرير القيم إلى الاستعلام
-		if (!empty($search)) {
-		    $stmt->bindValue(':search', "%$search%", PDO::PARAM_STR);
-		    $stmt->bindValue(':search1', "%$search%", PDO::PARAM_STR);
-		    $stmt->bindValue(':search2', "%$search%", PDO::PARAM_STR);
 
+		// فلترة تاريخ الإنشاء على الخادم قبل إرجاع النتائج.
+		$where = " WHERE ORDER_VIEW.DATE_CREATED >= :date_from
+		           AND ORDER_VIEW.DATE_CREATED < DATE_ADD(:date_to, INTERVAL 1 DAY)";
+
+		$searchColumns = [
+			'SUB_ORDER_ID', 'ORDERBY', 'DELIVERYBY', 'CLIENT_NAME',
+			'TELEPHONE', 'GOV_NAME', 'ADDRESS', 'PRO_NAME', 'PRO_CODE',
+			'EXISTS_NAME', 'STA_NAME', 'ORDER_TYPE_NAME', 'CI_NAME',
+			'COMMENT', 'OPT_JSON'
+		];
+
+		$searchConditions = [];
+		foreach ($searchColumns as $index => $columnName) {
+			$searchConditions[] = "COALESCE(ORDER_VIEW.$columnName, '') LIKE :search_$index";
 		}
-		$stmt->bindValue(':start', (int)$start, PDO::PARAM_INT);
-		$stmt->bindValue(':length', (int)$length, PDO::PARAM_INT);
+
+		$filteredWhere = $where;
+		if ($search !== '') {
+			$filteredWhere .= " AND (" . implode(" OR ", $searchConditions) . ")";
+		}
+
+		// إجمالي السجلات داخل الفترة، ثم العدد بعد تطبيق البحث النصي.
+		$countTotal = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS REPORT_COUNT $where");
+		$countTotal->bindValue(':date_from', $dateFrom, PDO::PARAM_STR);
+		$countTotal->bindValue(':date_to', $dateTo, PDO::PARAM_STR);
+		$countTotal->execute();
+		$recordsTotal = (int)$countTotal->fetchColumn();
+
+		$countFiltered = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS REPORT_COUNT $filteredWhere");
+		$countFiltered->bindValue(':date_from', $dateFrom, PDO::PARAM_STR);
+		$countFiltered->bindValue(':date_to', $dateTo, PDO::PARAM_STR);
+		if ($search !== '') {
+			foreach ($searchColumns as $index => $columnName) {
+				$countFiltered->bindValue(':search_'.$index, "%".$search."%", PDO::PARAM_STR);
+			}
+		}
+		$countFiltered->execute();
+		$recordsFiltered = (int)$countFiltered->fetchColumn();
+
+		$stmt = $this->conn->prepare($sql.$filteredWhere." LIMIT :start, :length");
+		$stmt->bindValue(':date_from', $dateFrom, PDO::PARAM_STR);
+		$stmt->bindValue(':date_to', $dateTo, PDO::PARAM_STR);
+		if ($search !== '') {
+			foreach ($searchColumns as $index => $columnName) {
+				$stmt->bindValue(':search_'.$index, "%".$search."%", PDO::PARAM_STR);
+			}
+		}
+		$stmt->bindValue(':start', $start, PDO::PARAM_INT);
+		$stmt->bindValue(':length', $length, PDO::PARAM_INT);
 		$stmt->execute();
-		
-		// إرجاع البيانات إلى DataTables
-		$response = array(
-		    "draw" => intval($_POST['draw']),
-		    "iTotalRecords" => $stmt->rowCount(),
-		    "iTotalDisplayRecords" => $stmtAll->rowCount(),
-		    "data" => $stmt->fetchAll(PDO::FETCH_ASSOC),
-		);
-		
-		return $response;
-			
+
+		return [
+			'draw' => (int)($_POST['draw'] ?? 0),
+			'recordsTotal' => $recordsTotal,
+			'recordsFiltered' => $recordsFiltered,
+			'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+		];
 	}
 
 	public function suppliersQtyReportIN(){
