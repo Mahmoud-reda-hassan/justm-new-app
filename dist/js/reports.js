@@ -89,6 +89,7 @@ if (Go == 'stockShortageReport'){
 const urlvr = `../../inc/controller/reports.control.php`;
 $(document).ready(function () {
    
+    if (Go == 'SalesMovementReport') {
     const today = moment().startOf('day');
     $('#date_range').daterangepicker({
         startDate: today.clone().subtract(29, 'days'),
@@ -124,8 +125,8 @@ $(document).ready(function () {
     $('#date_range').on('apply.daterangepicker', function (ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
     });
+    }
 
-   
     var table = $('#tbl').DataTable({
         scrollY : '70vh',
 	    scrollX : true,
@@ -136,9 +137,12 @@ $(document).ready(function () {
             type: 'POST', // نوع الطلب
             data: function (d) {
                 d.CONTROL = Go;
-                const picker = $('#date_range').data('daterangepicker');
-                d.start_date = picker.startDate.format('YYYY-MM-DD');
-                d.end_date = picker.endDate.format('YYYY-MM-DD');
+                if (Go == 'SalesMovementReport') {
+                    const picker = $('#date_range').data('daterangepicker');
+                    d.start_date = picker.startDate.format('YYYY-MM-DD');
+                    d.end_date = picker.endDate.format('YYYY-MM-DD');
+                    d.date_field = $('#date_field').val() || 'DATE_CREATED';
+                }
             }
         },
         columnDefs: columnDef,
@@ -160,8 +164,10 @@ $(document).ready(function () {
     	drawCallback : drawCallback
     });
 
-    $('#btnApplyDateRange').on('click', function () {
-        table.ajax.reload();
-    });
+    if (Go == 'SalesMovementReport') {
+        $('#btnApplyDateRange').on('click', function () {
+            table.ajax.reload();
+        });
+    }
 });
         
