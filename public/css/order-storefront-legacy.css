@@ -412,7 +412,7 @@
 .jm-order-storefront-page .jm-order-step.active,.jm-order-storefront-page .jm-order-step.done{color:#104a9d}
 .jm-order-storefront-page .order-actions .btn{border-radius:9px;min-height:42px;font-weight:800}
 
-/* Product catalog: standard responsive breakpoints */
+/* Product catalog: standard responsive breakpoints and compact card content */
 .jm-order-storefront-page .jm-store-product-grid,
 .jm-order-storefront-page #jmStoreProductGrid,
 .jm-order-storefront-page #jmStepPanel1 .jm-store-product-grid{
@@ -420,6 +420,13 @@
     grid-template-columns:minmax(0,1fr);
     gap:14px;
 }
+.jm-order-storefront-page .jm-store-product-meta{min-width:0}
+.jm-order-storefront-page .jm-store-product-price{
+    display:flex;align-items:baseline;justify-content:flex-start;flex-wrap:wrap;
+    gap:3px 6px;min-width:0;max-width:100%;white-space:normal;
+    overflow-wrap:anywhere;line-height:1.6;
+}
+.jm-order-storefront-page .jm-store-product-price small{font-size:12px;font-weight:700;white-space:nowrap}
 @media (min-width:576px){
     .jm-order-storefront-page .jm-store-product-grid,
     .jm-order-storefront-page #jmStoreProductGrid,
@@ -427,7 +434,7 @@
         grid-template-columns:repeat(2,minmax(0,1fr));
     }
 }
-@media (min-width:768px){
+@media (min-width:992px){
     .jm-order-storefront-page .jm-store-product-grid,
     .jm-order-storefront-page #jmStoreProductGrid,
     .jm-order-storefront-page #jmStepPanel1 .jm-store-product-grid{
@@ -435,14 +442,14 @@
         gap:16px;
     }
 }
-@media (min-width:992px){
+@media (min-width:1200px){
     .jm-order-storefront-page .jm-store-product-grid,
     .jm-order-storefront-page #jmStoreProductGrid,
     .jm-order-storefront-page #jmStepPanel1 .jm-store-product-grid{
         grid-template-columns:repeat(4,minmax(0,1fr));
     }
 }
-@media (min-width:1200px){
+@media (min-width:1400px){
     .jm-order-storefront-page .jm-store-product-grid,
     .jm-order-storefront-page #jmStoreProductGrid,
     .jm-order-storefront-page #jmStepPanel1 .jm-store-product-grid{
@@ -456,4 +463,5 @@
         grid-template-columns:minmax(0,1fr)!important;
         gap:12px;
     }
+    .jm-order-storefront-page .jm-store-product-price{font-size:14px}
 }
