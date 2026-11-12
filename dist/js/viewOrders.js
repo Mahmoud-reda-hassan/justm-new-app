@@ -4255,7 +4255,7 @@ function showOrderRejectionReasons(orderId) {
             Swal.fire({
                 title: 'أسباب رفض منتجات أمر البيع',
                 html: $content,
-                width: '1000px',
+                width: 'min(1000px, calc(100vw - 24px))',
                 showCancelButton: true,
                 confirmButtonText: 'حفظ الأسباب',
                 cancelButtonText: 'إلغاء',
