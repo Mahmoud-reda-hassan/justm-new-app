@@ -172,6 +172,12 @@ $(document).ready(function () {
 	                    dataType: 'json',
 	                    success: function (response) {
 	                        const rows = response && response.data ? response.data : [];
+	                        const JSZip = $.fn.dataTable.Buttons.jszip();
+	                        if (!JSZip) {
+	                            alert('مكتبة إنشاء ملفات Excel غير متاحة. يرجى التواصل مع الدعم.');
+	                            return;
+	                        }
+
 	                        const escapeXml = function (value) {
 	                            return String(value == null ? '' : value)
 	                                .replace(/&/g, '&amp;')
@@ -180,33 +186,99 @@ $(document).ready(function () {
 	                                .replace(/"/g, '&quot;')
 	                                .replace(/'/g, '&apos;');
 	                        };
+	                        const columnName = function (index) {
+	                            let name = '';
+	                            while (index >= 0) {
+	                                name = String.fromCharCode((index % 26) + 65) + name;
+	                                index = Math.floor(index / 26) - 1;
+	                            }
+	                            return name;
+	                        };
 	                        const reportColumns = column;
 	                        const xmlRows = [];
-	                        xmlRows.push('<Row>' + reportColumns.map(function (col) {
-	                            return '<Cell><Data ss:Type="String">' + escapeXml(col.title) + '</Data></Cell>';
-	                        }).join('') + '</Row>');
-	                        rows.forEach(function (row) {
-	                            xmlRows.push('<Row>' + reportColumns.map(function (col) {
-	                                return '<Cell><Data ss:Type="String">' + escapeXml(row[col.data]) + '</Data></Cell>';
-	                            }).join('') + '</Row>');
+	                        const makeCell = function (reference, value) {
+	                            return '<c r="' + reference + '" t="inlineStr"><is><t xml:space="preserve">' +
+	                                escapeXml(value) + '</t></is></c>';
+	                        };
+
+	                        xmlRows.push('<row r="1">' + reportColumns.map(function (col, index) {
+	                            return makeCell(columnName(index) + '1', col.title);
+	                        }).join('') + '</row>');
+
+	                        rows.forEach(function (row, rowIndex) {
+	                            const excelRow = rowIndex + 2;
+	                            xmlRows.push('<row r="' + excelRow + '">' + reportColumns.map(function (col, colIndex) {
+	                                return makeCell(columnName(colIndex) + excelRow, row[col.data]);
+	                            }).join('') + '</row>');
 	                        });
 
-	                        const workbook = '<?xml version="1.0" encoding="UTF-8"?>' +
-	                            '<?mso-application progid="Excel.Sheet"?>' +
-	                            '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ' +
-	                            'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
-	                            '<Worksheet ss:Name="تقرير حركة المبيعات"><Table>' +
-	                            xmlRows.join('') +
-	                            '</Table></Worksheet></Workbook>';
-	                        const blob = new Blob(['\ufeff', workbook], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-	                        const link = document.createElement('a');
-	                        const url = URL.createObjectURL(blob);
-	                        link.href = url;
-	                        link.download = 'SalesMovementReport_' + exportParams.start_date + '_' + exportParams.end_date + '.xls';
-	                        document.body.appendChild(link);
-	                        link.click();
-	                        document.body.removeChild(link);
-	                        URL.revokeObjectURL(url);
+	                        const lastColumn = columnName(Math.max(0, reportColumns.length - 1));
+	                        const lastRow = rows.length + 1;
+	                        const zip = new JSZip();
+
+	                        zip.file('[Content_Types].xml',
+	                            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+	                            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+	                            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+	                            '<Default Extension="xml" ContentType="application/xml"/>' +
+	                            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+	                            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+	                            '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+	                            '</Types>'
+	                        );
+	                        zip.folder('_rels').file('.rels',
+	                            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+	                            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+	                            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+	                            '</Relationships>'
+	                        );
+	                        zip.folder('xl').file('workbook.xml',
+	                            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+	                            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+	                            '<sheets><sheet name="تقرير حركة المبيعات" sheetId="1" r:id="rId1"/></sheets></workbook>'
+	                        );
+	                        zip.folder('xl').folder('_rels').file('workbook.xml.rels',
+	                            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+	                            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+	                            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+	                            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+	                            '</Relationships>'
+	                        );
+	                        zip.folder('xl').file('styles.xml',
+	                            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+	                            '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+	                            '<fonts count="1"><font><sz val="11"/><name val="Arial"/></font></fonts>' +
+	                            '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>' +
+	                            '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+	                            '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+	                            '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>' +
+	                            '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'
+	                        );
+	                        zip.folder('xl').folder('worksheets').file('sheet1.xml',
+	                            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+	                            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+	                            '<dimension ref="A1:' + lastColumn + lastRow + '"/>' +
+	                            '<sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews>' +
+	                            '<sheetFormatPr defaultRowHeight="15"/>' +
+	                            '<sheetData>' + xmlRows.join('') + '</sheetData>' +
+	                            '</worksheet>'
+	                        );
+
+	                        zip.generateAsync({
+	                            type: 'blob',
+	                            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+	                        }).then(function (blob) {
+	                            const link = document.createElement('a');
+	                            const url = URL.createObjectURL(blob);
+	                            link.href = url;
+	                            link.download = 'SalesMovementReport_' + exportParams.start_date + '_' + exportParams.end_date + '.xlsx';
+	                            document.body.appendChild(link);
+	                            link.click();
+	                            document.body.removeChild(link);
+	                            setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+	                        }).catch(function () {
+	                            alert('تعذر إنشاء ملف Excel. حاول مرة أخرى.');
+	                        });
 	                    },
 	                    error: function () {
 	                        alert('تعذر تصدير التقرير. حاول مرة أخرى.');
