@@ -858,11 +858,10 @@ class ordersList_BE {
             && !empty($request['includeMissingRejectionReason'])
             && $isRejectedStatus
         ) {
-            $globalwhere[] = "EXISTS (
-                SELECT 1
+            $globalwhere[] = "ORDER_ID IN (
+                SELECT OP_MISSING_REASON.ORDER_ID
                 FROM ORDER_PRODUCT OP_MISSING_REASON
-                WHERE OP_MISSING_REASON.ORDER_ID = A.ORDER_ID
-                  AND OP_MISSING_REASON.PRO_STATUSE IN ('partial', 'rejected')
+                WHERE OP_MISSING_REASON.PRO_STATUSE IN ('partial', 'rejected')
                   AND NOT EXISTS (
                       SELECT 1
                       FROM reasons_for_product_rejection RFP_MISSING_REASON
@@ -870,6 +869,7 @@ class ordersList_BE {
                         AND RFP_MISSING_REASON.PRO_CODE = OP_MISSING_REASON.PRO_CODE
                         AND RFP_MISSING_REASON.REASON_ID > 0
                   )
+                GROUP BY OP_MISSING_REASON.ORDER_ID
             )";
         }
 
