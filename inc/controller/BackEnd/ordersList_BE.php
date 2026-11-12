@@ -256,11 +256,12 @@ class ButtonEngine {
                     return self::makeButton($orderData, 'transformation', false);
                 }
                 if($control === "SupportAfterSales"){
-                	$starray = [5,4];
-                	if(in_array($orderData["ORDER_STATUS"],$starray) && $orderData['REASON'] <= 0){ 
-                        return self::makeButton($orderData, 'reasonsForRejection', true);
-                    }
-                    return self::makeButton($orderData, 'reasonsForRejection', false);
+                    $starray = [5,4];
+                    return self::makeButton(
+                        $orderData,
+                        'reasonsForRejection',
+                        in_array((int)$orderData["ORDER_STATUS"], $starray, true)
+                    );
                 }
                 break;
             case 2:
