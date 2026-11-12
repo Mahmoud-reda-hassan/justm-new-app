@@ -1112,7 +1112,7 @@
                 + '<span class="jm-options-badge"><i class="fas fa-swatchbook"></i> ' + product.variants.length + ' اختيارات</span>'
                 + '<div class="jm-product-image-caption"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
                 + '<div class="jm-store-product-price">' + priceText + ' <small>ج.م</small></div></div></div></div>'
-                + '<div class="jm-store-product-body"><button type="button" class="jm-store-add jm-store-add-icon" data-open-product="' + escape(product.id) + '" aria-label="إضافة ' + escape(product.name) + ' إلى الكارت" title="إضافة إلى الكارت"><i class="fas fa-cart-plus" aria-hidden="true"></i></button></div></article>';
+                + '<button type="button" class="jm-store-product-body jm-store-add jm-store-add-icon" data-open-product="' + escape(product.id) + '" aria-label="اختيار ' + escape(product.name) + '" title="اختيار المنتج"><i class="fas fa-cart-plus" aria-hidden="true"></i></button></article>';
         }).join('');
     };
 
