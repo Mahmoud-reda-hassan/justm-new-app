@@ -1,0 +1,28 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+config.php
+
+# Backups and archives
+*.bak
+*.backup
+*.zip
+*.7z
+*.rar
+
+# Logs and temporary files
+*.log
+App_Logs/
+AppLogs
+*.tmp
+*.temp
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Dependencies generated locally
+/vendor/
+node_modules/
+.user.ini
