@@ -2171,6 +2171,22 @@ $http_RQM = $_SERVER['REQUEST_METHOD'];
 	}
 
 
+	if($uTAdmin == 1 && $http_RQM == 'GET' && isset($_GET['CONTROL']) && $_GET['CONTROL'] == 'OrderRejectionData') {
+		if(($UserScript['Admin']['SupportAfterSales']['View_order_list'] ?? '') == "true"){
+			$Order_tbl = new Order_tbl($db);
+			ResponseData($Order_tbl->getOrderRejectionReasons((int)($_GET['ORDER_ID'] ?? 0)));
+			exit;
+		}
+	}
+	if($uTAdmin == 1 && $http_RQM == 'POST' && isset($_POST['CONTROL']) && $_POST['CONTROL'] == 'saveOrderRejectionReasons') {
+		if(($UserScript['Admin']['SupportAfterSales']['View_order_list'] ?? '') == "true"){
+			$items = json_decode($_POST['DATA'] ?? '[]', true);
+			$Order_tbl = new Order_tbl($db);
+			ResponseData($Order_tbl->saveOrderProductRejectionReasons((int)($_POST['ORDER_ID'] ?? 0), is_array($items) ? $items : []));
+			exit;
+		}
+	}
+
 	if($uTAdmin == 1 && $http_RQM == 'GET'  && isset($_GET['CONTROL'])  && $_GET['CONTROL']  == 'ResonseData') {
 		if($UserScript['Admin']['SupportAfterSales']['View_order_list'] == "true"){
 			$Order_tbl = new Order_tbl($db);
