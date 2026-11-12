@@ -153,7 +153,7 @@ $(document).ready(function () {
 		buttons: [
 	        'copy', 
 	        'print',
-	        {
+	        Go == 'SalesMovementReport' ? {
 	            text: 'تصدير Excel (كل النتائج)',
 	            action: function (e, dt, node, config) {
 	                const picker = $('#date_range').data('daterangepicker');
@@ -213,7 +213,7 @@ $(document).ready(function () {
 	                    }
 	                });
 	            }
-	        }, 
+	        } : 'excel', 
 	        {
 	            text: 'تحديث التقرير',
 	            action: function (e, dt, node, config) {
