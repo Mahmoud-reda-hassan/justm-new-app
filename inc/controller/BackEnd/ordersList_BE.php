@@ -847,17 +847,10 @@ class ordersList_BE {
                 $wq[]  = 'A.ORDER_BY = ' . $_SESSION['USER_ID'] .' AND A.ORDER_TYPE_ID = '.$request["ptype"].' AND A.ORDER_SUCCESS >= 0 ';
         }
 
-        // إظهار الطلب إذا كان به منتج مرفوض/جزئي واحد على الأقل بلا سبب رفض.
-        $statusFilter = $request['columns'][1]['search']['value'] ?? null;
-        $isRejectedStatus = is_array($statusFilter)
-            && isset($statusFilter[0], $statusFilter[1])
-            && (string)$statusFilter[0] === '5'
-            && (string)$statusFilter[1] === '1';
-
+        // فلتر مستقل لطلبات خدمة ما بعد البيع التي بها منتج مرفوض/جزئي بلا سبب رفض.
         if (
             ($request['CONTROL'] ?? '') === 'SupportAfterSales'
             && !empty($request['includeMissingRejectionReason'])
-            && $isRejectedStatus
         ) {
             $globalwhere[] = "ORDER_ID IN (
                 SELECT OP_MISSING_REASON.ORDER_ID
