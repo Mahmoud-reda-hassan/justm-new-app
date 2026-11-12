@@ -962,3 +962,41 @@
  .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-visual>.jm-stock-badge{right:8px!important}
  .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-visual>.jm-options-badge{left:8px!important}
 }
+
+
+/* Product card footer: name on the right, unit price on the left, icon action. */
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-image{
+    width:100%!important;height:clamp(190px,24vw,250px)!important;
+    aspect-ratio:1/1;max-height:250px!important;
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-visual{width:100%!important;height:100%!important}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-body{padding:12px 14px 14px!important}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-heading{
+    display:flex;flex-direction:row;direction:rtl;align-items:flex-start;
+    justify-content:space-between;gap:10px;width:100%;min-width:0;margin:0 0 11px;
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-name{
+    flex:1 1 50%;min-width:0;margin:0!important;text-align:right!important;
+    font-size:14px!important;line-height:1.55;overflow-wrap:anywhere;
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-meta{
+    flex:0 1 auto;min-width:0;margin:0!important;text-align:left!important;
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-price{
+    display:block!important;text-align:left!important;font-size:13px!important;
+    line-height:1.5;white-space:normal!important;overflow-wrap:anywhere;
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-price small{display:inline;font-size:10px}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-add-icon{
+    display:flex!important;align-items:center;justify-content:center;
+    width:42px!important;min-width:42px;height:40px!important;min-height:40px!important;
+    margin-inline-start:auto;padding:0!important;border-radius:11px!important;
+    font-size:17px!important;
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-add-icon i{margin:0!important}
+@media(max-width:575.98px){
+ .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-image{height:clamp(190px,62vw,250px)!important}
+ .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-heading{gap:7px}
+ .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-name{font-size:13px!important}
+ .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-price{font-size:12px!important}
+}
