@@ -1726,28 +1726,52 @@ document.addEventListener("DOMContentLoaded", function() {
 			<option data-type="1" value="4">تسليم جزئى</option>
 			<option data-type="1" value="5">مرفوض</option>
 		`);
-		// استخدام نفس متغير الصفحة المعتمد عليه في بقية الملف.
+		// فلتر أسباب الرفض: التعامل مع رأس الجدول الأصلي والنسخة التي ينشئها DataTables.
 		var currentOrdersPage = (typeof Go !== 'undefined')
 		    ? String(Go)
 		    : new URLSearchParams(window.location.search).get('Go');
-		var $missingRejectionReasonFilter = $('#missingRejectionReasonFilter');
-		function updateMissingRejectionReasonFilter() {
-		    var $selectedStatus = $('#tbl #searchStatus').find(':selected');
-		    var selectedStatus = String($selectedStatus.val() || '');
-		    var isRejectedStatus = selectedStatus === '5' || selectedStatus === 'مرفوض';
+
+		function updateMissingRejectionReasonFilter(statusElement) {
+		    var $status = statusElement
+		        ? $(statusElement)
+		        : $('#tbl_wrapper .dataTables_scrollHead [id="searchStatus"]').first();
+
+		    if (!$status.length) {
+		        $status = $('#tbl [id="searchStatus"]').first();
+		    }
+
+		    var $selectedStatus = $status.find('option:selected');
+		    var selectedStatus = String($status.val() || '');
 		    var isRejectedSupport = currentOrdersPage === 'SupportAfterSales' &&
-		        isRejectedStatus &&
-		        String($selectedStatus.data('type')) === '1';
-		    $missingRejectionReasonFilter.toggle(isRejectedSupport);
-		    if (!isRejectedSupport) $('#filterMissingRejectionReason').prop('checked', false);
+		        (selectedStatus === '5' || selectedStatus === 'مرفوض') &&
+		        String($selectedStatus.attr('data-type') || '') === '1';
+
+		    $('[id="missingRejectionReasonFilter"]').toggle(isRejectedSupport);
+
+		    if (!isRejectedSupport) {
+		        $('[id="filterMissingRejectionReason"]').prop('checked', false);
+		    }
 		}
-		$('#tbl').off('change.missingRejectionReason', '#searchStatus')
-		    .on('change.missingRejectionReason', '#searchStatus', updateMissingRejectionReasonFilter);
-		$('#filterMissingRejectionReason').off('change.missingRejectionReason')
-		    .on('change.missingRejectionReason', function () {
-		        if (typeof table !== 'undefined' && table) table.draw(false);
+
+		// ربط الأحداث على document حتى تعمل مع عناصر رأس الجدول المنسوخة.
+		$(document)
+		    .off('change.missingRejectionReason', '[id="searchStatus"]')
+		    .on('change.missingRejectionReason', '[id="searchStatus"]', function () {
+		        var selectedValue = $(this).val();
+		        $('[id="searchStatus"]').not(this).val(selectedValue);
+		        updateMissingRejectionReasonFilter(this);
 		    });
-		updateMissingRejectionReasonFilter();
+
+		$(document)
+		    .off('change.missingRejectionReason', '[id="filterMissingRejectionReason"]')
+		    .on('change.missingRejectionReason', '[id="filterMissingRejectionReason"]', function () {
+		        var isChecked = $(this).is(':checked');
+		        $('[id="filterMissingRejectionReason"]').prop('checked', isChecked);
+
+		        if (typeof table !== 'undefined' && table) {
+		            table.draw(false);
+		        }
+		    });
 		//$('.table-overlay1').fadeOut(50);
 		table = $('#tbl').DataTable({
 				scrollX: true, // تفعيل التمرير الأفقي لتجنب ضغط الجدول
@@ -1766,7 +1790,7 @@ document.addEventListener("DOMContentLoaded", function() {
 							d.st = ost;
 							d.url = wls;
 							d.sto_available = store_available;
-							d.includeMissingRejectionReason = currentOrdersPage === 'SupportAfterSales' && $('#filterMissingRejectionReason').is(':checked') ? 1 : 0;
+							d.includeMissingRejectionReason = currentOrdersPage === 'SupportAfterSales' && $('[id="filterMissingRejectionReason"]:checked').length > 0 ? 1 : 0;
 							d.did = $('#SelectUserDelivery').val();
 							d.columnFilters = getColumnFilters();
 				            // فلترة التاريخ
@@ -2004,6 +2028,7 @@ document.addEventListener("DOMContentLoaded", function() {
 			    ],
 			    initComplete: function () {
 			        this.api().columns.adjust(); // ضبط الأعمدة بعد تحميل البيانات
+			        updateMissingRejectionReasonFilter();
 			    },
 	    
 		        buttons: [
