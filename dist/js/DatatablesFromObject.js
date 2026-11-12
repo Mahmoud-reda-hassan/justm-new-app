@@ -1232,6 +1232,20 @@ document.addEventListener("DOMContentLoaded", function() {
 			<option data-type="1" value="تسليم جزئى">تسليم جزئى</option>
 			<option data-type="1" value="مرفوض">مرفوض</option>
 		`);
+		var $missingRejectionReasonFilter = $('#missingRejectionReasonFilter');
+		function updateMissingRejectionReasonFilter() {
+		    var $selectedStatus = $('#tbl #searchStatus').find(':selected');
+		    var isRejectedSupport = Go === 'SupportAfterSales' &&
+		        String($selectedStatus.val()) === '5' &&
+		        String($selectedStatus.data('type')) === '1';
+		    $missingRejectionReasonFilter.toggle(isRejectedSupport);
+		    if (!isRejectedSupport) $('#filterMissingRejectionReason').prop('checked', false);
+		}
+		$('#tbl #searchStatus').on('change', updateMissingRejectionReasonFilter);
+		$('#filterMissingRejectionReason').on('change', function () {
+		    if (typeof table !== 'undefined' && table) table.draw(false);
+		});
+		updateMissingRejectionReasonFilter();
 		/**
 		 * -----------------------------------------------------------------------------
 		 * 📌 Auto Initialization on Page Load
@@ -1744,6 +1758,7 @@ document.addEventListener("DOMContentLoaded", function() {
 							d.st = ost;
 							d.url = wls;
 							d.sto_available = store_available;
+						d.includeMissingRejectionReason = Go === 'SupportAfterSales' && $('#filterMissingRejectionReason').is(':checked') ? 1 : 0;
 							d.did = $('#SelectUserDelivery').val();
 							d.columnFilters = getColumnFilters();
 				            // فلترة التاريخ
