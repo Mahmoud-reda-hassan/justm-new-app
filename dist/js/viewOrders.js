@@ -4160,3 +4160,138 @@ document.addEventListener("DOMContentLoaded", function() {
 	}
 	
 });//end document ready
+
+/*====================================
+  أسباب رفض منتجات أمر البيع
+ ====================================*/
+function showOrderRejectionReasons(orderId) {
+    $.ajax({
+        url: urlApi,
+        type: 'GET',
+        dataType: 'json',
+        data: { CONTROL: 'OrderRejectionData', ORDER_ID: orderId },
+        success: function (response) {
+            if (!response || !response.status) {
+                Swal.fire('خطأ', response?.message || 'تعذر جلب منتجات الأمر', 'error');
+                return;
+            }
+            const products = response.products || [];
+            const reasons = response.reasons || [];
+            if (!products.length) {
+                Swal.fire('لا توجد منتجات', 'لا توجد منتجات مرفوضة أو مسلمة جزئياً في أمر البيع.', 'info');
+                return;
+            }
+
+            const $content = $('<div>', { class: 'table-responsive text-right' });
+            const $table = $('<table>', { class: 'table table-bordered table-sm', css: { width: '100%' } });
+            const $head = $('<thead>').append($('<tr>').append(
+                $('<th>').text('المنتج'), $('<th>').text('الحالة'), $('<th>').text('الكمية'),
+                $('<th>').text('سبب الرفض'), $('<th>').text('ملاحظات')
+            ));
+            const $body = $('<tbody>');
+            const productInputs = [];
+
+            products.forEach(function (product) {
+                const $select = $('<select>', { class: 'form-control order-rejection-reason' });
+                $select.append($('<option>', { value: '', text: 'اختر سبب الرفض' }));
+                reasons.forEach(function (reason) {
+                    $select.append($('<option>', { value: String(reason.ID), text: reason.REASON }));
+                });
+                $select.val(product.REASON_ID ? String(product.REASON_ID) : '');
+
+                const $comment = $('<textarea>', {
+                    class: 'form-control order-rejection-comment', rows: 2, placeholder: 'ملاحظات...'
+                }).val(product.COMMENT || '');
+
+                const $name = $('<div>').text(product.PRODUCT_NAME || product.PRO_CODE);
+                if (product.PRODUCT_ATTRIBUTES) {
+                    $name.append($('<small>', { class: 'd-block text-muted' }).text(product.PRODUCT_ATTRIBUTES));
+                }
+                const statusText = product.PRO_STATUSE === 'partial' ? 'تسليم جزئي' : 'مرفوض';
+                const quantityText = String(product.QTY ?? '') +
+                    (product.DELIVERED_QTY !== null ? ' / تم تسليم ' + product.DELIVERED_QTY : '');
+
+                $body.append($('<tr>').append(
+                    $('<td>').append($name), $('<td>').text(statusText), $('<td>').text(quantityText),
+                    $('<td>').append($select), $('<td>').append($comment)
+                ));
+                productInputs.push({ PRO_CODE: product.PRO_CODE, $select: $select, $comment: $comment });
+            });
+
+            $table.append($head, $body);
+            $content.append($table);
+            Swal.fire({
+                title: 'أسباب رفض منتجات أمر البيع',
+                html: $content,
+                width: '1000px',
+                showCancelButton: true,
+                confirmButtonText: 'حفظ الأسباب',
+                cancelButtonText: 'إلغاء',
+                focusConfirm: false,
+                preConfirm: function () {
+                    const items = [];
+                    for (const input of productInputs) {
+                        const reasonId = input.$select.val();
+                        if (!reasonId) {
+                            Swal.showValidationMessage('اختر سبب الرفض لكل المنتجات المعروضة');
+                            input.$select.trigger('focus');
+                            return false;
+                        }
+                        items.push({
+                            PRO_CODE: input.PRO_CODE,
+                            REASON_ID: reasonId,
+                            COMMENT: input.$comment.val().trim()
+                        });
+                    }
+                    return items;
+                }
+            }).then(function (result) {
+                if (!result.isConfirmed) return;
+                Swal.fire({
+                    title: 'جاري حفظ أسباب الرفض',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: function () { Swal.showLoading(); }
+                });
+                $.ajax({
+                    url: urlApi,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        CONTROL: 'saveOrderRejectionReasons',
+                        ORDER_ID: orderId,
+                        DATA: JSON.stringify(result.value)
+                    },
+                    success: function (saveResponse) {
+                        if (!saveResponse || !saveResponse.status) {
+                            Swal.fire('خطأ', saveResponse?.message || 'فشل حفظ أسباب الرفض', 'error');
+                            return;
+                        }
+                        Swal.fire('تم الحفظ', saveResponse.message || 'تم حفظ أسباب الرفض بنجاح', 'success');
+                        if (typeof updateOrders === 'function') updateOrders();
+                    },
+                    error: function (xhr) {
+                        console.error(xhr.responseText);
+                        Swal.fire('خطأ', 'تعذر الاتصال بالخادم أثناء حفظ أسباب الرفض', 'error');
+                    }
+                });
+            });
+        },
+        error: function (xhr) {
+            console.error(xhr.responseText);
+            Swal.fire('خطأ', 'تعذر جلب منتجات وأسباب الرفض', 'error');
+        }
+    });
+}
+
+$(document).on('click', '#ReasonsForRejection', function (event) {
+    event.preventDefault();
+    const $button = $(this);
+    if ($button.hasClass('disble') || $button.is(':disabled')) return;
+    const orderId = parseInt($button.attr('data-id'), 10);
+    if (!orderId) {
+        Swal.fire('خطأ', 'تعذر تحديد أمر البيع', 'error');
+        return;
+    }
+    showOrderRejectionReasons(orderId);
+});
