@@ -184,6 +184,8 @@ class reports_BE {
 				   				FROM ORDER_PRODUCT
 				   				GROUP BY ORDER_ID
 				   ) PQTY ON A.ORDER_ID = PQTY.ORDER_ID
+				 WHERE A.DATE_CREATED >= :date_from
+				   AND A.DATE_CREATED < DATE_ADD(:date_to, INTERVAL 1 DAY)
 				 GROUP BY 
 				 A.ORDER_TYPE_ID,
 				   A.SUB_ORDER_ID,
@@ -233,7 +235,7 @@ class reports_BE {
 		}
 
 		// إجمالي السجلات داخل الفترة، ثم العدد بعد تطبيق البحث النصي.
-		$countTotal = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS ORDER_VIEW $where");
+		$countTotal = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS ORDER_VIEW");
 		$countTotal->bindValue(':date_from', $dateFrom, PDO::PARAM_STR);
 		$countTotal->bindValue(':date_to', $dateTo, PDO::PARAM_STR);
 		$countTotal->execute();
