@@ -2146,6 +2146,68 @@ class Order_tbl {
 	    }
 	}
 	
+
+	public function getOrderRejectionReasons(int $orderId): array {
+	    try {
+	        if ($orderId <= 0) return ['status' => false, 'message' => 'رقم أمر البيع غير صحيح'];
+	        $stmt = $this->conn->prepare("
+	            SELECT OP.PRO_CODE,
+	                COALESCE(NULLIF(POV.PRO_NAME, ''), PR.PRO_NAME, OP.PRO_CODE) AS PRODUCT_NAME,
+	                COALESCE(POV.OPT_JSON, '') AS PRODUCT_ATTRIBUTES,
+	                OP.PRO_STATUSE, OP.QTY, OP.DELIVERED_QTY,
+	                RFP.REASON_ID, RFP.`COMMENT`
+	            FROM ORDER_PRODUCT OP
+	            LEFT JOIN PRODUCT_CODES PC ON PC.PRO_CODE = OP.PRO_CODE
+	            LEFT JOIN PRODUCTS PR ON PR.PRO_ID = PC.PRODUCT_ID
+	            LEFT JOIN PRODUCT_OPTIONS_VIEW POV ON POV.PRO_CODE = OP.PRO_CODE
+	            LEFT JOIN reasons_for_product_rejection RFP
+	                ON RFP.ORDER_ID = OP.ORDER_ID AND RFP.PRO_CODE = OP.PRO_CODE
+	            WHERE OP.ORDER_ID = ? AND OP.PRO_STATUSE IN ('partial', 'rejected')
+	            ORDER BY OP.PRO_CODE
+	        ");
+	        $stmt->execute([$orderId]);
+	        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	        $reasonsStmt = $this->conn->query("SELECT ID, REASON FROM reasons_data ORDER BY ID");
+	        return ['status' => true, 'products' => $products, 'reasons' => $reasonsStmt->fetchAll(PDO::FETCH_ASSOC)];
+	    } catch (\\Throwable $e) {
+	        error_log('getOrderRejectionReasons: ' . $e->getMessage());
+	        return ['status' => false, 'message' => 'حدث خطأ أثناء جلب منتجات وأسباب الرفض'];
+	    }
+	}
+
+	public function saveOrderProductRejectionReasons(int $orderId, array $items): array {
+	    if ($orderId <= 0 || empty($items)) return ['status' => false, 'message' => 'لا توجد بيانات صالحة للحفظ'];
+	    try {
+	        $this->conn->beginTransaction();
+	        $productStmt = $this->conn->prepare("SELECT PRO_STATUSE FROM ORDER_PRODUCT WHERE ORDER_ID = ? AND PRO_CODE = ? LIMIT 1");
+	        $reasonStmt = $this->conn->prepare("SELECT ID FROM reasons_data WHERE ID = ? LIMIT 1");
+	        $saveStmt = $this->conn->prepare("
+	            INSERT INTO reasons_for_product_rejection (ORDER_ID, PRO_CODE, REASON_ID, `COMMENT`)
+	            VALUES (?, ?, ?, ?)
+	            ON DUPLICATE KEY UPDATE REASON_ID = VALUES(REASON_ID), `COMMENT` = VALUES(`COMMENT`)
+	        ");
+	        foreach ($items as $item) {
+	            if (!is_array($item)) throw new \\InvalidArgumentException('بيانات أحد المنتجات غير صحيحة');
+	            $proCode = trim((string)($item['PRO_CODE'] ?? ''));
+	            $reasonId = filter_var($item['REASON_ID'] ?? null, FILTER_VALIDATE_INT);
+	            $comment = trim((string)($item['COMMENT'] ?? ''));
+	            if ($proCode === '' || !$reasonId || $reasonId <= 0) throw new \\InvalidArgumentException('يجب اختيار سبب رفض لكل منتج');
+	            $productStmt->execute([$orderId, $proCode]);
+	            $productStatus = $productStmt->fetchColumn();
+	            if (!in_array($productStatus, ['partial', 'rejected'], true)) throw new \\InvalidArgumentException('أحد المنتجات لا ينتمي إلى قائمة المنتجات المرفوضة أو المسلمة جزئياً');
+	            $reasonStmt->execute([$reasonId]);
+	            if (!$reasonStmt->fetchColumn()) throw new \\InvalidArgumentException('سبب الرفض المحدد غير موجود');
+	            $saveStmt->execute([$orderId, $proCode, $reasonId, $comment]);
+	        }
+	        $this->conn->commit();
+	        return ['status' => true, 'message' => 'تم حفظ أسباب الرفض لجميع المنتجات بنجاح'];
+	    } catch (\\Throwable $e) {
+	        if ($this->conn->inTransaction()) $this->conn->rollBack();
+	        error_log('saveOrderProductRejectionReasons: ' . $e->getMessage());
+	        return ['status' => false, 'message' => $e instanceof \\InvalidArgumentException ? $e->getMessage() : 'حدث خطأ أثناء حفظ أسباب الرفض'];
+	    }
+	}
+
 	
 	
 	
