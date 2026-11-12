@@ -1758,7 +1758,7 @@ document.addEventListener("DOMContentLoaded", function() {
 							d.st = ost;
 							d.url = wls;
 							d.sto_available = store_available;
-						d.includeMissingRejectionReason = Go === 'SupportAfterSales' && $('#filterMissingRejectionReason').is(':checked') ? 1 : 0;
+							d.includeMissingRejectionReason = Go === 'SupportAfterSales' && $('#filterMissingRejectionReason').is(':checked') ? 1 : 0;
 							d.did = $('#SelectUserDelivery').val();
 							d.columnFilters = getColumnFilters();
 				            // فلترة التاريخ
