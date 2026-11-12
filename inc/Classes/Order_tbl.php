@@ -2169,7 +2169,7 @@ class Order_tbl {
 	        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	        $reasonsStmt = $this->conn->query("SELECT ID, REASON FROM reasons_data ORDER BY ID");
 	        return ['status' => true, 'products' => $products, 'reasons' => $reasonsStmt->fetchAll(PDO::FETCH_ASSOC)];
-	    } catch (\\Throwable $e) {
+	    } catch (\Throwable $e) {
 	        error_log('getOrderRejectionReasons: ' . $e->getMessage());
 	        return ['status' => false, 'message' => 'حدث خطأ أثناء جلب منتجات وأسباب الرفض'];
 	    }
@@ -2187,24 +2187,24 @@ class Order_tbl {
 	            ON DUPLICATE KEY UPDATE REASON_ID = VALUES(REASON_ID), `COMMENT` = VALUES(`COMMENT`)
 	        ");
 	        foreach ($items as $item) {
-	            if (!is_array($item)) throw new \\InvalidArgumentException('بيانات أحد المنتجات غير صحيحة');
+	            if (!is_array($item)) throw new \InvalidArgumentException('بيانات أحد المنتجات غير صحيحة');
 	            $proCode = trim((string)($item['PRO_CODE'] ?? ''));
 	            $reasonId = filter_var($item['REASON_ID'] ?? null, FILTER_VALIDATE_INT);
 	            $comment = trim((string)($item['COMMENT'] ?? ''));
-	            if ($proCode === '' || !$reasonId || $reasonId <= 0) throw new \\InvalidArgumentException('يجب اختيار سبب رفض لكل منتج');
+	            if ($proCode === '' || !$reasonId || $reasonId <= 0) throw new \InvalidArgumentException('يجب اختيار سبب رفض لكل منتج');
 	            $productStmt->execute([$orderId, $proCode]);
 	            $productStatus = $productStmt->fetchColumn();
-	            if (!in_array($productStatus, ['partial', 'rejected'], true)) throw new \\InvalidArgumentException('أحد المنتجات لا ينتمي إلى قائمة المنتجات المرفوضة أو المسلمة جزئياً');
+	            if (!in_array($productStatus, ['partial', 'rejected'], true)) throw new \InvalidArgumentException('أحد المنتجات لا ينتمي إلى قائمة المنتجات المرفوضة أو المسلمة جزئياً');
 	            $reasonStmt->execute([$reasonId]);
-	            if (!$reasonStmt->fetchColumn()) throw new \\InvalidArgumentException('سبب الرفض المحدد غير موجود');
+	            if (!$reasonStmt->fetchColumn()) throw new \InvalidArgumentException('سبب الرفض المحدد غير موجود');
 	            $saveStmt->execute([$orderId, $proCode, $reasonId, $comment]);
 	        }
 	        $this->conn->commit();
 	        return ['status' => true, 'message' => 'تم حفظ أسباب الرفض لجميع المنتجات بنجاح'];
-	    } catch (\\Throwable $e) {
+	    } catch (\Throwable $e) {
 	        if ($this->conn->inTransaction()) $this->conn->rollBack();
 	        error_log('saveOrderProductRejectionReasons: ' . $e->getMessage());
-	        return ['status' => false, 'message' => $e instanceof \\InvalidArgumentException ? $e->getMessage() : 'حدث خطأ أثناء حفظ أسباب الرفض'];
+	        return ['status' => false, 'message' => $e instanceof \InvalidArgumentException ? $e->getMessage() : 'حدث خطأ أثناء حفظ أسباب الرفض'];
 	    }
 	}
 
