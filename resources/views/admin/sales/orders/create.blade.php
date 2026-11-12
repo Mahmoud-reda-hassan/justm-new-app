@@ -1162,7 +1162,7 @@
             + (groupRows.length ? '<h5>اختر مواصفات المنتج</h5><div class="jm-detail-variants">' + selectors + '</div>' : '')
             + '<div id="jmVariantStatus" class="jm-variant-status" role="status">' + (groupRows.length ? 'اختر جميع المواصفات لعرض السعر.' : '') + '</div>'
             + '<div class="jm-detail-controls" id="jmDetailControls" hidden><div class="jm-price-range-info" id="jmPriceRangeInfo"></div><div class="row"><div class="col-12"><label for="jmDetailPrice">سعر البيع النهائي للوحدة</label><input id="jmDetailPrice" class="form-control" type="number" min="0" step="0.01"></div>'
-            + '<div class="col-6 mt-3"><label>الكمية المطلوبة</label><div class="input-group"><div class="input-group-prepend"><button type="button" class="btn btn-outline-secondary" id="jmQtyMinus">−</button></div><input id="jmDetailQty" class="form-control text-center" type="number" min="0.001" step="0.001" value="1"><div class="input-group-append"><button type="button" class="btn btn-outline-secondary" id="jmQtyPlus">+</button></div></div></div>'
+            + '<div class="col-6 mt-3"><label>الكمية المطلوبة</label><div class="input-group"><div class="input-group-prepend"><button type="button" class="btn btn-outline-secondary" id="jmQtyMinus">−</button></div><input id="jmDetailQty" class="form-control text-center" type="number" min="0.001" step="0.001" value="1"><div class="input-group-append"><button type="button" class="btn btn-outline-secondary" id="jmQtyPlus">+</button></div></div><small id="jmQtyAvailabilityHint" class="jm-qty-availability-hint text-danger" hidden></small></div>'
             + '<div class="col-6 mt-3"><label>الكمية المتوفرة بالمخزون</label><div class="jm-stock-value" id="jmDetailAvailable">0</div></div></div>'
             + '<div class="jm-detail-total"><span>إجمالي الصنف بعد الخصم</span><strong id="jmDetailTotal">0.00 ج.م</strong></div></div>'
             + '<div class="jm-detail-actions"><button type="button" id="jmAddConfiguredProduct" class="btn btn-primary btn-lg" disabled><i class="fas fa-cart-plus"></i> ' + (existing ? 'حفظ التعديلات' : 'إضافة إلى السلة') + '</button></div></div></div></div>';
@@ -1242,16 +1242,22 @@
         const price = Number($('jmDetailPrice').value);
         const quantity = Number($('jmDetailQty').value);
         const validPrice = Number.isFinite(price) && price >= Number(activeVariant.minimum_sale_price) && price <= Number(activeVariant.list_price);
+        const available = Math.max(0, Number(activeVariant.available_quantity) || 0);
+        const exceedsAvailable = Number.isFinite(quantity) && quantity > available;
         const validQuantity = Number.isFinite(quantity) && quantity > 0
-            && (Boolean(activeVariant.allow_preorder) || quantity <= Number(activeVariant.available_quantity || 0));
+            && (Boolean(activeVariant.allow_preorder) || !exceedsAvailable);
+        const hint = $('jmQtyAvailabilityHint');
+        hint.hidden = !(exceedsAvailable && Boolean(activeVariant.allow_preorder));
+        hint.textContent = hint.hidden ? '' : 'سيتم حجز المتاح (' + available.toFixed(3) + ') وتسجيل الباقي كطلب مسبق. الكمية المطلوبة غير متوفرة، سيتم تعليق الطلب لحين توافر المنتجات.';
         $('jmDetailPrice').classList.toggle('is-invalid', !validPrice);
         $('jmDetailTotal').textContent = validPrice && validQuantity ? money(price * quantity) + ' ج.م' : '0.00 ج.م';
         $('jmAddConfiguredProduct').disabled = !(validPrice && validQuantity);
         if (!validPrice) $('jmVariantStatus').textContent = 'سعر البيع خارج النطاق المسموح.';
-        else if (!validQuantity) $('jmVariantStatus').textContent = Number(activeVariant.available_quantity || 0) > 0
+        else if (!validQuantity) $('jmVariantStatus').textContent = available > 0
             ? 'الكمية المطلوبة أكبر من المتاح بالمخزن.' : 'لا توجد كمية متاحة، وهذا الصنف لا يسمح بالحجز المسبق.';
-        else if (quantity > Number(activeVariant.available_quantity || 0)) $('jmVariantStatus').textContent = 'سيتم حجز المتاح (' + Number(activeVariant.available_quantity || 0).toFixed(3) + ') وتسجيل الباقي كطلب مسبق.';
-        else $('jmVariantStatus').textContent = 'السعر والكمية صحيحان.';
+        else $('jmVariantStatus').textContent = exceedsAvailable
+            ? 'الطلب المسبق مسموح، وسيظل الطلب معلقًا لحين توافر الكمية.'
+            : 'السعر والكمية صحيحان.';
     };
 
     const renderCart = () => {
