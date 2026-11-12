@@ -89,6 +89,43 @@ if (Go == 'stockShortageReport'){
 const urlvr = `../../inc/controller/reports.control.php`;
 $(document).ready(function () {
    
+    const today = moment().startOf('day');
+    $('#date_range').daterangepicker({
+        startDate: today.clone().subtract(29, 'days'),
+        endDate: today.clone(),
+        autoUpdateInput: true,
+        locale: {
+            format: 'YYYY-MM-DD',
+            separator: ' - ',
+            applyLabel: 'تأكيد',
+            cancelLabel: 'إلغاء',
+            fromLabel: 'من',
+            toLabel: 'إلى',
+            customRangeLabel: 'تاريخ مخصص',
+            weekLabel: 'أسبوع',
+            daysOfWeek: ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'],
+            monthNames: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
+            firstDay: 6
+        },
+        opens: 'left',
+        drops: 'down',
+        showDropdowns: true,
+        timePicker: false,
+        ranges: {
+            'اليوم': [today.clone(), today.clone()],
+            'أمس': [today.clone().subtract(1, 'days'), today.clone().subtract(1, 'days')],
+            'آخر 7 أيام': [today.clone().subtract(6, 'days'), today.clone()],
+            'آخر 30 يوم': [today.clone().subtract(29, 'days'), today.clone()],
+            'هذا الشهر': [today.clone().startOf('month'), today.clone().endOf('month')],
+            'الشهر الماضي': [today.clone().subtract(1, 'month').startOf('month'), today.clone().subtract(1, 'month').endOf('month')]
+        }
+    });
+
+    $('#date_range').on('apply.daterangepicker', function (ev, picker) {
+        $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
+    });
+
+   
     var table = $('#tbl').DataTable({
         scrollY : '70vh',
 	    scrollX : true,
@@ -98,8 +135,10 @@ $(document).ready(function () {
             url: urlvr, // رابط الخادم
             type: 'POST', // نوع الطلب
             data: function (d) {
-                // إضافة معلمات إضافية إذا لزم الأمر
                 d.CONTROL = Go;
+                const picker = $('#date_range').data('daterangepicker');
+                d.start_date = picker.startDate.format('YYYY-MM-DD');
+                d.end_date = picker.endDate.format('YYYY-MM-DD');
             }
         },
         columnDefs: columnDef,
@@ -119,6 +158,10 @@ $(document).ready(function () {
 	        },
 	    ],
     	drawCallback : drawCallback
+    });
+
+    $('#btnApplyDateRange').on('click', function () {
+        table.ajax.reload();
     });
 });
         
