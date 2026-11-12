@@ -1249,7 +1249,7 @@
             && (Boolean(activeVariant.allow_preorder) || !exceedsAvailable);
         const hint = $('jmQtyAvailabilityHint');
         hint.hidden = !(exceedsAvailable && Boolean(activeVariant.allow_preorder));
-        hint.textContent = hint.hidden ? '' : 'سيتم حجز المتاح (' + available.toFixed(3) + ') وتسجيل الباقي كطلب مسبق. الكمية المطلوبة غير متوفرة، سيتم تعليق الطلب لحين توافر المنتجات.';
+        hint.innerHTML = hint.hidden ? '' : 'سيتم حجز المتاح (' + available.toFixed(3) + ') وتسجيل الباقي كطلب مسبق.<br>الكمية المطلوبة غير متوفرة، سيتم تعليق الطلب لحين توافر المنتجات.';
         $('jmDetailPrice').classList.toggle('is-invalid', !validPrice);
         $('jmDetailTotal').textContent = validPrice && validQuantity ? money(price * quantity) + ' ج.م' : '0.00 ج.م';
         $('jmAddConfiguredProduct').disabled = !(validPrice && validQuantity);
