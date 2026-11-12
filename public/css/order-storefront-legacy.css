@@ -1000,3 +1000,29 @@
  .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-name{font-size:13px!important}
  .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-price{font-size:12px!important}
 }
+
+
+/* Product name and unit price overlay on the product photo. */
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-visual{position:relative!important;isolation:isolate}
+.jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption{
+ position:absolute;z-index:2;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+ padding:34px 13px 12px;color:#fff;text-align:right;direction:rtl;
+ background:linear-gradient( to top, rgba(10,20,34,.88) 0%, rgba(10,20,34,.58) 58%, rgba(10,20,34,0) 100% );
+ pointer-events:none
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption .jm-store-product-name{
+ display:-webkit-box;max-width:100%;margin:0!important;color:#fff!important;font-size:15px!important;font-weight:800!important;line-height:1.45;
+ text-shadow:0 1px 3px rgba(0,0,0,.35);overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption .jm-store-product-price{
+ display:flex!important;flex-wrap:wrap;align-items:baseline;gap:4px;color:#fff!important;font-size:14px!important;font-weight:800!important;line-height:1.4;
+ text-shadow:0 1px 3px rgba(0,0,0,.4);text-align:right!important
+}
+.jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption .jm-store-product-price small{color:rgba(255,255,255,.88)!important;font-size:10px!important}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-body{padding:9px 12px!important}
+.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-body .jm-store-add-icon{margin:0 0 0 auto!important}
+@media(max-width:575.98px){
+ .jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption{padding:30px 10px 10px;gap:4px}
+ .jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption .jm-store-product-name{font-size:13px!important}
+ .jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption .jm-store-product-price{font-size:12px!important}
+}
