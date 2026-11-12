@@ -762,3 +762,29 @@
  .jm-order-storefront-page .jm-detail-top{align-items:flex-start;flex-direction:column}
  .jm-order-storefront-page .jm-gallery-main{height:190px}
 }
+
+
+/* Compact colored badges for stock and product options */
+.jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category{
+    display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:7px;
+}
+.jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category .jm-stock-badge,
+.jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category .jm-options-badge{
+    display:inline-flex;align-items:center;justify-content:center;gap:5px;
+    width:auto;max-width:100%;min-height:25px;padding:4px 9px;
+    border:1px solid transparent;border-radius:20px;
+    font-size:11px;font-weight:800;line-height:1.35;white-space:normal;
+}
+.jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category .jm-stock-badge.is-available{
+    color:#137548;background:#e8f7ef;border-color:#c5ead5;
+}
+.jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category .jm-stock-badge.is-empty{
+    color:#b42332;background:#fff0f1;border-color:#f4cbd0;
+}
+.jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category .jm-options-badge{
+    color:#946200;background:#fff7dc;border-color:#f4e3a8;
+}
+@media(max-width:767.98px){
+ .jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category .jm-stock-badge,
+ .jm-order-storefront-page #addorderform.jm-step1-active .jm-store-product-category .jm-options-badge{min-height:23px;padding:3px 7px;font-size:10px}
+}
