@@ -1155,7 +1155,7 @@
             + '<div id="jmVariantStatus" class="jm-variant-status" role="status">' + (groupRows.length ? 'اختر جميع المواصفات لعرض السعر.' : '') + '</div>'
             + '<div class="jm-detail-controls" id="jmDetailControls" hidden><div class="jm-price-range-info" id="jmPriceRangeInfo"></div><div class="row"><div class="col-12"><label for="jmDetailPrice">سعر البيع النهائي للوحدة</label><input id="jmDetailPrice" class="form-control" type="number" min="0" step="0.01"></div>'
             + '<div class="col-6 mt-3"><label>الكمية المطلوبة</label><div class="input-group"><div class="input-group-prepend"><button type="button" class="btn btn-outline-secondary" id="jmQtyMinus">−</button></div><input id="jmDetailQty" class="form-control text-center" type="number" min="0.001" step="0.001" value="1"><div class="input-group-append"><button type="button" class="btn btn-outline-secondary" id="jmQtyPlus">+</button></div></div></div>'
-            + '<div class="col-6 mt-3"><label>كود المنتج</label><div class="jm-stock-value" id="jmDetailSku">—</div></div></div>'
+            + '<div class="col-6 mt-3"><label>الكمية المتوفرة بالمخزون</label><div class="jm-stock-value" id="jmDetailAvailable">0</div></div></div>'
             + '<div class="jm-detail-total"><span>إجمالي الصنف بعد الخصم</span><strong id="jmDetailTotal">0.00 ج.م</strong></div></div>'
             + '<div class="jm-detail-actions"><button type="button" id="jmAddConfiguredProduct" class="btn btn-primary btn-lg" disabled><i class="fas fa-cart-plus"></i> ' + (existing ? 'حفظ التعديلات' : 'إضافة إلى السلة') + '</button></div></div></div></div>';
 
@@ -1220,7 +1220,7 @@
         $('jmDetailControls').hidden = false;
         $('jmVariantStatus').textContent = 'المتاح بالمخزن: ' + Number(variant.available_quantity || 0).toFixed(3) + (variant.allow_preorder ? ' — يسمح بالحجز المسبق عند نفاد الكمية.' : ' — لا يسمح بالحجز المسبق.');
         $('jmVariantStatus').classList.remove('text-danger');
-        $('jmDetailSku').textContent = variant.sku;
+        $('jmDetailAvailable').textContent = Number(variant.available_quantity || 0).toFixed(3).replace(/\.000$/, '');
         $('jmDetailPrice').min = variant.minimum_sale_price;
         $('jmDetailPrice').max = variant.list_price;
         $('jmDetailPrice').value = existing && String(existing.id) === String(variant.id) ? existing.price : variant.list_price;
