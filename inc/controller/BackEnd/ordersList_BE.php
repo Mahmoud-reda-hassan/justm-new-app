@@ -845,13 +845,14 @@ class ordersList_BE {
                 $globalhaving[] = '(CASE WHEN CUST_STAT = "FREEZE" THEN 1 ELSE 0 END) = 0';
                 $wq[]  = 'A.ORDER_BY = ' . $_SESSION['USER_ID'] .' AND A.ORDER_TYPE_ID = '.$request["ptype"].' AND A.ORDER_SUCCESS >= 0 ';
         }
-        
-        // فلترة الطلبات التي تحتوي على منتج مرفوض/جزئي دون سبب رفض.
+
+        // إظهار الطلب إذا كان به منتج مرفوض/جزئي واحد على الأقل بلا سبب رفض.
         $statusFilter = $request['columns'][1]['search']['value'] ?? null;
         $isRejectedStatus = is_array($statusFilter)
             && isset($statusFilter[0], $statusFilter[1])
             && (string)$statusFilter[0] === '5'
             && (string)$statusFilter[1] === '1';
+
         if (
             ($request['CONTROL'] ?? '') === 'SupportAfterSales'
             && !empty($request['includeMissingRejectionReason'])
@@ -860,14 +861,14 @@ class ordersList_BE {
             $globalwhere[] = "EXISTS (
                 SELECT 1
                 FROM ORDER_PRODUCT OP_MISSING_REASON
-                WHERE OP_MISSING_REASON.ORDER_ID = ORDERS.ORDER_ID
+                WHERE OP_MISSING_REASON.ORDER_ID = A.ORDER_ID
                   AND OP_MISSING_REASON.PRO_STATUSE IN ('partial', 'rejected')
                   AND NOT EXISTS (
                       SELECT 1
                       FROM reasons_for_product_rejection RFP_MISSING_REASON
                       WHERE RFP_MISSING_REASON.ORDER_ID = OP_MISSING_REASON.ORDER_ID
                         AND RFP_MISSING_REASON.PRO_CODE = OP_MISSING_REASON.PRO_CODE
-                        AND COALESCE(RFP_MISSING_REASON.REASON_ID, 0) > 0
+                        AND RFP_MISSING_REASON.REASON_ID > 0
                   )
             )";
 
