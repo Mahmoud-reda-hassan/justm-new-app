@@ -82,6 +82,7 @@ if (Go == 'stockShortageReport'){
 	{ title: "بريد العميل", data:"CLIENT_EMAIL",className:"text-nowrap text-center "},
 	{ title: "المدينه", data:"CI_NAME",className:"text-nowrap text-center "},
 	{ title: "الخصم", data:"DISCOUNT",className:"text-nowrap text-center "},
+	{ title: "أسباب الرفض", data:"REJECTION_REASONS",className:"text-nowrap text-center "},
 			
 	);
 	drawCallback = function (settings) {};
