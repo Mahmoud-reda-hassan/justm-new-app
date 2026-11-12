@@ -171,7 +171,8 @@ class reports_BE {
 				   M.DISCOUNT,
 				   M.DELIVERED_QTY,
 				   CASE WHEN M.PRO_STATUSE <> "waiting" AND C.STA_ID > 2 THEN (M.QTY - M.DELIVERED_QTY) ELSE 0 END AS RETURN_QTY,
-				   M.PRO_STATUSE
+				   M.PRO_STATUSE,
+				   RREJ.REJECTION_REASONS
 				 FROM  orders A
 				   LEFT JOIN ORDER_EXISTS B ON A.EXISTS_ID = B.EXISTS_ID
 				   LEFT JOIN ORDER_STATUSE C ON A.ORDER_STATUS = C.STA_ID
@@ -186,6 +187,13 @@ class reports_BE {
 				   LEFT JOIN ZONES L ON K.ZONE_ID = L.ZONE_ID
 				   LEFT JOIN ORDER_PRODUCT M ON A.ORDER_ID = M.ORDER_ID
 				   LEFT JOIN product_options_view POV ON M.PRO_CODE = POV.PRO_CODE
+				   LEFT JOIN (
+				       SELECT RFP.ORDER_ID, RFP.PRO_CODE,
+				              GROUP_CONCAT(DISTINCT RD.REASON ORDER BY RD.ID SEPARATOR '، ') AS REJECTION_REASONS
+				       FROM reasons_for_product_rejection RFP
+				       INNER JOIN reasons_data RD ON RD.ID = RFP.REASON_ID
+				       GROUP BY RFP.ORDER_ID, RFP.PRO_CODE
+				   ) RREJ ON RREJ.ORDER_ID = A.ORDER_ID AND RREJ.PRO_CODE = M.PRO_CODE
 				   LEFT JOIN PRODUCT_CODES N ON M.PRO_CODE = N.PRO_CODE
 				   LEFT JOIN PRODUCTS O ON N.PRODUCT_ID = O.PRO_ID
 				   LEFT JOIN invoices P ON A.ORDER_ID = P.REFERENCE_ID AND REFERENCE_TYPE = "SALES"
@@ -224,7 +232,8 @@ class reports_BE {
 				   M.PRICE,
 				   M.DISCOUNT,
 				   M.DELIVERED_QTY,
-				   M.PRO_STATUSE) AS ORDER_VIEW ';
+				   M.PRO_STATUSE,
+				   RREJ.REJECTION_REASONS) AS ORDER_VIEW ';
 
 		// البحث النصي يطبق على النتائج بعد فلترة التاريخ داخل الاستعلام الأساسي.
 		$where = "";
@@ -233,7 +242,7 @@ class reports_BE {
 			'SUB_ORDER_ID', 'ORDERBY', 'DELIVERYBY', 'CLIENT_NAME',
 			'TELEPHONE', 'GOV_NAME', 'ADDRESS', 'PRO_NAME', 'PRO_CODE',
 			'EXISTS_NAME', 'STA_NAME', 'ORDER_TYPE_NAME', 'CI_NAME',
-			'COMMENT', 'OPT_JSON'
+			'COMMENT', 'OPT_JSON', 'REJECTION_REASONS'
 		];
 
 		$searchConditions = [];
