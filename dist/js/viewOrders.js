@@ -4182,8 +4182,37 @@ function showOrderRejectionReasons(orderId) {
                 return;
             }
 
-            const $content = $('<div>', { class: 'table-responsive text-right' });
-            const $table = $('<table>', { class: 'table table-bordered table-sm', css: { width: '100%' } });
+            const $content = $('<div>', { class: 'table-responsive text-right order-rejection-responsive' });
+            const $style = $('<style>').text(`
+                .swal2-popup .order-rejection-responsive { width: 100%; }
+                .swal2-popup .order-rejection-table { width: 100%; table-layout: fixed; }
+                .swal2-popup .order-rejection-table th,
+                .swal2-popup .order-rejection-table td { vertical-align: middle; overflow-wrap: anywhere; }
+                .swal2-popup .order-rejection-table select,
+                .swal2-popup .order-rejection-table textarea { min-width: 0; width: 100%; }
+                @media (max-width: 767px) {
+                    .swal2-popup .order-rejection-responsive { overflow-x: hidden; max-height: 65vh; overflow-y: auto; }
+                    .swal2-popup .order-rejection-table,
+                    .swal2-popup .order-rejection-table tbody { display: block; width: 100%; }
+                    .swal2-popup .order-rejection-table thead { display: none; }
+                    .swal2-popup .order-rejection-table tr {
+                        display: block; width: 100%; margin: 0 0 12px;
+                        border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;
+                    }
+                    .swal2-popup .order-rejection-table td {
+                        display: flex; align-items: flex-start; justify-content: space-between;
+                        gap: 10px; width: 100%; padding: 9px 10px;
+                        text-align: right; border: 0; border-bottom: 1px solid #eee;
+                    }
+                    .swal2-popup .order-rejection-table td:last-child { border-bottom: 0; }
+                    .swal2-popup .order-rejection-table td::before {
+                        content: attr(data-label); flex: 0 0 28%;
+                        font-weight: 600; white-space: normal;
+                    }
+                    .swal2-popup .order-rejection-table td > * { flex: 1 1 auto; }
+                }
+            `);
+            const $table = $('<table>', { class: 'table table-bordered table-sm order-rejection-table', css: { width: '100%' } });
             const $head = $('<thead>').append($('<tr>').append(
                 $('<th>').text('المنتج'), $('<th>').text('الحالة'), $('<th>').text('الكمية'),
                 $('<th>').text('سبب الرفض'), $('<th>').text('ملاحظات')
@@ -4212,14 +4241,17 @@ function showOrderRejectionReasons(orderId) {
                     (product.DELIVERED_QTY !== null ? ' / تم تسليم ' + product.DELIVERED_QTY : '');
 
                 $body.append($('<tr>').append(
-                    $('<td>').append($name), $('<td>').text(statusText), $('<td>').text(quantityText),
-                    $('<td>').append($select), $('<td>').append($comment)
+                    $('<td>', { 'data-label': 'المنتج' }).append($name),
+                    $('<td>', { 'data-label': 'الحالة' }).text(statusText),
+                    $('<td>', { 'data-label': 'الكمية' }).text(quantityText),
+                    $('<td>', { 'data-label': 'سبب الرفض' }).append($select),
+                    $('<td>', { 'data-label': 'ملاحظات' }).append($comment)
                 ));
                 productInputs.push({ PRO_CODE: product.PRO_CODE, $select: $select, $comment: $comment });
             });
 
             $table.append($head, $body);
-            $content.append($table);
+            $content.append($style, $table);
             Swal.fire({
                 title: 'أسباب رفض منتجات أمر البيع',
                 html: $content,
