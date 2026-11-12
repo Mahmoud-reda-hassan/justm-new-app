@@ -213,9 +213,8 @@ class reports_BE {
 				   M.DELIVERED_QTY,
 				   M.PRO_STATUSE) AS ORDER_VIEW ';
 
-		// فلترة تاريخ الإنشاء على الخادم قبل إرجاع النتائج.
-		$where = " WHERE ORDER_VIEW.DATE_CREATED >= :date_from
-		           AND ORDER_VIEW.DATE_CREATED < DATE_ADD(:date_to, INTERVAL 1 DAY)";
+		// البحث النصي يطبق على النتائج بعد فلترة التاريخ داخل الاستعلام الأساسي.
+		$where = "";
 
 		$searchColumns = [
 			'SUB_ORDER_ID', 'ORDERBY', 'DELIVERYBY', 'CLIENT_NAME',
@@ -229,9 +228,9 @@ class reports_BE {
 			$searchConditions[] = "COALESCE(ORDER_VIEW.$columnName, '') LIKE :search_$index";
 		}
 
-		$filteredWhere = $where;
+		$filteredWhere = "";
 		if ($search !== '') {
-			$filteredWhere .= " AND (" . implode(" OR ", $searchConditions) . ")";
+			$filteredWhere = " WHERE (" . implode(" OR ", $searchConditions) . ")";
 		}
 
 		// إجمالي السجلات داخل الفترة، ثم العدد بعد تطبيق البحث النصي.
