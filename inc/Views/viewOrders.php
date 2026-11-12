@@ -514,6 +514,11 @@ if($_GET['Go'] === 'OrdersCustody' || $_GET['Go'] === 'ListOrdersDelivery'){
 					                	
 					            </select>
 				        	</div>
+				        	<div id="missingRejectionReasonFilter" class="text-right mt-1" style="display:none; white-space:nowrap;">
+				        	    <label class="mb-0" style="font-weight:normal; cursor:pointer;">
+				        	        <input type="checkbox" id="filterMissingRejectionReason"> طلبات بدون أسباب رفض
+				        	    </label>
+				        	</div>
 				        </th>
 				        <th>
 				        	<div class="input-group input-group-sm mb-0" style="direction:rtl;">
