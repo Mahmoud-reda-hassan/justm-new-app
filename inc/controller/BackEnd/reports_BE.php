@@ -233,13 +233,13 @@ class reports_BE {
 		}
 
 		// إجمالي السجلات داخل الفترة، ثم العدد بعد تطبيق البحث النصي.
-		$countTotal = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS REPORT_COUNT $where");
+		$countTotal = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS ORDER_VIEW $where");
 		$countTotal->bindValue(':date_from', $dateFrom, PDO::PARAM_STR);
 		$countTotal->bindValue(':date_to', $dateTo, PDO::PARAM_STR);
 		$countTotal->execute();
 		$recordsTotal = (int)$countTotal->fetchColumn();
 
-		$countFiltered = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS REPORT_COUNT $filteredWhere");
+		$countFiltered = $this->conn->prepare("SELECT COUNT(*) FROM ($sql) AS ORDER_VIEW $filteredWhere");
 		$countFiltered->bindValue(':date_from', $dateFrom, PDO::PARAM_STR);
 		$countFiltered->bindValue(':date_to', $dateTo, PDO::PARAM_STR);
 		if ($search !== '') {
