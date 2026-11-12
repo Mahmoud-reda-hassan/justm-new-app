@@ -397,7 +397,7 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				array_push($this->js_footer,"filterOrderList.js","viewOrders.js","viewOrderData.js","DatatablesFromObject.js");
 	            		} else if (isset($usc['Admin']['OrdersCustody']['View_order_list']) && 
 	            				$usc['Admin']['OrdersCustody']['View_order_list'] == "true" && $_GET["Go"] === "SalesMovementReport"){
-	            				$this->Pagelink = "WarehouseShortageReport";
+	            				$this->Pagelink = "SalesMovementReport";
 	            				array_push($this->js_footer,"reports.js");
 	            		} else if (isset($usc['Admin']['OrdersCustody']['View_order_list']) && 
 	            				$usc['Admin']['OrdersCustody']['View_order_list'] == "true" && $_GET["Go"] === "OrdersCustody"){
