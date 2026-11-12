@@ -247,7 +247,7 @@
 .jm-order-storefront-page .jm-client-review-grid .total{background:#103f83;border-color:#103f83}
 .jm-order-storefront-page .jm-client-review-grid .total small,.jm-order-storefront-page .jm-client-review-grid .total strong{color:#fff}
 .jm-order-storefront-page .jm-client-review-note{margin:11px 0 0;color:#647994;font-size:11px;line-height:1.7}
-.jm-order-storefront-page .jm-price-range-info{margin:0 0 12px;padding:10px 12px;border:1px solid #cfe2fb;border-radius:9px;background:#f2f7ff;color:#244e80;font-size:12px;font-weight:700;line-height:1.7}
+.jm-order-storefront-page .jm-price-range-info{display:block;margin-top:5px;font-size:11px;line-height:1.6;font-weight:500}
 .jm-order-storefront-page #jmDetailPrice.is-invalid{border-color:#dc3545;box-shadow:0 0 0 2px rgba(220,53,69,.08)}
 @media(max-width:767.98px){
  .jm-order-storefront-page #jmStepPanel1 .jm-store-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
