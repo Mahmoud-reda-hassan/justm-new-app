@@ -1726,21 +1726,27 @@ document.addEventListener("DOMContentLoaded", function() {
 			<option data-type="1" value="4">تسليم جزئى</option>
 			<option data-type="1" value="5">مرفوض</option>
 		`);
-		// تحديد الصفحة من عنوانها مباشرة، دون الاعتماد على متغير Go العام.
-		var currentOrdersPage = new URLSearchParams(window.location.search).get('Go');
+		// استخدام نفس متغير الصفحة المعتمد عليه في بقية الملف.
+		var currentOrdersPage = (typeof Go !== 'undefined')
+		    ? String(Go)
+		    : new URLSearchParams(window.location.search).get('Go');
 		var $missingRejectionReasonFilter = $('#missingRejectionReasonFilter');
 		function updateMissingRejectionReasonFilter() {
 		    var $selectedStatus = $('#tbl #searchStatus').find(':selected');
+		    var selectedStatus = String($selectedStatus.val() || '');
+		    var isRejectedStatus = selectedStatus === '5' || selectedStatus === 'مرفوض';
 		    var isRejectedSupport = currentOrdersPage === 'SupportAfterSales' &&
-		        String($selectedStatus.val()) === '5' &&
+		        isRejectedStatus &&
 		        String($selectedStatus.data('type')) === '1';
 		    $missingRejectionReasonFilter.toggle(isRejectedSupport);
 		    if (!isRejectedSupport) $('#filterMissingRejectionReason').prop('checked', false);
 		}
-		$('#tbl #searchStatus').on('change', updateMissingRejectionReasonFilter);
-		$('#filterMissingRejectionReason').on('change', function () {
-		    if (typeof table !== 'undefined' && table) table.draw(false);
-		});
+		$('#tbl').off('change.missingRejectionReason', '#searchStatus')
+		    .on('change.missingRejectionReason', '#searchStatus', updateMissingRejectionReasonFilter);
+		$('#filterMissingRejectionReason').off('change.missingRejectionReason')
+		    .on('change.missingRejectionReason', function () {
+		        if (typeof table !== 'undefined' && table) table.draw(false);
+		    });
 		updateMissingRejectionReasonFilter();
 		//$('.table-overlay1').fadeOut(50);
 		table = $('#tbl').DataTable({
