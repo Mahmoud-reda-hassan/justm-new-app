@@ -148,7 +148,7 @@ $(document).ready(function () {
         columnDefs: columnDef,
         columns: column,
         order: [[groupColumn1, 'asc'], [groupColumn2, 'asc']],
-		pageLength: 50,
+		pageLength: Go == 'SalesMovementReport' ? 50 : 40000,
 		
 		buttons: [
 	        'copy', 
