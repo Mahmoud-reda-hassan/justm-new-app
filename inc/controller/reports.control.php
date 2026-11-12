@@ -49,6 +49,9 @@ try {
 		case 'SalesMovementReport':
 			ResponseData($CBE->SalesMovementReport());
 		    break;
+		case 'SalesMovementReportExport':
+			ResponseData($CBE->SalesMovementReport(true));
+		    break;
 		case 'SuppliersQtyReport':
 			ResponseData($CBE->suppliersQtyReportIN());
 		    break;
