@@ -1111,7 +1111,7 @@
                 + '<span class="jm-stock-badge ' + (availableQuantity > 0 ? 'is-available' : 'is-empty') + '"><i class="fas fa-check"></i> متوفر ' + availableText + ' قطعة</span>'
                 + '<span class="jm-options-badge"><i class="fas fa-swatchbook"></i> ' + product.variants.length + ' اختيارات</span>'
                 + '<div class="jm-product-image-caption"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
-                + '<div class="jm-store-product-price"><small>سعر الوحدة:</small> ' + priceText + ' <small>ج.م</small></div></div></div></div>'
+                + '<div class="jm-store-product-price">' + priceText + ' <small>ج.م</small></div></div></div></div>'
                 + '<div class="jm-store-product-body"><button type="button" class="jm-store-add jm-store-add-icon" data-open-product="' + escape(product.id) + '" aria-label="إضافة ' + escape(product.name) + ' إلى الكارت" title="إضافة إلى الكارت"><i class="fas fa-cart-plus" aria-hidden="true"></i></button></div></article>';
         }).join('');
     };
