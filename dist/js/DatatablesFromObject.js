@@ -1499,15 +1499,7 @@ document.addEventListener("DOMContentLoaded", function() {
 			    },
 	    
 		        buttons: [
-			        ...(currentOrdersPage === 'SupportAfterSales' ? [{
-			            text: 'طلبات بدون أسباب رفض',
-			            className: 'btnMissingRejectionReason',
-			            action: function (e, dt, node) {
-			                includeMissingRejectionReason = !includeMissingRejectionReason;
-			                $(node).toggleClass('active btn-warning', includeMissingRejectionReason);
-			                dt.ajax.reload(null, true);
-			            }
-			        }] : []),
+
 			        {
 			            text: 'تحديث البيانات',
 			            action: function ( e, dt, node, config ) {
@@ -2002,6 +1994,15 @@ document.addEventListener("DOMContentLoaded", function() {
 			    },
 	    
 		        buttons: [
+                ...(currentOrdersPage === 'SupportAfterSales' ? [{
+                    text: 'طلبات بدون أسباب رفض',
+                    className: 'btnMissingRejectionReason',
+                    action: function (e, dt, node) {
+                        includeMissingRejectionReason = !includeMissingRejectionReason;
+                        $(node).toggleClass('active btn-warning', includeMissingRejectionReason);
+                        dt.ajax.reload(null, true);
+                    }
+                }] : []),
 			        {
 			            text: 'تحديث البيانات',
 			            action: function ( e, dt, node, config ) {
