@@ -1107,10 +1107,12 @@
             const availableText = Number.isInteger(availableQuantity) ? availableQuantity : availableQuantity.toFixed(3).replace(/\\.000$/, '');
             const image = product.image || null;
             return '<article class="jm-store-product">'
-                + '<div class="jm-store-product-image"><div class="jm-store-product-visual">' + productImageContent(image, product.name) + '<span class="jm-stock-badge ' + (availableQuantity > 0 ? 'is-available' : 'is-empty') + '"><i class="fas fa-check"></i> متوفر ' + availableText + ' قطعة</span><span class="jm-options-badge"><i class="fas fa-swatchbook"></i> ' + product.variants.length + ' اختيارات</span></div></div>'
-                + '<div class="jm-store-product-body"><div class="jm-store-product-heading"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
-                + '<div class="jm-store-product-meta"><span class="jm-store-product-price"><small>سعر الوحدة:</small> ' + priceText + ' <small>ج.م</small></span></div></div>'
-                + '<button type="button" class="jm-store-add jm-store-add-icon" data-open-product="' + escape(product.id) + '" aria-label="إضافة ' + escape(product.name) + ' إلى الكارت" title="إضافة إلى الكارت"><i class="fas fa-cart-plus" aria-hidden="true"></i></button></div></article>';
+                + '<div class="jm-store-product-image"><div class="jm-store-product-visual">' + productImageContent(image, product.name)
+                + '<span class="jm-stock-badge ' + (availableQuantity > 0 ? 'is-available' : 'is-empty') + '"><i class="fas fa-check"></i> متوفر ' + availableText + ' قطعة</span>'
+                + '<span class="jm-options-badge"><i class="fas fa-swatchbook"></i> ' + product.variants.length + ' اختيارات</span>'
+                + '<div class="jm-product-image-caption"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
+                + '<div class="jm-store-product-price"><small>سعر الوحدة:</small> ' + priceText + ' <small>ج.م</small></div></div></div></div>'
+                + '<div class="jm-store-product-body"><button type="button" class="jm-store-add jm-store-add-icon" data-open-product="' + escape(product.id) + '" aria-label="إضافة ' + escape(product.name) + ' إلى الكارت" title="إضافة إلى الكارت"><i class="fas fa-cart-plus" aria-hidden="true"></i></button></div></article>';
         }).join('');
     };
 
