@@ -99,10 +99,10 @@ class reports_BE {
 			
 	}
 
-	public function SalesMovementReport(){
+	public function SalesMovementReport($exportAll = false){
 
 		$start  = max(0, (int)($_POST['start'] ?? 0));
-		$length = max(1, (int)($_POST['length'] ?? 40000));
+		$length = max(1, (int)($_POST['length'] ?? 50));
 		$search = trim((string)($_POST['search']['value'] ?? ''));
 
 		// الفترة الافتراضية: آخر 30 يومًا شاملة اليوم.
@@ -264,7 +264,8 @@ class reports_BE {
 		$countFiltered->execute();
 		$recordsFiltered = (int)$countFiltered->fetchColumn();
 
-		$stmt = $this->conn->prepare($sql.$filteredWhere." LIMIT :start, :length");
+		$dataSql = $sql.$filteredWhere.($exportAll ? "" : " LIMIT :start, :length");
+		$stmt = $this->conn->prepare($dataSql);
 		$stmt->bindValue(':date_from', $dateFrom, PDO::PARAM_STR);
 		$stmt->bindValue(':date_to', $dateTo, PDO::PARAM_STR);
 		if ($search !== '') {
@@ -272,8 +273,10 @@ class reports_BE {
 				$stmt->bindValue(':search_'.$index, "%".$search."%", PDO::PARAM_STR);
 			}
 		}
-		$stmt->bindValue(':start', $start, PDO::PARAM_INT);
-		$stmt->bindValue(':length', $length, PDO::PARAM_INT);
+		if (!$exportAll) {
+			$stmt->bindValue(':start', $start, PDO::PARAM_INT);
+			$stmt->bindValue(':length', $length, PDO::PARAM_INT);
+		}
 		$stmt->execute();
 
 		return [
