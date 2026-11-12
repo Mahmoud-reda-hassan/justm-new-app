@@ -355,7 +355,7 @@ class SalesOrderController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.product_variant_id' => ['required', 'integer', 'distinct', 'exists:product_variants,id'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999999'],
             'items.*.sale_price' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
         ]);
 
@@ -446,7 +446,7 @@ class SalesOrderController extends Controller
                 ]);
             }
 
-            $quantity = (float) $item['quantity'];
+            $quantity = (int) $item['quantity'];
             $discount = round(($listPrice - $salePrice) * $quantity, 2);
             $lineTotal = round($salePrice * $quantity, 2);
             $subtotal += $lineTotal;
