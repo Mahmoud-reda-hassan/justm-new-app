@@ -1232,20 +1232,6 @@ document.addEventListener("DOMContentLoaded", function() {
 			<option data-type="1" value="تسليم جزئى">تسليم جزئى</option>
 			<option data-type="1" value="مرفوض">مرفوض</option>
 		`);
-		var $missingRejectionReasonFilter = $('#missingRejectionReasonFilter');
-		function updateMissingRejectionReasonFilter() {
-		    var $selectedStatus = $('#tbl #searchStatus').find(':selected');
-		    var isRejectedSupport = Go === 'SupportAfterSales' &&
-		        String($selectedStatus.val()) === '5' &&
-		        String($selectedStatus.data('type')) === '1';
-		    $missingRejectionReasonFilter.toggle(isRejectedSupport);
-		    if (!isRejectedSupport) $('#filterMissingRejectionReason').prop('checked', false);
-		}
-		$('#tbl #searchStatus').on('change', updateMissingRejectionReasonFilter);
-		$('#filterMissingRejectionReason').on('change', function () {
-		    if (typeof table !== 'undefined' && table) table.draw(false);
-		});
-		updateMissingRejectionReasonFilter();
 		/**
 		 * -----------------------------------------------------------------------------
 		 * 📌 Auto Initialization on Page Load
@@ -1740,6 +1726,20 @@ document.addEventListener("DOMContentLoaded", function() {
 			<option data-type="1" value="4">تسليم جزئى</option>
 			<option data-type="1" value="5">مرفوض</option>
 		`);
+		var $missingRejectionReasonFilter = $('#missingRejectionReasonFilter');
+		function updateMissingRejectionReasonFilter() {
+		    var $selectedStatus = $('#tbl #searchStatus').find(':selected');
+		    var isRejectedSupport = Go === 'SupportAfterSales' &&
+		        String($selectedStatus.val()) === '5' &&
+		        String($selectedStatus.data('type')) === '1';
+		    $missingRejectionReasonFilter.toggle(isRejectedSupport);
+		    if (!isRejectedSupport) $('#filterMissingRejectionReason').prop('checked', false);
+		}
+		$('#tbl #searchStatus').on('change', updateMissingRejectionReasonFilter);
+		$('#filterMissingRejectionReason').on('change', function () {
+		    if (typeof table !== 'undefined' && table) table.draw(false);
+		});
+		updateMissingRejectionReasonFilter();
 		//$('.table-overlay1').fadeOut(50);
 		table = $('#tbl').DataTable({
 				scrollX: true, // تفعيل التمرير الأفقي لتجنب ضغط الجدول
