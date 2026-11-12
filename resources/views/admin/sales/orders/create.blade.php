@@ -19,6 +19,9 @@
     .customer-directory-card .customer-directory-name{font-size:1rem}
     .customer-directory-card label{cursor:pointer}
     @media(max-width:575.98px){.order-actions .btn{flex:1 1 auto}}
+    .jm-image-placeholder{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:64px;color:#9aa6b2;background:#f3f5f7;font-size:2rem;border-radius:inherit}
+    .jm-image-placeholder[hidden]{display:none!important}
+    .jm-gallery-thumb .jm-image-placeholder{min-height:48px;font-size:1.2rem}
 
 /* Customer directory cards: responsive grid and mirrored contact controls. */
 .jm-order-storefront-page #customer-directory-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
@@ -1060,6 +1063,9 @@
     const items = [];
     const money = value => (Number(value) || 0).toFixed(2);
     const escape = escapeHtml;
+    const productImageContent = (url, alt) => url
+        ? '<img src="' + escape(url) + '" alt="' + escape(alt || '') + '" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false;">' + '<span class="jm-image-placeholder" hidden aria-label="لا توجد صورة"><i class="fas fa-image" aria-hidden="true"></i></span>'
+        : '<span class="jm-image-placeholder" aria-label="لا توجد صورة"><i class="fas fa-image" aria-hidden="true"></i></span>';
     let activeProduct = null;
     let activeProductImages = [];
     let activeVariant = null;
@@ -1098,9 +1104,9 @@
             const priceText = min === max ? money(min) : money(min) + ' - ' + money(max);
             const availableQuantity = product.variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.available_quantity) || 0), 0);
             const availableText = Number.isInteger(availableQuantity) ? availableQuantity : availableQuantity.toFixed(3).replace(/\\.000$/, '');
-            const image = product.image || '/img/product-default-3d.svg';
+            const image = product.image || null;
             return '<article class="jm-store-product">'
-                + '<div class="jm-store-product-image"><img src="' + escape(image) + '" alt="' + escape(product.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div>'
+                + '<div class="jm-store-product-image">' + productImageContent(image, product.name) + '</div>'
                 + '<div class="jm-store-product-body"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
                 + '<div class="d-flex justify-content-between align-items-center jm-store-product-category"><span>متوفر ' + availableText + ' قطعة</span><span>' + product.variants.length + ' اختيارات متاحة</span></div>'
                 + '<div class="jm-store-product-meta"><span class="jm-store-product-price"><small>سعر الوحدة:</small> ' + priceText + ' <small>ج.م</small></span></div>'
@@ -1127,7 +1133,7 @@
         const product = catalogProducts.find(item => String(item.id) === String(productId));
         if (!product) return;
         activeProduct = product;
-        activeProductImages = [product.image || '/img/product-default-3d.svg'];
+        activeProductImages = product.image ? [product.image] : [];
         editingIndex = editIndex;
         activeVariant = null;
         const groups = new Map();
@@ -1138,7 +1144,7 @@
             groups.get(String(attribute.group_id)).values.set(String(attribute.value_id), attribute.value);
         }));
         const groupRows = [...groups.values()];
-        const firstImage = activeProductImages[0];
+        const firstImage = activeProductImages[0] || null;
         const selectors = groupRows.map(group =>
             '<div class="form-group"><label>' + escape(group.name) + '</label><select class="form-control jm-variant-select" data-group-id="' + escape(group.id) + '"><option value="">اختر ' + escape(group.name) + '</option>'
             + [...group.values.entries()].map(([id,value])=>'<option value="' + escape(id) + '">' + escape(value) + '</option>').join('')
@@ -1258,7 +1264,7 @@
         const markup = items.length ? items.map((item,index) => {
             const options = (item.attributes || []).map(attribute=>attribute.group_name + ': ' + attribute.value).join(' · ');
             const line = Number(item.price) * Number(item.quantity);
-            return '<article class="jm-cart-item"><div class="jm-cart-item-image"><img src="' + escape(item.image || '/img/product-default-3d.svg') + '" alt="' + escape(item.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div>'
+            return '<article class="jm-cart-item"><div class="jm-cart-item-image">' + productImageContent(item.image, item.name) + '</div>'
                 + '<div class="jm-cart-item-main"><div class="jm-cart-item-title-row"><div><strong>' + escape(item.name) + '</strong><small>' + escape(item.category || '') + '</small></div><span class="jm-cart-item-code">' + escape(item.sku) + '</span></div>'
                 + (options ? '<div class="jm-cart-item-options">' + escape(options) + '</div>' : '')
                 + '<div class="jm-cart-item-data"><span>الكمية <b>' + escape(item.quantity) + '</b></span><span>سعر الوحدة <b>' + money(item.price) + ' ج.م</b></span>'
