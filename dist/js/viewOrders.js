@@ -4261,20 +4261,34 @@ function showOrderRejectionReasons(orderId) {
                 cancelButtonText: 'إلغاء',
                 focusConfirm: false,
                 preConfirm: function () {
+                    const popup = Swal.getPopup();
+                    const rows = popup ? popup.querySelectorAll('.order-rejection-table tbody tr') : [];
                     const items = [];
-                    for (const input of productInputs) {
-                        const reasonId = input.$select.val();
+
+                    for (const row of rows) {
+                        const select = row.querySelector('.order-rejection-reason');
+                        const comment = row.querySelector('.order-rejection-comment');
+                        const product = productInputs[items.length];
+
+                        const reasonId = select ? String(select.value || '').trim() : '';
                         if (!reasonId) {
                             Swal.showValidationMessage('اختر سبب الرفض لكل المنتجات المعروضة');
-                            input.$select.trigger('focus');
+                            if (select) select.focus();
                             return false;
                         }
+
                         items.push({
-                            PRO_CODE: input.PRO_CODE,
+                            PRO_CODE: product ? product.PRO_CODE : '',
                             REASON_ID: reasonId,
-                            COMMENT: input.$comment.val().trim()
+                            COMMENT: comment ? comment.value.trim() : ''
                         });
                     }
+
+                    if (!items.length || items.some(item => !item.PRO_CODE)) {
+                        Swal.showValidationMessage('تعذر قراءة بيانات المنتجات، أغلق النافذة وافتحها مرة أخرى');
+                        return false;
+                    }
+
                     return items;
                 }
             }).then(function (result) {
