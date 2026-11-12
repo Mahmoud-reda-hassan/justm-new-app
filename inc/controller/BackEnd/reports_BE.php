@@ -189,7 +189,7 @@ class reports_BE {
 				   LEFT JOIN product_options_view POV ON M.PRO_CODE = POV.PRO_CODE
 				   LEFT JOIN (
 				       SELECT RFP.ORDER_ID, RFP.PRO_CODE,
-				              GROUP_CONCAT(DISTINCT RD.REASON ORDER BY RD.ID SEPARATOR '، ') AS REJECTION_REASONS
+				              GROUP_CONCAT(DISTINCT RD.REASON ORDER BY RD.ID SEPARATOR "، ") AS REJECTION_REASONS
 				       FROM reasons_for_product_rejection RFP
 				       INNER JOIN reasons_data RD ON RD.ID = RFP.REASON_ID
 				       GROUP BY RFP.ORDER_ID, RFP.PRO_CODE
