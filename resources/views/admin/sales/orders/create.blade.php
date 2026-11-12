@@ -1107,9 +1107,8 @@
             const availableText = Number.isInteger(availableQuantity) ? availableQuantity : availableQuantity.toFixed(3).replace(/\\.000$/, '');
             const image = product.image || null;
             return '<article class="jm-store-product">'
-                + '<div class="jm-store-product-image">' + productImageContent(image, product.name) + '</div>'
+                + '<div class="jm-store-product-image">' + productImageContent(image, product.name) + '<div class="jm-store-product-category"><span class="jm-stock-badge ' + (availableQuantity > 0 ? 'is-available' : 'is-empty') + '"><i class="fas fa-boxes-stacked"></i> متوفر ' + availableText + ' قطعة</span><span class="jm-options-badge"><i class="fas fa-swatchbook"></i> ' + product.variants.length + ' اختيارات متاحة</span></div></div>'
                 + '<div class="jm-store-product-body"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
-                + '<div class="d-flex justify-content-between align-items-center jm-store-product-category"><span class="jm-stock-badge ' + (availableQuantity > 0 ? 'is-available' : 'is-empty') + '"><i class="fas fa-boxes-stacked"></i> متوفر ' + availableText + ' قطعة</span><span class="jm-options-badge"><i class="fas fa-swatchbook"></i> ' + product.variants.length + ' اختيارات متاحة</span></div>'
                 + '<div class="jm-store-product-meta"><span class="jm-store-product-price"><small>سعر الوحدة:</small> ' + priceText + ' <small>ج.م</small></span></div>'
                 + '<button type="button" class="jm-store-add" data-open-product="' + escape(product.id) + '"><i class="fas fa-cart-plus"></i> تفاصيل وإضافة</button></div></article>';
         }).join('');
