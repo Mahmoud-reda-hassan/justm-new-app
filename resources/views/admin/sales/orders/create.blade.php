@@ -1096,12 +1096,14 @@
             const listPrices = product.variants.map(variant => Number(variant.list_price) || 0);
             const min = Math.min(...minimumPrices), max = Math.max(...listPrices);
             const priceText = min === max ? money(min) : money(min) + ' - ' + money(max);
+            const availableQuantity = product.variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.available_quantity) || 0), 0);
+            const availableText = Number.isInteger(availableQuantity) ? availableQuantity : availableQuantity.toFixed(3).replace(/\\.000$/, '');
             const image = product.image || '/img/product-default-3d.svg';
             return '<article class="jm-store-product">'
                 + '<div class="jm-store-product-image"><img src="' + escape(image) + '" alt="' + escape(product.name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'/img/product-default-3d.svg\';"></div>'
                 + '<div class="jm-store-product-body"><div class="jm-store-product-name">' + escape(product.name) + '</div>'
-                + '<div class="jm-store-product-category">' + escape(product.category || 'بدون قسم') + '</div>'
-                + '<div class="jm-store-product-meta"><span>' + product.variants.length + ' اختيار متاح</span><span class="jm-store-product-price">' + priceText + ' <small>ج.م</small></span></div>'
+                + '<div class="jm-store-product-category">متوفر ' + availableText + ' قطعة</div>'
+                + '<div class="jm-store-product-meta"><span>' + product.variants.length + ' اختيار متاح</span><span class="jm-store-product-price"><small>سعر الوحدة:</small> ' + priceText + ' <small>ج.م</small></span></div>'
                 + '<button type="button" class="jm-store-add" data-open-product="' + escape(product.id) + '"><i class="fas fa-cart-plus"></i> تفاصيل وإضافة</button></div></article>';
         }).join('');
     };
