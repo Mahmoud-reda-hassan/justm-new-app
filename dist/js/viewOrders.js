@@ -4232,7 +4232,7 @@ function showOrderRejectionReasons(orderId) {
                     class: 'form-control order-rejection-comment', rows: 2, placeholder: 'ملاحظات...'
                 }).val(product.COMMENT || '');
 
-                const $name = $('<div>').text(product.PRODUCT_NAME || product.PRO_CODE);
+                const $name = $('<div>', { class: 'order-rejection-product-name', css: { backgroundColor: '#e8f1ff', color: '#174a8b', padding: '8px 10px', borderRadius: '6px', fontWeight: '600' } }).text(product.PRODUCT_NAME || product.PRO_CODE);
                 if (product.PRODUCT_ATTRIBUTES) {
                     $name.append($('<small>', { class: 'd-block text-muted' }).text(product.PRODUCT_ATTRIBUTES));
                 }
