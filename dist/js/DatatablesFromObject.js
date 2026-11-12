@@ -1499,6 +1499,15 @@ document.addEventListener("DOMContentLoaded", function() {
 			    },
 	    
 		        buttons: [
+			        ...(currentOrdersPage === 'SupportAfterSales' ? [{
+			            text: 'طلبات بدون أسباب رفض',
+			            className: 'btnMissingRejectionReason',
+			            action: function (e, dt, node) {
+			                includeMissingRejectionReason = !includeMissingRejectionReason;
+			                $(node).toggleClass('active btn-warning', includeMissingRejectionReason);
+			                dt.ajax.reload(null, true);
+			            }
+			        }] : []),
 			        {
 			            text: 'تحديث البيانات',
 			            action: function ( e, dt, node, config ) {
@@ -1731,47 +1740,9 @@ document.addEventListener("DOMContentLoaded", function() {
 		    ? String(Go)
 		    : new URLSearchParams(window.location.search).get('Go');
 
-		function updateMissingRejectionReasonFilter(statusElement) {
-		    var $status = statusElement
-		        ? $(statusElement)
-		        : $('#tbl_wrapper .dataTables_scrollHead [id="searchStatus"]').first();
-
-		    if (!$status.length) {
-		        $status = $('#tbl [id="searchStatus"]').first();
-		    }
-
-		    var $selectedStatus = $status.find('option:selected');
-		    var selectedStatus = String($status.val() || '');
-		    var isRejectedSupport = currentOrdersPage === 'SupportAfterSales' &&
-		        (selectedStatus === '5' || selectedStatus === 'مرفوض') &&
-		        String($selectedStatus.attr('data-type') || '') === '1';
-
-		    $('[id="missingRejectionReasonFilter"]').toggle(isRejectedSupport);
-
-		    if (!isRejectedSupport) {
-		        $('[id="filterMissingRejectionReason"]').prop('checked', false);
-		    }
-		}
-
-		// ربط الأحداث على document حتى تعمل مع عناصر رأس الجدول المنسوخة.
-		$(document)
-		    .off('change.missingRejectionReason', '[id="searchStatus"]')
-		    .on('change.missingRejectionReason', '[id="searchStatus"]', function () {
-		        var selectedValue = $(this).val();
-		        $('[id="searchStatus"]').not(this).val(selectedValue);
-		        updateMissingRejectionReasonFilter(this);
-		    });
-
-		$(document)
-		    .off('change.missingRejectionReason', '[id="filterMissingRejectionReason"]')
-		    .on('change.missingRejectionReason', '[id="filterMissingRejectionReason"]', function () {
-		        var isChecked = $(this).is(':checked');
-		        $('[id="filterMissingRejectionReason"]').prop('checked', isChecked);
-
-		        if (typeof table !== 'undefined' && table) {
-		            table.draw(false);
-		        }
-		    });
+		// حالة فلتر الطلبات بدون أسباب رفض، مستقل عن فلتر حالة الطلب.
+		var includeMissingRejectionReason = false;
+		$('[id="missingRejectionReasonFilter"]').hide();
 		//$('.table-overlay1').fadeOut(50);
 		table = $('#tbl').DataTable({
 				scrollX: true, // تفعيل التمرير الأفقي لتجنب ضغط الجدول
@@ -1790,7 +1761,7 @@ document.addEventListener("DOMContentLoaded", function() {
 							d.st = ost;
 							d.url = wls;
 							d.sto_available = store_available;
-							d.includeMissingRejectionReason = currentOrdersPage === 'SupportAfterSales' && $('[id="filterMissingRejectionReason"]:checked').length > 0 ? 1 : 0;
+							d.includeMissingRejectionReason = currentOrdersPage === 'SupportAfterSales' && includeMissingRejectionReason ? 1 : 0;
 							d.did = $('#SelectUserDelivery').val();
 							d.columnFilters = getColumnFilters();
 				            // فلترة التاريخ
@@ -2028,7 +1999,6 @@ document.addEventListener("DOMContentLoaded", function() {
 			    ],
 			    initComplete: function () {
 			        this.api().columns.adjust(); // ضبط الأعمدة بعد تحميل البيانات
-			        updateMissingRejectionReasonFilter();
 			    },
 	    
 		        buttons: [
