@@ -22,6 +22,7 @@
     .jm-image-placeholder{display:flex;align-items:center;justify-content:center;width:100%;height:100%;min-height:64px;color:#9aa6b2;background:#f3f5f7;font-size:2rem;border-radius:inherit}
     .jm-image-placeholder[hidden]{display:none!important}
     .jm-gallery-thumb .jm-image-placeholder{min-height:48px;font-size:1.2rem}
+    .jm-qty-availability-hint{display:block;margin-top:5px;font-size:11px;line-height:1.6;font-weight:500}
 
 /* Customer directory cards: responsive grid and mirrored contact controls. */
 .jm-order-storefront-page #customer-directory-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
