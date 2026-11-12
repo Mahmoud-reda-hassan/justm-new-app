@@ -1020,7 +1020,18 @@
 }
 .jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption .jm-store-product-price small{color:rgba(255,255,255,.9)!important;font-size:11px!important;font-weight:800!important}
 .jm-order-storefront-page #jmStoreProductGrid .jm-store-product-body{padding:9px 12px!important}
-.jm-order-storefront-page #jmStoreProductGrid .jm-store-product-body .jm-store-add-icon{margin:0 0 0 auto!important}
+.jm-order-storefront-page #jmStoreProductGrid button.jm-store-product-body.jm-store-add-icon{
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    width:100%!important;min-height:58px!important;margin:0!important;padding:10px 12px!important;
+    border:0!important;border-radius:0!important;background:linear-gradient(135deg,#1769c9,#104b98)!important;
+    color:#fff!important;cursor:pointer;box-shadow:none!important;
+}
+.jm-order-storefront-page #jmStoreProductGrid button.jm-store-product-body.jm-store-add-icon:hover{
+    filter:brightness(1.07);transform:none!important;
+}
+.jm-order-storefront-page #jmStoreProductGrid button.jm-store-product-body.jm-store-add-icon:focus-visible{
+    outline:3px solid rgba(23,105,232,.35);outline-offset:-3px;
+}
 @media(max-width:575.98px){
  .jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption{padding:16px 10px 9px;gap:7px}
  .jm-order-storefront-page #jmStoreProductGrid .jm-product-image-caption .jm-store-product-name{font-size:12px!important}
