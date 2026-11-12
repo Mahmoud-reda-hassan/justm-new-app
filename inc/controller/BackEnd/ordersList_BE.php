@@ -871,6 +871,7 @@ class ordersList_BE {
                         AND RFP_MISSING_REASON.REASON_ID > 0
                   )
             )";
+        }
 
         //====================== Filter Where ==========================
         if (!empty($request["ptype"])) {
