@@ -1065,7 +1065,7 @@
     const money = value => (Number(value) || 0).toFixed(2);
     const escape = escapeHtml;
     const productImageContent = (url, alt) => url
-        ? '<img src="' + escape(url) + '" alt="' + escape(alt || '') + '" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false;">' + '<span class="jm-image-placeholder" hidden aria-label="لا توجد صورة"><i class="fas fa-image" aria-hidden="true"></i></span>'
+        ? '<img src="' + escape(url) + '" alt="' + escape(alt || '') + '" loading="lazy" onerror="this.remove();this.parentElement.querySelector(\'.jm-image-placeholder\')?.removeAttribute(\'hidden\');">' + '<span class="jm-image-placeholder" hidden aria-label="لا توجد صورة"><i class="fas fa-image" aria-hidden="true"></i></span>'
         : '<span class="jm-image-placeholder" aria-label="لا توجد صورة"><i class="fas fa-image" aria-hidden="true"></i></span>';
     let activeProduct = null;
     let activeProductImages = [];
