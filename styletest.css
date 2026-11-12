@@ -1,0 +1,139 @@
+/* General Styles */
+body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    color: #333;
+    background-color: #f9f9f9;
+}
+.container {
+    width: 90%;
+    margin: auto;
+    max-width: 1200px;
+}
+
+/* Header */
+.header .container {
+    display: flex;
+    justify-content: space-between; /* افتراضي للمساحة الكبيرة */
+    align-items: center;
+}
+
+/* تصميم القائمة */
+.navbar ul {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    gap: 15px; /* مسافة بين الروابط */
+}
+
+.navbar ul li a {
+    color: #0000;
+    text-decoration: none;
+    font-size: 1rem;
+}
+
+/* وضع الموبايل */
+@media (max-width: 768px) {
+    .header .container {
+        flex-direction: column; /* يجعل الشعار والقائمة عموديين */
+        align-items: center; /* توسيط العناصر */
+    }
+    .logo {
+        margin-bottom: 15px; /* مسافة بين الشعار والقائمة */
+    }
+    .navbar ul {
+        flex-direction: column; /* تجعل القائمة عمودية */
+        align-items: center; /* توسيط العناصر */
+        gap: 10px; /* مسافة بين الروابط */
+    }
+}
+
+/* Hero Section */
+.hero {
+    
+	background: linear-gradient(to bottom right, #ff5f1f, #f2994a);
+	/*height: 100vh;*/
+	margin: 0;
+    color: #fff;
+    text-align: center;
+    padding: 4rem 0;
+}
+.hero h1 {
+    font-size: 2.5rem;
+}
+.cta-btn {
+    background: #fff;
+    color: #e74c3c;
+    padding: 10px 20px;
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+/* Services Section */
+.services {
+    padding: 2rem 0;
+    text-align: center;
+    background-color: #fff;
+}
+.services h2 {
+    color: #e74c3c;
+    margin-bottom: 1.5rem;
+}
+.service-cards {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+}
+.service-card {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 1rem;
+    border-radius: 5px;
+    width: 30%;
+}
+
+/* About Section */
+.about {
+    padding: 2rem 0;
+    background: #f4f4f4;
+    text-align: center;
+}
+.about h2 {
+    color: #e74c3c;
+    margin-bottom: 1rem;
+}
+
+/* Contact Section */
+.contact {
+    padding: 2rem 0;
+    text-align: center;
+    background-color: #fff;
+}
+.contact form {
+    max-width: 600px;
+    margin: auto;
+}
+.contact input, .contact textarea {
+    width: 80%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+.contact button {
+    padding: 10px 20px;
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+}
+
+/* Footer */
+.footer {
+    background: #e74c3c;
+    color: #fff;
+    text-align: center;
+    padding: 1rem 0;
+}
