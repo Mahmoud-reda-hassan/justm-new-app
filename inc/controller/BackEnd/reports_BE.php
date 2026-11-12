@@ -125,6 +125,19 @@ class reports_BE {
 			$dateTo = $defaultTo;
 		}
 
+		// اسم العمود لا يُقبل مباشرة من الطلب؛ نختاره من قائمة مسموح بها.
+		$dateFields = [
+			'DATE_CREATED' => 'تاريخ الإنشاء',
+			'DELIVERY_DATE' => 'تاريخ الشحن',
+			'SHIPPING_DATE' => 'تاريخ الخروج',
+			'DELIVERED_DATE' => 'تاريخ التسليم',
+			'LAST_UPDATE' => 'تاريخ آخر تحديث'
+		];
+		$dateField = $_POST['date_field'] ?? 'DATE_CREATED';
+		if (!array_key_exists($dateField, $dateFields)) {
+			$dateField = 'DATE_CREATED';
+		}
+
 		$sql = 'SELECT *
 				FROM  (SELECT  A.ORDER_TYPE_ID,
 				   A.SUB_ORDER_ID,
@@ -184,8 +197,8 @@ class reports_BE {
 				   				FROM ORDER_PRODUCT
 				   				GROUP BY ORDER_ID
 				   ) PQTY ON A.ORDER_ID = PQTY.ORDER_ID
-				 WHERE A.DATE_CREATED >= :date_from
-				   AND A.DATE_CREATED < DATE_ADD(:date_to, INTERVAL 1 DAY)
+				 WHERE A.' . $dateField . ' >= :date_from
+				   AND A.' . $dateField . ' < DATE_ADD(:date_to, INTERVAL 1 DAY)
 				 GROUP BY 
 				 A.ORDER_TYPE_ID,
 				   A.SUB_ORDER_ID,
