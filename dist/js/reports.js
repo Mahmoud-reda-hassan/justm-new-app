@@ -148,12 +148,72 @@ $(document).ready(function () {
         columnDefs: columnDef,
         columns: column,
         order: [[groupColumn1, 'asc'], [groupColumn2, 'asc']],
-		pageLength: 40000,
+		pageLength: 50,
 		
 		buttons: [
 	        'copy', 
 	        'print',
-	        'excel', 
+	        {
+	            text: 'تصدير Excel (كل النتائج)',
+	            action: function (e, dt, node, config) {
+	                const picker = $('#date_range').data('daterangepicker');
+	                const exportParams = {
+	                    CONTROL: 'SalesMovementReportExport',
+	                    start_date: picker.startDate.format('YYYY-MM-DD'),
+	                    end_date: picker.endDate.format('YYYY-MM-DD'),
+	                    date_field: $('#date_field').val() || 'DATE_CREATED',
+	                    search: { value: dt.search() }
+	                };
+
+	                $.ajax({
+	                    url: urlvr,
+	                    type: 'POST',
+	                    data: exportParams,
+	                    dataType: 'json',
+	                    success: function (response) {
+	                        const rows = response && response.data ? response.data : [];
+	                        const escapeXml = function (value) {
+	                            return String(value == null ? '' : value)
+	                                .replace(/&/g, '&amp;')
+	                                .replace(/</g, '&lt;')
+	                                .replace(/>/g, '&gt;')
+	                                .replace(/"/g, '&quot;')
+	                                .replace(/'/g, '&apos;');
+	                        };
+	                        const reportColumns = column;
+	                        const xmlRows = [];
+	                        xmlRows.push('<Row>' + reportColumns.map(function (col) {
+	                            return '<Cell><Data ss:Type="String">' + escapeXml(col.title) + '</Data></Cell>';
+	                        }).join('') + '</Row>');
+	                        rows.forEach(function (row) {
+	                            xmlRows.push('<Row>' + reportColumns.map(function (col) {
+	                                return '<Cell><Data ss:Type="String">' + escapeXml(row[col.data]) + '</Data></Cell>';
+	                            }).join('') + '</Row>');
+	                        });
+
+	                        const workbook = '<?xml version="1.0" encoding="UTF-8"?>' +
+	                            '<?mso-application progid="Excel.Sheet"?>' +
+	                            '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ' +
+	                            'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+	                            '<Worksheet ss:Name="تقرير حركة المبيعات"><Table>' +
+	                            xmlRows.join('') +
+	                            '</Table></Worksheet></Workbook>';
+	                        const blob = new Blob(['\ufeff', workbook], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+	                        const link = document.createElement('a');
+	                        const url = URL.createObjectURL(blob);
+	                        link.href = url;
+	                        link.download = 'SalesMovementReport_' + exportParams.start_date + '_' + exportParams.end_date + '.xls';
+	                        document.body.appendChild(link);
+	                        link.click();
+	                        document.body.removeChild(link);
+	                        URL.revokeObjectURL(url);
+	                    },
+	                    error: function () {
+	                        alert('تعذر تصدير التقرير. حاول مرة أخرى.');
+	                    }
+	                });
+	            }
+	        }, 
 	        {
 	            text: 'تحديث التقرير',
 	            action: function (e, dt, node, config) {
