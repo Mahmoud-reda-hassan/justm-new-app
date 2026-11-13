@@ -50,7 +50,9 @@ class dashbord_BE {
         $this->dateFrom = $dateFrom;
         $this->dateTo = $dateTo;
         $metrics = [];
-        $canViewAllBranches = $this->isEnabled($adminPermissions['UserSpecificPermissions']['viewAllBranches'] ?? false);
+        $canViewAllBranches = $this->isEnabled($adminPermissions['UserSpecificPermissions']['viewAllBranches'] ?? false)
+            || $this->isEnabled($adminPermissions['StockAudit']['viewAllBranches'] ?? false)
+            || $this->isEnabled($adminPermissions['StockReceipt']['viewAllBranches'] ?? false);
         $hasOrdersDashboard = in_array('Admin', $roles, true)
             || in_array('CustomerService1', $roles, true)
             || in_array('CustomerService2', $roles, true)
