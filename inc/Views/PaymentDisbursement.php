@@ -164,29 +164,45 @@
         <div id="form-client-return" class="form-container bg-white rounded-4 shadow-lg p-4 mb-5">
             <h4 class="border-bottom pb-2 mb-4 text-info"><i class="fas fa-undo"></i> صرف مستحقات عميل (مرتجع)</h4>
             <div class="mb-3">
-                <label class="form-label fw-bold">أختر العميل</label>
+                <label class="form-label fw-bold">اختر العميل</label>
                 <select class="form-control" id="select-client">
                     <option value="">اختر العميل</option>
                 </select>
             </div>
-            <div class="mb-3">
-                <label class="form-label fw-bold">أختر أمر البيع</label>
-                <select class="form-control" id="select-order">
-                    <option value="">اختر أمر البيع</option>
-                </select>
+
+            <div class="table-responsive mt-3">
+                <table id="clientReturnOrdersTable" class="table table-bordered table-striped table-hover w-100 align-middle text-center">
+                    <thead class="table-info">
+                        <tr>
+                            <th>رقم الأمر</th>
+                            <th>اسم العميل</th>
+                            <th>القطع المطلوبة</th>
+                            <th>إجمالي سعر الأمر</th>
+                            <th>القطع المسلمة</th>
+                            <th>إجمالي سعر المسلم</th>
+                            <th>القطع المرتجعة</th>
+                            <th>إجمالي سعر المرتجع</th>
+                            <th>المستحق للصرف</th>
+                            <th>تحديد</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="10" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>
+                    </tbody>
+                </table>
             </div>
-            <!-- عرض الإجماليات -->
+
             <div class="row g-3 mt-2">
                 <div class="col-12">
                     <div class="alert bg-info py-2 mb-0 text-center">
-                        <small>إجمالي المرتجع</small>
+                        <small>إجمالي المبلغ المحدد للصرف</small>
                         <h5 class="mt-1 mb-0" id="return-amount">0.00</h5>
                     </div>
                 </div>
             </div>
             <div class="mt-4 d-flex justify-content-between">
                 <button class="btn btn-danger px-4" onclick="backToTiles()">رجوع</button>
-                <button id="saveFinancialReturn" class="btn btn-info px-4">حفظ</button>
+                <button id="saveFinancialReturn" class="btn btn-info px-4">صرف الأوامر المحددة</button>
             </div>
         </div>
 
