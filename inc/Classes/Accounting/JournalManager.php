@@ -330,23 +330,21 @@ class JournalManager{
 	    ]);
 	
 	    foreach ($lines as $line) {
-	
-	        $this->addLine(
-	
-	            $line['account_id'],
-	            (float)$line['credit'],
-	            (float)$line['debit'],
-	            $line['branch_id'],
-	            $line['store_id'],
-	            $line['cost_center_id'],
-	            $line['partner_type'],
-	            $line['partner_id'],
-	            $line['note']
-	
-	        );
-	
+
+	        $this->addLine([
+	            'account_id'     => $line['account_id'],
+	            'debit'          => (float)$line['credit'],
+	            'credit'         => (float)$line['debit'],
+	            'branch_id'      => $line['branch_id'],
+	            'store_id'       => $line['store_id'],
+	            'cost_center_id' => $line['cost_center_id'],
+	            'partner_type'   => $line['partner_type'],
+	            'partner_id'     => $line['partner_id'],
+	            'note'           => $line['note']
+	        ]);
+
 	    }
-	
+
 	    return $this->post();
 	}
 	
@@ -484,10 +482,10 @@ class JournalManager{
 	    $column = [
 	
 	        'CLIENT'    => 'CLIENT_ID',
-	        'SUPPLIER'  => 'suppliers',
-	        'DELIVERY'  => 'users',
-	        'MARKETER'  => 'users',
-	        'EMPLOYEE'  => 'users'
+	        'SUPPLIER'  => 'SUP_ID',
+	        'DELIVERY'  => 'USER_ID',
+	        'MARKETER'  => 'USER_ID',
+	        'EMPLOYEE'  => 'USER_ID'
 	
 	    ];
 	
