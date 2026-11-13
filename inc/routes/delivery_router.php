@@ -51,3 +51,4 @@ switch ($_GET["Go"]) {
 	            				array_push($this->js_footer,"selectProduct.js","sreach_client.js");
 	            				break;
             			} 
+*/
