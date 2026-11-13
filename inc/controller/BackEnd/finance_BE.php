@@ -1445,7 +1445,7 @@ class finance_BE {
 		$stmt->execute(['client_id' => $clientId, 'order_id' => $orderId]);
 		$order = $stmt->fetch(PDO::FETCH_ASSOC);
 		if (!$order) throw new Exception("أمر البيع رقم {$orderId} لم يعد له مستحقات مرتجعات غير مصروفة لهذا العميل");
-		if ((int)$order['ORDER_SUCCESS'] === 2) throw new Exception("أمر البيع رقم {$orderId} تم صرف مستحقاته من قبل");
+		if ((int)$order['ORDER_SUCCESS'] !== 1) throw new Exception("لا يمكن صرف مستحقات المرتجع لأمر البيع رقم {$orderId} لأنه غير مسدد");
 		if ((float)$order['ACTUAL_TOTAL'] <= 0) throw new Exception("أمر البيع رقم {$orderId} ليس له مبلغ مستحق للصرف");
 
 		$invoiceId = $this->Update_invoice($order['ORDER_ID'], 'SALES', 1);
