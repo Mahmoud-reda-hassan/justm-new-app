@@ -36,9 +36,9 @@ jobs:
           mysql --skip-ssl -h127.0.0.1 -uroot -ptest justm_test --default-character-set=utf8mb4 < inc/Databases/createDatabase.sql
       - name: Report tables, procedures and reference rows
         run: |
-          q() { mysql --skip-ssl -h127.0.0.1 -uroot -ptest justm_test -N -e "$1"; }
-          echo "tables:     $(q "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='justm_test' AND table_type='BASE TABLE'")"
-          echo "procedures: $(q "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema='justm_test'")"
+          q() { mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest -N -e "$1"; }
+          echo "tables:     $(q "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='cptest' AND table_type='BASE TABLE'")"
+          echo "procedures: $(q "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema='cptest'")"
           echo "accounts:   $(q "SELECT COUNT(*) FROM accounts")"
           q "SHOW TABLES LIKE 'journal%'"
   php-syntax:
