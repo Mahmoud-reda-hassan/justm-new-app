@@ -3,31 +3,31 @@ $dashboardScript = [];
 if (isset($_SESSION['USER_SCRIPT'])) {
     $dashboardScript = @unserialize($_SESSION['USER_SCRIPT'], ['allowed_classes' => false]);
 }
-$dashboardAdminPermissions = $dashboardScript['Admin'] ?? [];
+$dashboardAdminPermissions = is_array($dashboardScript) ? ($dashboardScript['Admin'] ?? []) : [];
 $dashboardRoles = $dashboardAdminPermissions['dashboard'] ?? [];
-
 $dashboardCan = static function ($value) {
     return $value === true || $value === 1 || $value === '1' || $value === 'true';
 };
-
 $canDashboardAdmin = $dashboardCan($dashboardRoles['Admin'] ?? false);
 $canDashboardCS1 = $dashboardCan($dashboardRoles['CustomerService1'] ?? false);
 $canDashboardCS2 = $dashboardCan($dashboardRoles['CustomerService2'] ?? false);
 $canDashboardStorage = $dashboardCan($dashboardRoles['Storage'] ?? false);
 $canDashboardDelivery = $dashboardCan($dashboardRoles['Delivery'] ?? false);
 $canDashboardSuppliers = $dashboardCan($dashboardAdminPermissions['Suppliers']['View'] ?? false);
+$canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 || $canDashboardStorage || $canDashboardDelivery;
 ?>
 <section class="content" id="adminDashboard" dir="rtl" data-endpoint="/inc/controller/dashbord.control.php">
     <div class="container-fluid">
         <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
             <div>
                 <h4 class="mb-1">لوحة تحكم الإدارة</h4>
-                <small class="text-muted">ملخص تشغيلي حسب الصلاحيات الممنوحة لمجموعة المستخدم</small>
+                <small class="text-muted">مؤشرات تشغيلية مباشرة حسب صلاحيات مجموعة المستخدم</small>
             </div>
-            <div class="d-flex align-items-center mt-2 mt-md-0">
-                <small class="text-muted ml-2" id="dashboardUpdatedAt"></small>
-                <button type="button" class="btn btn-outline-primary btn-sm" id="dashboardRefresh">
-                    <i class="fas fa-sync-alt ml-1"></i> تحديث البيانات
+            <div class="d-flex align-items-center flex-wrap mt-2 mt-md-0">
+                <input type="text" class="form-control form-control-sm ml-2 mb-1" id="dashboardDateRange" style="min-width:230px;max-width:280px" autocomplete="off" aria-label="الفترة الزمنية">
+                <small class="text-muted ml-2 mb-1" id="dashboardUpdatedAt">التحديث التلقائي كل 10 ثوانٍ</small>
+                <button type="button" class="btn btn-outline-primary btn-sm mb-1" id="dashboardRefresh">
+                    <i class="fas fa-sync-alt ml-1"></i> تحديث الآن
                 </button>
             </div>
         </div>
@@ -44,40 +44,14 @@ $canDashboardSuppliers = $dashboardCan($dashboardAdminPermissions['Suppliers']['
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="small-box bg-info">
-                            <div class="inner"><h3 data-metric="orders_today">—</h3><p>أوامر البيع اليوم</p></div>
-                            <div class="icon"><i class="fas fa-shopping-cart"></i></div>
-                        </div>
-                    </div>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="small-box bg-warning">
-                            <div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div>
-                            <div class="icon"><i class="fas fa-file-invoice-dollar"></i></div>
-                        </div>
-                    </div>
-                    <?php if ($canDashboardSuppliers): ?>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="small-box bg-success">
-                            <div class="inner"><h3 data-metric="suppliers_count">—</h3><p>عدد الموردين</p></div>
-                            <div class="icon"><i class="fas fa-truck-loading"></i></div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="small-box bg-secondary">
-                            <div class="inner"><h3 data-metric="stores_count">—</h3><p>عدد المخازن</p></div>
-                            <div class="icon"><i class="fas fa-warehouse"></i></div>
-                        </div>
-                    </div>
+                    <div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-info"><div class="inner"><h3 data-metric="orders_range">—</h3><p>أوامر البيع خلال الفترة</p></div><div class="icon"><i class="fas fa-shopping-cart"></i></div></div></div>
+                    <div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-warning"><div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div><div class="icon"><i class="fas fa-file-invoice-dollar"></i></div></div></div>
+                    <div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-success"><div class="inner"><h3 data-metric="stores_count">—</h3><p>عدد المخازن</p></div><div class="icon"><i class="fas fa-warehouse"></i></div></div></div>
+                    <?php if ($canDashboardSuppliers): ?><div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-secondary"><div class="inner"><h3 data-metric="suppliers_count">—</h3><p>عدد الموردين</p></div><div class="icon"><i class="fas fa-truck-loading"></i></div></div></div><?php endif; ?>
                 </div>
                 <div class="row">
-                    <div class="col-12">
-                        <div class="card card-light">
-                            <div class="card-header"><h3 class="card-title">حركة أوامر البيع خلال آخر 7 أيام</h3></div>
-                            <div class="card-body"><div style="height:260px"><canvas id="dashboardOrdersChart"></canvas></div></div>
-                        </div>
-                    </div>
+                    <div class="col-lg-7 col-12"><div class="card card-light"><div class="card-header"><h3 class="card-title">حركة أوامر البيع حسب الأيام</h3></div><div class="card-body"><div style="height:280px"><canvas id="dashboardOrdersChart"></canvas></div></div></div></div>
+                    <div class="col-lg-5 col-12"><div class="card card-light"><div class="card-header"><h3 class="card-title">توزيع حالات أوامر البيع</h3></div><div class="card-body"><div style="height:280px"><canvas id="dashboardStatusChart"></canvas></div></div></div></div>
                 </div>
             </div>
         </section>
@@ -85,68 +59,61 @@ $canDashboardSuppliers = $dashboardCan($dashboardAdminPermissions['Suppliers']['
 
         <?php if ($canDashboardCS1): ?>
         <section class="card card-outline card-info dashboard-section" id="dashboardCS1Section">
-            <div class="card-header"><h3 class="card-title"><i class="fas fa-headset ml-1"></i> خدمة العملاء - المتابعة</h3></div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-clipboard-list"></i></span><div class="info-box-content"><span class="info-box-text">إجمالي أوامر البيع</span><span class="info-box-number" data-metric="cs1_total_orders">—</span></div></div>
-                    </div>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-primary"><i class="fas fa-calendar-day"></i></span><div class="info-box-content"><span class="info-box-text">أوامر البيع اليوم</span><span class="info-box-number" data-metric="cs1_today_orders">—</span></div></div>
-                    </div>
-                </div>
-            </div>
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-headset ml-1"></i> خدمة العملاء - المراجعة والتأكيد</h3></div>
+            <div class="card-body"><div class="row">
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-clipboard-list"></i></span><div class="info-box-content"><span class="info-box-text">قيد المراجعة</span><span class="info-box-number" data-metric="cs1_review">—</span></div></div></div>
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-clock"></i></span><div class="info-box-content"><span class="info-box-text">مؤجل</span><span class="info-box-number" data-metric="cs1_pending">—</span></div></div></div>
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-secondary"><i class="fas fa-box-open"></i></span><div class="info-box-content"><span class="info-box-text">حجز مسبق / غير متوفر</span><span class="info-box-number" data-metric="cs1_preorder">—</span></div></div></div>
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-danger"><i class="fas fa-phone-slash"></i></span><div class="info-box-content"><span class="info-box-text">العميل لا يستجيب</span><span class="info-box-number" data-metric="cs1_no_response">—</span></div></div></div>
+            </div></div>
         </section>
         <?php endif; ?>
 
         <?php if ($canDashboardCS2): ?>
         <section class="card card-outline card-info dashboard-section" id="dashboardCS2Section">
-            <div class="card-header"><h3 class="card-title"><i class="fas fa-comments ml-1"></i> خدمة العملاء - الدعم</h3></div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-clipboard-check"></i></span><div class="info-box-content"><span class="info-box-text">إجمالي أوامر البيع</span><span class="info-box-number" data-metric="cs2_total_orders">—</span></div></div>
-                    </div>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-primary"><i class="fas fa-calendar-day"></i></span><div class="info-box-content"><span class="info-box-text">أوامر البيع اليوم</span><span class="info-box-number" data-metric="cs2_today_orders">—</span></div></div>
-                    </div>
-                </div>
-            </div>
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-comments ml-1"></i> خدمة العملاء - متابعة التجهيز والشحن</h3></div>
+            <div class="card-body"><div class="row">
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-primary"><i class="fas fa-cogs"></i></span><div class="info-box-content"><span class="info-box-text">قيد التجهيز</span><span class="info-box-number" data-metric="cs2_processing">—</span></div></div></div>
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-box"></i></span><div class="info-box-content"><span class="info-box-text">تم التجهيز</span><span class="info-box-number" data-metric="cs2_prepared">—</span></div></div></div>
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-shipping-fast"></i></span><div class="info-box-content"><span class="info-box-text">جاري الشحن</span><span class="info-box-number" data-metric="cs2_shipping">—</span></div></div></div>
+                <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-danger"><i class="fas fa-undo"></i></span><div class="info-box-content"><span class="info-box-text">مرفوض / مرتجع</span><span class="info-box-number" data-metric="cs2_returns">—</span></div></div></div>
+            </div></div>
         </section>
         <?php endif; ?>
 
         <?php if ($canDashboardStorage): ?>
         <section class="card card-outline card-success dashboard-section" id="dashboardStorageSection">
-            <div class="card-header"><h3 class="card-title"><i class="fas fa-warehouse ml-1"></i> ملخص المخازن والمخزون</h3></div>
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-warehouse ml-1"></i> المخازن والمخزون</h3></div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-success"><i class="fas fa-warehouse"></i></span><div class="info-box-content"><span class="info-box-text">عدد المخازن</span><span class="info-box-number" data-metric="storage_stores_count">—</span></div></div>
-                    </div>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-boxes"></i></span><div class="info-box-content"><span class="info-box-text">إجمالي وحدات المخزون</span><span class="info-box-number" data-metric="stock_units">—</span></div></div>
-                    </div>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-exclamation-triangle"></i></span><div class="info-box-content"><span class="info-box-text">أصناف أقل من الحد الأدنى</span><span class="info-box-number" data-metric="low_stock_count">—</span></div></div>
-                    </div>
+                    <div class="col-xl-4 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-success"><i class="fas fa-warehouse"></i></span><div class="info-box-content"><span class="info-box-text">عدد المخازن</span><span class="info-box-number" data-metric="storage_stores_count">—</span></div></div></div>
+                    <div class="col-xl-4 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-boxes"></i></span><div class="info-box-content"><span class="info-box-text">إجمالي وحدات المخزون</span><span class="info-box-number" data-metric="stock_units">—</span></div></div></div>
+                    <div class="col-xl-4 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-exclamation-triangle"></i></span><div class="info-box-content"><span class="info-box-text">أصناف أقل من الحد الأدنى</span><span class="info-box-number" data-metric="low_stock_count">—</span></div></div></div>
                 </div>
+                <div class="card card-light"><div class="card-header"><h3 class="card-title">الأصناف التي تحتاج إعادة توفير</h3></div><div class="card-body table-responsive"><table id="dashboardLowStockTable" class="table table-bordered table-striped table-sm text-nowrap w-100"><thead><tr><th>المخزن</th><th>الصنف</th><th>كود الصنف</th><th>الحد الأدنى</th><th>الرصيد الحالي</th></tr></thead><tbody></tbody></table></div></div>
             </div>
         </section>
         <?php endif; ?>
 
         <?php if ($canDashboardDelivery): ?>
         <section class="card card-outline card-warning dashboard-section" id="dashboardDeliverySection">
-            <div class="card-header"><h3 class="card-title"><i class="fas fa-shipping-fast ml-1"></i> ملخص التوصيل</h3></div>
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-shipping-fast ml-1"></i> متابعة التوصيل والمندوبين</h3></div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-truck"></i></span><div class="info-box-content"><span class="info-box-text">أوامر مسندة للتوصيل</span><span class="info-box-number" data-metric="delivery_assigned_orders">—</span></div></div>
-                    </div>
-                    <div class="col-xl-3 col-md-6 col-12">
-                        <div class="info-box"><span class="info-box-icon bg-success"><i class="fas fa-check-circle"></i></span><div class="info-box-content"><span class="info-box-text">تم تسليمها اليوم</span><span class="info-box-number" data-metric="delivery_delivered_today">—</span></div></div>
-                    </div>
+                    <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-truck"></i></span><div class="info-box-content"><span class="info-box-text">مسندة لمندوب</span><span class="info-box-number" data-metric="delivery_assigned_orders">—</span></div></div></div>
+                    <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-success"><i class="fas fa-check-circle"></i></span><div class="info-box-content"><span class="info-box-text">تم التسليم</span><span class="info-box-number" data-metric="delivery_delivered">—</span></div></div></div>
+                    <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-danger"><i class="fas fa-times-circle"></i></span><div class="info-box-content"><span class="info-box-text">فشل / رفض التسليم</span><span class="info-box-number" data-metric="delivery_rejected">—</span></div></div></div>
+                    <div class="col-xl-3 col-md-6 col-12"><div class="info-box"><span class="info-box-icon bg-secondary"><i class="fas fa-undo"></i></span><div class="info-box-content"><span class="info-box-text">مرتجعات</span><span class="info-box-number" data-metric="delivery_returns">—</span></div></div></div>
                 </div>
+                <div class="card card-light"><div class="card-header"><h3 class="card-title">أداء المندوبين خلال الفترة</h3></div><div class="card-body table-responsive"><table id="dashboardDeliveryTable" class="table table-bordered table-striped table-sm text-nowrap w-100"><thead><tr><th>المندوب</th><th>الطلبات المسندة</th><th>تم التسليم</th><th>مرفوض</th><th>مرتجع</th></tr></thead><tbody></tbody></table></div></div>
             </div>
+        </section>
+        <?php endif; ?>
+
+        <?php if ($canDashboardAny && ($canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 || $canDashboardDelivery)): ?>
+        <section class="card card-outline card-secondary dashboard-section">
+            <div class="card-header"><h3 class="card-title"><i class="fas fa-list ml-1"></i> أحدث أوامر البيع</h3></div>
+            <div class="card-body table-responsive"><table id="dashboardOrdersTable" class="table table-bordered table-striped table-sm text-nowrap w-100"><thead><tr><th>رقم الأمر</th><th>تاريخ الإنشاء</th><th>حالة المتابعة</th><th>حالة الطلب</th><th>حالة السداد</th><th>المندوب</th></tr></thead><tbody></tbody></table></div>
         </section>
         <?php endif; ?>
     </div>
