@@ -404,97 +404,125 @@ function autoDistributeSupplierPayment(amount) {
 
 }
 /*==================================================
-= CUSTOMER RETURN (مع جلب الرصيد)
+= CUSTOMER RETURN (اختيار وصرف عدة أوامر)
 ==================================================*/
-function initCustomerReturnSection() {
-    let clientSelect = $('#select-client');
-    let orderSelect = $('#select-order');
+function formatReturnQuantity(value) {
+    return (parseFloat(value) || 0).toFixed(2);
+}
 
+function updateCustomerReturnTotal() {
+    let total = 0;
+    $('#clientReturnOrdersTable .customer-return-order-check:checked').each(function() {
+        total += parseFloat($(this).data('amount')) || 0;
+    });
+    $('#return-amount').text(formatMoney(total));
+}
+
+function renderCustomerReturnOrders(orders) {
+    const tbody = $('#clientReturnOrdersTable tbody').empty();
+
+    if (!Array.isArray(orders) || !orders.length) {
+        tbody.append($('<tr>').append(
+            $('<td>', { colspan: 10, class: 'text-muted' }).text('لا توجد أوامر بيع لها مستحقات مرتجعات غير مصروفة')
+        ));
+        updateCustomerReturnTotal();
+        return;
+    }
+
+    orders.forEach(function(order) {
+        const amount = parseFloat(order.payable_balance) || 0;
+        const checkbox = $('<input>', {
+            type: 'checkbox',
+            class: 'customer-return-order-check form-check-input',
+            'aria-label': 'تحديد أمر البيع ' + (order.order_number || order.id)
+        }).val(order.id).data('amount', amount);
+
+        const row = $('<tr>');
+        const values = [
+            order.order_number || order.id,
+            order.client_name || '',
+            formatReturnQuantity(order.required_qty),
+            formatMoney(order.order_total),
+            formatReturnQuantity(order.delivered_qty),
+            formatMoney(order.delivered_total),
+            formatReturnQuantity(order.returned_qty),
+            formatMoney(order.returned_total),
+            formatMoney(amount)
+        ];
+
+        values.forEach(function(value) {
+            row.append($('<td>').text(value));
+        });
+        row.append($('<td>').append(checkbox));
+        tbody.append(row);
+    });
+
+    updateCustomerReturnTotal();
+}
+
+async function loadCustomerReturnOrders(clientId) {
+    const tbody = $('#clientReturnOrdersTable tbody');
+    $('#return-amount').text('0.00');
+
+    if (!clientId) {
+        tbody.html('<tr><td colspan="10" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
+        return;
+    }
+
+    tbody.html('<tr><td colspan="10"><i class="fas fa-spinner fa-spin"></i> جارٍ تحميل أوامر البيع...</td></tr>');
+    const data = await request(API, {
+        CONTROL: 'GetClientRetrnOrder',
+        cid: clientId
+    });
+
+    if (data) renderCustomerReturnOrders(data);
+    else tbody.html('<tr><td colspan="10" class="text-danger">تعذر تحميل أوامر البيع</td></tr>');
+}
+
+function initCustomerReturnSection() {
     initPartnerSelect2('#select-client', 'GetClientData_in', 'اختر العميل');
 
-    orderSelect.select2({
-        placeholder: 'اختر أمر البيع',
-        allowClear: false,
-        dir: "rtl",
-        language: "ar",
-        width: '100%',
-        minimumInputLength: 0,
-        ajax: {
-            url: API,
-            dataType: 'json',
-            delay: 600,
-            cache: true,
-            data: function(params) {
-                let clientId = clientSelect.val();
-                if (!clientId) return false;
-                return {
-                    CONTROL: 'GetClientRetrnOrder',
-                    cid: clientId,
-                    search: params.term || ''
-                };
-            },
-            processResults: function(data) {
-                return {
-                    results: data.map(order => ({
-                        id: order.id,
-                        text: order.name
-                    }))
-                };
-            }
-        }
+    $('#select-client').off('change.customerReturn').on('change.customerReturn', function() {
+        loadCustomerReturnOrders($(this).val());
     });
 
-    clientSelect.off('change').on('change', function() {
-        orderSelect.val(null).trigger('change');
-        $('#return-amount').text('0.00');
-        orderSelect.html('<option value=""></option>');
-        orderSelect.trigger('change.select2');
-    });
-
-    orderSelect.off('change').on('change', async function() {
-        let orderId = $(this).val();
-        $('#return-amount').text('0.00');
-        if (!orderId) return;
-        
-        $('#return-amount').html('<i class="fas fa-spinner fa-spin"></i>');
-        try {
-            const data = await request(API, {
-                CONTROL: 'GetRefundBalance',
-                oid: orderId
-            });
-            let balance = (data && data[0] && data[0].total_balance) ? data[0].total_balance : 0;
-            $('#return-amount').text(formatMoney(balance));
-        } catch(e) {
-            console.error(e);
-            $('#return-amount').text('0.00');
-        }
-    });
+    $('#clientReturnOrdersTable').off('change.customerReturn', '.customer-return-order-check')
+        .on('change.customerReturn', '.customer-return-order-check', updateCustomerReturnTotal);
 }
 
 /*==================================================
 =            SAVE CUSTOMER RETURN
 ==================================================*/
-async function saveFinancialReturn(orderId) {
-    if (!orderId || orderId <= 0) {
-        showAlert('warning', 'نأسف', 'لم تقم بإختيار أمر البيع أولاً');
+async function saveFinancialReturn() {
+    const clientId = $('#select-client').val();
+    const orderIds = $('#clientReturnOrdersTable .customer-return-order-check:checked')
+        .map(function() { return String($(this).val()); }).get();
+
+    if (!clientId) {
+        showAlert('warning', 'تنبيه', 'اختر العميل أولاً');
         return;
     }
-    showLoading('جارى الحفظ...');
+    if (!orderIds.length) {
+        showAlert('warning', 'تنبيه', 'حدد أمر بيع واحداً على الأقل للصرف');
+        return;
+    }
+
+    showLoading('جارى صرف مستحقات الأوامر المحددة...');
     try {
         const data = await request(API_FINANCE, {
             CONTROL: 'PaymentOfCustomerDues',
-            oid: orderId
+            client_id: clientId,
+            order_ids: JSON.stringify(orderIds)
         }, 'POST');
+
         if (!data) return;
+
         if (data[0] === 'success') {
-        	const cacheKey = `${'CLIENT'}_${$('#select-order').val()}`;
-            delete balanceCache[cacheKey];
-            $('#select-order').val(null).trigger('change').html('<option value=""></option>');
-            $('#select-client').val(null).trigger('change').html('<option value=""></option>');
+            $('#select-client').val(null).trigger('change');
+            $('#clientReturnOrdersTable tbody').html('<tr><td colspan="10" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
             $('#return-amount').text('0.00');
-            
         }
-       
+
         showAlert(data[0], data[1], data[2]);
     } catch (err) {
         showAlert('error', 'خطأ', err.message);
@@ -879,9 +907,7 @@ $(function() {
     initCustomerReturnSection();
 
     // أزرار الحفظ
-    $('#saveFinancialReturn').on('click', function() {
-        saveFinancialReturn($('#select-order').val());
-    });
+    $('#saveFinancialReturn').on('click', saveFinancialReturn);
 
     // أزرار إظهار النماذج
     $('#btn-mandob').click(() => showForm('mandob'));
@@ -889,7 +915,7 @@ $(function() {
     $('#btn-morad').click(() => showForm('morad'));
     $('#btn-client-return').click(() => {
         $('#select-client').val(null).trigger('change');
-        $('#select-order').val(null).trigger('change');
+        $('#clientReturnOrdersTable tbody').html('<tr><td colspan="10" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
         $('#return-amount').text('0.00');
         showForm('client-return');
     });
