@@ -33,10 +33,10 @@ jobs:
       - name: Import createDatabase.sql
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq mariadb-client
-          mysql -h127.0.0.1 -uroot -ptest justm_test --default-character-set=utf8mb4 < inc/Databases/createDatabase.sql
+          mysql --skip-ssl -h127.0.0.1 -uroot -ptest justm_test --default-character-set=utf8mb4 < inc/Databases/createDatabase.sql
       - name: Report tables, procedures and reference rows
         run: |
-          q() { mysql -h127.0.0.1 -uroot -ptest justm_test -N -e "$1"; }
+          q() { mysql --skip-ssl -h127.0.0.1 -uroot -ptest justm_test -N -e "$1"; }
           echo "tables:     $(q "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='justm_test' AND table_type='BASE TABLE'")"
           echo "procedures: $(q "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema='justm_test'")"
           echo "accounts:   $(q "SELECT COUNT(*) FROM accounts")"
