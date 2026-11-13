@@ -134,6 +134,8 @@ class PaymentDisbursement {
 	            O.ORDER_ID AS id,
 	            O.SUB_ORDER_ID AS order_number,
 	            C.CLIENT_NAME AS client_name,
+	            O.ORDER_SUCCESS AS payment_status,
+	            COALESCE(PAID.PAID_AMOUNT,0) AS paid_amount,
 	            COALESCE(SUM(OP.QTY),0) AS required_qty,
 	            COALESCE(SUM((OP.PRICE - OP.DISCOUNT) * OP.QTY),0) AS order_total,
 	            COALESCE(SUM(OP.DELIVERED_QTY),0) AS delivered_qty,
@@ -151,6 +153,13 @@ class PaymentDisbursement {
 	        INNER JOIN addresses A ON A.ADDRESS_ID = O.ADDRESS_ID AND A.CLIENT_ID = PB.PARTNER_ID
 	        INNER JOIN client C ON C.CLIENT_ID = A.CLIENT_ID
 	        LEFT JOIN order_product OP ON OP.ORDER_ID = O.ORDER_ID
+	        LEFT JOIN (
+	            SELECT REFERENCE_ID, PARTNER_ID,
+	                   SUM(CASE WHEN TRANSACTION_TYPE = 'CREDIT' THEN BALANCE ELSE -BALANCE END) AS PAID_AMOUNT
+	            FROM partners_balance
+	            WHERE PARTNER_TYPE = 'CLIENT' AND TRANSACTION_CATEGORY_ID = 9
+	            GROUP BY REFERENCE_ID, PARTNER_ID
+	        ) PAID ON PAID.REFERENCE_ID = O.ORDER_ID AND PAID.PARTNER_ID = PB.PARTNER_ID
 	        WHERE PB.PARTNER_ID = :client_id
 	          AND PB.BALANCE > 0
 	          AND NOT EXISTS (
@@ -166,7 +175,7 @@ class PaymentDisbursement {
 	        $query .= " AND (O.SUB_ORDER_ID LIKE :search OR O.ORDER_ID LIKE :search)";
 	        $params['search'] = "%".$search."%";
 	    }
-	    $query .= " GROUP BY O.ORDER_ID, O.SUB_ORDER_ID, C.CLIENT_NAME, PB.BALANCE ORDER BY O.ORDER_ID DESC LIMIT 1000";
+	    $query .= " GROUP BY O.ORDER_ID, O.SUB_ORDER_ID, C.CLIENT_NAME, O.ORDER_SUCCESS, PAID.PAID_AMOUNT, PB.BALANCE ORDER BY O.ORDER_ID DESC LIMIT 1000";
 
 	    $stmt = $this->conn->prepare($query);
 	    $stmt->execute($params);
