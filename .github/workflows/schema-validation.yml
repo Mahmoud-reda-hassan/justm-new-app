@@ -1,0 +1,53 @@
+name: Schema and syntax validation
+
+on:
+  push:
+    branches: [ci-schema-validation]
+  pull_request:
+    paths:
+      - 'inc/Databases/createDatabase.sql'
+      - 'inc/Classes/Accounting/**'
+      - '.github/workflows/schema-validation.yml'
+  workflow_dispatch:
+
+jobs:
+  schema-import:
+    name: Import schema on MariaDB ${{ matrix.mariadb }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mariadb: ['10.5.29', '10.11']
+    services:
+      mariadb:
+        image: mariadb:${{ matrix.mariadb }}
+        env:
+          MARIADB_ROOT_PASSWORD: test
+          MARIADB_DATABASE: justm_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import createDatabase.sql
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq mariadb-client
+          mysql -h127.0.0.1 -uroot -ptest justm_test --default-character-set=utf8mb4 < inc/Databases/createDatabase.sql
+      - name: Report tables, procedures and reference rows
+        run: |
+          q() { mysql -h127.0.0.1 -uroot -ptest justm_test -N -e "$1"; }
+          echo "tables:     $(q "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='justm_test' AND table_type='BASE TABLE'")"
+          echo "procedures: $(q "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema='justm_test'")"
+          echo "accounts:   $(q "SELECT COUNT(*) FROM accounts")"
+          q "SHOW TABLES LIKE 'journal%'"
+  php-syntax:
+    name: PHP syntax (accounting, finance, shipment, inventory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.2', coverage: none }
+      - run: |
+          find inc/Classes/Accounting -name '*.php' -print0 | xargs -0 -n1 php -l
+          for f in inc/controller/BackEnd/finance_BE.php inc/controller/BackEnd/shipment_BE.php inc/controller/BackEnd/inventory_BE.php inc/controller/BackEnd/accounts_BE.php inc/controller/BackEnd/PaymentDisbursement_BE.php inc/controller/BackEnd/reports_BE.php inc/Classes/InventoryManager.php inc/routes/delivery_router.php inc/routes/admin_router.php; do php -l "$f"; done
