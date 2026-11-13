@@ -141,7 +141,7 @@ $mail->SMTBAuth = true;
 $mail->SMTPSecure = "tls";
 $mail->Port="587";
 $mail->Username = "m.r.01225133341@gmail.com"; 
-$mail->Password = "pogy25502984"; 
+$mail->Password = getenv('SMTP_PASSWORD'); 
 $mail->Subject = "اعادة تعين كلمة المرور";
 $mail->setFrom("m.r.01225133341@gmail.com");
 $mail->Body ="test send mail";
