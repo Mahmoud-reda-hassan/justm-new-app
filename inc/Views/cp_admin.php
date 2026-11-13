@@ -44,6 +44,7 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
             </div>
             <div class="card-body">
                 <div class="row">
+                    <div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-primary"><div class="inner"><h3 data-metric="orders_today">—</h3><p>أوامر البيع اليوم</p></div><div class="icon"><i class="fas fa-calendar-day"></i></div></div></div>
                     <div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-info"><div class="inner"><h3 data-metric="orders_range">—</h3><p>أوامر البيع خلال الفترة</p></div><div class="icon"><i class="fas fa-shopping-cart"></i></div></div></div>
                     <div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-warning"><div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div><div class="icon"><i class="fas fa-file-invoice-dollar"></i></div></div></div>
                     <div class="col-xl-3 col-md-6 col-12"><div class="small-box bg-success"><div class="inner"><h3 data-metric="stores_count">—</h3><p>عدد المخازن</p></div><div class="icon"><i class="fas fa-warehouse"></i></div></div></div>
