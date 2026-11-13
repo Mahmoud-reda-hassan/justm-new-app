@@ -509,14 +509,23 @@ public function app_request($loginType = 0,$pageType = 0){
 	                        	//http_response_code(404);
 	            		    }
 	    			} else {
-	    				$this->Pagelink = "cp_admin";
-	            		$this->title="لوحة التحكم";
-	            		array_push($this->js_footer,
-	            					"jquery.mapael.min.js",
-	            					"raphael.min.js",
-	            					"world_countries.min.js",
-	            					"Chart.min.js",
-	            					"dashboard2.js");
+                        $dashboardRoles = $usc['Admin']['dashboard'] ?? [];
+                        $canViewDashboard = false;
+                        foreach (['Admin', 'CustomerService1', 'CustomerService2', 'Storage', 'Delivery'] as $dashboardRole) {
+                            $roleValue = $dashboardRoles[$dashboardRole] ?? false;
+                            if ($roleValue === true || $roleValue === 1 || $roleValue === '1' || $roleValue === 'true') {
+                                $canViewDashboard = true;
+                                break;
+                            }
+                        }
+
+                        if ($canViewDashboard) {
+                            $this->Pagelink = "cp_admin";
+                            $this->title = "لوحة التحكم";
+                            array_push($this->js_footer, "Chart.min.js", "dashboard2.js");
+                        } else {
+                            $this->Pagelink = "404";
+                        }
 	    			}
 	    		} else if($pageType == 2 && isset($_SESSION["AFFILIATE_TYPE"]) && $_SESSION["AFFILIATE_TYPE"] == 1){ 
 	            		    if(isset($_GET["Go"]) ){
