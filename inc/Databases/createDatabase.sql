@@ -5058,7 +5058,7 @@ CREATE TABLE IF NOT EXISTS `product_options_view`(
 DROP TABLE IF EXISTS `purchases_orders_view`;
 CREATE TABLE IF NOT EXISTS `purchases_orders_view`(
     `ORDER_ID` bigint(20) NOT NULL DEFAULT '0',
-    `CREATE_AT` timestamp NOT NULL DEFAULT 'current_timestamp()',
+    `CREATE_AT` timestamp NOT NULL DEFAULT current_timestamp(),
     `SUPPLIER_ID` bigint(20) DEFAULT NULL,
     `SUP_NAME` varchar(50) COLLATE utf8_general_ci DEFAULT NULL,
     `NOTE` text COLLATE utf8_general_ci DEFAULT NULL,
