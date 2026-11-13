@@ -41,6 +41,10 @@ jobs:
           echo "procedures: $(q "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema='cptest'")"
           echo "accounts:   $(q "SELECT COUNT(*) FROM accounts")"
           q "SHOW TABLES LIKE 'journal%'"
+          echo "views:      $(q "SELECT COUNT(*) FROM information_schema.views WHERE table_schema='cptest'")"
+          q "SELECT COUNT(*) FROM product_options_view"
+          q "SELECT COUNT(*) FROM purchases_orders_view"
+          test "$(q "SELECT COUNT(*) FROM information_schema.views WHERE table_schema='cptest'")" = "2"
   php-syntax:
     name: PHP syntax (accounting, finance, shipment, inventory)
     runs-on: ubuntu-latest

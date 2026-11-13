@@ -5032,53 +5032,6 @@ INSERT INTO `zones` (`ZONE_ID`, `ZONE_NAME`, `ZONE_NAME_EN`, `SHIPPING_RATE`, `S
 (43, 'الجيزه2', 'Algiza', 65.00, 0.00, 1, 1, 1),
 (44, 'البحيره', 'Elbehera', 80.00, 0.00, 1, 2, 1);
 
--- --------------------------------------------------------
-
---
--- Structure for view `product_options_view` exported as a table
---
-DROP TABLE IF EXISTS `product_options_view`;
-CREATE TABLE IF NOT EXISTS `product_options_view`(
-    `PRO_ID` int(11) NOT NULL,
-    `PRO_CODE` varchar(50) COLLATE utf8_general_ci NOT NULL,
-    `PURCHASE_PRICE` decimal(18,2) NOT NULL,
-    `SELL_PRICE` decimal(18,2) NOT NULL,
-    `MIN_STOCK` decimal(18,3) NOT NULL DEFAULT '20.000',
-    `MAX_STOCK` decimal(18,3) NOT NULL DEFAULT '0.000',
-    `PRO_NAME` varchar(255) COLLATE utf8_general_ci DEFAULT NULL,
-    `OPT_IDS_JSON` mediumtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `OPT_JSON` mediumtext COLLATE utf8_general_ci DEFAULT NULL
-);
-
--- --------------------------------------------------------
-
---
--- Structure for view `purchases_orders_view` exported as a table
---
-DROP TABLE IF EXISTS `purchases_orders_view`;
-CREATE TABLE IF NOT EXISTS `purchases_orders_view`(
-    `ORDER_ID` bigint(20) NOT NULL DEFAULT '0',
-    `CREATE_AT` timestamp NOT NULL DEFAULT current_timestamp(),
-    `SUPPLIER_ID` bigint(20) DEFAULT NULL,
-    `SUP_NAME` varchar(50) COLLATE utf8_general_ci DEFAULT NULL,
-    `NOTE` text COLLATE utf8_general_ci DEFAULT NULL,
-    `SUP_EMAIL` varchar(100) COLLATE utf8_general_ci DEFAULT NULL,
-    `TEL_NUMBER` varchar(15) COLLATE utf8_general_ci DEFAULT NULL,
-    `TOTAL_PRICE` float(10,2) NOT NULL,
-    `QTY_ORDER_TOTAL` decimal(32,2) DEFAULT NULL,
-    `QTY_SUPPLIED_TOTAL` decimal(32,2) DEFAULT NULL,
-    `QTY_ORDER_WAITING` decimal(33,2) DEFAULT NULL,
-    `QTY_RETURN` decimal(54,2) DEFAULT NULL,
-    `SUPPLIED_STATUSE` varchar(11) COLLATE utf8_general_ci DEFAULT NULL,
-    `PAYMENT_STATUSE` varchar(10) COLLATE utf8_general_ci NOT NULL DEFAULT '',
-    `RETURN_STATUS` int(1) DEFAULT NULL,
-    `TOTAL_WAIT_PRICE` double(19,2) DEFAULT NULL,
-    `TOTAL_ORDER_PRICE` double(19,2) DEFAULT NULL,
-    `TOTAL_SUP_PRICE` double(19,2) DEFAULT NULL,
-    `TOTAL_PAYMENTS` float(10,2) NOT NULL DEFAULT '0.00',
-    `PRODUCT_DETAILS` mediumtext COLLATE utf8_general_ci DEFAULT NULL
-);
-
 --
 -- Constraints for dumped tables
 --
@@ -5390,6 +5343,17 @@ ALTER TABLE `users_affiliate`
 ALTER TABLE `users_delivery`
   ADD CONSTRAINT `USERS_DELIVERY_ibfk_1` FOREIGN KEY (`USER_ID`) REFERENCES `users` (`USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `USERS_DELIVERY_ibfk_2` FOREIGN KEY (`ZONE_ID`) REFERENCES `zones` (`ZONE_ID`) ON DELETE SET NULL ON UPDATE SET NULL;
+--
+-- Views (definitions supplied by the project owner; DEFINER removed for portability)
+--
+DROP TABLE IF EXISTS `product_options_view`;
+DROP VIEW  IF EXISTS `product_options_view`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `product_options_view` AS select `pc`.`PRODUCT_ID` AS `PRO_ID`,`pc`.`PRO_CODE` AS `PRO_CODE`,`pc`.`CODE_COST_PRICE` AS `PURCHASE_PRICE`,`pc`.`CODE_PRICE` AS `SELL_PRICE`,`pc`.`CODE_MIN_STOCK` AS `MIN_STOCK`,`pc`.`CODE_MAX_STOCK` AS `MAX_STOCK`,`pr`.`PRO_NAME` AS `PRO_NAME`,json_arrayagg(json_array(ifnull(`e`.`OPTION_ID`,0),ifnull(`c`.`OPTION_VALUE_ID`,0))) AS `OPT_IDS_JSON`,group_concat(concat(`e`.`OPTION_NAME`,' : ',`d`.`VALUE`) separator ' | ') AS `OPT_JSON` from ((((`product_codes` `pc` left join `products` `pr` on(`pc`.`PRODUCT_ID` = `pr`.`PRO_ID`)) left join `product_code_join_option` `c` on(`pc`.`PRO_CODE` = `c`.`PRODUCT_CODE`)) left join `product_option` `d` on(`d`.`ID` = `c`.`OPTION_VALUE_ID`)) left join `product_option_group` `e` on(`e`.`OPTION_ID` = `d`.`OPTION_ID`)) group by `pc`.`PRO_CODE`,`pr`.`PRO_NAME`;
+
+DROP TABLE IF EXISTS `purchases_orders_view`;
+DROP VIEW  IF EXISTS `purchases_orders_view`;
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `purchases_orders_view` AS select `po`.`ORDER_ID` AS `ORDER_ID`,`po`.`CREATE_AT` AS `CREATE_AT`,`po`.`SUPPLIER_ID` AS `SUPPLIER_ID`,`su`.`SUP_NAME` AS `SUP_NAME`,`po`.`NOTE` AS `NOTE`,`su`.`SUP_EMAIL` AS `SUP_EMAIL`,`tel`.`TEL_NUMBER` AS `TEL_NUMBER`,`po`.`TOTAL_PRICE` AS `TOTAL_PRICE`,coalesce(sum(`pp`.`QTY`),0) AS `QTY_ORDER_TOTAL`,coalesce(sum(`pp`.`QTY_SUPPLIED`),0) AS `QTY_SUPPLIED_TOTAL`,coalesce(sum(`pp`.`QTY`),0) - coalesce(sum(`pp`.`QTY_SUPPLIED`),0) AS `QTY_ORDER_WAITING`,coalesce(sum(`prp`.`SUM_QTY_RETURN`),0) AS `QTY_RETURN`,case when coalesce(sum(`pp`.`QTY_SUPPLIED`),0) = 0 then 'قيد التوريد' when coalesce(sum(`pp`.`QTY_SUPPLIED`),0) > 0 and coalesce(sum(`pp`.`QTY_SUPPLIED`),0) < coalesce(sum(`pp`.`QTY`),0) then 'جزئي' when coalesce(sum(`pp`.`QTY_SUPPLIED`),0) = coalesce(sum(`pp`.`QTY`),0) then 'مكتمل' end AS `SUPPLIED_STATUSE`,case when `po`.`STATUSE` = 'COMPLETED' then 'مدفوع' else 'مؤجل الدفع' end AS `PAYMENT_STATUSE`,case when coalesce(sum(`prp`.`SUM_QTY_RETURN`),0) >= coalesce(sum(`pp`.`QTY_SUPPLIED`),0) then 0 else 1 end AS `RETURN_STATUS`,coalesce(sum((`pp`.`QTY` - `pp`.`QTY_SUPPLIED`) * `pp`.`PURCHASE_UNIT_PRICE`),0) AS `TOTAL_WAIT_PRICE`,coalesce(sum(`pp`.`QTY` * `pp`.`PURCHASE_UNIT_PRICE`),0) AS `TOTAL_ORDER_PRICE`,coalesce(sum(`pp`.`QTY_SUPPLIED` * `pp`.`PURCHASE_UNIT_PRICE`),0) AS `TOTAL_SUP_PRICE`,`po`.`TOTAL_PAYMENTS` AS `TOTAL_PAYMENTS`,json_arrayagg(json_object('PRODUCT_NAME',`pov`.`PRO_NAME`,'PRODUCT_ATTRIBUTES',`pov`.`OPT_JSON`,'PRODUCT_CODE',`pp`.`PRO_CODE`,'QTY',`pp`.`QTY`,'UNIT_PRICE',`pp`.`PURCHASE_UNIT_PRICE`,'QTY_SUPPLIED',`pp`.`QTY_SUPPLIED`,'QTY_RETURN',coalesce(`prp`.`SUM_QTY_RETURN`,0))) AS `PRODUCT_DETAILS` from (((((`purchases_orders` `po` left join `purchases_products` `pp` on(`po`.`ORDER_ID` = `pp`.`ORDER_ID`)) left join (select `pro`.`REFERANC` AS `ORDER_ID`,`prp`.`PRO_CODE` AS `PRO_CODE`,sum(`prp`.`QTY_RETURN`) AS `SUM_QTY_RETURN` from (`purchases_return_orders` `pro` left join `purchases_return_products` `prp` on(`pro`.`ORDER_ID` = `prp`.`ORDER_ID`)) group by `pro`.`REFERANC`,`prp`.`PRO_CODE`) `prp` on(`pp`.`ORDER_ID` = `prp`.`ORDER_ID` and `pp`.`PRO_CODE` = `prp`.`PRO_CODE`)) left join `product_options_view` `pov` on(`pp`.`PRO_CODE` = `pov`.`PRO_CODE`)) left join `suppliers` `su` on(`po`.`SUPPLIER_ID` = `su`.`SUP_ID`)) left join `telephones` `tel` on(`su`.`SUP_ID` = `tel`.`SUPPLIER_ID` and `tel`.`DEFAULTTELL` = 1)) group by `po`.`ORDER_ID`;
+
 SET FOREIGN_KEY_CHECKS=1;
 COMMIT;
 
