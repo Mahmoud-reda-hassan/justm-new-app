@@ -2,6 +2,15 @@
 $lang = $language['Menu'];
 $UserScript_menu = unserialize($_SESSION['USER_SCRIPT']);
 $usm= isset($UserScript_menu["Admin"])?$UserScript_menu["Admin"]:[];
+$dashboardMenuPermissions = $usm['dashboard'] ?? [];
+$canViewAdminDashboard = false;
+foreach (['Admin', 'CustomerService1', 'CustomerService2', 'Storage', 'Delivery'] as $dashboardRole) {
+    $roleValue = $dashboardMenuPermissions[$dashboardRole] ?? false;
+    if ($roleValue === true || $roleValue === 1 || $roleValue === '1' || $roleValue === 'true') {
+        $canViewAdminDashboard = true;
+        break;
+    }
+}
 
 if ($loginType === 1 && $pageType > 0) {
     ?>
@@ -39,6 +48,7 @@ if ($loginType === 1 && $pageType > 0) {
 					}
 				?>
 					
+                <?php if ($pageType !== 1 || $canViewAdminDashboard): ?>
                 <li id="Dashboard" class="nav-item has-treeview">
                     <a href="?" class="nav-link active">
                         <i class="nav-icon fas fa-tachometer-alt"></i>
@@ -47,6 +57,7 @@ if ($loginType === 1 && $pageType > 0) {
                         </p>
                     </a>
                 </li>
+                <?php endif; ?>
 				
 
             <?php if($_SESSION["ADMIN_TYPE"] && $pageType  === 1){ ?>
