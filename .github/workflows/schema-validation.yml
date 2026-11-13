@@ -2,7 +2,7 @@ name: Schema and syntax validation
 
 on:
   push:
-    branches: [ci-schema-validation]
+    branches: ['**']
   pull_request:
     paths:
       - 'inc/Databases/createDatabase.sql'
