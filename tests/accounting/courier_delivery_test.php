@@ -45,8 +45,8 @@ function makeOrder(PDO $db, int $store, int $tel, int $status, float $ship, int 
                VALUES ('T-$n',2,1,1,1,'a',$tel,'01000000001',NOW(),$ship,$shippPayment,$status,0,$store)");
     $id = (int)$db->lastInsertId();
     foreach ($lines as $i => [$qty, $price, $disc, $cost, $deliv]) {
-        $db->exec("INSERT INTO order_product (ORDER_ID,PRO_CODE,QTY,PRICE,DISCOUNT,COST_PRICE,DELIVERED_QTY,RETURNED_QTY,USER_ID,OST_ID)
-                   VALUES ($id,'P$i',$qty,$price,$disc,$cost,$deliv,0,1,1)");
+        $db->exec("INSERT INTO order_product (ORDER_ID,PRO_CODE,QTY,PRICE,DISCOUNT,COST_PRICE,DELIVERED_QTY,RETURNED_QTY)
+                   VALUES ($id,'P$i',$qty,$price,$disc,$cost,$deliv,0)");
     }
     return $id;
 }
