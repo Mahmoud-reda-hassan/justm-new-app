@@ -433,7 +433,13 @@ function renderCustomerReturnOrders(orders) {
         const amount = parseFloat(order.payable_balance) || 0;
         const checkbox = $('<input>', {
             type: 'checkbox',
-            class: 'customer-return-order-check form-check-input',
+            class: 'customer-return-order-check',
+            css: {
+                display: 'inline-block',
+                float: 'none',
+                margin: '0',
+                position: 'static'
+            },
             'aria-label': 'تحديد أمر البيع ' + (order.order_number || order.id)
         }).val(order.id).data('amount', amount);
 
