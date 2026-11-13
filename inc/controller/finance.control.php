@@ -34,7 +34,9 @@ try {
 		case 'PaymentOfCustomerDues':
 		    $CBE->transaction_user_id = $_SESSION['USER_ID'];
 			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];
-		    echo json_encode($CBE->PaymentOfCustomerDues($_POST['oid']));
+		    $orderIds = json_decode($_POST['order_ids'] ?? '[]', true);
+		    $clientId = (int)($_POST['client_id'] ?? 0);
+		    echo json_encode($CBE->PaymentOfCustomerDues($orderIds, $clientId));
 			break;
 		case 'PaymentOfCustomerDirect':
 		    $CBE->transaction_user_id = $_SESSION['USER_ID'];
