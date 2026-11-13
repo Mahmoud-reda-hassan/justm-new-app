@@ -100,7 +100,7 @@ class PaymentDisbursement {
 			  C.CLIENT_NAME AS name,
 		      MAX(T.TEL_NUMBER) AS phone
 			FROM partners_balance A
-			LEFT JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
+			INNER JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
 		 	LEFT JOIN client C ON C.CLIENT_ID = A.PARTNER_ID
 			LEFT JOIN telephones T ON C.CLIENT_ID = T.CLIENT_ID
 			LEFT JOIN partners_balance B
