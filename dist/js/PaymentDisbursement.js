@@ -410,7 +410,7 @@ function initCustomerReturnSection() {
     let clientSelect = $('#select-client');
     let orderSelect = $('#select-order');
 
-    initPartnerSelect2('#select-client', 'GetClientData', 'اختر العميل');
+    initPartnerSelect2('#select-client', 'GetClientData_in', 'اختر العميل');
 
     orderSelect.select2({
         placeholder: 'اختر أمر البيع',
