@@ -212,6 +212,42 @@ class AccountingEvents {
 	    return $journalId;
 	}
 
+	/**
+	 * عكس قيد تسليم مندوب (عند رد الأمر للمخزن للتعديل).
+	 * يُنشأ قيد عكسي ولا يُحذف الأصل، ثم يُفرَّغ SALE_ENTRY_ID ليُرحَّل الأمر من جديد بعد التعديل.
+	 * يُمنع إن كان قد حُصّل من المندوب (ORDER_SUCCESS=1 أو فاتورة تحصيل ناجحة): يجب عكس التحصيل أولاً.
+	 * @return int رقم القيد العكسي
+	 */
+	public function reverseCourierDelivery(int $orderId, string $reason): int{
+	    if (trim($reason) === '') {
+	        throw new Exception("Reason is required.");
+	    }
+	    $stmt = $this->db->prepare("SELECT ORDER_ID, SALE_ENTRY_ID, ORDER_SUCCESS FROM orders WHERE ORDER_ID = ? FOR UPDATE");
+	    $stmt->execute([$orderId]);
+	    $order = $stmt->fetch(PDO::FETCH_ASSOC);
+	    if (!$order) {
+	        throw new Exception("Order not found.");
+	    }
+	    if ($order['SALE_ENTRY_ID'] === null) {
+	        throw new Exception("Order has no posted delivery entry.");
+	    }
+	    $inv = $this->db->prepare("SELECT COUNT(*) FROM invoices WHERE reference_type = 'SALES' AND reference_id = ? AND PAYMENT_SUCCESS = 1");
+	    $inv->execute([$orderId]);
+	    if ((int)$order['ORDER_SUCCESS'] === 1 || (int)$inv->fetchColumn() > 0) {
+	        throw new Exception("Order already collected: reverse the collection first.");
+	    }
+
+	    $this->journal->reset();
+	    $reverseId = $this->journal->reverse((int)$order['SALE_ENTRY_ID'], $reason);
+
+	    $upd = $this->db->prepare("UPDATE orders SET SALE_ENTRY_ID = NULL WHERE ORDER_ID = ? AND SALE_ENTRY_ID = ?");
+	    $upd->execute([$orderId, (int)$order['SALE_ENTRY_ID']]);
+	    if ($upd->rowCount() !== 1) {
+	        throw new Exception("Order changed concurrently.");
+	    }
+	    return $reverseId;
+	}
+
 /*****************************************************
 * البيع المباشر(دوال الاستخدام)
 *****************************************************/

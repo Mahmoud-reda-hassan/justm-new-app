@@ -99,6 +99,22 @@ check('missing cost allowed by option: sales only, balanced', lineSum($l, '4100'
 $o6 = makeOrder($db, $store, $tel, 2, 30, 1, [[1, 100, 0, 50, 0]]);
 check('order still in shipping is refused', throwsMsg(fn() => $ev->courierDelivery($o6), 'not been delivered'));
 
+// 6b) reopening: reverse the delivery entry, then post again after the storekeeper edits
+$orig = (int)$db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o2")->fetchColumn();
+check('reverse requires a reason', throwsMsg(fn() => $ev->reverseCourierDelivery($o2, '  '), 'Reason'));
+$rev = $ev->reverseCourierDelivery($o2, 'courier mistake');
+check('reverse returns a new entry and clears the order link', $rev > 0 && $rev !== $orig && $db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o2")->fetchColumn() === null);
+$net = $db->query("SELECT d.account_id, ROUND(SUM(d.debit-d.credit),2) AS n FROM journal_entry_details d WHERE d.journal_entry_id IN ($orig,$rev) GROUP BY d.account_id")->fetchAll();
+check('original + reversal net to zero on every account', count($net) > 0 && count(array_filter($net, fn($r) => (float)$r['n'] !== 0.0)) === 0, json_encode($net));
+check('original entry is kept (not deleted)', (int)$db->query("SELECT COUNT(*) FROM journal_entries WHERE id=$orig")->fetchColumn() === 1);
+check('reverse twice is refused', throwsMsg(fn() => $ev->reverseCourierDelivery($o2, 'again'), 'no posted delivery'));
+$db->exec("UPDATE order_product SET DELIVERED_QTY=2 WHERE ORDER_ID=$o2");   // storekeeper corrects: all delivered
+$j2b = $ev->courierDelivery($o2);
+[$h, $l] = entry($db, $j2b);
+check('re-post after correction uses the corrected quantity (sales 180)', lineSum($l, '4100', 'credit') === 180.0 && (float)$h['total_debit'] === (float)$h['total_credit']);
+$db->exec("UPDATE orders SET ORDER_SUCCESS=1 WHERE ORDER_ID=$o1");
+check('collected order cannot be reversed', throwsMsg(fn() => $ev->reverseCourierDelivery($o1, 'x'), 'collected'));
+
 // 7) DELIVERY partner lines (was broken: wrong partner column names)
 $s = new AccountSettings($db);
 $jm = new JournalManager($db);
