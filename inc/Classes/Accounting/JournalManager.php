@@ -484,10 +484,10 @@ class JournalManager{
 	    $column = [
 	
 	        'CLIENT'    => 'CLIENT_ID',
-	        'SUPPLIER'  => 'suppliers',
-	        'DELIVERY'  => 'users',
-	        'MARKETER'  => 'users',
-	        'EMPLOYEE'  => 'users'
+	        'SUPPLIER'  => 'SUP_ID',
+	        'DELIVERY'  => 'USER_ID',
+	        'MARKETER'  => 'USER_ID',
+	        'EMPLOYEE'  => 'USER_ID'
 	
 	    ];
 	

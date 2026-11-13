@@ -45,6 +45,10 @@ jobs:
           q "SELECT COUNT(*) FROM product_options_view"
           q "SELECT COUNT(*) FROM purchases_orders_view"
           test "$(q "SELECT COUNT(*) FROM information_schema.views WHERE table_schema='cptest'")" = "2"
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.2', coverage: none, extensions: pdo_mysql }
+      - name: Courier delivery accounting test
+        run: php tests/accounting/courier_delivery_test.php 127.0.0.1 root test
       - name: Phase 1 accounts and settings (and migration is idempotent)
         run: |
           q() { mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest -N -e "$1"; }
