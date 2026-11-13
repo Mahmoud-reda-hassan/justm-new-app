@@ -91,18 +91,18 @@ class PaymentDisbursement {
 	}
 	
 	public function GetClientData($inout = false){
-	
+
 	    $search = trim($this->Requst['search'] ?? '');
 	    $wherecat = $inout === true ? 14 : 8;
 	    $joincat = $inout === true ? 18 : 9;
-	    $order_type = $inout === true ? 1 : 2;
+	    $orderTypeCondition = $inout === true ? "" : " AND O.ORDER_TYPE_ID = 2 ";
 	    $query = "SELECT A.PARTNER_ID AS id,
 			  C.CLIENT_NAME AS name,
-		      T.TEL_NUMBER AS phone
+		      MAX(T.TEL_NUMBER) AS phone
 			FROM partners_balance A
 			LEFT JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
 		 	LEFT JOIN client C ON C.CLIENT_ID = A.PARTNER_ID
-			LEFT JOIN telephones T ON C.CLIENT_ID = T.CLIENT_ID 
+			LEFT JOIN telephones T ON C.CLIENT_ID = T.CLIENT_ID
 			LEFT JOIN partners_balance B
 			  ON B.REFERENCE_ID = A.REFERENCE_ID
 			  AND B.PARTNER_ID = A.PARTNER_ID
@@ -110,57 +110,68 @@ class PaymentDisbursement {
 			  AND B.TRANSACTION_CATEGORY_ID = ".$joincat."
 			WHERE A.PARTNER_TYPE = 'CLIENT'
 			  AND A.TRANSACTION_CATEGORY_ID = ".$wherecat."
-			  AND B.TRANSACTION_CATEGORY_ID IS NULL 
-			  AND O.ORDER_TYPE_ID = ".$order_type." ";
-	
+			  AND B.TRANSACTION_CATEGORY_ID IS NULL
+			  ".$orderTypeCondition."
+			  ".($inout === true ? " AND A.BALANCE > 0 " : "")." ";
+
 	    $params = [];
-	
 	    if ($search !== "") {
 	        $query .= " AND (C.CLIENT_NAME LIKE :search OR T.TEL_NUMBER LIKE :search) ";
 	        $params['search'] = "$search%";
 	    }
-	
-	    $query .= "GROUP BY A.PARTNER_ID,C.CLIENT_NAME LIMIT 100";
-	
+	    $query .= " GROUP BY A.PARTNER_ID,C.CLIENT_NAME LIMIT 100";
 	    $stmt = $this->conn->prepare($query);
 	    $stmt->execute($params);
-	
 	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	
+
 	public function GetClientRetrnOrder(){
 	    $search = trim($this->Requst['search'] ?? '');
-		$Client_id = trim($this->Requst['cid'] ?? '');
-	    $query = "SELECT A.REFERENCE_ID AS id,
-			 O.SUB_ORDER_ID AS name
-			FROM partners_balance A
-			 LEFT JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
-			 LEFT JOIN partners_balance B
-			 ON B.REFERENCE_ID = A.REFERENCE_ID
-			 AND B.PARTNER_ID = A.PARTNER_ID
-			 AND B.PARTNER_TYPE = 'CLIENT'
-			 AND B.TRANSACTION_CATEGORY_ID = 18
-			WHERE A.PARTNER_TYPE = 'CLIENT'
-			 AND A.TRANSACTION_CATEGORY_ID = 14
-			 AND B.TRANSACTION_CATEGORY_ID IS NULL
-			 AND A.PARTNER_ID = :CID ";
-	
-	    $params = [];
-		$params['CID'] = $Client_id;
-	    if ($search !== "") {
-	        $query .= " AND (O.SUB_ORDER_ID LIKE :search) ";
-	        
-	        $params['search'] = "%$search%";
+	    $clientId = (int)($this->Requst['cid'] ?? 0);
+	    if ($clientId <= 0) return [];
+
+	    $query = "SELECT
+	            O.ORDER_ID AS id,
+	            O.SUB_ORDER_ID AS order_number,
+	            C.CLIENT_NAME AS client_name,
+	            COALESCE(SUM(OP.QTY),0) AS required_qty,
+	            COALESCE(SUM((OP.PRICE - OP.DISCOUNT) * OP.QTY),0) AS order_total,
+	            COALESCE(SUM(OP.DELIVERED_QTY),0) AS delivered_qty,
+	            COALESCE(SUM((OP.PRICE - OP.DISCOUNT) * OP.DELIVERED_QTY),0) AS delivered_total,
+	            COALESCE(SUM(OP.RETURNED_QTY),0) AS returned_qty,
+	            COALESCE(SUM((OP.PRICE - OP.DISCOUNT) * OP.RETURNED_QTY),0) AS returned_total,
+	            PB.BALANCE AS payable_balance
+	        FROM (
+	            SELECT PARTNER_ID, REFERENCE_ID, MAX(BALANCE) AS BALANCE
+	            FROM partners_balance
+	            WHERE PARTNER_TYPE = 'CLIENT' AND TRANSACTION_CATEGORY_ID = 14
+	            GROUP BY PARTNER_ID, REFERENCE_ID
+	        ) PB
+	        INNER JOIN orders O ON O.ORDER_ID = PB.REFERENCE_ID
+	        INNER JOIN addresses A ON A.ADDRESS_ID = O.ADDRESS_ID AND A.CLIENT_ID = PB.PARTNER_ID
+	        INNER JOIN client C ON C.CLIENT_ID = A.CLIENT_ID
+	        LEFT JOIN order_product OP ON OP.ORDER_ID = O.ORDER_ID
+	        WHERE PB.PARTNER_ID = :client_id
+	          AND PB.BALANCE > 0
+	          AND NOT EXISTS (
+	              SELECT 1 FROM partners_balance PAID
+	              WHERE PAID.PARTNER_TYPE = 'CLIENT'
+	                AND PAID.PARTNER_ID = PB.PARTNER_ID
+	                AND PAID.REFERENCE_ID = PB.REFERENCE_ID
+	                AND PAID.TRANSACTION_CATEGORY_ID = 18
+	          )";
+
+	    $params = ['client_id' => $clientId];
+	    if ($search !== '') {
+	        $query .= " AND (O.SUB_ORDER_ID LIKE :search OR O.ORDER_ID LIKE :search)";
+	        $params['search'] = "%".$search."%";
 	    }
-	    
-	    $query .= " LIMIT 1000";
-	
+	    $query .= " GROUP BY O.ORDER_ID, O.SUB_ORDER_ID, C.CLIENT_NAME, PB.BALANCE ORDER BY O.ORDER_ID DESC LIMIT 1000";
+
 	    $stmt = $this->conn->prepare($query);
 	    $stmt->execute($params);
-	
 	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	
 	public function GetClientdirctOrder(){
 	    $search = trim($this->Requst['search'] ?? '');
 		$Client_id = trim($this->Requst['cid'] ?? '');
@@ -196,27 +207,24 @@ class PaymentDisbursement {
 	}
 	
 	public function GetRefundBalance($orderId){
-		$query = "
-			SELECT COALESCE(BALANCE,0) AS total_balance
-			 FROM  (
-			 	SELECT 
-				 REFERENCE_ID,
-				 CASE WHEN TRANSACTION_CATEGORY_ID = 14 THEN 1 ELSE 0 END AS DEFERRED_PAYMENT,
-				 CASE WHEN TRANSACTION_CATEGORY_ID = 18 THEN 1 ELSE 0 END AS PAID,
-				 BALANCE
-				FROM  partners_balance
-				WHERE PARTNER_TYPE ='CLIENT' AND TRANSACTION_CATEGORY_ID IN(14,18) 
-				GROUP BY REFERENCE_ID,PARTNER_ID
-			) PB
-			WHERE DEFERRED_PAYMENT = 1 AND PAID = 0 AND REFERENCE_ID = :oid";
-				 
-		if(!$orderId) return [['total_balance'=>0]];
-		
-		$stmt = $this->conn->prepare($query);
-	    $stmt->execute(['oid'=>$orderId]);
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	    if (!$orderId) return [['total_balance' => 0]];
+	    $query = "SELECT COALESCE(MAX(PB.BALANCE),0) AS total_balance
+	        FROM partners_balance PB
+	        WHERE PB.PARTNER_TYPE = 'CLIENT'
+	          AND PB.TRANSACTION_CATEGORY_ID = 14
+	          AND PB.REFERENCE_ID = :oid
+	          AND NOT EXISTS (
+	              SELECT 1 FROM partners_balance PAID
+	              WHERE PAID.PARTNER_TYPE = 'CLIENT'
+	                AND PAID.PARTNER_ID = PB.PARTNER_ID
+	                AND PAID.REFERENCE_ID = PB.REFERENCE_ID
+	                AND PAID.TRANSACTION_CATEGORY_ID = 18
+	          )";
+	    $stmt = $this->conn->prepare($query);
+	    $stmt->execute(['oid' => (int)$orderId]);
+	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	
+
 	public function GetDirectBalance($orderId){
 		$query = "
 			SELECT COALESCE(BALANCE,0) AS total_balance
