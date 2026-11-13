@@ -423,7 +423,7 @@ function renderCustomerReturnOrders(orders) {
 
     if (!Array.isArray(orders) || !orders.length) {
         tbody.append($('<tr>').append(
-            $('<td>', { colspan: 10, class: 'text-muted' }).text('لا توجد أوامر بيع لها مستحقات مرتجعات غير مصروفة')
+            $('<td>', { colspan: 12, class: 'text-muted' }).text('لا توجد أوامر بيع لها مستحقات مرتجعات غير مصروفة')
         ));
         updateCustomerReturnTotal();
         return;
@@ -431,9 +431,12 @@ function renderCustomerReturnOrders(orders) {
 
     orders.forEach(function(order) {
         const amount = parseFloat(order.payable_balance) || 0;
+        const isPaid = Number(order.payment_status) === 1;
         const checkbox = $('<input>', {
             type: 'checkbox',
             class: 'customer-return-order-check',
+            disabled: !isPaid,
+            title: isPaid ? 'الأمر مسدد ويمكن صرف مستحق المرتجع' : 'لا يمكن صرف مستحق المرتجع قبل سداد أمر البيع',
             css: {
                 display: 'inline-block',
                 float: 'none',
@@ -453,6 +456,8 @@ function renderCustomerReturnOrders(orders) {
             formatMoney(order.delivered_total),
             formatReturnQuantity(order.returned_qty),
             formatMoney(order.returned_total),
+            Number(order.payment_status) === 1 ? 'مسدد' : 'غير مسدد',
+            formatMoney(order.paid_amount),
             formatMoney(amount)
         ];
 
@@ -471,18 +476,18 @@ async function loadCustomerReturnOrders(clientId) {
     $('#return-amount').text('0.00');
 
     if (!clientId) {
-        tbody.html('<tr><td colspan="10" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
+        tbody.html('<tr><td colspan="12" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
         return;
     }
 
-    tbody.html('<tr><td colspan="10"><i class="fas fa-spinner fa-spin"></i> جارٍ تحميل أوامر البيع...</td></tr>');
+    tbody.html('<tr><td colspan="12"><i class="fas fa-spinner fa-spin"></i> جارٍ تحميل أوامر البيع...</td></tr>');
     const data = await request(API, {
         CONTROL: 'GetClientRetrnOrder',
         cid: clientId
     });
 
     if (data) renderCustomerReturnOrders(data);
-    else tbody.html('<tr><td colspan="10" class="text-danger">تعذر تحميل أوامر البيع</td></tr>');
+    else tbody.html('<tr><td colspan="12" class="text-danger">تعذر تحميل أوامر البيع</td></tr>');
 }
 
 function initCustomerReturnSection() {
@@ -525,7 +530,7 @@ async function saveFinancialReturn() {
 
         if (data[0] === 'success') {
             $('#select-client').val(null).trigger('change');
-            $('#clientReturnOrdersTable tbody').html('<tr><td colspan="10" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
+            $('#clientReturnOrdersTable tbody').html('<tr><td colspan="12" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
             $('#return-amount').text('0.00');
         }
 
@@ -921,7 +926,7 @@ $(function() {
     $('#btn-morad').click(() => showForm('morad'));
     $('#btn-client-return').click(() => {
         $('#select-client').val(null).trigger('change');
-        $('#clientReturnOrdersTable tbody').html('<tr><td colspan="10" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
+        $('#clientReturnOrdersTable tbody').html('<tr><td colspan="12" class="text-muted">اختر العميل لعرض أوامر البيع المستحقة</td></tr>');
         $('#return-amount').text('0.00');
         showForm('client-return');
     });
