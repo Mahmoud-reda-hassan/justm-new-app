@@ -302,4 +302,18 @@ class AccountSettings{
 	public function otherExpense(): int {
 	    return $this->get('OTHER_EXPENSE');
 	}
+
+	/**
+	 * عهدة المندوبين: المبالغ المحصلة لدى المندوب قبل توريدها للشركة.
+	 */
+	public function deliveryCustody(): int {
+	    return $this->get('DELIVERY_CUSTODY');
+	}
+
+	/**
+	 * عمولات المندوبين المستحقة (التزام) حتى تُصرف أو تُخصم من العهدة.
+	 */
+	public function deliveryCommissionPayable(): int {
+	    return $this->get('DELIVERY_COMMISSION_PAYABLE');
+	}
 }
