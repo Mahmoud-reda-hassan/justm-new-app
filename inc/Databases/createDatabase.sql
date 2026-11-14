@@ -5378,6 +5378,30 @@ WHERE a.`account_code` = '2210'
   AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'DELIVERY_COMMISSION_PAYABLE');
 
 --
+-- GL reporting views
+--
+CREATE OR REPLACE VIEW `gl_trial_balance` AS
+SELECT a.`id` AS account_id, a.`account_code`, a.`account_name`, a.`account_type`,
+       COALESCE(SUM(d.`debit`),0)  AS total_debit,
+       COALESCE(SUM(d.`credit`),0) AS total_credit,
+       COALESCE(SUM(d.`debit` - d.`credit`),0) AS net_debit_minus_credit
+FROM `accounts` a
+LEFT JOIN `journal_entry_details` d ON d.`account_id` = a.`id`
+LEFT JOIN `journal_entries` e ON e.`id` = d.`journal_entry_id` AND e.`status` = 'POSTED'
+WHERE d.`id` IS NULL OR e.`id` IS NOT NULL
+GROUP BY a.`id`, a.`account_code`, a.`account_name`, a.`account_type`;
+
+CREATE OR REPLACE VIEW `gl_partner_balances` AS
+SELECT d.`partner_type`, d.`partner_id`, a.`account_code`,
+       SUM(d.`debit`) AS total_debit, SUM(d.`credit`) AS total_credit,
+       SUM(d.`debit` - d.`credit`) AS net_debit_minus_credit
+FROM `journal_entry_details` d
+JOIN `journal_entries` e ON e.`id` = d.`journal_entry_id` AND e.`status` = 'POSTED'
+JOIN `accounts` a ON a.`id` = d.`account_id`
+WHERE d.`partner_type` IS NOT NULL
+GROUP BY d.`partner_type`, d.`partner_id`, a.`account_code`;
+
+--
 -- Phase 1g reference rows (marketer commission accounts)
 --
 -- Phase 1g: marketer / team-leader commission accounts.

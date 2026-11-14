@@ -1186,6 +1186,8 @@ class finance_BE {
 	        // اضافة المعامله
 			$transactionRecorded = $this->Add_transaction(NULL, 'SUPPLIER', $supplier_id, $total_amount,1, '11' ,'COMPLETED','دفعه من حساب المورد');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->supplierRefund((int)$supplier_id, (float)$total_amount, (int)$transactionRecorded);
 			
 			$resultFinal = $this->Add_partners_balance( 'SUPPLIER', $supplier_id, NULL, 'DEBIT', $total_amount,'دفعة من حساب المورد','11' );
 			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المورد");
@@ -1359,6 +1361,8 @@ class finance_BE {
 	        // اضافة المعامله
 			$transactionRecorded = $this->Add_transaction(NULL, 'SUPPLIER', $supplier_id, $total_amount,1, '11' ,'COMPLETED','دفعه من حساب المورد');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->supplierPayment((int)$supplier_id, (float)$total_amount, (int)$transactionRecorded);
 			
 			// تسجيل مبلغ المرتجع فى رصيد العميل
 			//$resultFinal = $this->addClientDebt($order['CLIENT_ID'], $order['ORDER_ID'], $order['ACTUAL_TOTAL'], 18);

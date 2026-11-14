@@ -378,6 +378,82 @@ class AccountingEvents {
 	}
 
 /*****************************************************
+* المشتريات والموردون
+*****************************************************/
+
+	// قيد بسيط من طرفين (مدين/دائن) على حساب المورد والمخزون أو الصندوق
+	protected function postSupplierEntry(string $refType, int $refId, string $desc, int $supplierId, float $amount, string $other, bool $supplierDebit, ?int $storeId = null): int{
+	    $amount = round($amount, 2);
+	    if ($supplierId <= 0 || $amount <= 0) {
+	        throw new Exception("Invalid supplier amount.");
+	    }
+	    $branchId = $this->getCurrentBranchId();
+	    $otherLine = ['account_id' => $other === 'cash' ? $this->settings->cash($branchId) : $this->settings->inventory()];
+	    if ($other === 'inventory') {
+	        if (!$storeId) { throw new Exception("Store is required."); }
+	        $otherLine['store_id'] = $storeId;
+	    }
+	    $supLine = [
+	        'account_id'   => $this->settings->suppliers(),
+	        'partner_type' => 'SUPPLIER',
+	        'partner_id'   => $supplierId
+	    ];
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => $branchId,
+	        'entry_date'     => date('Y-m-d H:i:s'),
+	        'reference_type' => $refType,
+	        'reference_id'   => $refId,
+	        'description'    => $desc,
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+	    if ($supplierDebit) {
+	        $this->journal->addLine($supLine + ['debit' => $amount]);
+	        $this->journal->addLine($otherLine + ['credit' => $amount]);
+	    } else {
+	        $this->journal->addLine($otherLine + ['debit' => $amount]);
+	        $this->journal->addLine($supLine + ['credit' => $amount]);
+	    }
+	    return $this->journal->post();
+	}
+
+	/** استلام بضاعة من مورد: مدين المخزون / دائن المورد. */
+	public function supplierReceipt(int $purchaseOrderId, int $supplierId, int $storeId, float $amount): int{
+	    return $this->postSupplierEntry('PURCHASE_RECEIPT', $purchaseOrderId, 'استلام بضاعة من مورد - أمر شراء '.$purchaseOrderId, $supplierId, $amount, 'inventory', false, $storeId);
+	}
+
+	/** استلام جزئي لأمر شراء: يحسب القيمة من الكميات المستلمة × سعر الشراء. @param array $rows [[ORDER_ID, PRO_CODE, QTY_SUPPLIED], ...] */
+	public function purchasePartialReceipt(int $purchaseOrderId, array $rows, int $storeId): int{
+	    $st = $this->db->prepare("SELECT PURCHASE_UNIT_PRICE FROM purchases_products WHERE ORDER_ID = ? AND PRO_CODE = ?");
+	    $amount = 0.0;
+	    foreach ($rows as $r) {
+	        $st->execute([$purchaseOrderId, $r['PRO_CODE']]);
+	        $price = $st->fetchColumn();
+	        if ($price === false) { throw new Exception("Purchase line not found."); }
+	        $amount += (float)$price * (float)$r['QTY_SUPPLIED'];
+	    }
+	    $so = $this->db->prepare("SELECT SUPPLIER_ID FROM purchases_orders WHERE ORDER_ID = ?");
+	    $so->execute([$purchaseOrderId]);
+	    $supplierId = (int)$so->fetchColumn();
+	    return $this->supplierReceipt($purchaseOrderId, $supplierId, $storeId, $amount);
+	}
+
+	/** مرتجع مشتريات للمورد: مدين المورد / دائن المخزون. */
+	public function supplierReturn(int $returnOrderId, int $supplierId, int $storeId, float $amount): int{
+	    return $this->postSupplierEntry('PURCHASE_RETURN', $returnOrderId, 'مرتجع مشتريات للمورد - أمر '.$returnOrderId, $supplierId, $amount, 'inventory', true, $storeId);
+	}
+
+	/** دفعة للمورد: مدين المورد / دائن الصندوق. */
+	public function supplierPayment(int $supplierId, float $amount, int $transactionId): int{
+	    return $this->postSupplierEntry('SUPPLIER_PAYMENT', $transactionId, 'دفعة للمورد', $supplierId, $amount, 'cash', true);
+	}
+
+	/** تحصيل من المورد (مرتجع نقدي): مدين الصندوق / دائن المورد. */
+	public function supplierRefund(int $supplierId, float $amount, int $transactionId): int{
+	    return $this->postSupplierEntry('SUPPLIER_REFUND', $transactionId, 'تحصيل من مورد', $supplierId, $amount, 'cash', false);
+	}
+
+/*****************************************************
 * البيع المباشر(دوال الاستخدام)
 *****************************************************/
 		
@@ -642,6 +718,72 @@ class AccountingEvents {
 	    ]);
 	}
 	
+	/**
+	 * قيد مرتجع أمر شحن مندوب (بعد التسليم والتحصيل) عند استلام المرتجعات في المخزن.
+	 * يرحّل الفرق فقط بين إجمالي المرتجع الحالي وما رُحِّل سابقاً، فيدعم أكثر من استلام جزئي للأمر نفسه.
+	 * مدين مردودات المبيعات / دائن العملاء، ومدين المخزون / دائن تكلفة البضاعة.
+	 * يتجاهل (يرجع 0) الأمر الذي لم يُرحَّل بيعه (أوامر قديمة قبل التحويل) كي لا يخلق رصيداً دائناً بلا مقابل.
+	 * @return int رقم القيد أو 0
+	 */
+	public function courierSalesReturn(int $orderId): int{
+	    $order = $this->getSalesOrder($orderId);
+	    if ($order['SALE_ENTRY_ID'] === null) {
+	        return 0;
+	    }
+	    if (!in_array((int)$order['ORDER_STATUS'], [6, 7], true)) {
+	        throw new Exception("Order has no return status.");
+	    }
+	    if ((int)($order['CLIENT_ID'] ?? 0) <= 0) {
+	        throw new Exception("لا يمكن ترحيل المرتجع: العميل غير مرتبط برقم هاتف الطلب.");
+	    }
+
+	    $prev = $this->db->prepare("
+	        SELECT COALESCE(SUM(CASE WHEN a.id = ? THEN d.debit ELSE 0 END),0) AS SALES_POSTED,
+	               COALESCE(SUM(CASE WHEN a.id = ? THEN d.debit ELSE 0 END),0) AS COST_POSTED
+	        FROM journal_entries e
+	        JOIN journal_entry_details d ON d.journal_entry_id = e.id
+	        JOIN accounts a ON a.id = d.account_id
+	        WHERE e.reference_type = 'COURIER_SALES_RETURN' AND e.reference_id = ? AND e.status = 'POSTED'
+	    ");
+	    $prev->execute([$this->settings->salesReturns(), $this->settings->inventory(), $orderId]);
+	    $p = $prev->fetch(PDO::FETCH_ASSOC);
+
+	    $sales = round((float)$order['RETURN_AMOUNT'] - (float)$p['SALES_POSTED'], 2);
+	    $cost  = round((float)$order['RETURN_COST_AMOUNT'] - (float)$p['COST_POSTED'], 2);
+	    if ($sales <= 0) {
+	        return 0;
+	    }
+	    if ($cost <= 0) {
+	        throw new Exception("Returned cost is zero.");
+	    }
+
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => (int)$order['BRANCH_ID'],
+	        'entry_date'     => $order['JOURNAL_DATE'],
+	        'reference_type' => 'COURIER_SALES_RETURN',
+	        'reference_id'   => $orderId,
+	        'description'    => 'مرتجع أمر شحن رقم '.$order['SUB_ORDER_ID'],
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+	    $this->journal->addLine(['account_id' => $this->settings->salesReturns(), 'debit' => $sales]);
+	    $this->journal->addLine([
+	        'account_id'   => $this->settings->customers(),
+	        'partner_type' => 'CLIENT',
+	        'partner_id'   => (int)$order['CLIENT_ID'],
+	        'credit'       => $sales
+	    ]);
+	    $this->journal->addLine([
+	        'account_id' => $this->settings->inventory(),
+	        'store_id'   => (int)$order['STORE_ID'],
+	        'debit'      => $cost
+	    ]);
+	    $this->journal->addLine(['account_id' => $this->settings->cogs(), 'credit' => $cost]);
+	    $journalId = $this->journal->post();
+	    $this->markSalesReturnPosted($orderId, $journalId);
+	    return $journalId;
+	}
+
 	// الدالة الرئيسية لاستلام مرتجع مبيعات للمخزون
 	public function salesReturn(int $orderId): int{
 	    // جلب بيانات أمر المرتجع

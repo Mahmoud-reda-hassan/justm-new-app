@@ -227,5 +227,40 @@ check('delivery payout: debit 2210 / credit cash 3', lineSum($l, '2210', 'debit'
 check('marketer payout: debit 2220 / credit cash 7', lineSum($l, '2220', 'debit') === 7.0 && lineSum($l, '1110', 'credit') === 7.0);
 check('payout rejects zero and unknown type', throwsMsg(fn() => $ev->commissionPayout('DELIVERY', $userId, 0.0, 1), 'Invalid') && throwsMsg(fn() => $ev->commissionPayout('X', $userId, 1.0, 1), 'Unsupported'));
 
+// 10) sales return after delivery/collection (delta posting, idempotent)
+$o15 = makeOrder($db, $store, $tel, 3, 0, 1, [[2, 100, 10, 60, 2]]);
+$ev->courierDelivery($o15);
+$db->exec("UPDATE order_product SET RETURNED_QTY=1 WHERE ORDER_ID=$o15");
+$db->exec("UPDATE orders SET ORDER_STATUS=7 WHERE ORDER_ID=$o15");
+$rj = $ev->courierSalesReturn($o15);
+[$h, $l] = entry($db, $rj);
+check('return #1: sales returns 90 / customers 90 / inventory 60 / COGS 60', lineSum($l, '4100', 'debit') === 90.0 && lineSum($l, '1200', 'credit') === 90.0 && lineSum($l, '1300', 'debit') === 60.0 && lineSum($l, '5100', 'credit') === 60.0 && (float)$h['total_debit'] === (float)$h['total_credit']);
+check('return: same state posts nothing again', $ev->courierSalesReturn($o15) === 0);
+$db->exec("UPDATE order_product SET RETURNED_QTY=2 WHERE ORDER_ID=$o15");
+$db->exec("UPDATE orders SET ORDER_STATUS=6 WHERE ORDER_ID=$o15");
+[$h, $l] = entry($db, $ev->courierSalesReturn($o15));
+check('return #2 posts only the delta (90 / 60)', lineSum($l, '4100', 'debit') === 90.0 && lineSum($l, '1300', 'debit') === 60.0);
+$o16 = makeOrder($db, $store, $tel, 7, 0, 1, [[1, 100, 0, 50, 1]]);
+$db->exec("UPDATE order_product SET RETURNED_QTY=1 WHERE ORDER_ID=$o16");
+check('return of an order whose sale was never posted is skipped', $ev->courierSalesReturn($o16) === 0);
+
+// 11) purchases and suppliers
+$db->exec("INSERT INTO suppliers (SUP_NAME) VALUES ('Sup')");
+$sup = (int)$db->lastInsertId();
+$db->exec("INSERT INTO purchases_orders (SUPPLIER_ID,REFERANC,TOTAL_PRICE,STATUSE) VALUES ($sup,'R',500,'DEFERRED')");
+$po = (int)$db->lastInsertId();
+$db->exec("INSERT INTO purchases_products (ORDER_ID,PRO_CODE,PURCHASE_UNIT_PRICE,QTY,QTY_SUPPLIED) VALUES ($po,'P0',25,20,0)");
+[$h, $l] = entry($db, $ev->supplierReceipt($po, $sup, $store, 500.0));
+check('purchase receipt: inventory 500 / suppliers 500', lineSum($l, '1300', 'debit') === 500.0 && lineSum($l, '2100', 'credit') === 500.0 && $l[1]['partner_type'] === 'SUPPLIER');
+[$h, $l] = entry($db, $ev->purchasePartialReceipt($po, [['ORDER_ID' => $po, 'PRO_CODE' => 'P0', 'QTY_SUPPLIED' => 4]], $store));
+check('partial receipt: 4 x 25 = 100', lineSum($l, '1300', 'debit') === 100.0 && lineSum($l, '2100', 'credit') === 100.0);
+[$h, $l] = entry($db, $ev->supplierReturn(7001, $sup, $store, 50.0));
+check('purchase return: suppliers 50 debit / inventory 50 credit', lineSum($l, '2100', 'debit') === 50.0 && lineSum($l, '1300', 'credit') === 50.0);
+[$h, $l] = entry($db, $ev->supplierPayment($sup, 200.0, 7002));
+check('supplier payment: suppliers debit / cash credit 200', lineSum($l, '2100', 'debit') === 200.0 && lineSum($l, '1110', 'credit') === 200.0);
+[$h, $l] = entry($db, $ev->supplierRefund($sup, 30.0, 7003));
+check('supplier refund: cash debit / suppliers credit 30', lineSum($l, '1110', 'debit') === 30.0 && lineSum($l, '2100', 'credit') === 30.0);
+check('supplier entry rejects zero amount', throwsMsg(fn() => $ev->supplierPayment($sup, 0.0, 1), 'Invalid'));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

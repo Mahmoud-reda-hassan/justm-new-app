@@ -6983,6 +6983,13 @@ class RetrnSale_BE {
 			if($updateInventory){
 				$invResult = $this->InventoryManager->processInventory('RETURN_SALES', $refund_order_ids, $executedBy, $branchId, $sessionId, $storeId);
 				if ((int)$invResult <= 0) throw new Exception('فشل فى تحديث المخزون');
+
+				// قيد الأستاذ: مرتجع المبيعات (مردودات/عملاء + مخزون/تكلفة) لكل أمر
+				include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+				$returnAccounting = new AccountingEvents($conn);
+				foreach ($refund_order_ids as $rid) {
+					$returnAccounting->courierSalesReturn((int)$rid);
+				}
 			}
 
 			// ------- 8. حركة Log ---------------------------
