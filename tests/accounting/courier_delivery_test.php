@@ -115,6 +115,34 @@ check('re-post after correction uses the corrected quantity (sales 180)', lineSu
 $db->exec("UPDATE orders SET ORDER_SUCCESS=1 WHERE ORDER_ID=$o1");
 check('collected order cannot be reversed', throwsMsg(fn() => $ev->reverseCourierDelivery($o1, 'x'), 'collected'));
 
+// 6c) inventory reversal on reopen (RETURN_SHIPP -> REOPEN_RETURN_SHIPP)
+require_once __DIR__ . '/../../inc/Classes/InventoryManager.php';
+$im = new InventoryManager($db);
+$o7 = makeOrder($db, $store, $tel, 4, 0, 1, [[2, 100, 0, 60, 1]]);
+$db->exec("UPDATE order_product SET PRO_STATUSE='partial' WHERE ORDER_ID=$o7");
+$db->exec("INSERT INTO stores_product (STO_ID,PRO_CODE,STO_QTY) VALUES ($store,'P0',10)");
+$stock = fn() => (float)$db->query("SELECT STO_QTY FROM stores_product WHERE STO_ID=$store AND PRO_CODE='P0'")->fetchColumn();
+$db->beginTransaction();
+$im->processInventory('RETURN_SHIPP', [$o7], $userId, $branch, 'T-RS-1', $store);
+$db->commit();
+check('RETURN_SHIPP returned 1 rejected unit to stock (10 -> 11)', $stock() === 11.0, (string)$stock());
+$db->beginTransaction();
+$n = $im->reverseReturnShipp($o7, $userId, $branch, 'T-REV-1');
+$db->commit();
+check('reversal takes the unit back out (11 -> 10)', $n > 0 && $stock() === 10.0, (string)$stock());
+$db->beginTransaction();
+$n2 = $im->reverseReturnShipp($o7, $userId, $branch, 'T-REV-2');
+$db->commit();
+check('second reversal does nothing', $n2 === 0 && $stock() === 10.0);
+check('original movement is kept alongside the reversal', (int)$db->query("SELECT COUNT(*) FROM inventory_movement WHERE REFERENCE='$o7' AND IM_MOVE_TYPE IN ('RETURN_SHIPP','REOPEN_RETURN_SHIPP')")->fetchColumn() === 2);
+$db->exec("UPDATE stores_product SET STO_QTY=0 WHERE STO_ID=$store AND PRO_CODE='P0'");
+$db->beginTransaction();
+$im->processInventory('RETURN_SHIPP', [$o7], $userId, $branch, 'T-RS-2', $store);
+$db->exec("UPDATE stores_product SET STO_QTY=0 WHERE STO_ID=$store AND PRO_CODE='P0'");  // stock already sold elsewhere
+$blocked = throwsMsg(fn() => $im->reverseReturnShipp($o7, $userId, $branch, 'T-REV-3'), 'أقل من الكمية');
+$db->rollBack();
+check('reversal is refused when current stock is lower than the quantity to take back', $blocked);
+
 // 7) DELIVERY partner lines (was broken: wrong partner column names)
 $s = new AccountSettings($db);
 $jm = new JournalManager($db);

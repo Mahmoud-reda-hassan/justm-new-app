@@ -137,6 +137,68 @@ class InventoryManager {
         }
     }
 	
+	/**
+	 * عكس استلام مرفوضات المندوب (RETURN_SHIPP) لأمر بيع عند رده للمخزن للتعديل.
+	 * حركة مضادة (OUT) بنفس كميات الحركة الأصلية؛ لا يُحذف شيء من السجل.
+	 * يعكس الصافي فقط (المستلم - ما سبق عكسه) فلا يتكرر العكس.
+	 * @return int عدد أصناف المخزون المعدّلة (0 لو لا يوجد ما يُعكس)
+	 * @throws Exception لو المخزون الحالي لا يكفي لعكس الاستلام
+	 */
+	public function reverseReturnShipp(int $orderId, int $userActionId, int $branchId, string $uniqueId = null): int {
+	    if (!$this->conn->inTransaction()) {
+	        throw new Exception("⛔ يجب تنفيذ عمليات المخزون داخل Transaction.");
+	    }
+	    if (!$userActionId || !$branchId) throw new Exception("بيانات منشئ الحركة أو الفرع مفقودة.");
+	    $uniqueId = $uniqueId ?: uniqid('IM_', true);
+
+	    try {
+	        $this->acquireGlobalInventoryLock();
+
+	        $stmt = $this->conn->prepare("
+	            SELECT im.STO_ID, ipm.IPM_CODE,
+	                   SUM(CASE WHEN im.IM_MOVE_TYPE = 'RETURN_SHIPP' THEN ipm.IPM_QTY ELSE -ipm.IPM_QTY END) AS NET_QTY
+	            FROM inventory_product_movement ipm
+	            INNER JOIN inventory_movement im ON im.IM_ID = ipm.IM_ID
+	            WHERE im.REFERENCE = CAST(? AS CHAR) AND im.IM_MOVE_TYPE IN ('RETURN_SHIPP','REOPEN_RETURN_SHIPP')
+	            GROUP BY im.STO_ID, ipm.IPM_CODE
+	            HAVING NET_QTY > 0
+	        ");
+	        $stmt->execute([$orderId]);
+	        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	        if (!$rows) {
+	            return 0;
+	        }
+
+	        $byStore = [];
+	        foreach ($rows as $r) { $byStore[(int)$r['STO_ID']][] = $r; }
+
+	        foreach ($byStore as $storeId => $items) {
+	            $this->conn->prepare("
+	                INSERT INTO inventory_movement
+	                    (IM_MOVE_TYPE, IM_USER, IM_BRANCH, STO_ID, REFERENCE, UNIQUE_ID, IM_DETAILS, IM_APPROVAL_DISBURSED, IM_APPROVAL_RECEIVED)
+	                VALUES ('REOPEN_RETURN_SHIPP', ?, ?, ?, ?, ?, ?, 1, 1)
+	            ")->execute([$userActionId, $branchId, $storeId, $orderId, $uniqueId, 'عكس استلام مرفوضات المندوب لرد الأمر للمخزن']);
+	            $imId = (int)$this->conn->lastInsertId();
+
+	            foreach ($items as $it) {
+	                $cur = $this->getProductStock($storeId, $it['IPM_CODE']);
+	                $qty = (float)$it['NET_QTY'];
+	                if ($cur < $qty) {
+	                    throw new Exception("لا يمكن عكس الاستلام: المخزون الحالي للصنف {$it['IPM_CODE']} أقل من الكمية المطلوب عكسها.");
+	                }
+	                $this->conn->prepare("
+	                    INSERT INTO inventory_product_movement (IM_ID, ORDER_ID, IPM_TYPE_MOV, IPM_CODE, IPM_STO_QTY, IPM_QTY, CREATE_AT)
+	                    VALUES (?, ?, 'OUT', ?, ?, ?, NOW(6))
+	                ")->execute([$imId, $orderId, $it['IPM_CODE'], $cur - $qty, $qty]);
+	            }
+	        }
+
+	        return $this->update_stores();
+	    } finally {
+	        $this->releaseGlobalInventoryLock();
+	    }
+	}
+
 	/*
 	 * قفل المخزن للجرد
 	 * @throws Exception
