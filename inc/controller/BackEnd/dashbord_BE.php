@@ -125,6 +125,10 @@ class dashbord_BE {
                 "SELECT COUNT(*) FROM orders o WHERE $periodWhere",
                 $periodParams
             );
+            $metrics['orders_system_total'] = $this->scalar(
+                "SELECT COUNT(*) FROM orders o WHERE $allWhere",
+                $allParams
+            );
             $existsJoinScope = '';
             if (!$canViewAllBranches) {
                 $existsJoinScope = $branchId > 0
