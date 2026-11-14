@@ -22,7 +22,9 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
       <div class="col-sm-6"><h1 class="m-0">لوحة التحكم</h1><small class="text-muted">ملخص تشغيلي مباشر حسب صلاحيات المستخدم</small></div>
       <div class="col-sm-6">
         <div class="float-sm-left d-flex flex-wrap align-items-center">
-          <input type="text" class="form-control form-control-sm ml-2 mb-1" id="dashboardDateRange" style="min-width:230px;max-width:280px" autocomplete="off" aria-label="الفترة الزمنية">
+          <input type="text" id="dashboardDateRange" class="d-none" autocomplete="off" aria-label="الفترة الزمنية">
+          <button type="button" class="btn btn-tool mb-1" id="dashboardCalendar" title="اختيار الفترة الزمنية" aria-label="اختيار الفترة الزمنية"><i class="far fa-calendar-alt"></i></button>
+          <small class="text-muted ml-2 mb-1" id="dashboardSelectedPeriod"></small>
           <small class="text-muted ml-2 mb-1" id="dashboardUpdatedAt">التحديث التلقائي كل 10 ثوانٍ</small>
           <button type="button" class="btn btn-tool mb-1" id="dashboardRefresh" title="تحديث الآن"><i class="fas fa-sync-alt"></i></button>
         </div>
@@ -34,7 +36,7 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
     <?php if ($canDashboardAdmin): ?>
     <div class="row" id="dashboardTopMetrics">
       <div class="col-lg-4 col-6"><div class="small-box bg-info"><div class="inner"><h3 data-metric="orders_today">—</h3><p>أوامر البيع اليوم</p></div><div class="icon"><i class="ion ion-bag"></i></div></div></div>
-      <div class="col-lg-4 col-6"><div class="small-box bg-success"><div class="inner"><h3 data-metric="orders_month">—</h3><p>إجمالي أوامر البيع - الشهر الحالي</p></div><div class="icon"><i class="ion ion-stats-bars"></i></div></div></div>
+      <div class="col-lg-4 col-6"><div class="small-box bg-success"><div class="inner"><h3 data-metric="orders_month">—</h3><p>إجمالي أوامر البيع خلال الفترة</p></div><div class="icon"><i class="ion ion-stats-bars"></i></div></div></div>
       <div class="col-lg-4 col-6"><div class="small-box bg-warning"><div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div><div class="icon"><i class="ion ion-person-add"></i></div></div></div>
     </div>
     <div class="row" id="dashboardExistsMetrics" aria-live="polite"></div>
