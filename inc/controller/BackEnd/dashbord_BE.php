@@ -138,9 +138,36 @@ class dashbord_BE {
                   AND o.DATE_CREATED >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
                   AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
                   $existsJoinScope
+                 WHERE oe.EXISTS_ID <> 10
                  GROUP BY oe.EXISTS_ID, oe.EXISTS_NAME
                  ORDER BY oe.EXISTS_ID"
             );
+
+            // قيد الشحن فقط يظل مرتبطًا بعهدة المندوب، أما نتائج التسليم والرفض والمرتجعات
+            // فتُحسب من حالة الأمر حتى بعد إجراء التسوية المخزنية أو المالية.
+            $deliveryCustodyStatuses = [
+                ['delivery_custody_shipping', 'قيد الشحن', 'o.EXISTS_ID = 10 AND o.ORDER_STATUS <= 2 AND o.DELIVERY_ID IS NOT NULL'],
+                ['delivery_rejected', 'مرفوض', 'o.ORDER_STATUS = 5 AND o.DELIVERY_ID IS NOT NULL'],
+                ['delivery_partial', 'تسليم جزئي', 'o.ORDER_STATUS = 4 AND o.DELIVERY_ID IS NOT NULL'],
+                ['delivery_delivered', 'تسليم كلي', 'o.ORDER_STATUS = 3 AND o.DELIVERY_ID IS NOT NULL'],
+                ['delivery_partial_return', 'مرتجع جزئي', 'o.ORDER_STATUS = 7 AND o.DELIVERY_ID IS NOT NULL'],
+                ['delivery_full_return', 'مرتجع كلي', 'o.ORDER_STATUS = 6 AND o.DELIVERY_ID IS NOT NULL']
+            ];
+            foreach ($deliveryCustodyStatuses as $statusMetric) {
+                $existsCounts[] = [
+                    'exists_id' => null,
+                    'metric_key' => $statusMetric[0],
+                    'exists_name' => $statusMetric[1],
+                    'total' => $this->scalar(
+                        "SELECT COUNT(*) FROM orders o
+                         WHERE $allWhere
+                           AND o.DATE_CREATED >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                           AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                           AND " . $statusMetric[2],
+                        $allParams
+                    )
+                ];
+            }
             $metrics['orders_today'] = $this->scalar(
                 "SELECT COUNT(*) FROM orders o WHERE $allWhere AND o.DATE_CREATED >= CURDATE() AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)",
                 $allParams
