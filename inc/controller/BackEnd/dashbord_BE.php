@@ -60,7 +60,8 @@ class dashbord_BE {
 
         if ($hasOrdersDashboard) {
             [$where, $params] = $this->orderWhere('o', $branchId, $canViewAllBranches);
-            $metrics['unpaid_orders'] = $this->scalar("SELECT COUNT(*) FROM orders o WHERE $where AND o.ORDER_SUCCESS = 0", $params);
+            [$unpaidWhere, $unpaidParams] = $this->orderWhere('o', $branchId, $canViewAllBranches, false);
+            $metrics['unpaid_orders'] = $this->scalar("SELECT COUNT(*) FROM orders o WHERE $unpaidWhere AND o.ORDER_SUCCESS = 0", $unpaidParams);
 
             $trend = $this->rows(
                 "SELECT DATE(o.DATE_CREATED) AS order_day, COUNT(*) AS total
