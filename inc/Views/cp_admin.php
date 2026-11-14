@@ -42,6 +42,7 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
     </div>
     <div class="dashboard-metrics-separator my-3" style="border-top: 2px solid #dee2e6; padding-top: 1rem;"></div>
     <div class="row" id="dashboardExistsMetrics" aria-live="polite"></div>
+    <div class="dashboard-exists-separator" style="clear: both; margin: 2rem 0 2.5rem; border-top: 2px solid #dee2e6;"></div>
     <?php endif; ?>
 
     <?php if ($canDashboardAdmin): ?>
