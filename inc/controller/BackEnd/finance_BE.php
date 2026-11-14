@@ -918,7 +918,11 @@ class finance_BE {
 								(int)$orderData['DELIVERY_ID'],
 								(float)$orderData['ACTUAL_TOTAL'] + (float)$orderData['SHIPPING_VAL'],
 								(float)$orderData['DELIVERY_CIMMISSION'],
-								$blockMissingCost
+								$blockMissingCost,
+								($orderData['ORDER_TYPE_ID'] == 2 && $orderData['MARKETER_ID'] && $orderData['CUST_STAT'] != 'FREEZE')
+									? [[(int)$orderData['MARKETER_ID'], (float)$orderData['MARKETER_COMMISSION']],
+									   [(int)($orderData['LEADER_ID'] ?? 0), (float)$orderData['LEADER_COMMISSION']]]
+									: []
 							);
 						} catch (Exception $glEx) {
 							$error[] = "تعذر ترحيل قيد التحصيل لأمر ".$orderData['SUB_ORDER_ID'].": ".$glEx->getMessage();
@@ -1236,6 +1240,10 @@ class finance_BE {
 			$transactionRecorded = $this->Add_transaction(NULL, 'DELIVERY', $deliveryid, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مندوب');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
 			
+			// قيد الأستاذ: مدين العمولات المستحقة / دائن الصندوق
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->commissionPayout('DELIVERY', $deliveryid, (float)$total_amount, (int)$transactionRecorded);
+			
 			// تسجيل مبلغ المرتجع فى رصيد العميل
 			$resultFinal = $this->Add_partners_balance( 'DELIVERY', $deliveryid, NULL, 'DEBIT', $total_amount,'صرف مستحقات مندوب','17' );
 			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المندوب");
@@ -1280,6 +1288,10 @@ class finance_BE {
 	        // اضافة المعامله
 			$transactionRecorded = $this->Add_transaction(NULL, 'MARKETER', $marketerId, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مسوق');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
+			
+			// قيد الأستاذ: مدين العمولات المستحقة / دائن الصندوق
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->commissionPayout('MARKETER', $marketerId, (float)$total_amount, (int)$transactionRecorded);
 			
 			// تسجيل مبلغ المرتجع فى رصيد العميل
 			$resultFinal = $this->Add_partners_balance( 'MARKETER', $marketerId, NULL, 'DEBIT', $total_amount,'صرف مستحقات مسوق','17' );

@@ -214,5 +214,18 @@ check('collection posts the delivery first when missing', $jc2 > 0 && $db->query
 $o13 = makeOrder($db, $store, $tel, 5, 0, 0, [[1, 100, 0, 50, 0]]);
 check('nothing to collect posts nothing', $ev->courierCollection($o13, $userId, 0.0, 0.0) === 0);
 
+// 9) marketer + leader commission accrual, then payouts
+$o14 = makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 50, 1]]);
+$ev->courierDelivery($o14);
+$jc3 = $ev->courierCollection($o14, $userId, 100.0, 0.0, true, [[$userId, 5.0], [$userId, 2.0]]);
+[$h, $l] = entry($db, $jc3);
+check('marketer commission: 7 debit 5710 / credit 2220, balanced', lineSum($l, '5710', 'debit') === 7.0 && lineSum($l, '2220', 'credit') === 7.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
+$pj = $ev->commissionPayout('DELIVERY', $userId, 3.0, 9001);
+[$h, $l] = entry($db, $pj);
+check('delivery payout: debit 2210 / credit cash 3', lineSum($l, '2210', 'debit') === 3.0 && lineSum($l, '1110', 'credit') === 3.0 && $h['reference_type'] === 'DELIVERY_PAYOUT');
+[$h, $l] = entry($db, $ev->commissionPayout('MARKETER', $userId, 7.0, 9002));
+check('marketer payout: debit 2220 / credit cash 7', lineSum($l, '2220', 'debit') === 7.0 && lineSum($l, '1110', 'credit') === 7.0);
+check('payout rejects zero and unknown type', throwsMsg(fn() => $ev->commissionPayout('DELIVERY', $userId, 0.0, 1), 'Invalid') && throwsMsg(fn() => $ev->commissionPayout('X', $userId, 1.0, 1), 'Unsupported'));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

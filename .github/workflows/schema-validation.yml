@@ -53,6 +53,9 @@ jobs:
         run: |
           q() { mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest -N -e "$1"; }
           mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest --default-character-set=utf8mb4 < inc/Databases/migrations/PHASE1_DELIVERY_CUSTODY_AND_COMMISSION_ACCOUNTS.sql
+          mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest --default-character-set=utf8mb4 < inc/Databases/migrations/PHASE1G_MARKETER_COMMISSION_ACCOUNTS.sql
+          test "$(q "SELECT COUNT(*) FROM accounts WHERE account_code IN ('5710','2220')")" = "2"
+          test "$(q "SELECT COUNT(*) FROM account_settings WHERE setting_key IN ('MARKETER_COMMISSION','MARKETER_COMMISSION_PAYABLE')")" = "2"
           q "SELECT s.setting_key, a.account_code, a.account_name, a.parent_id FROM account_settings s JOIN accounts a ON a.id=s.account_id WHERE s.setting_key IN ('DELIVERY_CUSTODY','DELIVERY_COMMISSION_PAYABLE','DELIVERY_COMMISSION','CUSTOMERS','SALES','SHIPPING_REVENUE','COGS','INVENTORY')"
           test "$(q "SELECT COUNT(*) FROM accounts WHERE account_code IN ('1510','2210')")" = "2"
           test "$(q "SELECT COUNT(*) FROM account_settings WHERE setting_key IN ('DELIVERY_CUSTODY','DELIVERY_COMMISSION_PAYABLE')")" = "2"
