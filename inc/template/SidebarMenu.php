@@ -100,7 +100,7 @@ if ($loginType === 1 && $pageType > 0) {
                 <?php if((isset($usm["orderlist_ex12"]["View_order_list"]) && $usm["orderlist_ex12"]["View_order_list"]  == "true") ||
 	                     (isset($usm["SupportAfterSales"]["View_order_list"]) && $usm["SupportAfterSales"]["View_order_list"] == "true") ||
 	                     (isset($usm["SupportOrders"]["View_order_list"]) && $usm["SupportOrders"]["View_order_list"] == "true") ||
-                         (isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true")){?>
+                         (isset($usm["SupportOrders"]["View_order_list"]) && $usm["SupportOrders"]["View_order_list"] == "true")){?>
                 <li class="nav-item has-treeview">
 		        	<a href="#" class="nav-link">
 			            <i class="fas fa-headset nav-icon"></i>
@@ -110,16 +110,6 @@ if ($loginType === 1 && $pageType > 0) {
 			            </p>
 		            </a>
 		            <ul class="nav nav-treeview badge-gray60">
-                        		
-                        <!-- تأكيد الشحن والتوصيل -->
-                        <?php if(isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true"){ ?>
-                        <li class="nav-item">
-                            <a href="?Go=Orderlist&ty=1&ex=6" class="nav-link">
-                                <i class="fa fa-ellipsis-v nav-icon"></i>
-                                <p>تأكيد الشحن والتوصيل</p>
-                            </a>
-                        </li>
-                        <?php } ?>
 
                         <!-- طلبات تم شحنها-->
                         <?php if(isset($usm["SupportAfterSales"]["View_order_list"]) && $usm["SupportAfterSales"]["View_order_list"] == "true"){ ?>
@@ -258,7 +248,8 @@ if ($loginType === 1 && $pageType > 0) {
                         (isset($usm["orderlist_ex10"]["View_order_list"]) && $usm["orderlist_ex10"]["View_order_list"]  == "true") ||
                         (isset($usm["StockReceipt"]['view']) && $usm["StockReceipt"]['view'] == "true") ||
                         (isset($usm["StockIssue"]['view']) && $usm["StockIssue"]['view'] == "true") ||
-                        (isset($usm["InternalTransfer"]['view']) && $usm["InternalTransfer"]['view'])){ ?>
+                        (isset($usm["InternalTransfer"]['view']) && $usm["InternalTransfer"]['view']) ||
+                        (isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true")){ ?>
                         <li class="nav-item has-treeview">
                             <a href="#" class="nav-link">
                                 <i class="fa-solid fa-warehouse nav-icon"></i>
@@ -268,6 +259,14 @@ if ($loginType === 1 && $pageType > 0) {
                                 </p>
                             </a>
                             <ul class="nav nav-treeview badge-gray60">
+                                <?php if(isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true"){ ?>
+                                <li class="nav-item">
+                                    <a href="?Go=Orderlist&ty=1&ex=6" class="nav-link">
+                                        <i class="fa fa-ellipsis-v nav-icon"></i>
+                                        <p>تأكيد الشحن والتوصيل</p>
+                                    </a>
+                                </li>
+                                <?php } ?>
                 			<?php if((isset($usm["orderlist_ex7"]["View_order_list"]) && $usm["orderlist_ex7"]["View_order_list"]  == "true") ||
                                    (isset($usm["orderlist_ex8"]["View_order_list"]) && $usm["orderlist_ex8"]["View_order_list"]  == "true") ||
                                    (isset($usm["orderlist_ex9"]["View_order_list"]) && $usm["orderlist_ex9"]["View_order_list"]  == "true") ||
