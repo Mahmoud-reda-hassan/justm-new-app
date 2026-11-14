@@ -119,9 +119,12 @@ class AccountingEvents {
 	 * @param bool $blockOnMissingCost true: امنع الترحيل لو منتج مُسلَّم بلا تكلفة. false: يرحّل المبيعات بدون تكلفة.
 	 * @return int رقم القيد، أو 0 إن لم يكن هناك ما يُرحَّل.
 	 */
-	public function courierDelivery(int $orderId, bool $blockOnMissingCost = true): int{
+	public function courierDelivery(int $orderId, bool $blockOnMissingCost = true, bool $allowReturned = false): int{
 	    $order  = $this->getCourierOrder($orderId);
 	    $status = (int)$order['ORDER_STATUS'];
+	    if ($allowReturned && in_array($status, [6, 7], true)) {
+	        $status = 3;   // أمر سُلِّم ثم رُجع بعضه: يُرحَّل التسليم بالكميات المسلَّمة (DELIVERED_QTY) ثم المرتجع قيدًا مستقلًا
+	    }
 
 	    if ($order['SALE_ENTRY_ID'] !== null) {
 	        throw new Exception("Order already posted.");
@@ -736,7 +739,7 @@ class AccountingEvents {
 	    $dup->execute([$orderId]);
 	    if ((int)$dup->fetchColumn() > 0) { throw new Exception("Collection already posted."); }
 
-	    $deliveryEntry = $this->courierDelivery($orderId, $blockOnMissingCost);
+	    $deliveryEntry = $this->courierDelivery($orderId, $blockOnMissingCost, true);
 
 	    $rc = $this->db->prepare("SELECT COALESCE(SUM(debit),0) FROM journal_entry_details WHERE journal_entry_id = ? AND account_id = ?");
 	    $rc->execute([$deliveryEntry, $this->settings->customers()]);
@@ -752,7 +755,8 @@ class AccountingEvents {
 	    foreach ($mk->fetchAll(PDO::FETCH_ASSOC) as $m) { $marketers[] = [(int)$m['PARTNER_ID'], (float)$m['AMT']]; }
 
 	    $collectionEntry = $this->courierCollection($orderId, (int)$o['DELIVERY_ID'], $amount, $commission, $blockOnMissingCost, $marketers);
-	    return ['delivery_entry_id' => $deliveryEntry, 'collection_entry_id' => $collectionEntry, 'amount' => $amount, 'commission' => $commission];
+	    $returnEntry = in_array((int)$o['ORDER_STATUS'], [6, 7], true) ? $this->courierSalesReturn($orderId) : 0;
+	    return ['delivery_entry_id' => $deliveryEntry, 'collection_entry_id' => $collectionEntry, 'return_entry_id' => $returnEntry, 'amount' => $amount, 'commission' => $commission];
 	}
 
 	/**

@@ -300,5 +300,15 @@ $ejs = $ob->post('SUPPLIER', $sup, $branch, $userId);
 check('opening: supplier aligned to legacy 900 after posting', $ejs > 0 && count(array_filter($ob->preview('SUPPLIER'), fn($r) => $r['id'] === $sup)) === 0);
 check('opening: invalid kind refused', throwsMsg(fn() => $ob->post('NOPE', 1, $branch, $userId), 'Invalid'));
 
+// 15) legacy returned order closed before the GL: backfill posts delivery, collection and return
+$o40 = makeOrder($db, $store, $tel, 7, 30, 1, [[2, 400, 0, 350, 2]]);
+$db->exec("UPDATE orders SET ORDER_SUCCESS=1, DELIVERY_ID=$userId WHERE ORDER_ID=$o40");
+$db->exec("UPDATE order_product SET RETURNED_QTY=1 WHERE ORDER_ID=$o40");
+$bf2 = $ev->backfillClosedCourierOrder($o40);
+check('backfill returned: delivery 830 collected and return entry posted', $bf2['amount'] === 830.0 && $bf2['return_entry_id'] > 0, json_encode($bf2));
+[$h, $l] = entry($db, $bf2['return_entry_id']);
+check('backfill returned: return 400 / cost 350', lineSum($l, '4100', 'debit') === 400.0 && lineSum($l, '1300', 'debit') === 350.0);
+check('backfill returned: customer net is -400 (credit) until refunded', (float)$db->query("SELECT ROUND(SUM(d.debit-d.credit),2) FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id JOIN journal_entries e ON e.id=d.journal_entry_id WHERE a.account_code='1200' AND e.reference_id=$o40")->fetchColumn() === -400.0);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

@@ -266,7 +266,7 @@ function ResponseData($data){
 					$stBf = $db->query("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS, o.SHIPPING_VAL, o.LAST_UPDATE,
 							CONCAT(u.FORENAME, ' ', u.LASTNAME) AS DELIVERY_NAME
 						FROM orders o LEFT JOIN users u ON u.USER_ID = o.DELIVERY_ID
-						WHERE o.ORDER_SUCCESS = 1 AND o.SALE_ENTRY_ID IS NULL AND o.ORDER_STATUS IN (3,4,5)
+						WHERE o.ORDER_SUCCESS = 1 AND o.SALE_ENTRY_ID IS NULL AND o.ORDER_STATUS IN (3,4,5,6,7)
 						  AND o.DELIVERY_ID > 0 AND o.ORDER_TYPE_ID <> 5
 						  AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.reference_type = 'COURIER_COLLECTION' AND e.reference_id = o.ORDER_ID AND e.status = 'POSTED')
 						ORDER BY o.LAST_UPDATE DESC LIMIT 200");
@@ -318,6 +318,41 @@ function ResponseData($data){
 						$entryId = $obm->post((string)($_POST['kind'] ?? ''), (int)($_POST['id'] ?? 0), (int)$_SESSION["BRANCH_ID"], (int)$_SESSION["USER_ID"]);
 						$db->commit();
 						ResponseData(array('success', 'ناجح', 'تم ترحيل التسوية', ['entry_id' => $entryId]));
+					} catch (Exception $e) {
+						if ($db->inTransaction()) { $db->rollBack(); }
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'listUnpostedReturns':
+					// مرتجعات أوامر مُرحَّلة ولم يُرحَّل مرتجعها (أو رُحِّل جزء منه)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					$stUr = $db->query("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS,
+							ROUND(SUM(op.RETURNED_QTY * (op.PRICE - op.DISCOUNT)),2) AS RETURN_VALUE,
+							COALESCE((SELECT SUM(d.debit) FROM journal_entries e JOIN journal_entry_details d ON d.journal_entry_id = e.id
+								WHERE e.reference_type = 'COURIER_SALES_RETURN' AND e.reference_id = o.ORDER_ID AND e.status = 'POSTED'
+								  AND d.account_id = (SELECT account_id FROM account_settings WHERE setting_key = 'SALES_RETURNS' LIMIT 1)),0) AS POSTED_VALUE
+						FROM orders o JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
+						WHERE o.ORDER_STATUS IN (6,7) AND o.SALE_ENTRY_ID IS NOT NULL
+						GROUP BY o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS
+						HAVING RETURN_VALUE > POSTED_VALUE + 0.005
+						ORDER BY o.ORDER_ID DESC LIMIT 200");
+					ResponseData(array('success', 'ناجح', '', $stUr->fetchAll(PDO::FETCH_ASSOC)));
+					break;
+				case 'postReturnEntry':
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+						$db->beginTransaction();
+						$urAcc = new AccountingEvents($db);
+						$urId = $urAcc->courierSalesReturn((int)($_POST['order_id'] ?? 0));
+						$db->commit();
+						ResponseData(array('success', 'ناجح', $urId ? 'تم ترحيل قيد المرتجع' : 'لا يوجد فرق للترحيل', ['entry_id' => $urId]));
 					} catch (Exception $e) {
 						if ($db->inTransaction()) { $db->rollBack(); }
 						ResponseData(array('error', 'خطأ', $e->getMessage(), []));

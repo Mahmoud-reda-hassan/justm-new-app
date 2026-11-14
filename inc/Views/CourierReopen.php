@@ -86,4 +86,32 @@
             </div>
         </div>
     </div>
+    <div class="card mt-3">
+        <div class="card-header">
+            <h5 class="mb-0">مرتجعات لم تُرحَّل للأستاذ</h5>
+            <small class="text-muted">
+                أوامر سبق ترحيل بيعها وتم رجوع جزء منها في المخزن، ولم يُسجَّل قيد المرتجع (مردودات / عملاء، ومخزون / تكلفة).
+                أوامر البيع غير المُرحَّلة أصلاً تُرحَّل من اللوحة الأعلى أولاً.
+            </small>
+        </div>
+        <div class="card-body">
+            <button type="button" class="btn btn-primary btn-sm mb-2" id="btnPostAllReturns">
+                <i class="fa fa-book"></i> ترحيل كل المرتجعات
+            </button>
+            <div class="table-responsive">
+                <table id="unposted-returns-table" class="table table-bordered table-striped w-100">
+                    <thead>
+                        <tr>
+                            <th>رقم الأمر</th>
+                            <th>الحالة</th>
+                            <th>قيمة المرتجع</th>
+                            <th>المرحَّل</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>

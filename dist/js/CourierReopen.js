@@ -1,6 +1,6 @@
 (function () {
 	const url = `../../inc/controller/shipment.control.php`;
-	const statusNames = {3: 'تم التسليم', 4: 'تسليم جزئي', 5: 'مرفوض'};
+	const statusNames = {3: 'تم التسليم', 4: 'تسليم جزئي', 5: 'مرفوض', 6: 'مرتجع', 7: 'مرتجع جزئي'};
 	const esc = (v) => $('<div>').text(v == null ? '' : v).html();
 
 	const table = $('#courier-reopen-table').DataTable({
@@ -75,11 +75,11 @@
 		]
 	});
 
-	let bfCount = 0, obCount = 0;
+	let bfCount = 0, obCount = 0, urCount = 0;
 	function updateAlert() {
 		const el = $('#legacy-alert');
-		if (bfCount + obCount > 0) {
-			el.removeClass('d-none').text(`يوجد ${bfCount} أمر مُقفل و${obCount} رصيد من النظام القديم لم تُرحَّل للأستاذ بعد.`);
+		if (bfCount + obCount + urCount > 0) {
+			el.removeClass('d-none').text(`يوجد ${bfCount} أمر مُقفل و${urCount} مرتجع و${obCount} رصيد من النظام القديم لم تُرحَّل للأستاذ بعد.`);
 		} else {
 			el.addClass('d-none').text('');
 		}
@@ -203,4 +203,67 @@
 	});
 
 	loadOpening();
+
+	// ---- مرتجعات لم تُرحَّل ----
+	const urTable = $('#unposted-returns-table').DataTable({
+		data: [],
+		ordering: false,
+		language: {emptyTable: 'لا توجد مرتجعات غير مُرحَّلة'},
+		columns: [
+			{data: 'SUB_ORDER_ID', render: (d, t, r) => esc(d || r.ORDER_ID)},
+			{data: 'ORDER_STATUS', render: (d) => esc(statusNames[d] || d)},
+			{data: 'RETURN_VALUE', render: esc},
+			{data: 'POSTED_VALUE', render: esc},
+			{
+				data: null, className: 'text-center text-nowrap',
+				render: (d, t, r) => `<button type="button" class="btn btn-sm btn-primary btnReturnEntry" data-oid="${esc(r.ORDER_ID)}">
+					<i class="fa fa-book"></i> ترحيل</button>`
+			}
+		]
+	});
+
+	function loadReturns() {
+		$.post(url, {CONTROL: 'listUnpostedReturns'}, function (res) {
+			if (Array.isArray(res) && res[0] === 'success') {
+				urTable.clear().rows.add(res[3] || []).draw();
+				urCount = (res[3] || []).length;
+				updateAlert();
+			}
+		}, 'json');
+	}
+
+	function postReturn(oid) {
+		return new Promise((resolve) => {
+			$.post(url, {CONTROL: 'postReturnEntry', order_id: oid}, function (res) {
+				resolve({ok: Array.isArray(res) && res[0] === 'success', msg: (res && res[2]) || ''});
+			}, 'json').fail(() => resolve({ok: false, msg: 'تعذر الاتصال بالخادم'}));
+		});
+	}
+
+	$('#unposted-returns-table').on('click', '.btnReturnEntry', async function () {
+		const r = await postReturn($(this).data('oid'));
+		Swal.fire({icon: r.ok ? 'success' : 'error', title: r.ok ? 'تم' : 'خطأ', text: r.msg});
+		if (r.ok) loadReturns();
+	});
+
+	$('#btnPostAllReturns').on('click', function () {
+		const rows = urTable.rows().data().toArray();
+		if (!rows.length) return;
+		Swal.fire({
+			icon: 'warning', title: 'ترحيل كل المرتجعات؟',
+			text: `سيُرحَّل قيد مرتجع لـ ${rows.length} أمر.`,
+			showCancelButton: true, confirmButtonText: 'ترحيل الكل', cancelButtonText: 'إلغاء'
+		}).then(async (r) => {
+			if (!r.isConfirmed) return;
+			let done = 0, failed = 0, lastMsg = '';
+			for (const row of rows) {
+				const res = await postReturn(row.ORDER_ID);
+				if (res.ok) done++; else { failed++; lastMsg = (row.SUB_ORDER_ID || row.ORDER_ID) + ': ' + res.msg; }
+			}
+			Swal.fire({icon: failed ? 'warning' : 'success', title: 'اكتمل', text: `تم ${done}، وفشل ${failed}${lastMsg ? ' - ' + lastMsg : ''}`});
+			loadReturns(); loadOpening();
+		});
+	});
+
+	loadReturns();
 })();
