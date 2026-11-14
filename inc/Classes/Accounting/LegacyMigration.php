@@ -1,6 +1,7 @@
 <?php
 include_once(__dir__.'/AccountingEvents.php');
 include_once(__dir__.'/OpeningBalanceManager.php');
+include_once(__dir__.'/AccountSettings.php');
 
 /**
  * ترحيل النظام القديم إلى الأستاذ دفعة واحدة، بالترتيب:
@@ -111,7 +112,17 @@ class LegacyMigration {
                 fn() => (new AccountingEvents($this->db))->courierSalesReturn((int)$r['ORDER_ID']));
         }
         // الفروق تُحسب بعد ترحيل الأوامر والمرتجعات
-        foreach ($phase === 'orders' ? [] : (new OpeningBalanceManager($this->db))->preview() as $row) {
+        $openingRows = [];
+        if ($phase !== 'orders') {
+            try {
+                (new AccountSettings($this->db))->openingBalance(); // الحساب المقابل يجب أن يكون موجودًا قبل أي تسوية
+                $openingRows = (new OpeningBalanceManager($this->db))->preview();
+            } catch (Throwable $e) {
+                $report['errors'][] = 'تسويات الأرصدة لم تُنفَّذ: '.$e->getMessage().' (شغّل ملف ACCOUNTING_COMPLETE_MIGRATION.sql ثم أعد المحاولة)';
+                $report['setup_missing'] = true;
+            }
+        }
+        foreach ($openingRows as $row) {
             if (!$mine(abs(crc32($row['kind'].':'.$row['id'])))) { continue; }
             if ($full()) { return $report; }
             $key = 'opening:'.$row['kind'].':'.$row['id']; if (isset($skip[$key])) { continue; }

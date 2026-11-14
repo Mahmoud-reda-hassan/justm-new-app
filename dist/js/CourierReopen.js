@@ -128,7 +128,7 @@
 					icon: (failed || fatal) ? 'warning' : 'success', title: fatal ? 'توقف الترحيل' : 'اكتمل الترحيل',
 					html: `أوامر: ${total.orders.done} تم / ${total.orders.failed} فشل<br>مرتجعات: ${total.returns.done} تم / ${total.returns.failed} فشل<br>أرصدة: ${total.opening.done} تم / ${total.opening.failed} فشل`
 						+ (fatal ? `<br><b>${esc(fatal)}</b><br>ما تم ترحيله محفوظ، راجع الملخص ثم أعد المحاولة.` : '')
-						+ (errors.length ? '<hr><div style="text-align:right;font-size:12px">' + errors.slice(0, 30).map(esc).join('<br>') + '</div>' : '')
+						+ (errors.length ? '<hr><div style="text-align:right;font-size:12px">' + [...new Set(errors)].slice(0, 30).map(esc).join('<br>') + '</div>' : '')
 				});
 				loadSummary(); loadBackfill(); loadReturns(); loadOpening();
 			};

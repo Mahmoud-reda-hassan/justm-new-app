@@ -3,10 +3,9 @@
 -- Opening balance equity account (counterpart of legacy-balance alignment entries).
 INSERT INTO `accounts`
   (`parent_id`, `account_code`, `account_name`, `account_type`, `normal_balance`, `account_level`, `is_active`, `allow_posting`, `system_account`, `is_system_created`)
-SELECT p.`id`, '3300', 'أرصدة افتتاحية', 'EQUITY', 'CREDIT', 2, 1, 1, 0, 0
-FROM `accounts` p
-WHERE p.`account_code` = '3000'
-  AND NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '3300');
+SELECT (SELECT p.`id` FROM `accounts` p WHERE p.`account_code` = '3000' LIMIT 1), '3300', 'أرصدة افتتاحية', 'EQUITY', 'CREDIT', 2, 1, 1, 0, 0
+FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '3300');
 
 INSERT INTO `account_settings` (`setting_key`, `account_id`, `description`)
 SELECT 'OPENING_BALANCE_EQUITY', a.`id`, 'أرصدة افتتاحية (مقابل تسويات النظام القديم)'
