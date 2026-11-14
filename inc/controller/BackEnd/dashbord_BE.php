@@ -343,6 +343,29 @@ class dashbord_BE {
             $topProducts = [];
         }
 
+        // إظهار بطاقات الحالات بنفس صلاحيات الشاشات المستخدمة في القائمة الجانبية.
+        $existsCounts = array_values(array_filter($existsCounts, function ($item) use ($adminPermissions) {
+            $existsId = isset($item['exists_id']) ? (int)$item['exists_id'] : null;
+            $metricKey = $item['metric_key'] ?? '';
+
+            // مؤشرات عهدة المندوبين تتبع صلاحية شاشة تسوية عهدة المندوبين.
+            if (strpos($metricKey, 'delivery_') === 0) {
+                return $this->isEnabled($adminPermissions['OrdersCustody']['View_order_list'] ?? false);
+            }
+
+            // البيع المباشر يتبع صلاحية قسم المبيعات الظاهرة في القائمة الجانبية.
+            if ($existsId === 11 || strpos($metricKey, 'direct_sale_') === 0) {
+                return $this->isEnabled($adminPermissions['selseReport']['View'] ?? false);
+            }
+
+            if ($existsId === null) {
+                return false;
+            }
+
+            $permissionKey = 'orderlist_ex' . $existsId;
+            return $this->isEnabled($adminPermissions[$permissionKey]['View_order_list'] ?? false);
+        }));
+
         return [
             'metrics' => $metrics,
             'exists_counts' => $existsCounts,
