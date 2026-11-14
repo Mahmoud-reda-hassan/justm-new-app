@@ -233,13 +233,37 @@ class dashbord_BE {
             $deliveryRows = [];
         }
 
+
+        if (in_array('Admin', $roles, true)) {
+            [$productWhere, $productParams] = $this->orderWhere('o', $branchId, $canViewAllBranches);
+            $topProducts = $this->rows(
+                "SELECT p.PRO_NAME AS product_name,
+                        SUM(GREATEST(op.QTY - op.RETURNED_QTY, 0)) AS sold_qty,
+                        SUM(GREATEST(op.QTY - op.RETURNED_QTY, 0) * GREATEST(op.PRICE - op.DISCOUNT, 0)) AS sales_value
+                 FROM orders o
+                 INNER JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
+                 INNER JOIN product_codes pc ON pc.PRO_CODE = op.PRO_CODE
+                 INNER JOIN products p ON p.PRO_ID = pc.PRODUCT_ID
+                 WHERE $productWhere
+                   AND op.PRO_STATUSE NOT IN ('rejected', 'refund')
+                 GROUP BY p.PRO_ID, p.PRO_NAME
+                 HAVING SUM(GREATEST(op.QTY - op.RETURNED_QTY, 0)) > 0
+                 ORDER BY sold_qty DESC, sales_value DESC
+                 LIMIT 20",
+                $productParams
+            );
+        } else {
+            $topProducts = [];
+        }
+
         return [
             'metrics' => $metrics,
             'orders_trend' => $ordersTrend,
             'status_distribution' => $statusRows,
             'latest_orders' => $latestOrders,
             'low_stock' => $lowStockRows,
-            'delivery_performance' => $deliveryRows
+            'delivery_performance' => $deliveryRows,
+            'top_products' => $topProducts
         ];
     }
 }
