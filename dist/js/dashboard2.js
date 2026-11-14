@@ -139,7 +139,7 @@ $(function () {
                 return;
             }
             renderDashboard(response.data || {});
-            $('#dashboardUpdatedAt').text('آخر تحديث ناجح: ' + new Date().toLocaleTimeString('ar-EG') + ' · تحديث تلقائي كل 10 ثوانٍ');
+            $('#dashboardUpdatedAt').text('آخر تحديث ناجح: ' + new Date().toLocaleTimeString('ar-EG') + ' · تحديث تلقائي كل دقيقة');
         }).fail(function (xhr) {
             var message = 'حدث خطأ أثناء الاتصال بالخادم.';
             if (xhr.responseJSON && xhr.responseJSON.message) message = xhr.responseJSON.message;
@@ -188,6 +188,6 @@ $(function () {
     }
     $('#dashboardRefresh').on('click', loadDashboard);
     loadDashboard();
-    refreshTimer = window.setInterval(loadDashboard, 10000);
+    refreshTimer = window.setInterval(loadDashboard, 60000);
     $(window).on('beforeunload', function () { if (refreshTimer) window.clearInterval(refreshTimer); });
 });
