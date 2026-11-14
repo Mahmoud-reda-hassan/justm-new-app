@@ -75,10 +75,22 @@
 		]
 	});
 
+	let bfCount = 0, obCount = 0;
+	function updateAlert() {
+		const el = $('#legacy-alert');
+		if (bfCount + obCount > 0) {
+			el.removeClass('d-none').text(`يوجد ${bfCount} أمر مُقفل و${obCount} رصيد من النظام القديم لم تُرحَّل للأستاذ بعد.`);
+		} else {
+			el.addClass('d-none').text('');
+		}
+	}
+
 	function loadBackfill() {
 		$.post(url, {CONTROL: 'listBackfillOrders'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
 				bfTable.clear().rows.add(res[3] || []).draw();
+				bfCount = (res[3] || []).length;
+				updateAlert();
 			}
 		}, 'json');
 	}
@@ -103,4 +115,92 @@
 	});
 
 	loadBackfill();
+
+	// ---- مطابقة أرصدة النظام القديم ----
+	const kindNames = {CLIENT: 'عميل', DELIVERY: 'مندوب', MARKETER: 'مسوق', SUPPLIER: 'مورد', INVENTORY: 'مخزن'};
+	const obTable = $('#opening-balance-table').DataTable({
+		data: [],
+		ordering: false,
+		language: {emptyTable: 'الأستاذ مطابق للنظام القديم'},
+		columns: [
+			{data: 'kind', render: (d) => esc(kindNames[d] || d)},
+			{data: 'name', render: esc},
+			{data: 'legacy', render: esc},
+			{data: 'gl', render: esc},
+			{data: 'diff', render: esc},
+			{
+				data: null, className: 'text-center text-nowrap',
+				render: (d, t, r) => `<button type="button" class="btn btn-sm btn-primary btnOpening" data-kind="${esc(r.kind)}" data-id="${esc(r.id)}">
+					<i class="fa fa-book"></i> ترحيل</button>`
+			}
+		]
+	});
+
+	function loadOpening() {
+		$.post(url, {CONTROL: 'listOpeningBalances'}, function (res) {
+			if (Array.isArray(res) && res[0] === 'success') {
+				obTable.clear().rows.add(res[3] || []).draw();
+				obCount = (res[3] || []).length;
+				updateAlert();
+			}
+		}, 'json');
+	}
+
+	function postOne(kind, id) {
+		return new Promise((resolve) => {
+			$.post(url, {CONTROL: 'postOpeningBalance', kind: kind, id: id}, function (res) {
+				resolve({ok: Array.isArray(res) && res[0] === 'success', msg: (res && res[2]) || ''});
+			}, 'json').fail(() => resolve({ok: false, msg: 'تعذر الاتصال بالخادم'}));
+		});
+	}
+
+	$('#opening-balance-table').on('click', '.btnOpening', async function () {
+		const r = await postOne($(this).data('kind'), $(this).data('id'));
+		Swal.fire({icon: r.ok ? 'success' : 'error', title: r.ok ? 'تم' : 'خطأ', text: r.msg});
+		if (r.ok) loadOpening();
+	});
+
+	$('#btnPostAllOpening').on('click', function () {
+		const rows = obTable.rows().data().toArray();
+		if (!rows.length) return;
+		Swal.fire({
+			icon: 'warning', title: 'ترحيل كل التسويات؟',
+			text: `سيُرحَّل ${rows.length} قيد تسوية مقابل حساب الأرصدة الافتتاحية. راجع الأرقام أولاً.`,
+			showCancelButton: true, confirmButtonText: 'ترحيل الكل', cancelButtonText: 'إلغاء'
+		}).then(async (r) => {
+			if (!r.isConfirmed) return;
+			let done = 0, failed = 0, lastMsg = '';
+			for (const row of rows) {
+				const res = await postOne(row.kind, row.id);
+				if (res.ok) done++; else { failed++; lastMsg = res.msg; }
+			}
+			Swal.fire({icon: failed ? 'warning' : 'success', title: 'اكتمل', text: `تم ${done}، وفشل ${failed}${lastMsg ? ' - ' + lastMsg : ''}`});
+			loadOpening();
+		});
+	});
+
+	$('#btnBackfillAll').on('click', function () {
+		const rows = bfTable.rows().data().toArray();
+		if (!rows.length) return;
+		Swal.fire({
+			icon: 'warning', title: 'ترحيل كل الأوامر المُقفلة؟',
+			text: `سيُرحَّل ${rows.length} أمر بقيد تسليم وقيد تحصيل لكل أمر.`,
+			showCancelButton: true, confirmButtonText: 'ترحيل الكل', cancelButtonText: 'إلغاء'
+		}).then(async (r) => {
+			if (!r.isConfirmed) return;
+			let done = 0, failed = 0, lastMsg = '';
+			for (const row of rows) {
+				const res = await new Promise((resolve) => {
+					$.post(url, {CONTROL: 'backfillCourierOrder', order_id: row.ORDER_ID}, function (rs) {
+						resolve({ok: Array.isArray(rs) && rs[0] === 'success', msg: (rs && rs[2]) || ''});
+					}, 'json').fail(() => resolve({ok: false, msg: 'تعذر الاتصال بالخادم'}));
+				});
+				if (res.ok) done++; else { failed++; lastMsg = (row.SUB_ORDER_ID || row.ORDER_ID) + ': ' + res.msg; }
+			}
+			Swal.fire({icon: failed ? 'warning' : 'success', title: 'اكتمل', text: `تم ${done}، وفشل ${failed}${lastMsg ? ' - ' + lastMsg : ''}`});
+			loadBackfill(); loadOpening();
+		});
+	});
+
+	loadOpening();
 })();

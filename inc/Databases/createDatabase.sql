@@ -5402,6 +5402,24 @@ WHERE d.`partner_type` IS NOT NULL
 GROUP BY d.`partner_type`, d.`partner_id`, a.`account_code`;
 
 --
+-- Phase 1h reference rows (opening balance account)
+--
+
+-- Opening balance equity account (counterpart of legacy-balance alignment entries).
+INSERT INTO `accounts`
+  (`parent_id`, `account_code`, `account_name`, `account_type`, `normal_balance`, `account_level`, `is_active`, `allow_posting`, `system_account`, `is_system_created`)
+SELECT p.`id`, '3300', 'أرصدة افتتاحية', 'EQUITY', 'CREDIT', 2, 1, 1, 0, 0
+FROM `accounts` p
+WHERE p.`account_code` = '3000'
+  AND NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '3300');
+
+INSERT INTO `account_settings` (`setting_key`, `account_id`, `description`)
+SELECT 'OPENING_BALANCE_EQUITY', a.`id`, 'أرصدة افتتاحية (مقابل تسويات النظام القديم)'
+FROM `accounts` a
+WHERE a.`account_code` = '3300'
+  AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'OPENING_BALANCE_EQUITY');
+
+--
 -- Phase 1g reference rows (marketer commission accounts)
 --
 -- Phase 1g: marketer / team-leader commission accounts.

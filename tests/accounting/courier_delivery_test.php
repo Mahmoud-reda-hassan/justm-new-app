@@ -284,5 +284,21 @@ $o31 = makeOrder($db, $store, $tel, 3, 30, 1, [[1, 100, 0, 50, 1]]);
 $db->exec("UPDATE orders SET DELIVERY_ID=$userId WHERE ORDER_ID=$o31");
 check('backfill: refuses an order not closed financially', throwsMsg(fn() => $ev->backfillClosedCourierOrder($o31), 'غير مُقفل'));
 
+// 14) opening balances (legacy -> GL alignment)
+require_once __DIR__ . '/../../inc/Classes/Accounting/OpeningBalanceManager.php';
+$ob = new OpeningBalanceManager($db);
+$db->exec("INSERT INTO partners_balance (PARTNER_TYPE,PARTNER_ID,REFERENCE_ID,TRANSACTION_TYPE,BALANCE,NOTE) VALUES ('MARKETER',$userId,NULL,'CREDIT',120,'legacy'),('SUPPLIER',$sup,NULL,'CREDIT',900,'legacy')");
+$rows = $ob->preview('MARKETER');
+check('opening: marketer difference is 120 before posting', count($rows) >= 1 && abs(array_sum(array_column(array_filter($rows, fn($r) => $r['id'] === $userId), 'diff')) - 120.0) < 0.01, json_encode($rows));
+$ejid = $ob->post('MARKETER', $userId, $branch, $userId);
+[$h, $l] = entry($db, $ejid);
+check('opening: marketer entry Cr 2220 120 / Dr 3300 120', lineSum($l, '2220', 'credit') === 120.0 && lineSum($l, '3300', 'debit') === 120.0 && $h['reference_type'] === 'OPENING_BALANCE');
+check('opening: second post does nothing', $ob->post('MARKETER', $userId, $branch, $userId) === 0);
+$supRows = array_values(array_filter($ob->preview('SUPPLIER'), fn($r) => $r['id'] === $sup));
+check('opening: supplier difference reflects GL activity already posted', count($supRows) === 1 && abs($supRows[0]['diff'] - ($supRows[0]['legacy'] - $supRows[0]['gl'])) < 0.01);
+$ejs = $ob->post('SUPPLIER', $sup, $branch, $userId);
+check('opening: supplier aligned to legacy 900 after posting', $ejs > 0 && count(array_filter($ob->preview('SUPPLIER'), fn($r) => $r['id'] === $sup)) === 0);
+check('opening: invalid kind refused', throwsMsg(fn() => $ob->post('NOPE', 1, $branch, $userId), 'Invalid'));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

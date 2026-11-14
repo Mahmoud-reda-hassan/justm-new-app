@@ -330,4 +330,11 @@ class AccountSettings{
 	public function marketerCommissionPayable(): int {
 	    return $this->get('MARKETER_COMMISSION_PAYABLE');
 	}
+
+	/**
+	 * أرصدة افتتاحية (حقوق ملكية) تُقابل تسويات ترحيل أرصدة النظام القديم.
+	 */
+	public function openingBalance(): int {
+	    return $this->get('OPENING_BALANCE_EQUITY');
+	}
 }

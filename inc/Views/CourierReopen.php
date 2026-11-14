@@ -1,4 +1,5 @@
 <div class="container-fluid my-3" id="courierReopenPage">
+    <div id="legacy-alert" class="alert alert-warning d-none" role="alert"></div>
     <div class="card">
         <div class="card-header">
             <h5 class="mb-0">رد أوامر المندوب للمخزن</h5>
@@ -44,6 +45,39 @@
                             <th>الحالة</th>
                             <th>الشحن</th>
                             <th>آخر تحديث</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="card mt-3">
+        <div class="card-header">
+            <h5 class="mb-0">مطابقة أرصدة النظام القديم (عملاء، مندوبون، مسوقون، موردون، مخزون)</h5>
+            <small class="text-muted">
+                الفرق = رصيد النظام القديم − رصيد الأستاذ. الترحيل يسجّل قيد تسوية مقابل حساب "أرصدة افتتاحية" (3300)
+                ولا يغيّر أي بيان قديم. العملاء: تُستبعد الأوامر غير المُقفلة (تُرحَّل عند الاستلام المالي).
+                راجع الأرقام قبل الترحيل.
+            </small>
+        </div>
+        <div class="card-body">
+            <button type="button" class="btn btn-success btn-sm mb-2" id="btnPostAllOpening">
+                <i class="fa fa-check"></i> ترحيل الكل
+            </button>
+            <button type="button" class="btn btn-primary btn-sm mb-2" id="btnBackfillAll">
+                <i class="fa fa-book"></i> ترحيل كل الأوامر المُقفلة
+            </button>
+            <div class="table-responsive">
+                <table id="opening-balance-table" class="table table-bordered table-striped w-100">
+                    <thead>
+                        <tr>
+                            <th>النوع</th>
+                            <th>الاسم</th>
+                            <th>النظام القديم</th>
+                            <th>الأستاذ</th>
+                            <th>الفرق</th>
                             <th>إجراء</th>
                         </tr>
                     </thead>

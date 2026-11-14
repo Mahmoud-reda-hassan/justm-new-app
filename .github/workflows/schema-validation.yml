@@ -56,6 +56,8 @@ jobs:
           mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest --default-character-set=utf8mb4 < inc/Databases/migrations/PHASE1G_MARKETER_COMMISSION_ACCOUNTS.sql
           mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest --default-character-set=utf8mb4 < inc/Databases/migrations/ACCOUNTING_COMPLETE_MIGRATION.sql
           mysql --skip-ssl -h127.0.0.1 -uroot -ptest cptest --default-character-set=utf8mb4 < inc/Databases/migrations/ACCOUNTING_COMPLETE_MIGRATION.sql
+          test "$(q "SELECT COUNT(*) FROM accounts WHERE account_code = '3300'")" = "1"
+          test "$(q "SELECT COUNT(*) FROM account_settings WHERE setting_key = 'OPENING_BALANCE_EQUITY'")" = "1"
           q "SELECT COUNT(*) FROM gl_trial_balance"
           q "SELECT COUNT(*) FROM gl_partner_balances"
           test "$(q "SELECT COUNT(*) FROM accounts WHERE account_code IN ('5710','2220')")" = "2"
@@ -72,4 +74,4 @@ jobs:
         with: { php-version: '8.2', coverage: none }
       - run: |
           find inc/Classes/Accounting -name '*.php' -print0 | xargs -0 -n1 php -l
-          for f in inc/controller/BackEnd/finance_BE.php inc/controller/BackEnd/shipment_BE.php inc/controller/BackEnd/inventory_BE.php inc/controller/BackEnd/accounts_BE.php inc/controller/BackEnd/PaymentDisbursement_BE.php inc/controller/BackEnd/reports_BE.php inc/Classes/InventoryManager.php inc/routes/delivery_router.php inc/routes/admin_router.php inc/controller/shipment.control.php inc/Classes/CourierReopen.php inc/Classes/user_permission.php inc/template/SidebarMenu.php inc/Views/CourierReopen.php; do php -l "$f"; done
+          for f in inc/controller/BackEnd/finance_BE.php inc/controller/BackEnd/shipment_BE.php inc/controller/BackEnd/inventory_BE.php inc/controller/BackEnd/accounts_BE.php inc/controller/BackEnd/PaymentDisbursement_BE.php inc/controller/BackEnd/reports_BE.php inc/Classes/InventoryManager.php inc/routes/delivery_router.php inc/routes/admin_router.php inc/controller/shipment.control.php inc/Classes/CourierReopen.php inc/Classes/Accounting/OpeningBalanceManager.php inc/Classes/user_permission.php inc/template/SidebarMenu.php inc/Views/CourierReopen.php; do php -l "$f"; done
