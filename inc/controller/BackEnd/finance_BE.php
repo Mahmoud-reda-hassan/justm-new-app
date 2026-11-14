@@ -747,6 +747,7 @@ class finance_BE {
 						CO.RETURNS,
 						O.ORDER_STATUS,
 						O.ORDER_SUCCESS,
+						O.SHIPP_PAYMENT,
 						O.LAST_UPDATE,
 						TE.CLIENT_ID,
 						CO.USER_ID AS DELIVERY_ID,
@@ -799,7 +800,7 @@ class finance_BE {
 						GROUP BY CP.ORDER_ID, CP.USER_ID, CP.PRO_CODE, PR.PRO_NAME
 					) AS VOP ON CP.ORDER_ID = VOP.ORDER_ID AND CP.PRO_CODE = VOP.PRO_CODE AND CP.USER_ID = VOP.USER_ID
 					WHERE FIND_IN_SET (CO.ORDER_ID ,:oids)
-				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE";
+				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.SHIPP_PAYMENT, O.LAST_UPDATE";
 			$oIds = htmlspecialchars(strip_tags(trim(implode(',',array_keys($orderIds)))));
 			$this->conn->beginTransaction();
 
@@ -838,7 +839,13 @@ class finance_BE {
 						if($orders[$orderId]['CUST_STAT'] != 'FREEZE' && //اذاكان امر البيع مجمد على عهدة المندوب
 							(
 								($orders[$orderId]['ORDER_STATUSE'] == 4 && $orders[$orderId]['RETURNS'] == 0) || // اذا كان امر البيع تسليم جزئى ولم يقم المندوب بتسليم المرتجعات
-								 $orders[$orderId]['ORDER_STATUSE'] == 5 || 
+								// مرفوض بعد محاولة: يُسمح بتحصيله فقط إذا دفع العميل الشحن (SHIPP_PAYMENT=1)
+								// وبقيمة شحن > 0 واستلم أمين المخزن المرفوضات (RETURNS=1)؛ المطلوب حينها قيمة الشحن فقط.
+								($orders[$orderId]['ORDER_STATUSE'] == 5 && !(
+									(int)$orders[$orderId]['SHIPP_PAYMENT'] === 1 &&
+									(float)$orders[$orderId]['SHIPPING_VAL'] > 0 &&
+									(int)$orders[$orderId]['RETURNS'] === 1
+								)) ||
 								 $orders[$orderId]['ORDER_STATUSE'] <  3 // اذا كان حالة امر البيع قيد الشحن او اقل
 							)
 						){
@@ -907,6 +914,28 @@ class finance_BE {
 									continue;
 								}
 							}
+						}
+						// قيد الأستاذ: استلام النقدية من المندوب + عمولته (داخل نفس المعاملة)
+						try {
+							include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+							$collectAcc = new AccountingEvents($this->conn);
+							$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+							$collectAcc->courierCollection(
+								(int)$orderData['ORDER_ID'],
+								(int)$orderData['DELIVERY_ID'],
+								(float)$orderData['ACTUAL_TOTAL'] + (float)$orderData['SHIPPING_VAL'],
+								(float)$orderData['DELIVERY_CIMMISSION'],
+								$blockMissingCost,
+								($orderData['ORDER_TYPE_ID'] == 2 && $orderData['MARKETER_ID'] && $orderData['CUST_STAT'] != 'FREEZE')
+									? [[(int)$orderData['MARKETER_ID'], (float)$orderData['MARKETER_COMMISSION']],
+									   [(int)($orderData['LEADER_ID'] ?? 0), (float)$orderData['LEADER_COMMISSION']]]
+									: []
+							);
+						} catch (Exception $glEx) {
+							$error[] = "تعذر ترحيل قيد التحصيل لأمر ".$orderData['SUB_ORDER_ID'].": ".$glEx->getMessage();
+							$errorlastupdatemsg[] = $orderData['SUB_ORDER_ID'].' '.$glEx->getMessage();
+							$errorlastupdate++;
+							continue;
 						}
 						// تحديث حالة أمر البيع
 						$stmt = $this->conn->prepare("UPDATE orders SET ORDER_SUCCESS = 1 ,LAST_UPDATE = NOW(6) WHERE ORDER_ID = ?");
@@ -1164,6 +1193,8 @@ class finance_BE {
 	        // اضافة المعامله
 			$transactionRecorded = $this->Add_transaction(NULL, 'SUPPLIER', $supplier_id, $total_amount,1, '11' ,'COMPLETED','دفعه من حساب المورد');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->supplierRefund((int)$supplier_id, (float)$total_amount, (int)$transactionRecorded);
 			
 			$resultFinal = $this->Add_partners_balance( 'SUPPLIER', $supplier_id, NULL, 'DEBIT', $total_amount,'دفعة من حساب المورد','11' );
 			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المورد");
@@ -1218,6 +1249,10 @@ class finance_BE {
 			$transactionRecorded = $this->Add_transaction(NULL, 'DELIVERY', $deliveryid, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مندوب');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
 			
+			// قيد الأستاذ: مدين العمولات المستحقة / دائن الصندوق
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->commissionPayout('DELIVERY', $deliveryid, (float)$total_amount, (int)$transactionRecorded);
+			
 			// تسجيل مبلغ المرتجع فى رصيد العميل
 			$resultFinal = $this->Add_partners_balance( 'DELIVERY', $deliveryid, NULL, 'DEBIT', $total_amount,'صرف مستحقات مندوب','17' );
 			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المندوب");
@@ -1262,6 +1297,10 @@ class finance_BE {
 	        // اضافة المعامله
 			$transactionRecorded = $this->Add_transaction(NULL, 'MARKETER', $marketerId, $total_amount,1, '17' ,'COMPLETED','صرف مستحقات مسوق');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
+			
+			// قيد الأستاذ: مدين العمولات المستحقة / دائن الصندوق
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->commissionPayout('MARKETER', $marketerId, (float)$total_amount, (int)$transactionRecorded);
 			
 			// تسجيل مبلغ المرتجع فى رصيد العميل
 			$resultFinal = $this->Add_partners_balance( 'MARKETER', $marketerId, NULL, 'DEBIT', $total_amount,'صرف مستحقات مسوق','17' );
@@ -1329,6 +1368,8 @@ class finance_BE {
 	        // اضافة المعامله
 			$transactionRecorded = $this->Add_transaction(NULL, 'SUPPLIER', $supplier_id, $total_amount,1, '11' ,'COMPLETED','دفعه من حساب المورد');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->supplierPayment((int)$supplier_id, (float)$total_amount, (int)$transactionRecorded);
 			
 			// تسجيل مبلغ المرتجع فى رصيد العميل
 			//$resultFinal = $this->addClientDebt($order['CLIENT_ID'], $order['ORDER_ID'], $order['ACTUAL_TOTAL'], 18);

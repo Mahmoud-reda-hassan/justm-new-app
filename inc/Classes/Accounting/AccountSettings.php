@@ -302,4 +302,39 @@ class AccountSettings{
 	public function otherExpense(): int {
 	    return $this->get('OTHER_EXPENSE');
 	}
+
+	/**
+	 * عهدة المندوبين: المبالغ المحصلة لدى المندوب قبل توريدها للشركة.
+	 */
+	public function deliveryCustody(): int {
+	    return $this->get('DELIVERY_CUSTODY');
+	}
+
+	/**
+	 * عمولات المندوبين المستحقة (التزام) حتى تُصرف أو تُخصم من العهدة.
+	 */
+	public function deliveryCommissionPayable(): int {
+	    return $this->get('DELIVERY_COMMISSION_PAYABLE');
+	}
+
+	/**
+	 * عمولات المسوقين وقادة الفرق (مصروف).
+	 */
+	public function marketerCommission(): int {
+	    return $this->get('MARKETER_COMMISSION');
+	}
+
+	/**
+	 * عمولات المسوقين المستحقة (التزام) حتى تُصرف.
+	 */
+	public function marketerCommissionPayable(): int {
+	    return $this->get('MARKETER_COMMISSION_PAYABLE');
+	}
+
+	/**
+	 * أرصدة افتتاحية (حقوق ملكية) تُقابل تسويات ترحيل أرصدة النظام القديم.
+	 */
+	public function openingBalance(): int {
+	    return $this->get('OPENING_BALANCE_EQUITY');
+	}
 }
