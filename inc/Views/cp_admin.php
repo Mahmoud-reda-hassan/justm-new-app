@@ -81,7 +81,7 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
         </div></div>
       </div>
     </section>
-    <div class="dashboard-section-separator my-3" style="border-top: 2px solid #dee2e6; padding-top: 1rem;"></div>
+    <div class="dashboard-section-separator my-4" style="margin-top: 2rem !important; margin-bottom: 2rem !important; border-top: 2px solid #dee2e6; padding-top: 1.5rem;"></div>
     <?php endif; ?>
 
     <?php if ($canDashboardCS2): ?>
