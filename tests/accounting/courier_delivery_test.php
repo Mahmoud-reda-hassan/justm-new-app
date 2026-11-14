@@ -143,6 +143,52 @@ $blocked = throwsMsg(fn() => $im->reverseReturnShipp($o7, $userId, $branch, 'T-R
 $db->rollBack();
 check('reversal is refused when current stock is lower than the quantity to take back', $blocked);
 
+// 6d) full reopen (CourierReopen): ledger + stock + custody + status
+require_once __DIR__ . '/../../inc/Classes/CourierReopen.php';
+$reopen = new CourierReopen($db);
+function inCustody(PDO $db, int $oid, int $status, int $deliveryUser, bool $custodyRow): void {
+    $db->exec("UPDATE orders SET EXISTS_ID=10, DELIVERY_ID=$deliveryUser, ORDER_STATUS=$status, ADDRESS='addr' WHERE ORDER_ID=$oid");
+    if ($custodyRow) {
+        $db->exec("INSERT INTO custody_orders (ORDER_ID,USER_ID,SHIPPING_ADDRESS,RETURNS,CUST_STAT,ORDER_STATUSE) VALUES ($oid,$deliveryUser,'addr',1,'DELIVERED',$status)");
+        $db->exec("INSERT INTO custody_product (ORDER_ID,USER_ID,PRO_CODE,QTY,PRICE,DISCOUNT,DELIVERED_QTY,RETURNED_QTY,PRO_STATUSE) SELECT ORDER_ID,$deliveryUser,PRO_CODE,QTY,PRICE,DISCOUNT,DELIVERED_QTY,RETURNED_QTY,'partial' FROM order_product WHERE ORDER_ID=$oid");
+    }
+}
+$db->exec("UPDATE stores_product SET STO_QTY=20 WHERE STO_ID=$store AND PRO_CODE='P0'");
+$o8 = makeOrder($db, $store, $tel, 4, 30, 1, [[2, 100, 0, 60, 1]]);       // partial: 1 of 2 delivered
+$db->exec("UPDATE order_product SET PRO_STATUSE='partial' WHERE ORDER_ID=$o8");
+inCustody($db, $o8, 4, $userId, true);
+$db->beginTransaction();
+$im->processInventory('RETURN_SHIPP', [$o8], $userId, $branch, 'T-RS-8', $store);
+$ev->courierDelivery($o8);
+$db->commit();
+$stockBefore = $stock();
+check('reopen refused for an unauthorised group', throwsMsg(fn() => $reopen->reopen($o8, $userId, $branch, 'امين مخزن', 'x'), 'صلاحية'));
+check('reopen requires a reason', throwsMsg(fn() => $reopen->reopen($o8, $userId, $branch, 'Owner', ' '), 'سبب'));
+$res = $reopen->reopen($o8, $userId, $branch, 'Owner', 'خطأ في الكمية');
+$ord = $db->query("SELECT ORDER_STATUS,EXISTS_ID,SALE_ENTRY_ID,DELIVERED_DATE FROM orders WHERE ORDER_ID=$o8")->fetch();
+check('reopen: order back at the courier (status 2) with no ledger link', (int)$ord['ORDER_STATUS'] === 2 && (int)$ord['EXISTS_ID'] === 10 && $ord['SALE_ENTRY_ID'] === null && $ord['DELIVERED_DATE'] === null);
+check('reopen: ledger reversed', $res['reverse_entry_id'] > 0);
+check('reopen: rejected unit taken back out of stock', $stock() === $stockBefore - 1.0, (string)$stock());
+$cu = $db->query("SELECT CUST_STAT,RETURNS,ORDER_STATUSE FROM custody_orders WHERE ORDER_ID=$o8")->fetch();
+check('reopen: custody row is WAITING again', $cu && $cu['CUST_STAT'] === 'WAITING' && (int)$cu['RETURNS'] === 0 && (int)$cu['ORDER_STATUSE'] === 2);
+check('reopen: quantities reset for the storekeeper', (int)$db->query("SELECT SUM(DELIVERED_QTY)+SUM(RETURNED_QTY) FROM order_product WHERE ORDER_ID=$o8")->fetchColumn() === 0 && (int)$db->query("SELECT COUNT(*) FROM custody_product WHERE ORDER_ID=$o8 AND PRO_STATUSE='waiting'")->fetchColumn() === 1);
+check('reopen: logged with reason', (int)$db->query("SELECT COUNT(*) FROM orders_log WHERE ORDER_ID=$o8 AND LOG_TEXT LIKE '%خطأ في الكمية%'")->fetchColumn() === 1);
+check('reopen: not allowed again until re-confirmed', throwsMsg(fn() => $reopen->reopen($o8, $userId, $branch, 'Owner', 'again'), 'ليس في عهدة'));
+
+// rejected order whose custody row was removed at approval is rebuilt
+$o9 = makeOrder($db, $store, $tel, 5, 30, 1, [[1, 100, 0, 60, 0]]);
+inCustody($db, $o9, 5, $userId, false);
+$ev->courierDelivery($o9);
+$reopen->reopen($o9, $userId, $branch, 'المدير المالي', 'رفض بالخطأ');
+check('reopen of a rejected order rebuilds the custody row', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE ORDER_ID=$o9 AND CUST_STAT='WAITING'")->fetchColumn() === 1 && (int)$db->query("SELECT ORDER_STATUS FROM orders WHERE ORDER_ID=$o9")->fetchColumn() === 2);
+
+// collected orders cannot be reopened
+$o10 = makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 60, 1]]);
+inCustody($db, $o10, 3, $userId, true);
+$ev->courierDelivery($o10);
+$db->exec("UPDATE orders SET ORDER_SUCCESS=1 WHERE ORDER_ID=$o10");
+check('collected order cannot be reopened', throwsMsg(fn() => $reopen->reopen($o10, $userId, $branch, 'Owner', 'x'), 'تحصيل'));
+
 // 7) DELIVERY partner lines (was broken: wrong partner column names)
 $s = new AccountSettings($db);
 $jm = new JournalManager($db);
