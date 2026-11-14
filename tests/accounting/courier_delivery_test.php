@@ -262,5 +262,14 @@ check('supplier payment: suppliers debit / cash credit 200', lineSum($l, '2100',
 check('supplier refund: cash debit / suppliers credit 30', lineSum($l, '1110', 'debit') === 30.0 && lineSum($l, '2100', 'credit') === 30.0);
 check('supplier entry rejects zero amount', throwsMsg(fn() => $ev->supplierPayment($sup, 0.0, 1), 'Invalid'));
 
+// 12) rejected order whose customer paid the shipping: shipping revenue, then cash collected
+$o21 = makeOrder($db, $store, $tel, 5, 30, 1, [[1, 100, 0, 50, 0]]);
+$ev->courierDelivery($o21);
+$jr = $ev->courierCollection($o21, $userId, 30.0, 1.5);
+[$h, $l] = entry($db, $jr);
+check('rejected+paid shipping: cash 30 / customers 30, commission 1.5', lineSum($l, '1110', 'debit') === 30.0 && lineSum($l, '1200', 'credit') === 30.0 && lineSum($l, '5700', 'debit') === 1.5 && lineSum($l, '2210', 'credit') === 1.5);
+check('rejected+paid shipping: customer nets to zero', (float)$db->query("SELECT ROUND(SUM(d.debit-d.credit),2) FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id JOIN journal_entries e ON e.id=d.journal_entry_id WHERE a.account_code='1200' AND e.reference_id=$o21")->fetchColumn() === 0.0);
+check('rejected+paid shipping: no sales/COGS posted', (float)$db->query("SELECT COUNT(*) FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id JOIN journal_entries e ON e.id=d.journal_entry_id WHERE a.account_code IN ('4100','5100') AND e.reference_id=$o21")->fetchColumn() === 0.0);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

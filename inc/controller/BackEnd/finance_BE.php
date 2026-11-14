@@ -747,6 +747,7 @@ class finance_BE {
 						CO.RETURNS,
 						O.ORDER_STATUS,
 						O.ORDER_SUCCESS,
+						O.SHIPP_PAYMENT,
 						O.LAST_UPDATE,
 						TE.CLIENT_ID,
 						CO.USER_ID AS DELIVERY_ID,
@@ -799,7 +800,7 @@ class finance_BE {
 						GROUP BY CP.ORDER_ID, CP.USER_ID, CP.PRO_CODE, PR.PRO_NAME
 					) AS VOP ON CP.ORDER_ID = VOP.ORDER_ID AND CP.PRO_CODE = VOP.PRO_CODE AND CP.USER_ID = VOP.USER_ID
 					WHERE FIND_IN_SET (CO.ORDER_ID ,:oids)
-				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.LAST_UPDATE";
+				GROUP BY CO.ORDER_ID, O.SUB_ORDER_ID, O.ORDER_TYPE_ID, O.ORDER_BY, O.SHIPPING_VAL, O.ORDER_STATUS, O.ORDER_SUCCESS, O.SHIPP_PAYMENT, O.LAST_UPDATE";
 			$oIds = htmlspecialchars(strip_tags(trim(implode(',',array_keys($orderIds)))));
 			$this->conn->beginTransaction();
 
@@ -838,7 +839,13 @@ class finance_BE {
 						if($orders[$orderId]['CUST_STAT'] != 'FREEZE' && //اذاكان امر البيع مجمد على عهدة المندوب
 							(
 								($orders[$orderId]['ORDER_STATUSE'] == 4 && $orders[$orderId]['RETURNS'] == 0) || // اذا كان امر البيع تسليم جزئى ولم يقم المندوب بتسليم المرتجعات
-								 $orders[$orderId]['ORDER_STATUSE'] == 5 || 
+								// مرفوض بعد محاولة: يُسمح بتحصيله فقط إذا دفع العميل الشحن (SHIPP_PAYMENT=1)
+								// وبقيمة شحن > 0 واستلم أمين المخزن المرفوضات (RETURNS=1)؛ المطلوب حينها قيمة الشحن فقط.
+								($orders[$orderId]['ORDER_STATUSE'] == 5 && !(
+									(int)$orders[$orderId]['SHIPP_PAYMENT'] === 1 &&
+									(float)$orders[$orderId]['SHIPPING_VAL'] > 0 &&
+									(int)$orders[$orderId]['RETURNS'] === 1
+								)) ||
 								 $orders[$orderId]['ORDER_STATUSE'] <  3 // اذا كان حالة امر البيع قيد الشحن او اقل
 							)
 						){
