@@ -82,7 +82,6 @@ if ($loginType === 1 && $pageType > 0) {
                        (isset($usm["orderlist_ex3"]["View_order_list"]) && $usm["orderlist_ex3"]["View_order_list"] == "true")   ||
                        (isset($usm["orderlist_ex4"]["View_order_list"]) && $usm["orderlist_ex4"]["View_order_list"] == "true")   ||
                        (isset($usm["orderlist_ex5"]["View_order_list"]) && $usm["orderlist_ex5"]["View_order_list"] == "true")   ||
-                       (isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true")   ||
                        (isset($usm["orderlist_ex12"]["View_order_list"]) && $usm["orderlist_ex12"]["View_order_list"] == "true") ||
                        (isset($usm["orderlist_ex13"]["View_order_list"]) && $usm["orderlist_ex13"]["View_order_list"] == "true")
                     ){ ?>
@@ -96,8 +95,18 @@ if ($loginType === 1 && $pageType > 0) {
 		            </a>
 		        </li>
                 <?php } ?>
-                
-				<!-- خدمات المتابعة والدعم -->
+
+                <!-- تأكيد الشحن والتوصيل -->
+                <?php if(isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true"){ ?>
+                <li class="nav-item">
+                    <a href="?Go=Orderlist&ty=1&ex=6" class="nav-link">
+                        <i class="fas fa-truck nav-icon"></i>
+                        <p>تأكيد الشحن والتوصيل</p>
+                    </a>
+                </li>
+                <?php } ?>
+
+                <!-- خدمات المتابعة والدعم -->
                 <?php if((isset($usm["orderlist_ex12"]["View_order_list"]) && $usm["orderlist_ex12"]["View_order_list"]  == "true") ||
 	                     (isset($usm["SupportAfterSales"]["View_order_list"]) && $usm["SupportAfterSales"]["View_order_list"] == "true") ||
 	                     (isset($usm["SupportOrders"]["View_order_list"]) && $usm["SupportOrders"]["View_order_list"] == "true")){?>
