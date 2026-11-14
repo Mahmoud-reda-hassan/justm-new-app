@@ -121,7 +121,7 @@
 			if (!r.isConfirmed) return;
 			const btn = $('#btnLegacyRunAll').prop('disabled', true);
 			const total = {orders: {done: 0, failed: 0}, returns: {done: 0, failed: 0}, opening: {done: 0, failed: 0}};
-			const errors = []; const skip = []; let batches = 0;
+			const errors = [];
 			const finish = function (fatal) {
 				const failed = total.orders.failed + total.returns.failed + total.opening.failed;
 				Swal.fire({
@@ -132,20 +132,14 @@
 				});
 				loadSummary(); loadBackfill(); loadReturns(); loadOpening();
 			};
-			const step = function () {
-				batches++;
-				Swal.fire({title: 'جارٍ الترحيل...', html: `تم حتى الآن: ${total.orders.done + total.returns.done + total.opening.done}`, allowOutsideClick: false, didOpen: () => Swal.showLoading()});
-				$.post(url, {CONTROL: 'legacyRunAll', skip: skip}, function (res) {
-					if (!(Array.isArray(res) && res[0] === 'success')) { return finish((res && res[2]) || 'فشل الترحيل'); }
-					const d = res[3];
-					['orders', 'returns', 'opening'].forEach(k => { total[k].done += d[k].done; total[k].failed += d[k].failed; });
-					(d.errors || []).forEach(e => errors.push(e));
-					(d.failed_keys || []).forEach(k => skip.push(k));
-					if (d.processed === 0 || batches > 2000) { return finish(null); }
-					step();
-				}, 'json').fail(function () { finish('انقطع الاتصال أثناء إحدى الدفعات'); });
-			};
-			step();
+			Swal.fire({title: 'جارٍ الترحيل...', text: 'لا تغلق الصفحة حتى يظهر التقرير.', allowOutsideClick: false, didOpen: () => Swal.showLoading()});
+			$.post(url, {CONTROL: 'legacyRunAll'}, function (res) {
+				if (!(Array.isArray(res) && res[0] === 'success')) { return finish((res && res[2]) || 'فشل الترحيل'); }
+				const d = res[3];
+				['orders', 'returns', 'opening'].forEach(k => { total[k].done += d[k].done; total[k].failed += d[k].failed; });
+				(d.errors || []).forEach(e => errors.push(e));
+				finish(null);
+			}, 'json').fail(function (xhr) { finish('انقطع الاتصال (' + (xhr.status || 'بلا رد') + '). السيرفر قد يكون أكمل العمل، راجع الملخص.'); });
 		});
 	});
 
