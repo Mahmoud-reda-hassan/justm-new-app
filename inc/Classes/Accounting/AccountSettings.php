@@ -316,4 +316,18 @@ class AccountSettings{
 	public function deliveryCommissionPayable(): int {
 	    return $this->get('DELIVERY_COMMISSION_PAYABLE');
 	}
+
+	/**
+	 * عمولات المسوقين وقادة الفرق (مصروف).
+	 */
+	public function marketerCommission(): int {
+	    return $this->get('MARKETER_COMMISSION');
+	}
+
+	/**
+	 * عمولات المسوقين المستحقة (التزام) حتى تُصرف.
+	 */
+	public function marketerCommissionPayable(): int {
+	    return $this->get('MARKETER_COMMISSION_PAYABLE');
+	}
 }

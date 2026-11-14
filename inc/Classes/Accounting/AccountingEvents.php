@@ -255,7 +255,7 @@ class AccountingEvents {
 	 * يُستدعى داخل معاملة التحصيل. إن لم يكن التسليم مُرحَّلاً يُرحِّله أولاً.
 	 * @return int رقم القيد، أو 0 إن لم يكن هناك مبلغ ولا عمولة.
 	 */
-	public function courierCollection(int $orderId, int $deliveryUserId, float $amount, float $commission, bool $blockOnMissingCost = true): int{
+	public function courierCollection(int $orderId, int $deliveryUserId, float $amount, float $commission, bool $blockOnMissingCost = true, array $marketerCommissions = []): int{
 	    $amount     = round($amount, 2);
 	    $commission = round($commission, 2);
 	    if ($amount < 0 || $commission < 0) {
@@ -266,7 +266,12 @@ class AccountingEvents {
 	    if ($order['SALE_ENTRY_ID'] === null && in_array((int)$order['ORDER_STATUS'], [3, 4, 5], true)) {
 	        $this->courierDelivery($orderId, $blockOnMissingCost);
 	    }
-	    if ($amount <= 0 && $commission <= 0) {
+	    $mk = [];
+	    foreach ($marketerCommissions as $row) {   // [[marketer_user_id, amount], ...] (المسوق ثم قائد الفريق)
+	        $mid = (int)($row[0] ?? 0); $mamt = round((float)($row[1] ?? 0), 2);
+	        if ($mid > 0 && $mamt > 0) { $mk[] = [$mid, $mamt]; }
+	    }
+	    if ($amount <= 0 && $commission <= 0 && !$mk) {
 	        return 0;
 	    }
 
@@ -317,6 +322,58 @@ class AccountingEvents {
 	            'credit'       => $commission
 	        ]);
 	    }
+	    foreach ($mk as [$mid, $mamt]) {
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->marketerCommission(),
+	            'debit'      => $mamt
+	        ]);
+	        $this->journal->addLine([
+	            'account_id'   => $this->settings->marketerCommissionPayable(),
+	            'partner_type' => 'MARKETER',
+	            'partner_id'   => $mid,
+	            'credit'       => $mamt
+	        ]);
+	    }
+	    return $this->journal->post();
+	}
+
+	/**
+	 * قيد صرف مستحقات مندوب/مسوق نقداً: مدين العمولات المستحقة (الطرف: المستفيد) / دائن الصندوق.
+	 * @param string $partnerType 'DELIVERY' أو 'MARKETER'
+	 * @param int $transactionId رقم الحركة المالية (financial_transactions) كمرجع
+	 */
+	public function commissionPayout(string $partnerType, int $partnerId, float $amount, int $transactionId): int{
+	    $amount = round($amount, 2);
+	    if ($amount <= 0 || $partnerId <= 0) {
+	        throw new Exception("Invalid payout.");
+	    }
+	    if ($partnerType === 'DELIVERY') {
+	        $payable = $this->settings->deliveryCommissionPayable(); $ref = 'DELIVERY_PAYOUT'; $label = 'صرف مستحقات مندوب';
+	    } elseif ($partnerType === 'MARKETER') {
+	        $payable = $this->settings->marketerCommissionPayable(); $ref = 'MARKETER_PAYOUT'; $label = 'صرف مستحقات مسوق';
+	    } else {
+	        throw new Exception("Unsupported partner type.");
+	    }
+	    $branchId = $this->getCurrentBranchId();
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => $branchId,
+	        'entry_date'     => date('Y-m-d H:i:s'),
+	        'reference_type' => $ref,
+	        'reference_id'   => $transactionId,
+	        'description'    => $label,
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+	    $this->journal->addLine([
+	        'account_id'   => $payable,
+	        'partner_type' => $partnerType,
+	        'partner_id'   => $partnerId,
+	        'debit'        => $amount
+	    ]);
+	    $this->journal->addLine([
+	        'account_id' => $this->settings->cash($branchId),
+	        'credit'     => $amount
+	    ]);
 	    return $this->journal->post();
 	}
 
