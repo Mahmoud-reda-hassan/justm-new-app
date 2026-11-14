@@ -1,0 +1,201 @@
+<?php
+/**
+ * Integration test (needs a MariaDB with inc/Databases/createDatabase.sql imported as `cptest`).
+ * usage: php tests/accounting/courier_delivery_test.php [host] [user] [pass]
+ */
+$host = $argv[1] ?? '127.0.0.1';
+$user = $argv[2] ?? 'root';
+$pass = $argv[3] ?? 'test';
+$db = new PDO("mysql:host=$host;dbname=cptest;charset=utf8mb4", $user, $pass, [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+]);
+$db->exec('SET FOREIGN_KEY_CHECKS=0');
+
+require_once __DIR__ . '/../../inc/Classes/Accounting/AccountingEvents.php';
+
+$fail = 0;
+function check(string $name, bool $ok, string $extra = ''): void {
+    global $fail;
+    echo ($ok ? 'PASS' : 'FAIL') . "  $name" . ($extra && !$ok ? "  [$extra]" : '') . "\n";
+    if (!$ok) { $fail++; }
+}
+function throwsMsg(callable $f, string $needle): bool {
+    try { $f(); } catch (Throwable $e) { return strpos($e->getMessage(), $needle) !== false; }
+    return false;
+}
+
+// ---- seed ----
+$db->exec("INSERT INTO financial_years (year_name,date_from,date_to) VALUES ('T','2000-01-01','2099-12-31')");
+$db->exec("INSERT INTO branches (COMPANIE_ID,BR_NAME,BR_MAIN) VALUES (1,'T',1)");
+$branch = (int)$db->lastInsertId();
+$db->exec("INSERT INTO stores (BRANCH_ID,STO_NAME,STTY_ID) VALUES ($branch,'S',2)");
+$store = (int)$db->lastInsertId();
+$db->exec("INSERT INTO client (CLIENT_NAME) VALUES ('Test Client')");
+$client = (int)$db->lastInsertId();
+$db->exec("INSERT INTO telephones (CLIENT_ID,WHATSAPP,TELEGRAM,TEL_LTYPE,TEL_NUMBER) VALUES ($client,0,0,'mobile','01000000001')");
+$tel = (int)$db->lastInsertId();
+$db->exec("INSERT INTO users (BRANCH_ID,FORENAME,LASTNAME,GENDER,USER_LOGIN,USER_PASSWORD,BIRTHDAY) VALUES ($branch,'t','t','M','t@example.com','x','2000-01-01')");
+$userId = (int)$db->lastInsertId();
+$_SESSION = ['USER_ID' => $userId, 'BRANCH_ID' => $branch];
+
+function makeOrder(PDO $db, int $store, int $tel, int $status, float $ship, int $shippPayment, array $lines): int {
+    static $n = 0; $n++;
+    $db->exec("INSERT INTO orders (SUB_ORDER_ID,ORDER_TYPE_ID,ORDER_BY,CITY_ID,ADDRESS_ID,ADDRESS,TEL_ID,TELEPHONE,DELIVERY_DATE,SHIPPING_VAL,SHIPP_PAYMENT,ORDER_STATUS,ORDER_SUCCESS,STO_ID)
+               VALUES ('T-$n',2,1,1,1,'a',$tel,'01000000001',NOW(),$ship,$shippPayment,$status,0,$store)");
+    $id = (int)$db->lastInsertId();
+    foreach ($lines as $i => [$qty, $price, $disc, $cost, $deliv]) {
+        $db->exec("INSERT INTO order_product (ORDER_ID,PRO_CODE,QTY,PRICE,DISCOUNT,COST_PRICE,DELIVERED_QTY,RETURNED_QTY)
+                   VALUES ($id,'P$i',$qty,$price,$disc,$cost,$deliv,0)");
+    }
+    return $id;
+}
+function entry(PDO $db, int $jid): array {
+    $h = $db->query("SELECT total_debit,total_credit,status,reference_type FROM journal_entries WHERE id=$jid")->fetch();
+    $l = $db->query("SELECT a.account_code,d.debit,d.credit,d.partner_type FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id WHERE d.journal_entry_id=$jid ORDER BY d.line_no")->fetchAll();
+    return [$h, $l];
+}
+function lineSum(array $lines, string $code, string $col): float {
+    $s = 0.0; foreach ($lines as $x) { if ($x['account_code'] === $code) { $s += (float)$x[$col]; } } return $s;
+}
+
+$ev = new AccountingEvents($db);
+
+// 1) fully delivered: 2 x (100-10) = 180 sales, cost 2x60 = 120, shipping 30
+$o1 = makeOrder($db, $store, $tel, 3, 30, 1, [[2, 100, 10, 60, 2]]);
+$j1 = $ev->courierDelivery($o1);
+[$h, $l] = entry($db, $j1);
+check('delivered: entry posted and balanced', $j1 > 0 && (float)$h['total_debit'] === (float)$h['total_credit'] && (float)$h['total_debit'] === 330.0, json_encode($h));
+check('delivered: customers debit 210', lineSum($l, '1200', 'debit') === 210.0);
+check('delivered: sales credit 180', lineSum($l, '4100', 'credit') === 180.0);
+check('delivered: shipping revenue credit 30', lineSum($l, '4200', 'credit') === 30.0);
+check('delivered: COGS debit 120 / inventory credit 120', lineSum($l, '5100', 'debit') === 120.0 && lineSum($l, '1300', 'credit') === 120.0);
+check('delivered: order linked to entry', (int)$db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o1")->fetchColumn() === $j1);
+
+// 2) duplicate call must not post twice
+check('duplicate delivery is refused', throwsMsg(fn() => $ev->courierDelivery($o1), 'already posted'));
+check('only one entry for the order', (int)$db->query("SELECT COUNT(*) FROM journal_entries WHERE reference_type='COURIER_DELIVERY' AND reference_id=$o1")->fetchColumn() === 1);
+
+// 3) partial delivery: 1 of 2 delivered
+$o2 = makeOrder($db, $store, $tel, 4, 30, 1, [[2, 100, 10, 60, 1]]);
+[$h, $l] = entry($db, $ev->courierDelivery($o2));
+check('partial: sales 90, cost 60, balanced', lineSum($l, '4100', 'credit') === 90.0 && lineSum($l, '5100', 'debit') === 60.0 && (float)$h['total_debit'] === (float)$h['total_credit']);
+
+// 4) rejected after attempt: shipping paid -> revenue only; refused -> nothing
+$o3 = makeOrder($db, $store, $tel, 5, 30, 1, [[2, 100, 10, 60, 0]]);
+[$h, $l] = entry($db, $ev->courierDelivery($o3));
+check('rejected+paid shipping: customers 30 / shipping revenue 30, no sales/COGS', lineSum($l, '1200', 'debit') === 30.0 && lineSum($l, '4200', 'credit') === 30.0 && lineSum($l, '4100', 'credit') === 0.0 && lineSum($l, '5100', 'debit') === 0.0);
+$o4 = makeOrder($db, $store, $tel, 5, 30, 0, [[2, 100, 10, 60, 0]]);
+check('rejected+shipping refused: nothing posted', $ev->courierDelivery($o4) === 0 && $db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o4")->fetchColumn() === null);
+
+// 5) missing cost
+$o5 = makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 0, 1]]);
+check('missing cost is blocked by default', throwsMsg(fn() => $ev->courierDelivery($o5), 'cost price'));
+check('blocked order left unposted', $db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o5")->fetchColumn() === null);
+[$h, $l] = entry($db, $ev->courierDelivery($o5, false));
+check('missing cost allowed by option: sales only, balanced', lineSum($l, '4100', 'credit') === 100.0 && lineSum($l, '5100', 'debit') === 0.0 && (float)$h['total_debit'] === (float)$h['total_credit']);
+
+// 6) not yet delivered
+$o6 = makeOrder($db, $store, $tel, 2, 30, 1, [[1, 100, 0, 50, 0]]);
+check('order still in shipping is refused', throwsMsg(fn() => $ev->courierDelivery($o6), 'not been delivered'));
+
+// 6b) reopening: reverse the delivery entry, then post again after the storekeeper edits
+$orig = (int)$db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o2")->fetchColumn();
+check('reverse requires a reason', throwsMsg(fn() => $ev->reverseCourierDelivery($o2, '  '), 'Reason'));
+$rev = $ev->reverseCourierDelivery($o2, 'courier mistake');
+check('reverse returns a new entry and clears the order link', $rev > 0 && $rev !== $orig && $db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o2")->fetchColumn() === null);
+$net = $db->query("SELECT d.account_id, ROUND(SUM(d.debit-d.credit),2) AS n FROM journal_entry_details d WHERE d.journal_entry_id IN ($orig,$rev) GROUP BY d.account_id")->fetchAll();
+check('original + reversal net to zero on every account', count($net) > 0 && count(array_filter($net, fn($r) => (float)$r['n'] !== 0.0)) === 0, json_encode($net));
+check('original entry is kept (not deleted)', (int)$db->query("SELECT COUNT(*) FROM journal_entries WHERE id=$orig")->fetchColumn() === 1);
+check('reverse twice is refused', throwsMsg(fn() => $ev->reverseCourierDelivery($o2, 'again'), 'no posted delivery'));
+$db->exec("UPDATE order_product SET DELIVERED_QTY=2 WHERE ORDER_ID=$o2");   // storekeeper corrects: all delivered
+$j2b = $ev->courierDelivery($o2);
+[$h, $l] = entry($db, $j2b);
+check('re-post after correction uses the corrected quantity (sales 180)', lineSum($l, '4100', 'credit') === 180.0 && (float)$h['total_debit'] === (float)$h['total_credit']);
+$db->exec("UPDATE orders SET ORDER_SUCCESS=1 WHERE ORDER_ID=$o1");
+check('collected order cannot be reversed', throwsMsg(fn() => $ev->reverseCourierDelivery($o1, 'x'), 'collected'));
+
+// 6c) inventory reversal on reopen (RETURN_SHIPP -> REOPEN_RETURN_SHIPP)
+require_once __DIR__ . '/../../inc/Classes/InventoryManager.php';
+$im = new InventoryManager($db);
+$o7 = makeOrder($db, $store, $tel, 4, 0, 1, [[2, 100, 0, 60, 1]]);
+$db->exec("UPDATE order_product SET PRO_STATUSE='partial' WHERE ORDER_ID=$o7");
+$db->exec("INSERT INTO stores_product (STO_ID,PRO_CODE,STO_QTY) VALUES ($store,'P0',10)");
+$stock = fn() => (float)$db->query("SELECT STO_QTY FROM stores_product WHERE STO_ID=$store AND PRO_CODE='P0'")->fetchColumn();
+$db->beginTransaction();
+$im->processInventory('RETURN_SHIPP', [$o7], $userId, $branch, 'T-RS-1', $store);
+$db->commit();
+check('RETURN_SHIPP returned 1 rejected unit to stock (10 -> 11)', $stock() === 11.0, (string)$stock());
+$db->beginTransaction();
+$n = $im->reverseReturnShipp($o7, $userId, $branch, 'T-REV-1');
+$db->commit();
+check('reversal takes the unit back out (11 -> 10)', $n > 0 && $stock() === 10.0, (string)$stock());
+$db->beginTransaction();
+$n2 = $im->reverseReturnShipp($o7, $userId, $branch, 'T-REV-2');
+$db->commit();
+check('second reversal does nothing', $n2 === 0 && $stock() === 10.0);
+check('original movement is kept alongside the reversal', (int)$db->query("SELECT COUNT(*) FROM inventory_movement WHERE REFERENCE='$o7' AND IM_MOVE_TYPE IN ('RETURN_SHIPP','REOPEN_RETURN_SHIPP')")->fetchColumn() === 2);
+$db->exec("UPDATE stores_product SET STO_QTY=0 WHERE STO_ID=$store AND PRO_CODE='P0'");
+$db->beginTransaction();
+$im->processInventory('RETURN_SHIPP', [$o7], $userId, $branch, 'T-RS-2', $store);
+$db->exec("UPDATE stores_product SET STO_QTY=0 WHERE STO_ID=$store AND PRO_CODE='P0'");  // stock already sold elsewhere
+$blocked = throwsMsg(fn() => $im->reverseReturnShipp($o7, $userId, $branch, 'T-REV-3'), 'أقل من الكمية');
+$db->rollBack();
+check('reversal is refused when current stock is lower than the quantity to take back', $blocked);
+
+// 6d) full reopen (CourierReopen): ledger + stock + custody + status
+require_once __DIR__ . '/../../inc/Classes/CourierReopen.php';
+$reopen = new CourierReopen($db);
+function inCustody(PDO $db, int $oid, int $status, int $deliveryUser, bool $custodyRow): void {
+    $db->exec("UPDATE orders SET EXISTS_ID=10, DELIVERY_ID=$deliveryUser, ORDER_STATUS=$status, ADDRESS='addr' WHERE ORDER_ID=$oid");
+    if ($custodyRow) {
+        $db->exec("INSERT INTO custody_orders (ORDER_ID,USER_ID,SHIPPING_ADDRESS,RETURNS,CUST_STAT,ORDER_STATUSE) VALUES ($oid,$deliveryUser,'addr',1,'DELIVERED',$status)");
+        $db->exec("INSERT INTO custody_product (ORDER_ID,USER_ID,PRO_CODE,QTY,PRICE,DISCOUNT,DELIVERED_QTY,RETURNED_QTY,PRO_STATUSE) SELECT ORDER_ID,$deliveryUser,PRO_CODE,QTY,PRICE,DISCOUNT,DELIVERED_QTY,RETURNED_QTY,'partial' FROM order_product WHERE ORDER_ID=$oid");
+    }
+}
+$db->exec("UPDATE stores_product SET STO_QTY=20 WHERE STO_ID=$store AND PRO_CODE='P0'");
+$o8 = makeOrder($db, $store, $tel, 4, 30, 1, [[2, 100, 0, 60, 1]]);       // partial: 1 of 2 delivered
+$db->exec("UPDATE order_product SET PRO_STATUSE='partial' WHERE ORDER_ID=$o8");
+inCustody($db, $o8, 4, $userId, true);
+$db->beginTransaction();
+$im->processInventory('RETURN_SHIPP', [$o8], $userId, $branch, 'T-RS-8', $store);
+$ev->courierDelivery($o8);
+$db->commit();
+$stockBefore = $stock();
+check('reopen refused for an unauthorised group', throwsMsg(fn() => $reopen->reopen($o8, $userId, $branch, 'امين مخزن', 'x'), 'صلاحية'));
+check('reopen requires a reason', throwsMsg(fn() => $reopen->reopen($o8, $userId, $branch, 'Owner', ' '), 'سبب'));
+$res = $reopen->reopen($o8, $userId, $branch, 'Owner', 'خطأ في الكمية');
+$ord = $db->query("SELECT ORDER_STATUS,EXISTS_ID,SALE_ENTRY_ID,DELIVERED_DATE FROM orders WHERE ORDER_ID=$o8")->fetch();
+check('reopen: order back at the courier (status 2) with no ledger link', (int)$ord['ORDER_STATUS'] === 2 && (int)$ord['EXISTS_ID'] === 10 && $ord['SALE_ENTRY_ID'] === null && $ord['DELIVERED_DATE'] === null);
+check('reopen: ledger reversed', $res['reverse_entry_id'] > 0);
+check('reopen: rejected unit taken back out of stock', $stock() === $stockBefore - 1.0, (string)$stock());
+$cu = $db->query("SELECT CUST_STAT,RETURNS,ORDER_STATUSE FROM custody_orders WHERE ORDER_ID=$o8")->fetch();
+check('reopen: custody row is WAITING again', $cu && $cu['CUST_STAT'] === 'WAITING' && (int)$cu['RETURNS'] === 0 && (int)$cu['ORDER_STATUSE'] === 2);
+check('reopen: quantities reset for the storekeeper', (int)$db->query("SELECT SUM(DELIVERED_QTY)+SUM(RETURNED_QTY) FROM order_product WHERE ORDER_ID=$o8")->fetchColumn() === 0 && (int)$db->query("SELECT COUNT(*) FROM custody_product WHERE ORDER_ID=$o8 AND PRO_STATUSE='waiting'")->fetchColumn() === 1);
+check('reopen: logged with reason', (int)$db->query("SELECT COUNT(*) FROM orders_log WHERE ORDER_ID=$o8 AND LOG_TEXT LIKE '%خطأ في الكمية%'")->fetchColumn() === 1);
+check('reopen: not allowed again until re-confirmed', throwsMsg(fn() => $reopen->reopen($o8, $userId, $branch, 'Owner', 'again'), 'ليس في عهدة'));
+
+// rejected order whose custody row was removed at approval is rebuilt
+$o9 = makeOrder($db, $store, $tel, 5, 30, 1, [[1, 100, 0, 60, 0]]);
+inCustody($db, $o9, 5, $userId, false);
+$ev->courierDelivery($o9);
+$reopen->reopen($o9, $userId, $branch, 'المدير المالي', 'رفض بالخطأ');
+check('reopen of a rejected order rebuilds the custody row', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE ORDER_ID=$o9 AND CUST_STAT='WAITING'")->fetchColumn() === 1 && (int)$db->query("SELECT ORDER_STATUS FROM orders WHERE ORDER_ID=$o9")->fetchColumn() === 2);
+
+// collected orders cannot be reopened
+$o10 = makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 60, 1]]);
+inCustody($db, $o10, 3, $userId, true);
+$ev->courierDelivery($o10);
+$db->exec("UPDATE orders SET ORDER_SUCCESS=1 WHERE ORDER_ID=$o10");
+check('collected order cannot be reopened', throwsMsg(fn() => $reopen->reopen($o10, $userId, $branch, 'Owner', 'x'), 'تحصيل'));
+
+// 7) DELIVERY partner lines (was broken: wrong partner column names)
+$s = new AccountSettings($db);
+$jm = new JournalManager($db);
+$jm->reset()->create(['branch_id' => $branch, 'entry_date' => date('Y-m-d H:i:s'), 'reference_type' => 'TEST', 'reference_id' => 1, 'description' => 'partner test', 'created_by' => $userId]);
+$jm->addLine(['account_id' => $s->deliveryCommission(), 'debit' => 10]);
+$jm->addLine(['account_id' => $s->deliveryCommissionPayable(), 'partner_type' => 'DELIVERY', 'partner_id' => $userId, 'credit' => 10]);
+check('journal accepts a DELIVERY partner line', $jm->post() > 0);
+
+echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
+exit($fail ? 1 : 0);

@@ -231,6 +231,23 @@ function ResponseData($data){
 					//session_write_close();
 					ResponseData($DirectSale->confirmOrderSales($_POST['oid']));
 	    			break;	
+				case 'reopenCourierOrder':
+					// رد أمر شحن مندوب للمخزن للتعديل (المدير العام/المالك/المدير المالي فقط)
+					try {
+						include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+						$reopen = new CourierReopen($db);
+						$reopen->reopen(
+							(int)($_POST['order_id'] ?? 0),
+							(int)$_SESSION["USER_ID"],
+							(int)$_SESSION["BRANCH_ID"],
+							(string)($_SESSION["USER_GRUOP_NAME"] ?? ''),
+							(string)($_POST['reason'] ?? '')
+						);
+						ResponseData(array('success', 'ناجح', 'تم رد الأمر للمخزن للتعديل', []));
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage()));
+					}
+					break;
 				case 'custodySettlement':
 					$shipment_tbl->orderobj    = $_POST["orderobj"];
 	    			$shipment_tbl->delivery_id = $_POST["delivery_id"];

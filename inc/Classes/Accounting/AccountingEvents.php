@@ -78,6 +78,177 @@ class AccountingEvents {
 	}
 	
 /*****************************************************
+* تسليم المندوب: إثبات البيع وإيراد الشحن وتكلفة البضاعة
+* (لا يغير الشاشات؛ يُستدعى من داخل معاملة تأكيد الشحنة)
+*****************************************************/
+
+	// جلب بيانات أمر شحن مندوب
+	protected function getCourierOrder(int $orderId): array{
+	    $stmt = $this->db->prepare("
+	        SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_TYPE_ID, o.ORDER_STATUS,
+	               o.SHIPPING_VAL, o.SHIPP_PAYMENT, o.SALE_ENTRY_ID,
+	               st.BRANCH_ID, st.STO_ID AS STORE_ID, te.CLIENT_ID,
+	               NOW(6) AS JOURNAL_DATE,
+	               COALESCE(SUM((op.PRICE-op.DISCOUNT) * op.DELIVERED_QTY),0) AS SALES_AMOUNT,
+	               COALESCE(SUM(op.COST_PRICE * op.DELIVERED_QTY),0)          AS COST_AMOUNT,
+	               COALESCE(SUM(CASE WHEN op.DELIVERED_QTY > 0 THEN 1 ELSE 0 END),0) AS DELIVERED_LINES,
+	               COALESCE(SUM(CASE WHEN op.DELIVERED_QTY > 0 AND (op.COST_PRICE IS NULL OR op.COST_PRICE <= 0) THEN 1 ELSE 0 END),0) AS INVALID_COST_LINES
+	        FROM orders o
+	        LEFT JOIN order_product op ON o.ORDER_ID = op.ORDER_ID
+	        LEFT JOIN stores st ON o.STO_ID = st.STO_ID
+	        LEFT JOIN telephones te ON te.TEL_ID = o.TEL_ID
+	        WHERE o.ORDER_ID = ?
+	        GROUP BY o.ORDER_ID
+	        LIMIT 1
+	        FOR UPDATE
+	    ");
+	    $stmt->execute([$orderId]);
+	    $order = $stmt->fetch(PDO::FETCH_ASSOC);
+	    if (!$order) {
+	        throw new Exception("Order not found.");
+	    }
+	    return $order;
+	}
+
+	/**
+	 * قيد تسليم أمر شحن بالمندوب (مرة واحدة لكل أمر، محمي بـ SALE_ENTRY_ID).
+	 * - تسليم كلي/جزئي (3,4): مدين العملاء بقيمة المسلَّم + الشحن، دائن المبيعات وإيراد الشحن،
+	 *   مدين تكلفة البضاعة ودائن المخزون بتكلفة المسلَّم.
+	 * - مرفوض بعد محاولة (5): إيراد الشحن فقط إذا دفعه العميل (SHIPP_PAYMENT=1).
+	 * لا يسجل عمولة المندوب (تُسجل عند التحصيل) ولا حركة العهدة.
+	 * @param bool $blockOnMissingCost true: امنع الترحيل لو منتج مُسلَّم بلا تكلفة. false: يرحّل المبيعات بدون تكلفة.
+	 * @return int رقم القيد، أو 0 إن لم يكن هناك ما يُرحَّل.
+	 */
+	public function courierDelivery(int $orderId, bool $blockOnMissingCost = true): int{
+	    $order  = $this->getCourierOrder($orderId);
+	    $status = (int)$order['ORDER_STATUS'];
+
+	    if ($order['SALE_ENTRY_ID'] !== null) {
+	        throw new Exception("Order already posted.");
+	    }
+	    if (!in_array($status, [3, 4, 5], true)) {
+	        throw new Exception("Order has not been delivered or rejected after an attempt.");
+	    }
+	    if ((int)($order['CLIENT_ID'] ?? 0) <= 0) {
+	        throw new Exception("لا يمكن ترحيل التسليم: العميل غير مرتبط برقم هاتف الطلب.");
+	    }
+
+	    $shipping = round((float)$order['SHIPPING_VAL'], 2);
+	    $sales    = 0.0;
+	    $cost     = 0.0;
+
+	    if ($status === 5) {
+	        // مرفوض: لا بيع ولا تكلفة؛ إيراد الشحن فقط إذا دفعه العميل
+	        if ((int)$order['SHIPP_PAYMENT'] !== 1) {
+	            $shipping = 0.0;
+	        }
+	    } else {
+	        if ((int)$order['DELIVERED_LINES'] <= 0) {
+	            throw new Exception("Order has no delivered product lines.");
+	        }
+	        $sales = round((float)$order['SALES_AMOUNT'], 2);
+	        $cost  = round((float)$order['COST_AMOUNT'], 2);
+	        if ((int)$order['INVALID_COST_LINES'] > 0) {
+	            if ($blockOnMissingCost) {
+	                throw new Exception("Cannot post delivery: one or more delivered products have a missing or non-positive cost price.");
+	            }
+	            $cost = 0.0;
+	        }
+	    }
+
+	    $receivable = round($sales + $shipping, 2);
+	    if ($receivable <= 0) {
+	        return 0; // لا شيء يستحق الترحيل (مثل رفض دون شحن)
+	    }
+
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => (int)$order['BRANCH_ID'],
+	        'entry_date'     => $order['JOURNAL_DATE'],
+	        'reference_type' => 'COURIER_DELIVERY',
+	        'reference_id'   => $orderId,
+	        'description'    => 'تسليم شحنة مندوب أمر رقم '.$order['SUB_ORDER_ID'],
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+
+	    $this->journal->addLine([
+	        'account_id'   => $this->settings->customers(),
+	        'partner_type' => 'CLIENT',
+	        'partner_id'   => (int)$order['CLIENT_ID'],
+	        'debit'        => $receivable
+	    ]);
+	    if ($sales > 0) {
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->sales(),
+	            'credit'     => $sales
+	        ]);
+	    }
+	    if ($shipping > 0) {
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->shippingRevenue(),
+	            'credit'     => $shipping
+	        ]);
+	    }
+	    if ($cost > 0) {
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->cogs(),
+	            'debit'      => $cost
+	        ]);
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->inventory(),
+	            'store_id'   => (int)$order['STORE_ID'],
+	            'credit'     => $cost
+	        ]);
+	    }
+
+	    $journalId = $this->journal->post();
+
+	    $stmt = $this->db->prepare("UPDATE orders SET SALE_ENTRY_ID = ? WHERE ORDER_ID = ? AND SALE_ENTRY_ID IS NULL");
+	    $stmt->execute([$journalId, $orderId]);
+	    if ($stmt->rowCount() !== 1) {
+	        throw new Exception("Order was already posted or changed concurrently.");
+	    }
+
+	    return $journalId;
+	}
+
+	/**
+	 * عكس قيد تسليم مندوب (عند رد الأمر للمخزن للتعديل).
+	 * يُنشأ قيد عكسي ولا يُحذف الأصل، ثم يُفرَّغ SALE_ENTRY_ID ليُرحَّل الأمر من جديد بعد التعديل.
+	 * يُمنع إن كان قد حُصّل من المندوب (ORDER_SUCCESS=1 أو فاتورة تحصيل ناجحة): يجب عكس التحصيل أولاً.
+	 * @return int رقم القيد العكسي
+	 */
+	public function reverseCourierDelivery(int $orderId, string $reason): int{
+	    if (trim($reason) === '') {
+	        throw new Exception("Reason is required.");
+	    }
+	    $stmt = $this->db->prepare("SELECT ORDER_ID, SALE_ENTRY_ID, ORDER_SUCCESS FROM orders WHERE ORDER_ID = ? FOR UPDATE");
+	    $stmt->execute([$orderId]);
+	    $order = $stmt->fetch(PDO::FETCH_ASSOC);
+	    if (!$order) {
+	        throw new Exception("Order not found.");
+	    }
+	    if ($order['SALE_ENTRY_ID'] === null) {
+	        throw new Exception("Order has no posted delivery entry.");
+	    }
+	    $inv = $this->db->prepare("SELECT COUNT(*) FROM invoices WHERE reference_type = 'SALES' AND reference_id = ? AND PAYMENT_SUCCESS = 1");
+	    $inv->execute([$orderId]);
+	    if ((int)$order['ORDER_SUCCESS'] === 1 || (int)$inv->fetchColumn() > 0) {
+	        throw new Exception("Order already collected: reverse the collection first.");
+	    }
+
+	    $this->journal->reset();
+	    $reverseId = $this->journal->reverse((int)$order['SALE_ENTRY_ID'], $reason);
+
+	    $upd = $this->db->prepare("UPDATE orders SET SALE_ENTRY_ID = NULL WHERE ORDER_ID = ? AND SALE_ENTRY_ID = ?");
+	    $upd->execute([$orderId, (int)$order['SALE_ENTRY_ID']]);
+	    if ($upd->rowCount() !== 1) {
+	        throw new Exception("Order changed concurrently.");
+	    }
+	    return $reverseId;
+	}
+
+/*****************************************************
 * البيع المباشر(دوال الاستخدام)
 *****************************************************/
 		
