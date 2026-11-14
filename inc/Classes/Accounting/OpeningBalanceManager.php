@@ -90,7 +90,7 @@ class OpeningBalanceManager {
         if (!$ids) { return []; }
         $ph = implode(',', array_fill(0, count($ids), '?'));
         switch ($kind) {
-            case 'CLIENT':   $sql = "SELECT CLIENT_ID AS id, CLIENT_NAME AS n FROM clients WHERE CLIENT_ID IN ($ph)"; break;
+            case 'CLIENT':   $sql = "SELECT CLIENT_ID AS id, CLIENT_NAME AS n FROM client WHERE CLIENT_ID IN ($ph)"; break;
             case 'SUPPLIER': $sql = "SELECT SUP_ID AS id, SUP_NAME AS n FROM suppliers WHERE SUP_ID IN ($ph)"; break;
             case 'INVENTORY':$sql = "SELECT STO_ID AS id, STO_NAME AS n FROM stores WHERE STO_ID IN ($ph)"; break;
             default:         $sql = "SELECT USER_ID AS id, CONCAT(FORENAME,' ',LASTNAME) AS n FROM users WHERE USER_ID IN ($ph)";
