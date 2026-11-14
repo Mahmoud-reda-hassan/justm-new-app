@@ -21,7 +21,7 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
     <div class="row align-items-center mb-3">
       <div class="col-12">
         <div class="d-flex flex-wrap align-items-center justify-content-between">
-          <small class="text-muted mb-2 mb-md-0">ملخص تشغيلي مباشر حسب صلاحيات المستخدم</small>
+          
           <div class="d-flex flex-nowrap align-items-center" style="gap: .5rem;">
             <input type="text" id="dashboardDateRange" class="d-none" autocomplete="off" aria-label="الفترة الزمنية">
             <button type="button" class="badge badge-light border d-inline-flex align-items-center p-2" id="dashboardCalendar" title="اختيار الفترة الزمنية" aria-label="اختيار الفترة الزمنية" style="cursor: pointer;">
