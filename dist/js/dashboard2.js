@@ -76,12 +76,22 @@ $(function () {
             $container.empty();
             return;
         }
+        var statusCards = {
+            delivery_custody_shipping: { color: 'bg-info', icon: 'fa-truck' },
+            delivery_rejected: { color: 'bg-danger', icon: 'fa-times-circle' },
+            delivery_partial: { color: 'bg-warning', icon: 'fa-box-open' },
+            delivery_delivered: { color: 'bg-success', icon: 'fa-check-circle' },
+            delivery_partial_return: { color: 'bg-secondary', icon: 'fa-undo' },
+            delivery_full_return: { color: 'bg-indigo', icon: 'fa-undo-alt' }
+        };
+        var colors = ['bg-primary','bg-info','bg-success','bg-warning','bg-danger','bg-secondary','bg-teal','bg-indigo'];
         var html = items.map(function (item, index) {
-            var colors = ['bg-primary','bg-info','bg-success','bg-warning','bg-danger','bg-secondary','bg-teal','bg-indigo'];
-            var color = colors[index % colors.length];
+            var style = statusCards[item.metric_key] || {};
+            var color = style.color || colors[index % colors.length];
+            var icon = style.icon || 'fa-clipboard-list';
             return '<div class="col-lg-3 col-6"><div class="small-box ' + color + '"><div class="inner"><h3>' +
                 number(item.total) + '</h3><p>' + escapeHtml(item.exists_name || 'حالة غير محددة') +
-                '</p></div><div class="icon"><i class="fas fa-clipboard-list"></i></div></div></div>';
+                '</p></div><div class="icon"><i class="fas ' + icon + '"></i></div></div></div>';
         }).join('');
         $container.html(html);
     }
