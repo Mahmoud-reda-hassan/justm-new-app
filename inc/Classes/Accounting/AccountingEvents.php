@@ -213,30 +213,6 @@ class AccountingEvents {
 	}
 
 	/**
-	 * يتأكد أن أمراً مُرحَّلاً لم تتغير قيمة مبيعاته منذ الترحيل. إن تغيّرت (تعديل بعد الترحيل)
-	 * يُمنع الإجراء ويُطلب رد الأمر للمخزن أولاً ليُعكس القيد ثم يُرحَّل من جديد.
-	 */
-	public function assertDeliveryUnchanged(int $orderId): void{
-	    $o = $this->db->prepare("SELECT o.SALE_ENTRY_ID, o.SUB_ORDER_ID, o.ORDER_STATUS,
-	            COALESCE(SUM((op.PRICE-op.DISCOUNT) * op.DELIVERED_QTY),0) AS SALES_NOW
-	        FROM orders o LEFT JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
-	        WHERE o.ORDER_ID = ? GROUP BY o.ORDER_ID");
-	    $o->execute([$orderId]);
-	    $row = $o->fetch(PDO::FETCH_ASSOC);
-	    if (!$row || $row['SALE_ENTRY_ID'] === null) { return; }
-	    $e = $this->db->prepare("SELECT e.reference_type, COALESCE(SUM(d.credit),0) AS SALES_POSTED
-	        FROM journal_entries e LEFT JOIN journal_entry_details d ON d.journal_entry_id = e.id AND d.account_id = ?
-	        WHERE e.id = ? GROUP BY e.id, e.reference_type");
-	    $e->execute([$this->settings->sales(), (int)$row['SALE_ENTRY_ID']]);
-	    $entry = $e->fetch(PDO::FETCH_ASSOC);
-	    if (!$entry || $entry['reference_type'] !== 'COURIER_DELIVERY') { return; }
-	    if ((int)$row['ORDER_STATUS'] === 5) { return; }
-	    if (round((float)$row['SALES_NOW'], 2) !== round((float)$entry['SALES_POSTED'], 2)) {
-	        throw new Exception("تم تعديل كميات الأمر ".$row['SUB_ORDER_ID']." بعد ترحيل قيده. اطلب من المدير العام أو المالك رد الأمر للمخزن أولاً ثم أعد التسجيل.");
-	    }
-	}
-
-	/**
 	 * عكس قيد تسليم مندوب (عند رد الأمر للمخزن للتعديل).
 	 * يُنشأ قيد عكسي ولا يُحذف الأصل، ثم يُفرَّغ SALE_ENTRY_ID ليُرحَّل الأمر من جديد بعد التعديل.
 	 * يُمنع إن كان قد حُصّل من المندوب (ORDER_SUCCESS=1 أو فاتورة تحصيل ناجحة): يجب عكس التحصيل أولاً.

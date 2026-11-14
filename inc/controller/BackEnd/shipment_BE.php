@@ -1854,30 +1854,8 @@ class shipment_BE {
 			// ------- 5. أرصدة العملاء ---------------------------
 			$this->restClientDebtBatch($sessionId, $totalOrdersSelse);
 
-			// ------- 5.1 قيد الأستاذ لتسليم المندوب -------
-			// التسليم يمكن تعديله من المندوب/موظف المكتب ثم من أمين المخزن، لذلك لا يُرحَّل عند تسجيل النتيجة.
-			// يُرحَّل (3,4,5) عند اعتماد أمين المخزن، أو عند استلام النقدية من المندوب إن لم يمر عليه (تسليم كلي).
-			// بعد الترحيل لا يُسمح بتعديل الكميات إلا برد الأمر للمخزن (المدير العام/المالك/المالي).
-			$postStatuses = ($updateInventory === 'true') ? '3,4,5' : '0';
-			$ph = implode(',', array_fill(0, count($orderids), '?'));
-			$stPost = $conn->prepare("SELECT ORDER_ID FROM orders WHERE ORDER_ID IN ($ph) AND ORDER_STATUS IN ($postStatuses) AND SALE_ENTRY_ID IS NULL");
-			$stPost->execute($orderids);
-			$toPost = $stPost->fetchAll(PDO::FETCH_COLUMN);
-			$stPosted = $conn->prepare("SELECT ORDER_ID FROM orders WHERE ORDER_ID IN ($ph) AND SALE_ENTRY_ID IS NOT NULL");
-			$stPosted->execute($orderids);
-			$alreadyPosted = $stPosted->fetchAll(PDO::FETCH_COLUMN);
-			if ($toPost || $alreadyPosted) {
-				include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
-				$courierAccounting = new AccountingEvents($conn);
-				$blockMissingCost  = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
-				foreach ($alreadyPosted as $postedOrderId) {
-					// أمر رُحِّل ثم تغيّرت كمياته: لا يُسمح إلا برده للمخزن أولاً
-					$courierAccounting->assertDeliveryUnchanged((int)$postedOrderId);
-				}
-				foreach ($toPost as $postOrderId) {
-					$courierAccounting->courierDelivery((int)$postOrderId, $blockMissingCost);
-				}
-			}
+			// ملاحظة: قيود الأستاذ (التسليم + التحصيل + العمولات) تُسجَّل كلها عند الاستلام المالي
+			// (registerCollection في finance_BE)، فيبقى التسليم قابلاً للتعديل قبلها.
 
 			// ------- 7. تحديث المخزون ---------------------------
 			if ($updateInventory === 'true') {
