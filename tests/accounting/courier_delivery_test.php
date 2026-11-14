@@ -197,5 +197,22 @@ $jm->addLine(['account_id' => $s->deliveryCommission(), 'debit' => 10]);
 $jm->addLine(['account_id' => $s->deliveryCommissionPayable(), 'partner_type' => 'DELIVERY', 'partner_id' => $userId, 'credit' => 10]);
 check('journal accepts a DELIVERY partner line', $jm->post() > 0);
 
+// 8) collection from courier: cash in, customer credited, commission accrued
+$db->exec("INSERT INTO cash_boxes (branch_id, account_id, name) SELECT $branch, id, 'T' FROM accounts WHERE account_code='1110'");
+$o11 = makeOrder($db, $store, $tel, 3, 30, 1, [[2, 100, 10, 60, 2]]);   // delivered, 210 receivable
+$ev->courierDelivery($o11);
+$jc = $ev->courierCollection($o11, $userId, 210.0, 3.0);
+[$h, $l] = entry($db, $jc);
+check('collection: balanced entry', $jc > 0 && (float)$h['total_debit'] === (float)$h['total_credit'] && (float)$h['total_debit'] === 213.0, json_encode($h));
+check('collection: cash debit 210, customers credit 210', lineSum($l, '1110', 'debit') === 210.0 && lineSum($l, '1200', 'credit') === 210.0);
+check('collection: commission 3 debit 5700 / credit 2210', lineSum($l, '5700', 'debit') === 3.0 && lineSum($l, '2210', 'credit') === 3.0);
+check('collection: customer nets to zero after delivery + collection', (float)$db->query("SELECT ROUND(SUM(d.debit-d.credit),2) FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id JOIN journal_entries e ON e.id=d.journal_entry_id WHERE a.account_code='1200' AND e.reference_id=$o11")->fetchColumn() === 0.0);
+check('duplicate collection is refused', throwsMsg(fn() => $ev->courierCollection($o11, $userId, 210.0, 3.0), 'already posted'));
+$o12 = makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 50, 1]]);   // delivery not yet posted
+$jc2 = $ev->courierCollection($o12, $userId, 100.0, 0.0);
+check('collection posts the delivery first when missing', $jc2 > 0 && $db->query("SELECT SALE_ENTRY_ID FROM orders WHERE ORDER_ID=$o12")->fetchColumn() !== null);
+$o13 = makeOrder($db, $store, $tel, 5, 0, 0, [[1, 100, 0, 50, 0]]);
+check('nothing to collect posts nothing', $ev->courierCollection($o13, $userId, 0.0, 0.0) === 0);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

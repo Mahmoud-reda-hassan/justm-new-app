@@ -248,6 +248,78 @@ class AccountingEvents {
 	    return $reverseId;
 	}
 
+	/**
+	 * قيد استلام نقدية أمر شحن من المندوب (عند التحصيل في شاشة استلام العهدة).
+	 * مدين الصندوق (فرع المستخدم) بالمبلغ المستلم، دائن العملاء (الطرف: العميل) بنفس المبلغ،
+	 * ومعه عمولة المندوب إن وُجدت: مدين عمولات المندوبين (5700) / دائن عمولات مستحقة (2210، الطرف: المندوب).
+	 * يُستدعى داخل معاملة التحصيل. إن لم يكن التسليم مُرحَّلاً يُرحِّله أولاً.
+	 * @return int رقم القيد، أو 0 إن لم يكن هناك مبلغ ولا عمولة.
+	 */
+	public function courierCollection(int $orderId, int $deliveryUserId, float $amount, float $commission, bool $blockOnMissingCost = true): int{
+	    $amount     = round($amount, 2);
+	    $commission = round($commission, 2);
+	    if ($amount < 0 || $commission < 0) {
+	        throw new Exception("Collection amounts cannot be negative.");
+	    }
+
+	    $order = $this->getCourierOrder($orderId);
+	    if ($order['SALE_ENTRY_ID'] === null && in_array((int)$order['ORDER_STATUS'], [3, 4, 5], true)) {
+	        $this->courierDelivery($orderId, $blockOnMissingCost);
+	    }
+	    if ($amount <= 0 && $commission <= 0) {
+	        return 0;
+	    }
+
+	    $dup = $this->db->prepare("SELECT COUNT(*) FROM journal_entries WHERE reference_type = 'COURIER_COLLECTION' AND reference_id = ? AND status = 'POSTED'");
+	    $dup->execute([$orderId]);
+	    if ((int)$dup->fetchColumn() > 0) {
+	        throw new Exception("Collection already posted.");
+	    }
+	    if ($amount > 0 && (int)($order['CLIENT_ID'] ?? 0) <= 0) {
+	        throw new Exception("لا يمكن ترحيل التحصيل: العميل غير مرتبط برقم هاتف الطلب.");
+	    }
+	    if ($commission > 0 && $deliveryUserId <= 0) {
+	        throw new Exception("Delivery user is required for commission.");
+	    }
+
+	    $branchId = $this->getCurrentBranchId();
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => $branchId,
+	        'entry_date'     => $order['JOURNAL_DATE'],
+	        'reference_type' => 'COURIER_COLLECTION',
+	        'reference_id'   => $orderId,
+	        'description'    => 'استلام نقدية من المندوب أمر رقم '.$order['SUB_ORDER_ID'],
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+
+	    if ($amount > 0) {
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->cash($branchId),
+	            'debit'      => $amount
+	        ]);
+	        $this->journal->addLine([
+	            'account_id'   => $this->settings->customers(),
+	            'partner_type' => 'CLIENT',
+	            'partner_id'   => (int)$order['CLIENT_ID'],
+	            'credit'       => $amount
+	        ]);
+	    }
+	    if ($commission > 0) {
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->deliveryCommission(),
+	            'debit'      => $commission
+	        ]);
+	        $this->journal->addLine([
+	            'account_id'   => $this->settings->deliveryCommissionPayable(),
+	            'partner_type' => 'DELIVERY',
+	            'partner_id'   => $deliveryUserId,
+	            'credit'       => $commission
+	        ]);
+	    }
+	    return $this->journal->post();
+	}
+
 /*****************************************************
 * البيع المباشر(دوال الاستخدام)
 *****************************************************/
