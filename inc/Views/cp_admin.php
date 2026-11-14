@@ -72,13 +72,16 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
       <div class="card card-info">
         <div class="card-header"><h3 class="card-title"><i class="fas fa-headset ml-1"></i> خدمة العملاء - المراجعة والتأكيد</h3><div class="card-tools"><button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button></div></div>
         <div class="card-body"><div class="row">
-          <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-clipboard-list"></i></span><div class="info-box-content"><span class="info-box-text">قيد المراجعة</span><span class="info-box-number" data-metric="cs1_review">—</span></div></div></div>
-          <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-clock"></i></span><div class="info-box-content"><span class="info-box-text">مؤجل</span><span class="info-box-number" data-metric="cs1_pending">—</span></div></div></div>
-          <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-secondary"><i class="fas fa-box-open"></i></span><div class="info-box-content"><span class="info-box-text">حجز مسبق / غير متوفر</span><span class="info-box-number" data-metric="cs1_preorder">—</span></div></div></div>
-          <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-danger"><i class="fas fa-phone-slash"></i></span><div class="info-box-content"><span class="info-box-text">العميل لا يستجيب</span><span class="info-box-number" data-metric="cs1_no_response">—</span></div></div></div>
+          <div class="col-lg-2 col-6"><div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-clipboard-list"></i></span><div class="info-box-content"><span class="info-box-text">قيد المراجعة</span><span class="info-box-number" data-metric="cs1_review">—</span></div></div></div>
+          <div class="col-lg-2 col-6"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-clock"></i></span><div class="info-box-content"><span class="info-box-text">مؤجلات</span><span class="info-box-number" data-metric="cs1_pending">—</span></div></div></div>
+          <div class="col-lg-2 col-6"><div class="info-box"><span class="info-box-icon bg-secondary"><i class="fas fa-box-open"></i></span><div class="info-box-content"><span class="info-box-text">غير متوفر</span><span class="info-box-number" data-metric="cs1_preorder">—</span></div></div></div>
+          <div class="col-lg-2 col-6"><div class="info-box"><span class="info-box-icon bg-danger"><i class="fas fa-phone-slash"></i></span><div class="info-box-content"><span class="info-box-text">العميل لا يستجيب</span><span class="info-box-number" data-metric="cs1_no_response">—</span></div></div></div>
+          <div class="col-lg-2 col-6"><div class="info-box"><span class="info-box-icon bg-dark"><i class="fas fa-user-times"></i></span><div class="info-box-content"><span class="info-box-text">إلغاء لعدم الرد</span><span class="info-box-number" data-metric="cs1_cancel_no_response">—</span></div></div></div>
+          <div class="col-lg-2 col-6"><div class="info-box"><span class="info-box-icon bg-danger"><i class="fas fa-ban"></i></span><div class="info-box-content"><span class="info-box-text">إلغاء أمر البيع</span><span class="info-box-number" data-metric="cs1_cancel_order">—</span></div></div></div>
         </div></div>
       </div>
     </section>
+    <div class="dashboard-section-separator my-3" style="border-top: 2px solid #dee2e6; padding-top: 1rem;"></div>
     <?php endif; ?>
 
     <?php if ($canDashboardCS2): ?>
