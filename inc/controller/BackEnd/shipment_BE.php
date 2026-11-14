@@ -1854,6 +1854,31 @@ class shipment_BE {
 			// ------- 5. أرصدة العملاء ---------------------------
 			$this->restClientDebtBatch($sessionId, $totalOrdersSelse);
 
+			// ------- 5.1 قيد الأستاذ لتسليم المندوب -------
+			// تسليم كلي (3): يُرحَّل عند تسجيل النتيجة لأنه لا يمر على أمين المخزن (لا مرتجعات).
+			// تسليم جزئي/مرفوض (4,5): يُرحَّل عند اعتماد أمين المخزن فقط (يمكنه التعديل قبله).
+			// التكرار يُتجاهل (SALE_ENTRY_ID).
+			$postStatuses = ($updateInventory === 'true') ? '3,4,5' : '3';
+			$ph = implode(',', array_fill(0, count($orderids), '?'));
+			$stPost = $conn->prepare("SELECT ORDER_ID FROM orders WHERE ORDER_ID IN ($ph) AND ORDER_STATUS IN ($postStatuses) AND SALE_ENTRY_ID IS NULL");
+			$stPost->execute($orderids);
+			$toPost = $stPost->fetchAll(PDO::FETCH_COLUMN);
+			$stPosted = $conn->prepare("SELECT ORDER_ID FROM orders WHERE ORDER_ID IN ($ph) AND SALE_ENTRY_ID IS NOT NULL");
+			$stPosted->execute($orderids);
+			$alreadyPosted = $stPosted->fetchAll(PDO::FETCH_COLUMN);
+			if ($toPost || $alreadyPosted) {
+				include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+				$courierAccounting = new AccountingEvents($conn);
+				$blockMissingCost  = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+				foreach ($alreadyPosted as $postedOrderId) {
+					// أمر رُحِّل ثم تغيّرت كمياته: لا يُسمح إلا برده للمخزن أولاً
+					$courierAccounting->assertDeliveryUnchanged((int)$postedOrderId);
+				}
+				foreach ($toPost as $postOrderId) {
+					$courierAccounting->courierDelivery((int)$postOrderId, $blockMissingCost);
+				}
+			}
+
 			// ------- 7. تحديث المخزون ---------------------------
 			if ($updateInventory === 'true') {
 				// SELSE
@@ -1868,21 +1893,6 @@ class shipment_BE {
 					");
 					$stmt->execute([$sessionId]);
 					if ($stmt->rowCount() <= 0) throw new Exception('فشل فى تحديث استلام مرفوضات عهدة المندوب', 1436);
-				}
-
-				// ------- 7.1 قيد الأستاذ لتسليم المندوب (عند اعتماد أمين المخزن فقط) -------
-				// يرحّل كل أمر (تم تسليمه/مرفوض بعد محاولة) لم يُرحَّل من قبل؛ التكرار يُتجاهل.
-				$ph = implode(',', array_fill(0, count($orderids), '?'));
-				$stPost = $conn->prepare("SELECT ORDER_ID FROM orders WHERE ORDER_ID IN ($ph) AND ORDER_STATUS IN (3,4,5) AND SALE_ENTRY_ID IS NULL");
-				$stPost->execute($orderids);
-				$toPost = $stPost->fetchAll(PDO::FETCH_COLUMN);
-				if ($toPost) {
-					include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
-					$courierAccounting = new AccountingEvents($conn);
-					$blockMissingCost  = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
-					foreach ($toPost as $postOrderId) {
-						$courierAccounting->courierDelivery((int)$postOrderId, $blockMissingCost);
-					}
 				}
 			}
 			

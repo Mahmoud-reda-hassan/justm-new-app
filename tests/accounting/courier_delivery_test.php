@@ -262,5 +262,13 @@ check('supplier payment: suppliers debit / cash credit 200', lineSum($l, '2100',
 check('supplier refund: cash debit / suppliers credit 30', lineSum($l, '1110', 'debit') === 30.0 && lineSum($l, '2100', 'credit') === 30.0);
 check('supplier entry rejects zero amount', throwsMsg(fn() => $ev->supplierPayment($sup, 0.0, 1), 'Invalid'));
 
+// 12) edit-after-post guard
+$o20 = makeOrder($db, $store, $tel, 3, 0, 1, [[2, 100, 0, 60, 2]]);
+$ev->courierDelivery($o20);
+$ev->assertDeliveryUnchanged($o20);
+check('guard: unchanged posted order passes', true);
+$db->exec("UPDATE order_product SET DELIVERED_QTY=1 WHERE ORDER_ID=$o20");
+check('guard: edited posted order is refused', throwsMsg(fn() => $ev->assertDeliveryUnchanged($o20), 'رد الأمر للمخزن'));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);
