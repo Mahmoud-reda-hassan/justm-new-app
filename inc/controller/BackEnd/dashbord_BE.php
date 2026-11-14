@@ -129,6 +129,26 @@ class dashbord_BE {
                 "SELECT COUNT(*) FROM orders o WHERE $allWhere",
                 $allParams
             );
+            $metrics['orders_today'] = $this->scalar(
+                "SELECT COUNT(*) FROM orders o WHERE $allWhere AND o.DATE_CREATED >= CURDATE() AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)",
+                $allParams
+            );
+            $metrics['stores_count'] = $this->scalar(
+                !$canViewAllBranches && $branchId > 0
+                    ? 'SELECT COUNT(*) FROM stores WHERE BRANCH_ID = :branch_id'
+                    : ($canViewAllBranches ? 'SELECT COUNT(*) FROM stores' : 'SELECT 0'),
+                !$canViewAllBranches && $branchId > 0 ? [':branch_id' => $branchId] : []
+            );
+            if ($this->isEnabled($adminPermissions['Suppliers']['View'] ?? false)) {
+                $metrics['suppliers_count'] = $this->scalar('SELECT COUNT(*) FROM suppliers');
+            }
+        }
+
+        // بطاقات الحالات تُعرض وفق صلاحيات Dashboard المعرفة في User_group_tbl.
+        $existsCounts = [];
+        if (array_intersect(['Admin', 'CustomerService1', 'CustomerService2', 'Delivery'], $roles)) {
+            [$allWhere, $allParams] = $this->orderWhere('o', $branchId, $canViewAllBranches, false);
+            [$periodWhere, $periodParams] = $this->orderWhere('o', $branchId, $canViewAllBranches, true);
             $existsJoinScope = '';
             if (!$canViewAllBranches) {
                 $existsJoinScope = $branchId > 0
@@ -204,19 +224,6 @@ class dashbord_BE {
                 ];
             }
 
-            $metrics['orders_today'] = $this->scalar(
-                "SELECT COUNT(*) FROM orders o WHERE $allWhere AND o.DATE_CREATED >= CURDATE() AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)",
-                $allParams
-            );
-            $metrics['stores_count'] = $this->scalar(
-                !$canViewAllBranches && $branchId > 0
-                    ? 'SELECT COUNT(*) FROM stores WHERE BRANCH_ID = :branch_id'
-                    : ($canViewAllBranches ? 'SELECT COUNT(*) FROM stores' : 'SELECT 0'),
-                !$canViewAllBranches && $branchId > 0 ? [':branch_id' => $branchId] : []
-            );
-            if ($this->isEnabled($adminPermissions['Suppliers']['View'] ?? false)) {
-                $metrics['suppliers_count'] = $this->scalar('SELECT COUNT(*) FROM suppliers');
-            }
         }
 
         if (in_array('CustomerService1', $roles, true)) {
@@ -343,27 +350,34 @@ class dashbord_BE {
             $topProducts = [];
         }
 
-        // إظهار بطاقات الحالات بنفس صلاحيات الشاشات المستخدمة في القائمة الجانبية.
-        $existsCounts = array_values(array_filter($existsCounts, function ($item) use ($adminPermissions) {
-            $existsId = isset($item['exists_id']) ? (int)$item['exists_id'] : null;
+        // ربط مجموعات بطاقات الحالات بصلاحيات Dashboard في User_group_tbl.
+        $dashboardPermissions = $adminPermissions['dashboard'] ?? [];
+        $cardRoleByMetric = [
+            'delivery_custody_shipping' => 'Delivery',
+            'delivery_rejected' => 'Delivery',
+            'delivery_partial' => 'Delivery',
+            'delivery_delivered' => 'Delivery',
+            'delivery_partial_return' => 'Delivery',
+            'delivery_full_return' => 'Delivery',
+            'direct_sale_partial_return' => 'Admin',
+            'direct_sale_full_return' => 'Admin'
+        ];
+        $existsCounts = array_values(array_filter($existsCounts, function ($item) use ($dashboardPermissions, $cardRoleByMetric) {
             $metricKey = $item['metric_key'] ?? '';
-
-            // مؤشرات عهدة المندوبين تتبع صلاحية شاشة تسوية عهدة المندوبين.
-            if (strpos($metricKey, 'delivery_') === 0) {
-                return $this->isEnabled($adminPermissions['OrdersCustody']['View_order_list'] ?? false);
-            }
-
-            // البيع المباشر يتبع صلاحية قسم المبيعات الظاهرة في القائمة الجانبية.
-            if ($existsId === 11 || strpos($metricKey, 'direct_sale_') === 0) {
-                return $this->isEnabled($adminPermissions['selseReport']['View'] ?? false);
-            }
-
-            if ($existsId === null) {
+            $existsId = isset($item['exists_id']) ? (int)$item['exists_id'] : null;
+            if (isset($cardRoleByMetric[$metricKey])) {
+                $role = $cardRoleByMetric[$metricKey];
+            } elseif ($existsId === 11) {
+                $role = 'Admin';
+            } elseif (in_array($existsId, [1, 2, 3, 4, 5, 13], true)) {
+                $role = 'CustomerService1';
+            } elseif (in_array($existsId, [6, 7, 8, 12], true)) {
+                $role = 'CustomerService2';
+            } else {
                 return false;
             }
-
-            $permissionKey = 'orderlist_ex' . $existsId;
-            return $this->isEnabled($adminPermissions[$permissionKey]['View_order_list'] ?? false);
+            return $this->isEnabled($dashboardPermissions[$role] ?? false)
+                && in_array($role, ['Admin', 'CustomerService1', 'CustomerService2', 'Delivery'], true);
         }));
 
         return [
