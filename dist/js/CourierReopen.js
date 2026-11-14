@@ -132,14 +132,25 @@
 				});
 				loadSummary(); loadBackfill(); loadReturns(); loadOpening();
 			};
-			Swal.fire({title: 'جارٍ الترحيل...', text: 'لا تغلق الصفحة حتى يظهر التقرير.', allowOutsideClick: false, didOpen: () => Swal.showLoading()});
-			$.post(url, {CONTROL: 'legacyRunAll'}, function (res) {
-				if (!(Array.isArray(res) && res[0] === 'success')) { return finish((res && res[2]) || 'فشل الترحيل'); }
-				const d = res[3];
-				['orders', 'returns', 'opening'].forEach(k => { total[k].done += d[k].done; total[k].failed += d[k].failed; });
-				(d.errors || []).forEach(e => errors.push(e));
-				finish(null);
-			}, 'json').fail(function (xhr) { finish('انقطع الاتصال (' + (xhr.status || 'بلا رد') + '). السيرفر قد يكون أكمل العمل، راجع الملخص.'); });
+			const skip = []; let rounds = 0, retries = 0;
+			const count = () => total.orders.done + total.returns.done + total.opening.done;
+			const step = function () {
+				rounds++;
+				Swal.fire({title: 'جارٍ الترحيل...', html: `تم ترحيل ${count()} قيد، لا تغلق الصفحة.`, allowOutsideClick: false, didOpen: () => Swal.showLoading()});
+				$.post(url, {CONTROL: 'legacyRunAll', skip: skip}, function (res) {
+					if (!(Array.isArray(res) && res[0] === 'success')) { return finish((res && res[2]) || 'فشل الترحيل'); }
+					const d = res[3]; retries = 0;
+					['orders', 'returns', 'opening'].forEach(k => { total[k].done += d[k].done; total[k].failed += d[k].failed; });
+					(d.errors || []).forEach(e => errors.push(e));
+					(d.failed_keys || []).forEach(k => skip.push(k));
+					if (d.processed === 0 || rounds > 3000) { return finish(null); }
+					step();
+				}, 'json').fail(function (xhr) {
+					if (++retries <= 2) { return setTimeout(step, 1500); }
+					finish('انقطع الاتصال (' + (xhr.status || 'بلا رد') + ')');
+				});
+			};
+			step();
 		});
 	});
 
