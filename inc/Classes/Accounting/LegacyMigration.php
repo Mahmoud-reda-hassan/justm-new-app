@@ -67,6 +67,8 @@ class LegacyMigration {
      */
     public function runAll(int $branchId, int $userId, bool $blockOnMissingCost = true, int $limit = 0, array $skip = [], int $maxSeconds = 0): array {
         @set_time_limit(0);
+        // لا ننتظر قفلًا طويلًا: العنصر المحجوز يفشل سريعًا ويُسجَّل بدل تعليق الطلب
+        try { $this->db->exec('SET SESSION innodb_lock_wait_timeout = 8'); } catch (Throwable $e) {}
         $report = ['orders' => ['done' => 0, 'failed' => 0], 'returns' => ['done' => 0, 'failed' => 0],
                    'opening' => ['done' => 0, 'failed' => 0], 'errors' => [], 'failed_keys' => [], 'processed' => 0];
         $skip = array_flip($skip);
