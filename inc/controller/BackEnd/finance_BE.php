@@ -908,6 +908,24 @@ class finance_BE {
 								}
 							}
 						}
+						// قيد الأستاذ: استلام النقدية من المندوب + عمولته (داخل نفس المعاملة)
+						try {
+							include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+							$collectAcc = new AccountingEvents($this->conn);
+							$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+							$collectAcc->courierCollection(
+								(int)$orderData['ORDER_ID'],
+								(int)$orderData['DELIVERY_ID'],
+								(float)$orderData['ACTUAL_TOTAL'] + (float)$orderData['SHIPPING_VAL'],
+								(float)$orderData['DELIVERY_CIMMISSION'],
+								$blockMissingCost
+							);
+						} catch (Exception $glEx) {
+							$error[] = "تعذر ترحيل قيد التحصيل لأمر ".$orderData['SUB_ORDER_ID'].": ".$glEx->getMessage();
+							$errorlastupdatemsg[] = $orderData['SUB_ORDER_ID'].' '.$glEx->getMessage();
+							$errorlastupdate++;
+							continue;
+						}
 						// تحديث حالة أمر البيع
 						$stmt = $this->conn->prepare("UPDATE orders SET ORDER_SUCCESS = 1 ,LAST_UPDATE = NOW(6) WHERE ORDER_ID = ?");
 						$stmt->execute([$orderData['ORDER_ID']]);
