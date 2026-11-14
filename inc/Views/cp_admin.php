@@ -96,7 +96,6 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
         <div class="card-body"><div class="row">
           <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-primary"><i class="fas fa-cogs"></i></span><div class="info-box-content"><span class="info-box-text">قيد التجهيز</span><span class="info-box-number" data-metric="cs2_processing">—</span></div></div></div>
           <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-info"><i class="fas fa-box"></i></span><div class="info-box-content"><span class="info-box-text">تم التجهيز</span><span class="info-box-number" data-metric="cs2_prepared">—</span></div></div></div>
-          <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-warning"><i class="fas fa-shipping-fast"></i></span><div class="info-box-content"><span class="info-box-text">جاري الشحن</span><span class="info-box-number" data-metric="cs2_shipping">—</span></div></div></div>
           <div class="col-lg-3 col-6"><div class="info-box"><span class="info-box-icon bg-danger"><i class="fas fa-undo"></i></span><div class="info-box-content"><span class="info-box-text">مرفوض / مرتجع</span><span class="info-box-number" data-metric="cs2_returns">—</span></div></div></div>
         </div></div>
       </div>
