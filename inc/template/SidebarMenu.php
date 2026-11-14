@@ -338,6 +338,16 @@ if ($loginType === 1 && $pageType > 0) {
                             	
                         	<?php } ?>
                             
+                            <?php if(isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner','المدير المالي'], true)){ ?>
+	                                <li class="nav-item">
+	                                    <a href="?Go=CourierReopen" class="nav-link">
+	                                        <i class="fa fa-undo nav-icon"></i>
+	                                        <p>
+	                                            رد أوامر المندوب للمخزن
+	                                        </p>
+	                                    </a>
+	                                </li>
+                            <?php } ?>
                             <?php if(isset($usm["StockAudit"]) && 
                             		 $usm["StockAudit"]['view'] == "true" ){ ?>    
 	                                <li class="badge badge-red0 pt-1 pb-1 pl-2 pr-2 nav-header" style="font-size: 10px;">جرد ومطابقة</li>

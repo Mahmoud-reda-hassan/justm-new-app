@@ -28,6 +28,25 @@ class CourierReopen {
     }
 
     /**
+     * الأوامر القابلة للرد للمخزن: في عهدة مندوب، بحالة تسليم/جزئي/رفض، ولم تُحصّل بعد.
+     * @return array[]
+     */
+    public function listReopenable(): array {
+        $st = $this->db->query(
+            "SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS, o.ADDRESS, o.TELEPHONE, o.SHIPPING_VAL,
+                    o.DELIVERED_DATE, o.DELIVERY_ID, o.SALE_ENTRY_ID,
+                    CONCAT(u.FORENAME, ' ', u.LASTNAME) AS DELIVERY_NAME
+             FROM orders o
+             LEFT JOIN users u ON u.USER_ID = o.DELIVERY_ID
+             WHERE o.EXISTS_ID = 10 AND o.ORDER_STATUS IN (3,4,5)
+               AND o.ORDER_SUCCESS = 0 AND o.DELIVERY_ID > 0
+             ORDER BY o.LAST_UPDATE DESC
+             LIMIT 500"
+        );
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * @return array ['order_id'=>int,'reverse_entry_id'=>int,'inventory_rows'=>int]
      * @throws Exception برسالة عربية/إنجليزية واضحة عند أي مخالفة
      */

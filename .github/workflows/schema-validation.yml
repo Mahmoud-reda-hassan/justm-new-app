@@ -65,4 +65,4 @@ jobs:
         with: { php-version: '8.2', coverage: none }
       - run: |
           find inc/Classes/Accounting -name '*.php' -print0 | xargs -0 -n1 php -l
-          for f in inc/controller/BackEnd/finance_BE.php inc/controller/BackEnd/shipment_BE.php inc/controller/BackEnd/inventory_BE.php inc/controller/BackEnd/accounts_BE.php inc/controller/BackEnd/PaymentDisbursement_BE.php inc/controller/BackEnd/reports_BE.php inc/Classes/InventoryManager.php inc/routes/delivery_router.php inc/routes/admin_router.php inc/controller/shipment.control.php inc/Classes/CourierReopen.php; do php -l "$f"; done
+          for f in inc/controller/BackEnd/finance_BE.php inc/controller/BackEnd/shipment_BE.php inc/controller/BackEnd/inventory_BE.php inc/controller/BackEnd/accounts_BE.php inc/controller/BackEnd/PaymentDisbursement_BE.php inc/controller/BackEnd/reports_BE.php inc/Classes/InventoryManager.php inc/routes/delivery_router.php inc/routes/admin_router.php inc/controller/shipment.control.php inc/Classes/CourierReopen.php inc/Classes/user_permission.php inc/template/SidebarMenu.php inc/Views/CourierReopen.php; do php -l "$f"; done

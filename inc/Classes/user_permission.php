@@ -428,6 +428,11 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->Pagelink = "InventoryReconciliation";
 	            				array_push($this->js_footer,"InventoryReconciliation.js");
 	            						
+	            		} else if ($_GET["Go"] === "CourierReopen" && isset($_SESSION["USER_GRUOP_NAME"]) &&
+	            				in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner','المدير المالي'], true)){
+	            				$this->title 	= "رد أوامر المندوب للمخزن";
+	            				$this->Pagelink = "CourierReopen";
+	            				array_push($this->js_footer,"CourierReopen.js");
 	            		} else if (isset($usc['Admin']['CriticalItemsReport']['view']) && 
 	            				$usc['Admin']['CriticalItemsReport']['view'] == "true" && $_GET["Go"] === "stockShortageReport"){
 	            				$this->title 	= "تقرير الاصناف الحرجه";
