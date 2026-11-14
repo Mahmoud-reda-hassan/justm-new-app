@@ -76,14 +76,67 @@
 	});
 
 	let bfCount = 0, obCount = 0, urCount = 0;
-	function updateAlert() {
-		const el = $('#legacy-alert');
-		if (bfCount + obCount + urCount > 0) {
-			el.removeClass('d-none').text(`يوجد ${bfCount} أمر مُقفل و${urCount} مرتجع و${obCount} رصيد من النظام القديم لم تُرحَّل للأستاذ بعد.`);
-		} else {
-			el.addClass('d-none').text('');
+	const fmt = (n) => Number(n || 0).toLocaleString('en-US', {maximumFractionDigits: 2});
+	let summaryData = null;
+
+	function summaryHtml(d) {
+		let h = `<ul class="mb-0">
+			<li>أوامر مُقفلة لم تُرحَّل: <b>${esc(d.closed_orders)}</b></li>
+			<li>مرتجعات لم تُرحَّل: <b>${esc(d.returns)}</b> (قيمتها ${fmt(d.returns_value)})</li>
+			<li>أرصدة بها فروق: <b>${esc(d.opening_total)}</b>`;
+		const kinds = Object.keys(d.opening || {});
+		if (kinds.length) {
+			h += '<ul>' + kinds.map(k => `<li>${esc(kindNames[k] || k)}: ${esc(d.opening[k].count)} حساب، صافي الفرق ${fmt(d.opening[k].diff)} (إجمالي مطلق ${fmt(d.opening[k].abs)})</li>`).join('') + '</ul>';
 		}
+		return h + '</li></ul>';
 	}
+
+	function updateAlert() { loadSummary(); }
+
+	function loadSummary() {
+		$.post(url, {CONTROL: 'legacySummary'}, function (res) {
+			const btn = $('#btnLegacyRunAll');
+			if (Array.isArray(res) && res[0] === 'success') {
+				summaryData = res[3];
+				const d = summaryData;
+				const total = d.closed_orders + d.returns + d.opening_total;
+				$('#legacy-summary-body').html(total ? summaryHtml(d) : '<span class="text-success">كل شيء مُرحَّل، لا توجد فروق.</span>');
+				btn.prop('disabled', total === 0);
+			} else {
+				$('#legacy-summary-body').text((res && res[2]) || 'تعذر تحميل الملخص');
+				btn.prop('disabled', true);
+			}
+		}, 'json');
+	}
+
+	$('#btnLegacyRunAll').on('click', function () {
+		if (!summaryData) return;
+		Swal.fire({
+			icon: 'warning', title: 'ترحيل الكل؟',
+			html: summaryHtml(summaryData) + '<p class="mt-2 mb-0">سيُنفَّذ بالترتيب: الأوامر ثم المرتجعات ثم الأرصدة. لا يُعدَّل أي بيان قديم.</p>',
+			showCancelButton: true, confirmButtonText: 'نعم، رحّل الكل', cancelButtonText: 'إلغاء'
+		}).then(function (r) {
+			if (!r.isConfirmed) return;
+			const btn = $('#btnLegacyRunAll').prop('disabled', true);
+			$.post(url, {CONTROL: 'legacyRunAll'}, function (res) {
+				if (Array.isArray(res) && res[0] === 'success') {
+					const d = res[3];
+					const failed = d.orders.failed + d.returns.failed + d.opening.failed;
+					Swal.fire({
+						icon: failed ? 'warning' : 'success', title: 'اكتمل الترحيل',
+						html: `أوامر: ${d.orders.done} تم / ${d.orders.failed} فشل<br>مرتجعات: ${d.returns.done} تم / ${d.returns.failed} فشل<br>أرصدة: ${d.opening.done} تم / ${d.opening.failed} فشل`
+							+ (d.errors.length ? '<hr><div style="text-align:right;font-size:12px">' + d.errors.map(esc).join('<br>') + '</div>' : '')
+					});
+				} else {
+					Swal.fire({icon: 'error', title: 'خطأ', text: (res && res[2]) || 'فشل الترحيل'});
+				}
+				loadSummary(); loadBackfill(); loadReturns(); loadOpening();
+			}, 'json').fail(function () {
+				Swal.fire({icon: 'error', title: 'خطأ', text: 'انقطع الاتصال، راجع الملخص قبل إعادة المحاولة'});
+				btn.prop('disabled', false); loadSummary();
+			});
+		});
+	});
 
 	function loadBackfill() {
 		$.post(url, {CONTROL: 'listBackfillOrders'}, function (res) {
@@ -266,4 +319,5 @@
 	});
 
 	loadReturns();
+	loadSummary();
 })();

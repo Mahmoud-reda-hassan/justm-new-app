@@ -358,6 +358,33 @@ function ResponseData($data){
 						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
 					}
 					break;
+				case 'legacySummary':
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+						ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->summary()));
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'legacyRunAll':
+					// ترحيل النظام القديم كله دفعة واحدة (أوامر، مرتجعات، تسويات أرصدة)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+						$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+						$lmReport = (new LegacyMigration($db))->runAll((int)$_SESSION["BRANCH_ID"], (int)$_SESSION["USER_ID"], $blockMissingCost);
+						ResponseData(array('success', 'ناجح', 'اكتمل الترحيل', $lmReport));
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
 				case 'custodySettlement':
 					$shipment_tbl->orderobj    = $_POST["orderobj"];
 	    			$shipment_tbl->delivery_id = $_POST["delivery_id"];

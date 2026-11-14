@@ -310,5 +310,18 @@ check('backfill returned: delivery 830 collected and return entry posted', $bf2[
 check('backfill returned: return 400 / cost 350', lineSum($l, '4100', 'debit') === 400.0 && lineSum($l, '1300', 'debit') === 350.0);
 check('backfill returned: customer net is -400 (credit) until refunded', (float)$db->query("SELECT ROUND(SUM(d.debit-d.credit),2) FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id JOIN journal_entries e ON e.id=d.journal_entry_id WHERE a.account_code='1200' AND e.reference_id=$o40")->fetchColumn() === -400.0);
 
+// 16) one-shot legacy migration: summary then runAll
+require_once __DIR__ . '/../../inc/Classes/Accounting/LegacyMigration.php';
+$lm = new LegacyMigration($db);
+$o50 = makeOrder($db, $store, $tel, 3, 30, 1, [[1, 100, 0, 50, 1]]);
+$db->exec("UPDATE orders SET ORDER_SUCCESS=1, DELIVERY_ID=$userId WHERE ORDER_ID=$o50");
+$sm = $lm->summary();
+check('legacy summary: counts the closed un-posted order', $sm['closed_orders'] >= 1 && isset($sm['opening_total']), json_encode($sm));
+$rep = $lm->runAll($branch, $userId);
+check('legacy runAll: order backfilled, no failures', $rep['orders']['done'] >= 1 && $rep['orders']['failed'] === 0, json_encode($rep));
+check('legacy runAll: order now has a sale entry', (int)$db->query("SELECT COUNT(*) FROM orders WHERE ORDER_ID=$o50 AND SALE_ENTRY_ID IS NOT NULL")->fetchColumn() === 1);
+$sm2 = $lm->summary();
+check('legacy runAll: nothing left to settle afterwards', $sm2['closed_orders'] === 0 && $sm2['opening_total'] === 0, json_encode($sm2));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

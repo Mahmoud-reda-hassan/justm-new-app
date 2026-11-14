@@ -1,5 +1,20 @@
 <div class="container-fluid my-3" id="courierReopenPage">
-    <div id="legacy-alert" class="alert alert-warning d-none" role="alert"></div>
+    <div class="card border-warning mb-3" id="legacy-summary-card">
+        <div class="card-header">
+            <h5 class="mb-0">ترحيل النظام القديم إلى الأستاذ</h5>
+            <small class="text-muted">ملخص ما لم يُرحَّل بعد، وزر واحد ينفّذ كل التسويات بالترتيب. لا يغيّر أي بيان قديم.</small>
+        </div>
+        <div class="card-body">
+            <div id="legacy-summary-body" class="mb-3">جارٍ التحميل...</div>
+            <button type="button" class="btn btn-success" id="btnLegacyRunAll" disabled>
+                <i class="fa fa-check"></i> ترحيل الكل (أوامر + مرتجعات + أرصدة)
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-toggle="collapse" data-target="#legacy-details">
+                عرض التفاصيل
+            </button>
+        </div>
+    </div>
+    <div class="collapse" id="legacy-details">
     <div class="card">
         <div class="card-header">
             <h5 class="mb-0">رد أوامر المندوب للمخزن</h5>
@@ -114,4 +129,5 @@
             </div>
         </div>
     </div>
+</div>
 </div>
