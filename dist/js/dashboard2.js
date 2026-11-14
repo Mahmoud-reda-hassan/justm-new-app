@@ -7,7 +7,7 @@ $(function () {
     var requestInProgress = false;
     var firstLoad = true;
     var refreshTimer = null;
-    var dateFrom = moment().subtract(6, 'days').format('YYYY-MM-DD');
+    var dateFrom = moment().subtract(29, 'days').format('YYYY-MM-DD');
     var dateTo = moment().format('YYYY-MM-DD');
 
     function number(value) { return Number(value || 0).toLocaleString('ar-EG'); }
@@ -148,12 +148,17 @@ $(function () {
         });
     }
 
+    function updateSelectedPeriod() {
+        $('#dashboardSelectedPeriod').text('الفترة: ' +
+            moment(dateFrom).format('DD/MM/YYYY') + ' - ' + moment(dateTo).format('DD/MM/YYYY'));
+    }
+
     if ($('#dashboardDateRange').length && $.fn.daterangepicker && typeof moment !== 'undefined') {
         $('#dashboardDateRange').daterangepicker({
             startDate:moment(dateFrom), endDate:moment(dateTo), maxDate:moment(), maxSpan:{days:90},
-            opens:'left', autoUpdateInput:true,
+            opens:'left', autoUpdateInput:false,
             locale:{
-                format:'YYYY-MM-DD', separator:' - ', applyLabel:'تطبيق', cancelLabel:'إلغاء',
+                format:'YYYY-MM-DD', separator:' - ', applyLabel:'موافق', cancelLabel:'إلغاء',
                 fromLabel:'من', toLabel:'إلى', customRangeLabel:'فترة مخصصة',
                 daysOfWeek:['ح','ن','ث','ر','خ','ج','س'],
                 monthNames:['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],
@@ -168,10 +173,15 @@ $(function () {
         }, function (start,end) {
             dateFrom = start.format('YYYY-MM-DD');
             dateTo = end.format('YYYY-MM-DD');
+            updateSelectedPeriod();
             loadDashboard();
         });
+        $('#dashboardCalendar').on('click', function () {
+            $('#dashboardDateRange').data('daterangepicker').show();
+        });
+        updateSelectedPeriod();
     } else {
-        $('#dashboardDateRange').val(dateFrom + ' - ' + dateTo);
+        $('#dashboardSelectedPeriod').text('الفترة: ' + dateFrom + ' - ' + dateTo);
     }
     $('#dashboardRefresh').on('click', loadDashboard);
     loadDashboard();
