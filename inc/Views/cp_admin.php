@@ -30,7 +30,7 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
             </div>
             <div class="d-flex align-items-center mb-2 mb-md-0">
               <button type="button" class="btn btn-tool p-1" id="dashboardRefresh" title="تحديث الآن" aria-label="تحديث الآن"><i class="fas fa-sync-alt"></i></button>
-              <small class="text-muted mr-2" id="dashboardUpdatedAt">التحديث التلقائي كل دقيقة</small>
+              <small class="text-muted mr-2" id="dashboardUpdatedAt">آخر مزامنة --:--</small>
             </div>
           </div>
         </div>
