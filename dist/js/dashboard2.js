@@ -87,14 +87,30 @@ $(function () {
             delivery_full_return: { color: 'bg-indigo', icon: 'fa-undo-alt' }
         };
         var colors = ['bg-primary','bg-info','bg-success','bg-warning','bg-danger','bg-secondary','bg-teal','bg-indigo'];
-        var html = items.map(function (item, index) {
+        var priorityNames = [
+            'تأكيد الشحن والتوصيل',
+            'تتبع تأكيد الشحن من المندوبين',
+            'طلبات قيد التجهيز',
+            'طلبات تم التجهيز'
+        ];
+        var priorityItems = [];
+        priorityNames.forEach(function (name) {
+            var found = items.find(function (item) { return item.exists_name === name; });
+            if (found) priorityItems.push(found);
+        });
+        var priorityKeys = {};
+        priorityItems.forEach(function (item) { priorityKeys[item.exists_id] = true; });
+        var remainingItems = items.filter(function (item) { return !priorityKeys[item.exists_id]; });
+        var orderedItems = priorityItems.concat(remainingItems);
+
+        var html = orderedItems.map(function (item, index) {
             var style = statusCards[item.metric_key] || {};
             var color = style.color || colors[index % colors.length];
             var icon = style.icon || 'fa-clipboard-list';
             var card = '<div class="col-lg-3 col-6"><div class="small-box ' + color + '"><div class="inner"><h3>' +
                 number(item.total) + '</h3><p>' + escapeHtml(item.exists_name || 'حالة غير محددة') +
                 '</p></div><div class="icon"><i class="fas ' + icon + '"></i></div></div></div>';
-            return index === 5
+            return index === priorityItems.length - 1 && priorityItems.length
                 ? card + '<div class="col-12"><div class="dashboard-exists-group-separator" style="clear:both; margin: 1.5rem 0 2rem; border-top: 2px solid #dee2e6;"></div></div>'
                 : card;
         }).join('');
