@@ -379,9 +379,10 @@ function ResponseData($data){
 					try {
 						include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
 						$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
-						$lmReport = (new LegacyMigration($db))->runAll((int)$_SESSION["BRANCH_ID"], (int)$_SESSION["USER_ID"], $blockMissingCost);
+						$lmSkip = isset($_POST['skip']) && is_array($_POST['skip']) ? array_map('strval', $_POST['skip']) : [];
+						$lmReport = (new LegacyMigration($db))->runAll((int)$_SESSION["BRANCH_ID"], (int)$_SESSION["USER_ID"], $blockMissingCost, 25, $lmSkip);
 						ResponseData(array('success', 'ناجح', 'اكتمل الترحيل', $lmReport));
-					} catch (Exception $e) {
+					} catch (Throwable $e) {
 						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
 					}
 					break;

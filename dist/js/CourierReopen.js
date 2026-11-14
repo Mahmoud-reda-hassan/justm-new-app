@@ -120,23 +120,32 @@
 		}).then(function (r) {
 			if (!r.isConfirmed) return;
 			const btn = $('#btnLegacyRunAll').prop('disabled', true);
-			$.post(url, {CONTROL: 'legacyRunAll'}, function (res) {
-				if (Array.isArray(res) && res[0] === 'success') {
-					const d = res[3];
-					const failed = d.orders.failed + d.returns.failed + d.opening.failed;
-					Swal.fire({
-						icon: failed ? 'warning' : 'success', title: 'اكتمل الترحيل',
-						html: `أوامر: ${d.orders.done} تم / ${d.orders.failed} فشل<br>مرتجعات: ${d.returns.done} تم / ${d.returns.failed} فشل<br>أرصدة: ${d.opening.done} تم / ${d.opening.failed} فشل`
-							+ (d.errors.length ? '<hr><div style="text-align:right;font-size:12px">' + d.errors.map(esc).join('<br>') + '</div>' : '')
-					});
-				} else {
-					Swal.fire({icon: 'error', title: 'خطأ', text: (res && res[2]) || 'فشل الترحيل'});
-				}
+			const total = {orders: {done: 0, failed: 0}, returns: {done: 0, failed: 0}, opening: {done: 0, failed: 0}};
+			const errors = []; const skip = []; let batches = 0;
+			const finish = function (fatal) {
+				const failed = total.orders.failed + total.returns.failed + total.opening.failed;
+				Swal.fire({
+					icon: (failed || fatal) ? 'warning' : 'success', title: fatal ? 'توقف الترحيل' : 'اكتمل الترحيل',
+					html: `أوامر: ${total.orders.done} تم / ${total.orders.failed} فشل<br>مرتجعات: ${total.returns.done} تم / ${total.returns.failed} فشل<br>أرصدة: ${total.opening.done} تم / ${total.opening.failed} فشل`
+						+ (fatal ? `<br><b>${esc(fatal)}</b><br>ما تم ترحيله محفوظ، راجع الملخص ثم أعد المحاولة.` : '')
+						+ (errors.length ? '<hr><div style="text-align:right;font-size:12px">' + errors.slice(0, 30).map(esc).join('<br>') + '</div>' : '')
+				});
 				loadSummary(); loadBackfill(); loadReturns(); loadOpening();
-			}, 'json').fail(function () {
-				Swal.fire({icon: 'error', title: 'خطأ', text: 'انقطع الاتصال، راجع الملخص قبل إعادة المحاولة'});
-				btn.prop('disabled', false); loadSummary();
-			});
+			};
+			const step = function () {
+				batches++;
+				Swal.fire({title: 'جارٍ الترحيل...', html: `تم حتى الآن: ${total.orders.done + total.returns.done + total.opening.done}`, allowOutsideClick: false, didOpen: () => Swal.showLoading()});
+				$.post(url, {CONTROL: 'legacyRunAll', skip: skip}, function (res) {
+					if (!(Array.isArray(res) && res[0] === 'success')) { return finish((res && res[2]) || 'فشل الترحيل'); }
+					const d = res[3];
+					['orders', 'returns', 'opening'].forEach(k => { total[k].done += d[k].done; total[k].failed += d[k].failed; });
+					(d.errors || []).forEach(e => errors.push(e));
+					(d.failed_keys || []).forEach(k => skip.push(k));
+					if (d.processed === 0 || batches > 2000) { return finish(null); }
+					step();
+				}, 'json').fail(function () { finish('انقطع الاتصال أثناء إحدى الدفعات'); });
+			};
+			step();
 		});
 	});
 

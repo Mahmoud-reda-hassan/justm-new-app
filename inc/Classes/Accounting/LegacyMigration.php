@@ -58,45 +58,52 @@ class LegacyMigration {
         ];
     }
 
-    /** ينفّذ الترحيل كله. @return array تقرير بالأعداد والإخفاقات */
-    public function runAll(int $branchId, int $userId, bool $blockOnMissingCost = true): array {
+    /**
+     * ينفّذ الترحيل (أو دفعة منه). كل عنصر في معاملة مستقلة.
+     * @param int   $limit عدد العناصر الأقصى في هذا الطلب (0 = بلا حد)
+     * @param array $skip  مفاتيح عناصر فشلت سابقًا (مثل 'order:12') لتجاوزها
+     * @return array تقرير: orders/returns/opening {done,failed}, errors, failed_keys, processed
+     */
+    public function runAll(int $branchId, int $userId, bool $blockOnMissingCost = true, int $limit = 0, array $skip = []): array {
         @set_time_limit(0);
         $report = ['orders' => ['done' => 0, 'failed' => 0], 'returns' => ['done' => 0, 'failed' => 0],
-                   'opening' => ['done' => 0, 'failed' => 0], 'errors' => []];
-        $addError = function (string $what, string $msg) use (&$report) {
+                   'opening' => ['done' => 0, 'failed' => 0], 'errors' => [], 'failed_keys' => [], 'processed' => 0];
+        $skip = array_flip($skip);
+        $addError = function (string $key, string $what, string $msg) use (&$report) {
+            $report['failed_keys'][] = $key;
             if (count($report['errors']) < 30) { $report['errors'][] = $what.': '.$msg; }
+        };
+        $full = function () use (&$report, $limit) { return $limit > 0 && $report['processed'] >= $limit; };
+        $run = function (string $phase, string $key, string $what, callable $fn) use (&$report, $addError) {
+            try {
+                $this->db->beginTransaction();
+                $fn();
+                $this->db->commit(); $report[$phase]['done']++;
+            } catch (Throwable $e) {
+                if ($this->db->inTransaction()) { $this->db->rollBack(); }
+                $report[$phase]['failed']++; $addError($key, $what, $e->getMessage());
+            }
+            $report['processed']++;
         };
 
         foreach ($this->closedOrders() as $o) {
-            try {
-                $this->db->beginTransaction();
-                (new AccountingEvents($this->db))->backfillClosedCourierOrder((int)$o['ORDER_ID'], $blockOnMissingCost);
-                $this->db->commit(); $report['orders']['done']++;
-            } catch (Throwable $e) {
-                if ($this->db->inTransaction()) { $this->db->rollBack(); }
-                $report['orders']['failed']++; $addError('أمر '.($o['SUB_ORDER_ID'] ?: $o['ORDER_ID']), $e->getMessage());
-            }
+            if ($full()) { return $report; }
+            $key = 'order:'.$o['ORDER_ID']; if (isset($skip[$key])) { continue; }
+            $run('orders', $key, 'أمر '.($o['SUB_ORDER_ID'] ?: $o['ORDER_ID']),
+                fn() => (new AccountingEvents($this->db))->backfillClosedCourierOrder((int)$o['ORDER_ID'], $blockOnMissingCost));
         }
         foreach ($this->unpostedReturns() as $r) {
-            try {
-                $this->db->beginTransaction();
-                (new AccountingEvents($this->db))->courierSalesReturn((int)$r['ORDER_ID']);
-                $this->db->commit(); $report['returns']['done']++;
-            } catch (Throwable $e) {
-                if ($this->db->inTransaction()) { $this->db->rollBack(); }
-                $report['returns']['failed']++; $addError('مرتجع '.($r['SUB_ORDER_ID'] ?: $r['ORDER_ID']), $e->getMessage());
-            }
+            if ($full()) { return $report; }
+            $key = 'return:'.$r['ORDER_ID']; if (isset($skip[$key])) { continue; }
+            $run('returns', $key, 'مرتجع '.($r['SUB_ORDER_ID'] ?: $r['ORDER_ID']),
+                fn() => (new AccountingEvents($this->db))->courierSalesReturn((int)$r['ORDER_ID']));
         }
         // الفروق تُحسب بعد ترحيل الأوامر والمرتجعات
         foreach ((new OpeningBalanceManager($this->db))->preview() as $row) {
-            try {
-                $this->db->beginTransaction();
-                (new OpeningBalanceManager($this->db))->post($row['kind'], (int)$row['id'], $branchId, $userId);
-                $this->db->commit(); $report['opening']['done']++;
-            } catch (Throwable $e) {
-                if ($this->db->inTransaction()) { $this->db->rollBack(); }
-                $report['opening']['failed']++; $addError($row['kind'].' '.$row['name'], $e->getMessage());
-            }
+            if ($full()) { return $report; }
+            $key = 'opening:'.$row['kind'].':'.$row['id']; if (isset($skip[$key])) { continue; }
+            $run('opening', $key, $row['kind'].' '.$row['name'],
+                fn() => (new OpeningBalanceManager($this->db))->post($row['kind'], (int)$row['id'], $branchId, $userId));
         }
         return $report;
     }
