@@ -100,9 +100,11 @@
 				summaryData = res[3];
 				const d = summaryData;
 				const total = d.closed_orders + d.returns + d.opening_total;
-				$('#legacy-summary-body').html(total ? summaryHtml(d) : '<span class="text-success">كل شيء مُرحَّل، لا توجد فروق.</span>');
+				$('#legacy-summary-body').html(summaryHtml(d));
 				btn.prop('disabled', total === 0);
+				$('#legacy-summary-card').toggleClass('d-none', total === 0);
 			} else {
+				$('#legacy-summary-card').removeClass('d-none');
 				$('#legacy-summary-body').text((res && res[2]) || 'تعذر تحميل الملخص');
 				btn.prop('disabled', true);
 			}

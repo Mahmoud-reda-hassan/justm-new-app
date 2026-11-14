@@ -1,5 +1,5 @@
 <div class="container-fluid my-3" id="courierReopenPage">
-    <div class="card border-warning mb-3" id="legacy-summary-card">
+    <div class="card border-warning mb-3 d-none" id="legacy-summary-card">
         <div class="card-header">
             <h5 class="mb-0">ترحيل النظام القديم إلى الأستاذ</h5>
             <small class="text-muted">ملخص ما لم يُرحَّل بعد، وزر واحد ينفّذ كل التسويات بالترتيب. لا يغيّر أي بيان قديم.</small>
