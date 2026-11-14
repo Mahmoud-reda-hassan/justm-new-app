@@ -22,16 +22,14 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
       <div class="col-12">
         <div class="d-flex flex-wrap align-items-center justify-content-between">
           <small class="text-muted mb-2 mb-md-0">ملخص تشغيلي مباشر حسب صلاحيات المستخدم</small>
-          <div class="d-flex flex-wrap align-items-center">
+          <div class="d-flex flex-nowrap align-items-center" style="gap: .5rem;">
             <input type="text" id="dashboardDateRange" class="d-none" autocomplete="off" aria-label="الفترة الزمنية">
-            <div class="d-flex align-items-center border rounded px-2 py-1 ml-3 mb-2 mb-md-0 bg-light">
-              <button type="button" class="btn btn-tool p-1" id="dashboardCalendar" title="اختيار الفترة الزمنية" aria-label="اختيار الفترة الزمنية"><i class="far fa-calendar-alt"></i></button>
-              <small class="text-muted mr-2" id="dashboardSelectedPeriod"></small>
-            </div>
-            <div class="d-flex align-items-center mb-2 mb-md-0">
-              <button type="button" class="btn btn-tool p-1" id="dashboardRefresh" title="تحديث الآن" aria-label="تحديث الآن"><i class="fas fa-sync-alt"></i></button>
-              <small class="text-muted mr-2" id="dashboardUpdatedAt">آخر مزامنة --:--</small>
-            </div>
+            <button type="button" class="badge badge-light border d-inline-flex align-items-center p-2" id="dashboardCalendar" title="اختيار الفترة الزمنية" aria-label="اختيار الفترة الزمنية" style="cursor: pointer;">
+              <i class="far fa-calendar-alt ml-2"></i><small class="text-muted" id="dashboardSelectedPeriod"></small>
+            </button>
+            <button type="button" class="badge badge-light border d-inline-flex align-items-center p-2" id="dashboardRefresh" title="تحديث الآن" aria-label="تحديث الآن" style="cursor: pointer;">
+              <i class="fas fa-sync-alt ml-2"></i><small class="text-muted" id="dashboardUpdatedAt">آخر مزامنة --:--</small>
+            </button>
           </div>
         </div>
       </div>
