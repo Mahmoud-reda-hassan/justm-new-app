@@ -80,18 +80,5 @@
         </a>
 	  	<?php } ?>
 	  	
-        <!-- تأكيد الشحن والتوصيل -->
-      	<?php if($usm["orderlist_ex6"]["View_order_list"]  == "true"){ ?>
-        <a href="?Go=Orderlist&ty=1&ex=6" 
-           class="col-md-6 col-lg-4 col-xl-2 text-decoration-none">
-            <div class="metro-tile new-tile text-center p-4 rounded-4 shadow-sm bg-gradient-success">
-                <i class="tile-icon fas fa-truck"></i>
-                <div class="tile-title fw-bold">
-                    تأكيد الشحن والتوصيل
-                </div>
-            </div>
-        </a>
-      	<?php } ?>
-
     </div>
 </div>
