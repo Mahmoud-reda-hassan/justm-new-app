@@ -184,6 +184,26 @@ class dashbord_BE {
                     )
                 ];
             }
+
+            // مرتجعات البيع المباشر: نفس حالات المرتجع المعتمدة، مع قصر العد على EXISTS_ID = 11.
+            foreach ([
+                ['direct_sale_partial_return', 'مرتجع جزئي بيع مباشر', 7],
+                ['direct_sale_full_return', 'مرتجع كلي بيع مباشر', 6]
+            ] as $directSaleStatus) {
+                $existsCounts[] = [
+                    'exists_id' => null,
+                    'metric_key' => $directSaleStatus[0],
+                    'exists_name' => $directSaleStatus[1],
+                    'total' => $this->scalar(
+                        "SELECT COUNT(*) FROM orders o
+                         WHERE $periodWhere
+                           AND o.EXISTS_ID = 11
+                           AND o.ORDER_STATUS = :direct_sale_status",
+                        $periodParams + [':direct_sale_status' => $directSaleStatus[2]]
+                    )
+                ];
+            }
+
             $metrics['orders_today'] = $this->scalar(
                 "SELECT COUNT(*) FROM orders o WHERE $allWhere AND o.DATE_CREATED >= CURDATE() AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)",
                 $allParams
