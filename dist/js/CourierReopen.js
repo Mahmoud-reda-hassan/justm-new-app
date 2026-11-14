@@ -55,4 +55,52 @@
 	});
 
 	load();
+
+	// ---- ترحيل أوامر مُقفلة قبل تشغيل الأستاذ ----
+	const bfTable = $('#courier-backfill-table').DataTable({
+		data: [],
+		ordering: false,
+		language: {emptyTable: 'لا توجد أوامر مُقفلة بلا قيد'},
+		columns: [
+			{data: 'SUB_ORDER_ID', render: (d, t, r) => esc(d || r.ORDER_ID)},
+			{data: 'DELIVERY_NAME', render: esc},
+			{data: 'ORDER_STATUS', render: (d) => esc(statusNames[d] || d)},
+			{data: 'SHIPPING_VAL', render: esc},
+			{data: 'LAST_UPDATE', render: esc},
+			{
+				data: null, className: 'text-center text-nowrap',
+				render: (d, t, r) => `<button type="button" class="btn btn-sm btn-primary btnBackfill" data-oid="${esc(r.ORDER_ID)}">
+					<i class="fa fa-book"></i> ترحيل للأستاذ</button>`
+			}
+		]
+	});
+
+	function loadBackfill() {
+		$.post(url, {CONTROL: 'listBackfillOrders'}, function (res) {
+			if (Array.isArray(res) && res[0] === 'success') {
+				bfTable.clear().rows.add(res[3] || []).draw();
+			}
+		}, 'json');
+	}
+
+	$('#courier-backfill-table').on('click', '.btnBackfill', function () {
+		const oid = $(this).data('oid');
+		Swal.fire({
+			icon: 'question',
+			title: 'ترحيل الأمر للأستاذ؟',
+			text: 'سيُسجَّل قيد التسليم وقيد التحصيل والعمولات بأرقام النظام القديم.',
+			showCancelButton: true,
+			confirmButtonText: 'ترحيل',
+			cancelButtonText: 'إلغاء'
+		}).then((r) => {
+			if (!r.isConfirmed) return;
+			$.post(url, {CONTROL: 'backfillCourierOrder', order_id: oid}, function (res) {
+				const ok = Array.isArray(res) && res[0] === 'success';
+				Swal.fire({icon: ok ? 'success' : 'error', title: ok ? 'تم' : 'خطأ', text: (res && res[2]) || ''});
+				if (ok) loadBackfill();
+			}, 'json').fail(() => Swal.fire({icon: 'error', title: 'خطأ', text: 'تعذر الاتصال بالخادم'}));
+		});
+	});
+
+	loadBackfill();
 })();

@@ -271,5 +271,18 @@ check('rejected+paid shipping: cash 30 / customers 30, commission 1.5', lineSum(
 check('rejected+paid shipping: customer nets to zero', (float)$db->query("SELECT ROUND(SUM(d.debit-d.credit),2) FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id JOIN journal_entries e ON e.id=d.journal_entry_id WHERE a.account_code='1200' AND e.reference_id=$o21")->fetchColumn() === 0.0);
 check('rejected+paid shipping: no sales/COGS posted', (float)$db->query("SELECT COUNT(*) FROM journal_entry_details d JOIN accounts a ON a.id=d.account_id JOIN journal_entries e ON e.id=d.journal_entry_id WHERE a.account_code IN ('4100','5100') AND e.reference_id=$o21")->fetchColumn() === 0.0);
 
+// 13) backfill of an order closed before the GL existed
+$o30 = makeOrder($db, $store, $tel, 3, 30, 1, [[2, 400, 0, 350, 2]]);
+$db->exec("UPDATE orders SET ORDER_SUCCESS=1, DELIVERY_ID=$userId WHERE ORDER_ID=$o30");
+$db->exec("INSERT INTO partners_balance (PARTNER_TYPE,PARTNER_ID,REFERENCE_ID,TRANSACTION_TYPE,BALANCE,NOTE) VALUES ('DELIVERY',$userId,$o30,'CREDIT',30,'x')");
+$bf = $ev->backfillClosedCourierOrder($o30);
+check('backfill: amount 830 and commission 30', $bf['amount'] === 830.0 && $bf['commission'] === 30.0, json_encode($bf));
+[$h, $l] = entry($db, $bf['collection_entry_id']);
+check('backfill: cash 830 / customers 830 / 5700 30 / 2210 30', lineSum($l, '1110', 'debit') === 830.0 && lineSum($l, '1200', 'credit') === 830.0 && lineSum($l, '5700', 'debit') === 30.0 && lineSum($l, '2210', 'credit') === 30.0);
+check('backfill: second run is refused', throwsMsg(fn() => $ev->backfillClosedCourierOrder($o30), 'already posted'));
+$o31 = makeOrder($db, $store, $tel, 3, 30, 1, [[1, 100, 0, 50, 1]]);
+$db->exec("UPDATE orders SET DELIVERY_ID=$userId WHERE ORDER_ID=$o31");
+check('backfill: refuses an order not closed financially', throwsMsg(fn() => $ev->backfillClosedCourierOrder($o31), 'غير مُقفل'));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

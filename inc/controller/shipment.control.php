@@ -257,6 +257,40 @@ function ResponseData($data){
 					$reopen = new CourierReopen($db);
 					ResponseData(array('success', 'ناجح', '', $reopen->listReopenable()));
 					break;
+				case 'listBackfillOrders':
+					// أوامر مندوب أُقفلت ماليًا قبل تشغيل الأستاذ (للمصرّح لهم فقط)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					$stBf = $db->query("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS, o.SHIPPING_VAL, o.LAST_UPDATE,
+							CONCAT(u.FORENAME, ' ', u.LASTNAME) AS DELIVERY_NAME
+						FROM orders o LEFT JOIN users u ON u.USER_ID = o.DELIVERY_ID
+						WHERE o.ORDER_SUCCESS = 1 AND o.SALE_ENTRY_ID IS NULL AND o.ORDER_STATUS IN (3,4,5)
+						  AND o.DELIVERY_ID > 0 AND o.ORDER_TYPE_ID <> 5
+						  AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.reference_type = 'COURIER_COLLECTION' AND e.reference_id = o.ORDER_ID AND e.status = 'POSTED')
+						ORDER BY o.LAST_UPDATE DESC LIMIT 200");
+					ResponseData(array('success', 'ناجح', '', $stBf->fetchAll(PDO::FETCH_ASSOC)));
+					break;
+				case 'backfillCourierOrder':
+					// ترحيل أمر مُقفل قديم إلى الأستاذ بأرقام النظام القديم
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+						$db->beginTransaction();
+						$bfAcc = new AccountingEvents($db);
+						$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+						$bfRes = $bfAcc->backfillClosedCourierOrder((int)($_POST['order_id'] ?? 0), $blockMissingCost);
+						$db->commit();
+						ResponseData(array('success', 'ناجح', 'تم ترحيل الأمر للأستاذ', $bfRes));
+					} catch (Exception $e) {
+						if ($db->inTransaction()) { $db->rollBack(); }
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
 				case 'custodySettlement':
 					$shipment_tbl->orderobj    = $_POST["orderobj"];
 	    			$shipment_tbl->delivery_id = $_POST["delivery_id"];

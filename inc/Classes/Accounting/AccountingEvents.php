@@ -719,6 +719,43 @@ class AccountingEvents {
 	}
 	
 	/**
+	 * ترحيل أمر مندوب أُقفل (ORDER_SUCCESS=1) قبل تشغيل الأستاذ ولم يُرحَّل له قيد.
+	 * يسجّل قيد التسليم ثم قيد التحصيل بنفس أرقام النظام القديم: مبلغ التحصيل = قيمة التسليم (العملاء)،
+	 * والعمولات من partners_balance لهذا الأمر (CREDIT)، دون تعديل أي بيان قديم. يتجاهل الأمر المرحَّل (Exception).
+	 * @return array ['delivery_entry_id','collection_entry_id','amount','commission']
+	 */
+	public function backfillClosedCourierOrder(int $orderId, bool $blockOnMissingCost = true): array{
+	    $st = $this->db->prepare("SELECT ORDER_SUCCESS, DELIVERY_ID, ORDER_STATUS, SALE_ENTRY_ID FROM orders WHERE ORDER_ID = ? FOR UPDATE");
+	    $st->execute([$orderId]);
+	    $o = $st->fetch(PDO::FETCH_ASSOC);
+	    if (!$o) { throw new Exception("Order not found."); }
+	    if ((int)$o['ORDER_SUCCESS'] !== 1) { throw new Exception("الأمر غير مُقفل ماليًا؛ يُرحَّل عند الاستلام المالي."); }
+	    if ($o['SALE_ENTRY_ID'] !== null) { throw new Exception("Order already posted."); }
+	    if ((int)$o['DELIVERY_ID'] <= 0) { throw new Exception("الأمر ليس أمر مندوب."); }
+	    $dup = $this->db->prepare("SELECT COUNT(*) FROM journal_entries WHERE reference_type = 'COURIER_COLLECTION' AND reference_id = ? AND status = 'POSTED'");
+	    $dup->execute([$orderId]);
+	    if ((int)$dup->fetchColumn() > 0) { throw new Exception("Collection already posted."); }
+
+	    $deliveryEntry = $this->courierDelivery($orderId, $blockOnMissingCost);
+
+	    $rc = $this->db->prepare("SELECT COALESCE(SUM(debit),0) FROM journal_entry_details WHERE journal_entry_id = ? AND account_id = ?");
+	    $rc->execute([$deliveryEntry, $this->settings->customers()]);
+	    $amount = round((float)$rc->fetchColumn(), 2);
+
+	    $cm = $this->db->prepare("SELECT COALESCE(SUM(BALANCE),0) FROM partners_balance WHERE PARTNER_TYPE = 'DELIVERY' AND REFERENCE_ID = ? AND TRANSACTION_TYPE = 'CREDIT'");
+	    $cm->execute([$orderId]);
+	    $commission = round((float)$cm->fetchColumn(), 2);
+
+	    $mk = $this->db->prepare("SELECT PARTNER_ID, SUM(BALANCE) AS AMT FROM partners_balance WHERE PARTNER_TYPE = 'MARKETER' AND REFERENCE_ID = ? AND TRANSACTION_TYPE = 'CREDIT' GROUP BY PARTNER_ID");
+	    $mk->execute([$orderId]);
+	    $marketers = [];
+	    foreach ($mk->fetchAll(PDO::FETCH_ASSOC) as $m) { $marketers[] = [(int)$m['PARTNER_ID'], (float)$m['AMT']]; }
+
+	    $collectionEntry = $this->courierCollection($orderId, (int)$o['DELIVERY_ID'], $amount, $commission, $blockOnMissingCost, $marketers);
+	    return ['delivery_entry_id' => $deliveryEntry, 'collection_entry_id' => $collectionEntry, 'amount' => $amount, 'commission' => $commission];
+	}
+
+	/**
 	 * قيد مرتجع أمر شحن مندوب (بعد التسليم والتحصيل) عند استلام المرتجعات في المخزن.
 	 * يرحّل الفرق فقط بين إجمالي المرتجع الحالي وما رُحِّل سابقاً، فيدعم أكثر من استلام جزئي للأمر نفسه.
 	 * مدين مردودات المبيعات / دائن العملاء، ومدين المخزون / دائن تكلفة البضاعة.

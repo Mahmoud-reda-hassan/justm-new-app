@@ -26,4 +26,30 @@
             </div>
         </div>
     </div>
+    <div class="card mt-3">
+        <div class="card-header">
+            <h5 class="mb-0">ترحيل أوامر مُقفلة قبل تشغيل الأستاذ</h5>
+            <small class="text-muted">
+                أوامر مندوب اكتمل تحصيلها في النظام القديم ولم يُسجَّل لها قيد في الأستاذ. الترحيل يسجّل قيد التسليم
+                وقيد التحصيل والعمولات بنفس أرقام النظام القديم، ولا يغيّر أي بيان قديم.
+            </small>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table id="courier-backfill-table" class="table table-bordered table-striped w-100">
+                    <thead>
+                        <tr>
+                            <th>رقم الأمر</th>
+                            <th>المندوب</th>
+                            <th>الحالة</th>
+                            <th>الشحن</th>
+                            <th>آخر تحديث</th>
+                            <th>إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
