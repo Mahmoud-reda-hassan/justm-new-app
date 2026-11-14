@@ -193,7 +193,9 @@ class dashbord_BE {
                 'cs1_review' => 1,
                 'cs1_pending' => 2,
                 'cs1_preorder' => 3,
-                'cs1_no_response' => 4
+                'cs1_no_response' => 4,
+                'cs1_cancel_no_response' => 13,
+                'cs1_cancel_order' => 5
             ] as $metric => $existsId) {
                 $metrics[$metric] = $this->scalar(
                     "SELECT COUNT(*) FROM orders o WHERE $where AND o.EXISTS_ID = :exists_id",
