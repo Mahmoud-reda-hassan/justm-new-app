@@ -119,10 +119,10 @@ class dashbord_BE {
         $existsCounts = [];
         if (in_array('Admin', $roles, true)) {
             [$allWhere, $allParams] = $this->orderWhere('o', $branchId, $canViewAllBranches, false);
-            $monthCondition = "o.DATE_CREATED >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
+            [$periodWhere, $periodParams] = $this->orderWhere('o', $branchId, $canViewAllBranches, true);
             $metrics['orders_month'] = $this->scalar(
-                "SELECT COUNT(*) FROM orders o WHERE $allWhere AND $monthCondition",
-                $allParams
+                "SELECT COUNT(*) FROM orders o WHERE $periodWhere",
+                $periodParams
             );
             $existsJoinScope = '';
             if (!$canViewAllBranches) {
@@ -135,12 +135,13 @@ class dashbord_BE {
                  FROM order_exists oe
                  LEFT JOIN orders o
                    ON o.EXISTS_ID = oe.EXISTS_ID
-                  AND o.DATE_CREATED >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                  AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                  AND o.DATE_CREATED >= :date_from
+                  AND o.DATE_CREATED < DATE_ADD(:date_to, INTERVAL 1 DAY)
                   $existsJoinScope
                  WHERE oe.EXISTS_ID <> 10
                  GROUP BY oe.EXISTS_ID, oe.EXISTS_NAME
-                 ORDER BY oe.EXISTS_ID"
+                 ORDER BY oe.EXISTS_ID",
+                $allParams + [':date_from' => $dateFrom, ':date_to' => $dateTo]
             );
 
             // قيد الشحن فقط يظل مرتبطًا بعهدة المندوب، أما نتائج التسليم والرفض والمرتجعات
@@ -160,11 +161,9 @@ class dashbord_BE {
                     'exists_name' => $statusMetric[1],
                     'total' => $this->scalar(
                         "SELECT COUNT(*) FROM orders o
-                         WHERE $allWhere
-                           AND o.DATE_CREATED >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                           AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                         WHERE $periodWhere
                            AND " . $statusMetric[2],
-                        $allParams
+                        $periodParams
                     )
                 ];
             }
