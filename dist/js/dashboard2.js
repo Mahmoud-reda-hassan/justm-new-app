@@ -72,48 +72,62 @@ $(function () {
         var $container = $('#dashboardExistsMetrics');
         if (!$container.length) return;
         items = Array.isArray(items) ? items : [];
-        // إخفاء بطاقة جاري الشحن (الحالة 9) مع الإبقاء على مؤشرات عهدة المندوب.
+        // إخفاء حالة جاري الشحن العامة؛ قيد الشحن يظهر ضمن عهدة المندوبين فقط.
         items = items.filter(function (item) { return Number(item.exists_id) !== 9; });
-        if (!items.length) {
-            $container.empty();
-            return;
-        }
+
+        var colors = ['bg-primary','bg-info','bg-success','bg-warning','bg-danger','bg-secondary','bg-teal','bg-indigo'];
         var statusCards = {
             delivery_custody_shipping: { color: 'bg-info', icon: 'fa-truck' },
             delivery_rejected: { color: 'bg-danger', icon: 'fa-times-circle' },
             delivery_partial: { color: 'bg-warning', icon: 'fa-box-open' },
             delivery_delivered: { color: 'bg-success', icon: 'fa-check-circle' },
             delivery_partial_return: { color: 'bg-secondary', icon: 'fa-undo' },
-            delivery_full_return: { color: 'bg-indigo', icon: 'fa-undo-alt' }
+            delivery_full_return: { color: 'bg-indigo', icon: 'fa-undo-alt' },
+            direct_sale_partial_return: { color: 'bg-warning', icon: 'fa-undo' },
+            direct_sale_full_return: { color: 'bg-secondary', icon: 'fa-undo-alt' }
         };
-        var colors = ['bg-primary','bg-info','bg-success','bg-warning','bg-danger','bg-secondary','bg-teal','bg-indigo'];
-        var priorityNames = [
-            'تأكيد الشحن والتوصيل',
-            'تتبع تأكيد الشحن من المندوبين',
-            'طلبات قيد التجهيز',
-            'طلبات تم التجهيز'
-        ];
-        var priorityItems = [];
-        priorityNames.forEach(function (name) {
-            var found = items.find(function (item) { return item.exists_name === name; });
-            if (found) priorityItems.push(found);
-        });
-        var priorityKeys = {};
-        priorityItems.forEach(function (item) { priorityKeys[item.exists_id] = true; });
-        var remainingItems = items.filter(function (item) { return !priorityKeys[item.exists_id]; });
-        var orderedItems = priorityItems.concat(remainingItems);
-
-        var html = orderedItems.map(function (item, index) {
+        function card(item, index) {
             var style = statusCards[item.metric_key] || {};
             var color = style.color || colors[index % colors.length];
             var icon = style.icon || 'fa-clipboard-list';
-            var card = '<div class="col-lg-3 col-6"><div class="small-box ' + color + '"><div class="inner"><h3>' +
+            return '<div class="col-lg-3 col-6"><div class="small-box ' + color + '"><div class="inner"><h3>' +
                 number(item.total) + '</h3><p>' + escapeHtml(item.exists_name || 'حالة غير محددة') +
                 '</p></div><div class="icon"><i class="fas ' + icon + '"></i></div></div></div>';
-            return index === priorityItems.length - 1 && priorityItems.length
-                ? card + '<div class="col-12"><div class="dashboard-exists-group-separator" style="clear:both; margin: 1.5rem 0 2rem; border-top: 2px solid #dee2e6;"></div></div>'
-                : card;
-        }).join('');
+        }
+        function group(title, groupItems) {
+            if (!groupItems.length) return '';
+            return '<div class="col-12"><h5 class="mb-3 mt-2">' + escapeHtml(title) + '</h5></div>' +
+                groupItems.map(function (item, index) { return card(item, index); }).join('');
+        }
+        function byIds(ids) {
+            return ids.map(function (id) {
+                return items.find(function (item) { return Number(item.exists_id) === id; });
+            }).filter(Boolean);
+        }
+        function byKeys(keys) {
+            return keys.map(function (key) {
+                return items.find(function (item) { return item.metric_key === key; });
+            }).filter(Boolean);
+        }
+
+        var html = '';
+        html += group('المراجعة والإلغاء', byIds([1, 2, 3, 4, 13, 5]));
+        html += '<div class="col-12"><div class="dashboard-exists-group-separator" style="clear:both; margin: 1rem 0 1.5rem; border-top: 2px solid #dee2e6;"></div></div>';
+        html += group('التجهيز والشحن', byIds([6, 12, 7, 8]));
+        html += '<div class="col-12"><div class="dashboard-exists-group-separator" style="clear:both; margin: 1rem 0 1.5rem; border-top: 2px solid #dee2e6;"></div></div>';
+        html += group('عهدة المندوبين', byKeys([
+            'delivery_custody_shipping',
+            'delivery_rejected',
+            'delivery_partial',
+            'delivery_delivered',
+            'delivery_partial_return',
+            'delivery_full_return'
+        ]));
+        html += '<div class="col-12"><div class="dashboard-exists-group-separator" style="clear:both; margin: 1rem 0 1.5rem; border-top: 2px solid #dee2e6;"></div></div>';
+        html += group('بيع مباشر', byIds([11]).concat(byKeys([
+            'direct_sale_partial_return',
+            'direct_sale_full_return'
+        ])));
         $container.html(html);
     }
 
