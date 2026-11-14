@@ -72,6 +72,8 @@ $(function () {
         var $container = $('#dashboardExistsMetrics');
         if (!$container.length) return;
         items = Array.isArray(items) ? items : [];
+        // إخفاء بطاقة جاري الشحن (الحالة 9) مع الإبقاء على مؤشرات عهدة المندوب.
+        items = items.filter(function (item) { return Number(item.exists_id) !== 9; });
         if (!items.length) {
             $container.empty();
             return;
