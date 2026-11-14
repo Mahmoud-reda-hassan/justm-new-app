@@ -1855,10 +1855,10 @@ class shipment_BE {
 			$this->restClientDebtBatch($sessionId, $totalOrdersSelse);
 
 			// ------- 5.1 قيد الأستاذ لتسليم المندوب -------
-			// تسليم كلي (3): يُرحَّل عند تسجيل النتيجة لأنه لا يمر على أمين المخزن (لا مرتجعات).
-			// تسليم جزئي/مرفوض (4,5): يُرحَّل عند اعتماد أمين المخزن فقط (يمكنه التعديل قبله).
-			// التكرار يُتجاهل (SALE_ENTRY_ID).
-			$postStatuses = ($updateInventory === 'true') ? '3,4,5' : '3';
+			// التسليم يمكن تعديله من المندوب/موظف المكتب ثم من أمين المخزن، لذلك لا يُرحَّل عند تسجيل النتيجة.
+			// يُرحَّل (3,4,5) عند اعتماد أمين المخزن، أو عند استلام النقدية من المندوب إن لم يمر عليه (تسليم كلي).
+			// بعد الترحيل لا يُسمح بتعديل الكميات إلا برد الأمر للمخزن (المدير العام/المالك/المالي).
+			$postStatuses = ($updateInventory === 'true') ? '3,4,5' : '0';
 			$ph = implode(',', array_fill(0, count($orderids), '?'));
 			$stPost = $conn->prepare("SELECT ORDER_ID FROM orders WHERE ORDER_ID IN ($ph) AND ORDER_STATUS IN ($postStatuses) AND SALE_ENTRY_ID IS NULL");
 			$stPost->execute($orderids);
