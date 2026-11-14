@@ -32,18 +32,23 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
     <div class="text-center text-muted py-3" id="dashboardLoading"><i class="fas fa-spinner fa-spin ml-1"></i> جار تحميل البيانات...</div>
 
     <?php if ($canDashboardAdmin): ?>
-    <section class="dashboard-section" id="dashboardAdminSection">
-      <div class="row">
-        <div class="col-12"><div class="card">
-          <div class="card-header"><h3 class="card-title"><i class="fas fa-chart-line ml-1"></i> الملخص الإداري</h3><div class="card-tools"><button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button></div></div>
-          <div class="card-body">
-            <div class="row">
+    <div class="row" id="dashboardTopMetrics">
               <div class="col-lg-3 col-6"><div class="small-box bg-info"><div class="inner"><h3 data-metric="orders_today">—</h3><p>أوامر البيع اليوم</p></div><div class="icon"><i class="ion ion-bag"></i></div></div></div>
               <div class="col-lg-3 col-6"><div class="small-box bg-success"><div class="inner"><h3 data-metric="orders_range">—</h3><p>أوامر البيع خلال الفترة</p></div><div class="icon"><i class="ion ion-stats-bars"></i></div></div></div>
               <div class="col-lg-3 col-6"><div class="small-box bg-warning"><div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div><div class="icon"><i class="ion ion-person-add"></i></div></div></div>
               <div class="col-lg-3 col-6"><div class="small-box bg-danger"><div class="inner"><h3 data-metric="stores_count">—</h3><p>عدد المخازن</p></div><div class="icon"><i class="ion ion-pie-graph"></i></div></div></div>
               <?php if ($canDashboardSuppliers): ?><div class="col-lg-3 col-6"><div class="small-box bg-secondary"><div class="inner"><h3 data-metric="suppliers_count">—</h3><p>عدد الموردين</p></div><div class="icon"><i class="fas fa-truck-loading"></i></div></div></div><?php endif; ?>
-            </div>
+
+    </div>
+    <?php endif; ?>
+
+    <?php if ($canDashboardAdmin): ?>
+    <section class="dashboard-section" id="dashboardAdminSection">
+      <div class="row">
+        <div class="col-12"><div class="card">
+          <div class="card-header"><h3 class="card-title"><i class="fas fa-chart-line ml-1"></i> الملخص الإداري</h3><div class="card-tools"><button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button></div></div>
+          <div class="card-body">
+
             <div class="row">
               <div class="col-md-8"><div class="card card-light"><div class="card-header"><h3 class="card-title">حركة أوامر البيع</h3></div><div class="card-body"><div class="chart"><canvas id="dashboardOrdersChart" height="180"></canvas></div></div></div></div>
               <div class="col-md-4"><div class="card card-light"><div class="card-header"><h3 class="card-title">توزيع حالات أوامر البيع</h3></div><div class="card-body"><div class="chart"><canvas id="dashboardStatusChart" height="180"></canvas></div></div></div></div>
