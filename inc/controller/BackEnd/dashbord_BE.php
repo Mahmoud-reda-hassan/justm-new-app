@@ -145,7 +145,15 @@ class dashbord_BE {
                   $existsJoinScope
                  WHERE oe.EXISTS_ID <> 10
                  GROUP BY oe.EXISTS_ID, oe.EXISTS_NAME
-                 ORDER BY oe.EXISTS_ID",
+                 ORDER BY CASE oe.EXISTS_ID
+                    WHEN 1 THEN 1
+                    WHEN 2 THEN 2
+                    WHEN 3 THEN 3
+                    WHEN 4 THEN 4
+                    WHEN 13 THEN 5
+                    WHEN 5 THEN 6
+                    ELSE 100 + oe.EXISTS_ID
+                 END",
                 $allParams + [':date_from' => $dateFrom, ':date_to' => $dateTo]
             );
 
