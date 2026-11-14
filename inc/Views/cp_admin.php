@@ -40,6 +40,7 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
       <div class="col-lg-4 col-6"><div class="small-box bg-info"><div class="inner"><h3 data-metric="orders_today">—</h3><p>أوامر البيع اليوم</p></div><div class="icon"><i class="ion ion-bag"></i></div></div></div>
       <div class="col-lg-4 col-6"><div class="small-box bg-warning"><div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div><div class="icon"><i class="ion ion-person-add"></i></div></div></div>
     </div>
+    <div class="dashboard-metrics-separator my-3" style="border-top: 2px solid #dee2e6; padding-top: 1rem;"></div>
     <div class="row" id="dashboardExistsMetrics" aria-live="polite"></div>
     <?php endif; ?>
 
