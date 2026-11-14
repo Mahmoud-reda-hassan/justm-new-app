@@ -44,7 +44,7 @@ jobs:
           echo "views:      $(q "SELECT COUNT(*) FROM information_schema.views WHERE table_schema='cptest'")"
           q "SELECT COUNT(*) FROM product_options_view"
           q "SELECT COUNT(*) FROM purchases_orders_view"
-          test "$(q "SELECT COUNT(*) FROM information_schema.views WHERE table_schema='cptest'")" = "2"
+          test "$(q "SELECT COUNT(*) FROM information_schema.views WHERE table_schema='cptest'")" = "4"
       - uses: shivammathur/setup-php@v2
         with: { php-version: '8.2', coverage: none, extensions: pdo_mysql }
       - name: Courier delivery accounting test
