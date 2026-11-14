@@ -1869,6 +1869,21 @@ class shipment_BE {
 					$stmt->execute([$sessionId]);
 					if ($stmt->rowCount() <= 0) throw new Exception('فشل فى تحديث استلام مرفوضات عهدة المندوب', 1436);
 				}
+
+				// ------- 7.1 قيد الأستاذ لتسليم المندوب (عند اعتماد أمين المخزن فقط) -------
+				// يرحّل كل أمر (تم تسليمه/مرفوض بعد محاولة) لم يُرحَّل من قبل؛ التكرار يُتجاهل.
+				$ph = implode(',', array_fill(0, count($orderids), '?'));
+				$stPost = $conn->prepare("SELECT ORDER_ID FROM orders WHERE ORDER_ID IN ($ph) AND ORDER_STATUS IN (3,4,5) AND SALE_ENTRY_ID IS NULL");
+				$stPost->execute($orderids);
+				$toPost = $stPost->fetchAll(PDO::FETCH_COLUMN);
+				if ($toPost) {
+					include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+					$courierAccounting = new AccountingEvents($conn);
+					$blockMissingCost  = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+					foreach ($toPost as $postOrderId) {
+						$courierAccounting->courierDelivery((int)$postOrderId, $blockMissingCost);
+					}
+				}
 			}
 			
 			// ------- 6. حركة الشحن ---------------------------
