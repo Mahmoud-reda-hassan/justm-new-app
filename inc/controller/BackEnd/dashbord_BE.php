@@ -152,6 +152,10 @@ class dashbord_BE {
                     WHEN 4 THEN 4
                     WHEN 13 THEN 5
                     WHEN 5 THEN 6
+                    WHEN 6 THEN 7
+                    WHEN 12 THEN 8
+                    WHEN 7 THEN 9
+                    WHEN 8 THEN 10
                     ELSE 100 + oe.EXISTS_ID
                  END",
                 $allParams + [':date_from' => $dateFrom, ':date_to' => $dateTo]
