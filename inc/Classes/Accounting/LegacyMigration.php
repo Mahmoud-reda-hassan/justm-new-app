@@ -61,10 +61,11 @@ class LegacyMigration {
     /**
      * ينفّذ الترحيل (أو دفعة منه). كل عنصر في معاملة مستقلة.
      * @param int   $limit عدد العناصر الأقصى في هذا الطلب (0 = بلا حد)
+     * @param int   $maxSeconds مهلة الطلب بالثواني: يتوقف بعدها بين عنصرين (0 = بلا حد)
      * @param array $skip  مفاتيح عناصر فشلت سابقًا (مثل 'order:12') لتجاوزها
      * @return array تقرير: orders/returns/opening {done,failed}, errors, failed_keys, processed
      */
-    public function runAll(int $branchId, int $userId, bool $blockOnMissingCost = true, int $limit = 0, array $skip = []): array {
+    public function runAll(int $branchId, int $userId, bool $blockOnMissingCost = true, int $limit = 0, array $skip = [], int $maxSeconds = 0): array {
         @set_time_limit(0);
         $report = ['orders' => ['done' => 0, 'failed' => 0], 'returns' => ['done' => 0, 'failed' => 0],
                    'opening' => ['done' => 0, 'failed' => 0], 'errors' => [], 'failed_keys' => [], 'processed' => 0];
@@ -73,7 +74,10 @@ class LegacyMigration {
             $report['failed_keys'][] = $key;
             if (count($report['errors']) < 30) { $report['errors'][] = $what.': '.$msg; }
         };
-        $full = function () use (&$report, $limit) { return $limit > 0 && $report['processed'] >= $limit; };
+        $start = microtime(true);
+        $full = function () use (&$report, $limit, $maxSeconds, $start) {
+            return ($limit > 0 && $report['processed'] >= $limit) || ($maxSeconds > 0 && (microtime(true) - $start) >= $maxSeconds);
+        };
         $run = function (string $phase, string $key, string $what, callable $fn) use (&$report, $addError) {
             try {
                 $this->db->beginTransaction();
