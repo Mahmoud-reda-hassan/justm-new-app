@@ -60,7 +60,6 @@ class dashbord_BE {
 
         if ($hasOrdersDashboard) {
             [$where, $params] = $this->orderWhere('o', $branchId, $canViewAllBranches);
-            $metrics['orders_range'] = $this->scalar("SELECT COUNT(*) FROM orders o WHERE $where", $params);
             $metrics['unpaid_orders'] = $this->scalar("SELECT COUNT(*) FROM orders o WHERE $where AND o.ORDER_SUCCESS = 0", $params);
 
             $trend = $this->rows(
@@ -117,8 +116,31 @@ class dashbord_BE {
             $latestOrders = [];
         }
 
+        $existsCounts = [];
         if (in_array('Admin', $roles, true)) {
             [$allWhere, $allParams] = $this->orderWhere('o', $branchId, $canViewAllBranches, false);
+            $monthCondition = "o.DATE_CREATED >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
+            $metrics['orders_month'] = $this->scalar(
+                "SELECT COUNT(*) FROM orders o WHERE $allWhere AND $monthCondition",
+                $allParams
+            );
+            $existsJoinScope = '';
+            if (!$canViewAllBranches) {
+                $existsJoinScope = $branchId > 0
+                    ? ' AND EXISTS (SELECT 1 FROM stores dashboard_scope_store WHERE dashboard_scope_store.STO_ID = o.STO_ID AND dashboard_scope_store.BRANCH_ID = ' . (int)$branchId . ')'
+                    : ' AND 1=0';
+            }
+            $existsCounts = $this->rows(
+                "SELECT oe.EXISTS_ID AS exists_id, oe.EXISTS_NAME AS exists_name, COUNT(o.ORDER_ID) AS total
+                 FROM order_exists oe
+                 LEFT JOIN orders o
+                   ON o.EXISTS_ID = oe.EXISTS_ID
+                  AND o.DATE_CREATED >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                  AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                  $existsJoinScope
+                 GROUP BY oe.EXISTS_ID, oe.EXISTS_NAME
+                 ORDER BY oe.EXISTS_ID"
+            );
             $metrics['orders_today'] = $this->scalar(
                 "SELECT COUNT(*) FROM orders o WHERE $allWhere AND o.DATE_CREATED >= CURDATE() AND o.DATE_CREATED < DATE_ADD(CURDATE(), INTERVAL 1 DAY)",
                 $allParams
@@ -258,6 +280,7 @@ class dashbord_BE {
 
         return [
             'metrics' => $metrics,
+            'exists_counts' => $existsCounts,
             'orders_trend' => $ordersTrend,
             'status_distribution' => $statusRows,
             'latest_orders' => $latestOrders,
