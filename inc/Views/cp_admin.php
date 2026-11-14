@@ -33,13 +33,11 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
 
     <?php if ($canDashboardAdmin): ?>
     <div class="row" id="dashboardTopMetrics">
-              <div class="col-lg-3 col-6"><div class="small-box bg-info"><div class="inner"><h3 data-metric="orders_today">—</h3><p>أوامر البيع اليوم</p></div><div class="icon"><i class="ion ion-bag"></i></div></div></div>
-              <div class="col-lg-3 col-6"><div class="small-box bg-success"><div class="inner"><h3 data-metric="orders_range">—</h3><p>أوامر البيع خلال الفترة</p></div><div class="icon"><i class="ion ion-stats-bars"></i></div></div></div>
-              <div class="col-lg-3 col-6"><div class="small-box bg-warning"><div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div><div class="icon"><i class="ion ion-person-add"></i></div></div></div>
-              <div class="col-lg-3 col-6"><div class="small-box bg-danger"><div class="inner"><h3 data-metric="stores_count">—</h3><p>عدد المخازن</p></div><div class="icon"><i class="ion ion-pie-graph"></i></div></div></div>
-              <?php if ($canDashboardSuppliers): ?><div class="col-lg-3 col-6"><div class="small-box bg-secondary"><div class="inner"><h3 data-metric="suppliers_count">—</h3><p>عدد الموردين</p></div><div class="icon"><i class="fas fa-truck-loading"></i></div></div></div><?php endif; ?>
-
+      <div class="col-lg-4 col-6"><div class="small-box bg-info"><div class="inner"><h3 data-metric="orders_today">—</h3><p>أوامر البيع اليوم</p></div><div class="icon"><i class="ion ion-bag"></i></div></div></div>
+      <div class="col-lg-4 col-6"><div class="small-box bg-success"><div class="inner"><h3 data-metric="orders_month">—</h3><p>إجمالي أوامر البيع - الشهر الحالي</p></div><div class="icon"><i class="ion ion-stats-bars"></i></div></div></div>
+      <div class="col-lg-4 col-6"><div class="small-box bg-warning"><div class="inner"><h3 data-metric="unpaid_orders">—</h3><p>أوامر غير مسددة</p></div><div class="icon"><i class="ion ion-person-add"></i></div></div></div>
     </div>
+    <div class="row" id="dashboardExistsMetrics" aria-live="polite"></div>
     <?php endif; ?>
 
     <?php if ($canDashboardAdmin): ?>
