@@ -96,20 +96,11 @@ if ($loginType === 1 && $pageType > 0) {
 		        </li>
                 <?php } ?>
 
-                <!-- تأكيد الشحن والتوصيل -->
-                <?php if(isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true"){ ?>
-                <li class="nav-item">
-                    <a href="?Go=Orderlist&ty=1&ex=6" class="nav-link">
-                        <i class="fas fa-truck nav-icon"></i>
-                        <p>تأكيد الشحن والتوصيل</p>
-                    </a>
-                </li>
-                <?php } ?>
-
                 <!-- خدمات المتابعة والدعم -->
                 <?php if((isset($usm["orderlist_ex12"]["View_order_list"]) && $usm["orderlist_ex12"]["View_order_list"]  == "true") ||
 	                     (isset($usm["SupportAfterSales"]["View_order_list"]) && $usm["SupportAfterSales"]["View_order_list"] == "true") ||
-	                     (isset($usm["SupportOrders"]["View_order_list"]) && $usm["SupportOrders"]["View_order_list"] == "true")){?>
+	                     (isset($usm["SupportOrders"]["View_order_list"]) && $usm["SupportOrders"]["View_order_list"] == "true") ||
+                         (isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true")){?>
                 <li class="nav-item has-treeview">
 		        	<a href="#" class="nav-link">
 			            <i class="fas fa-headset nav-icon"></i>
@@ -120,6 +111,16 @@ if ($loginType === 1 && $pageType > 0) {
 		            </a>
 		            <ul class="nav nav-treeview badge-gray60">
                         		
+                        <!-- تأكيد الشحن والتوصيل -->
+                        <?php if(isset($usm["orderlist_ex6"]["View_order_list"]) && $usm["orderlist_ex6"]["View_order_list"] == "true"){ ?>
+                        <li class="nav-item">
+                            <a href="?Go=Orderlist&ty=1&ex=6" class="nav-link">
+                                <i class="fa fa-ellipsis-v nav-icon"></i>
+                                <p>تأكيد الشحن والتوصيل</p>
+                            </a>
+                        </li>
+                        <?php } ?>
+
                         <!-- طلبات تم شحنها-->
                         <?php if(isset($usm["SupportAfterSales"]["View_order_list"]) && $usm["SupportAfterSales"]["View_order_list"] == "true"){ ?>
                         <li class="nav-item">
