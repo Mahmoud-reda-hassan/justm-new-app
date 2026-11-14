@@ -382,7 +382,9 @@ function ResponseData($data){
 						$lmBranch = (int)$_SESSION["BRANCH_ID"]; $lmUser = (int)$_SESSION["USER_ID"];
 						session_write_close(); // لا نحجز قفل الجلسة أثناء الترحيل حتى لا تتعطل الطلبات الأخرى
 						$lmSkip = isset($_POST['skip']) && is_array($_POST['skip']) ? array_map('strval', $_POST['skip']) : [];
-						$lmReport = (new LegacyMigration($db))->runAll($lmBranch, $lmUser, $blockMissingCost, 0, $lmSkip, 20);
+						$lmReport = (new LegacyMigration($db))->runAll($lmBranch, $lmUser, $blockMissingCost, 0, $lmSkip, 20,
+							in_array(($_POST['phase'] ?? 'all'), array('orders','opening','all'), true) ? $_POST['phase'] : 'all',
+							max(1, min(8, (int)($_POST['shards'] ?? 1))), max(0, (int)($_POST['shard'] ?? 0)));
 						ResponseData(array('success', 'ناجح', 'اكتمل الترحيل', $lmReport));
 					} catch (Throwable $e) {
 						ResponseData(array('error', 'خطأ', $e->getMessage(), []));

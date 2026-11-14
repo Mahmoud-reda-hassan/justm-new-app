@@ -132,25 +132,38 @@
 				});
 				loadSummary(); loadBackfill(); loadReturns(); loadOpening();
 			};
-			const skip = []; let rounds = 0, retries = 0;
+			const WORKERS = 4;
 			const count = () => total.orders.done + total.returns.done + total.opening.done;
-			const step = function () {
-				rounds++;
-				Swal.fire({title: 'جارٍ الترحيل...', html: `تم ترحيل ${count()} قيد، لا تغلق الصفحة.`, allowOutsideClick: false, didOpen: () => Swal.showLoading()});
-				$.post(url, {CONTROL: 'legacyRunAll', skip: skip}, function (res) {
-					if (!(Array.isArray(res) && res[0] === 'success')) { return finish((res && res[2]) || 'فشل الترحيل'); }
-					const d = res[3]; retries = 0;
-					['orders', 'returns', 'opening'].forEach(k => { total[k].done += d[k].done; total[k].failed += d[k].failed; });
-					(d.errors || []).forEach(e => errors.push(e));
-					(d.failed_keys || []).forEach(k => skip.push(k));
-					if (d.processed === 0 || rounds > 3000) { return finish(null); }
-					step();
-				}, 'json').fail(function (xhr) {
-					if (++retries <= 2) { return setTimeout(step, 1500); }
-					finish('انقطع الاتصال (' + (xhr.status || 'بلا رد') + ')');
-				});
-			};
-			step();
+			const progress = () => Swal.update({html: `تم ترحيل ${count()} قيد، لا تغلق الصفحة.`});
+			// عامل واحد: يرسل طلبًا، وعند وصول رده يرسل التالي فورًا، حتى لا يبقى شيء في نصيبه
+			const worker = (phase, shards, shard, stopOnNoDone) => new Promise((resolve) => {
+				const skip = []; let rounds = 0, retries = 0;
+				const next = function () {
+					rounds++;
+					$.post(url, {CONTROL: 'legacyRunAll', phase: phase, shards: shards, shard: shard, skip: skip}, function (res) {
+						if (!(Array.isArray(res) && res[0] === 'success')) { errors.push((res && res[2]) || 'رد غير متوقع'); return resolve(); }
+						const d = res[3]; retries = 0;
+						let doneNow = 0;
+						['orders', 'returns', 'opening'].forEach(k => { total[k].done += d[k].done; total[k].failed += d[k].failed; doneNow += d[k].done; });
+						(d.errors || []).forEach(e => errors.push(e));
+						(d.failed_keys || []).forEach(k => skip.push(k));
+						progress();
+						if (d.processed === 0 || rounds > 3000 || (stopOnNoDone && doneNow === 0)) { return resolve(); }
+						next();
+					}, 'json').fail(function (xhr) {
+						if (++retries <= 2) { return setTimeout(next, 1500); }
+						errors.push('انقطع الاتصال (' + (xhr.status || 'بلا رد') + ')'); resolve();
+					});
+				};
+				next();
+			});
+			const phaseRun = (phase) => Promise.all(Array.from({length: WORKERS}, (_, i) => worker(phase, WORKERS, i, false)));
+			Swal.fire({title: 'جارٍ الترحيل...', html: 'تم ترحيل 0 قيد، لا تغلق الصفحة.', allowOutsideClick: false, didOpen: () => Swal.showLoading()});
+			// 1) الأوامر والمرتجعات بالتوازي، 2) ثم الأرصدة (تُحسب بعد اكتمال الأولى)، 3) مرور أخير بعامل واحد لما تعطّل بسبب تزاحم
+			phaseRun('orders')
+				.then(() => phaseRun('opening'))
+				.then(() => worker('all', 1, 0, true))
+				.then(() => finish(null));
 		});
 	});
 

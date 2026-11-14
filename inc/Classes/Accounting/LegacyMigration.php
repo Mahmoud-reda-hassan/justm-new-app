@@ -62,10 +62,12 @@ class LegacyMigration {
      * ينفّذ الترحيل (أو دفعة منه). كل عنصر في معاملة مستقلة.
      * @param int   $limit عدد العناصر الأقصى في هذا الطلب (0 = بلا حد)
      * @param int   $maxSeconds مهلة الطلب بالثواني: يتوقف بعدها بين عنصرين (0 = بلا حد)
+     * @param string $phase 'orders' (أوامر+مرتجعات) أو 'opening' (أرصدة) أو 'all'
+     * @param int $shards/$shard تقسيم العمل بين عمال متوازيين بلا تداخل (id % shards == shard)
      * @param array $skip  مفاتيح عناصر فشلت سابقًا (مثل 'order:12') لتجاوزها
      * @return array تقرير: orders/returns/opening {done,failed}, errors, failed_keys, processed
      */
-    public function runAll(int $branchId, int $userId, bool $blockOnMissingCost = true, int $limit = 0, array $skip = [], int $maxSeconds = 0): array {
+    public function runAll(int $branchId, int $userId, bool $blockOnMissingCost = true, int $limit = 0, array $skip = [], int $maxSeconds = 0, string $phase = 'all', int $shards = 1, int $shard = 0): array {
         @set_time_limit(0);
         // لا ننتظر قفلًا طويلًا: العنصر المحجوز يفشل سريعًا ويُسجَّل بدل تعليق الطلب
         try { $this->db->exec('SET SESSION innodb_lock_wait_timeout = 8'); } catch (Throwable $e) {}
@@ -92,20 +94,25 @@ class LegacyMigration {
             $report['processed']++;
         };
 
-        foreach ($this->closedOrders() as $o) {
+        $mine = function (int $id) use ($shards, $shard) { return $shards <= 1 || ($id % $shards) === $shard; };
+
+        foreach ($phase === 'opening' ? [] : $this->closedOrders() as $o) {
+            if (!$mine((int)$o['ORDER_ID'])) { continue; }
             if ($full()) { return $report; }
             $key = 'order:'.$o['ORDER_ID']; if (isset($skip[$key])) { continue; }
             $run('orders', $key, 'أمر '.($o['SUB_ORDER_ID'] ?: $o['ORDER_ID']),
                 fn() => (new AccountingEvents($this->db))->backfillClosedCourierOrder((int)$o['ORDER_ID'], $blockOnMissingCost));
         }
-        foreach ($this->unpostedReturns() as $r) {
+        foreach ($phase === 'opening' ? [] : $this->unpostedReturns() as $r) {
+            if (!$mine((int)$r['ORDER_ID'])) { continue; }
             if ($full()) { return $report; }
             $key = 'return:'.$r['ORDER_ID']; if (isset($skip[$key])) { continue; }
             $run('returns', $key, 'مرتجع '.($r['SUB_ORDER_ID'] ?: $r['ORDER_ID']),
                 fn() => (new AccountingEvents($this->db))->courierSalesReturn((int)$r['ORDER_ID']));
         }
         // الفروق تُحسب بعد ترحيل الأوامر والمرتجعات
-        foreach ((new OpeningBalanceManager($this->db))->preview() as $row) {
+        foreach ($phase === 'orders' ? [] : (new OpeningBalanceManager($this->db))->preview() as $row) {
+            if (!$mine(abs(crc32($row['kind'].':'.$row['id'])))) { continue; }
             if ($full()) { return $report; }
             $key = 'opening:'.$row['kind'].':'.$row['id']; if (isset($skip[$key])) { continue; }
             $run('opening', $key, $row['kind'].' '.$row['name'],
