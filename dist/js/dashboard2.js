@@ -68,8 +68,27 @@ $(function () {
         $body.html(html);
     }
 
+    function renderExistsMetrics(items) {
+        var $container = $('#dashboardExistsMetrics');
+        if (!$container.length) return;
+        items = Array.isArray(items) ? items : [];
+        if (!items.length) {
+            $container.empty();
+            return;
+        }
+        var html = items.map(function (item, index) {
+            var colors = ['bg-primary','bg-info','bg-success','bg-warning','bg-danger','bg-secondary','bg-teal','bg-indigo'];
+            var color = colors[index % colors.length];
+            return '<div class="col-lg-3 col-6"><div class="small-box ' + color + '"><div class="inner"><h3>' +
+                number(item.total) + '</h3><p>' + escapeHtml(item.exists_name || 'حالة غير محددة') +
+                '</p></div><div class="icon"><i class="fas fa-clipboard-list"></i></div></div></div>';
+        }).join('');
+        $container.html(html);
+    }
+
     function renderDashboard(data) {
         renderMetrics(data.metrics || {});
+        renderExistsMetrics(data.exists_counts || []);
         var trend = data.orders_trend || [];
         updateChart('dashboardOrdersChart', 'line',
             trend.map(function (item) { return item.label; }),
