@@ -146,12 +146,16 @@ class dashbord_BE {
                  WHERE oe.EXISTS_ID <> 10
                  GROUP BY oe.EXISTS_ID, oe.EXISTS_NAME
                  ORDER BY CASE oe.EXISTS_ID
-                    WHEN 1 THEN 1
-                    WHEN 2 THEN 2
-                    WHEN 3 THEN 3
-                    WHEN 4 THEN 4
-                    WHEN 13 THEN 5
-                    WHEN 5 THEN 6
+                    WHEN 6 THEN 1
+                    WHEN 12 THEN 2
+                    WHEN 7 THEN 3
+                    WHEN 8 THEN 4
+                    WHEN 1 THEN 5
+                    WHEN 2 THEN 6
+                    WHEN 3 THEN 7
+                    WHEN 4 THEN 8
+                    WHEN 13 THEN 9
+                    WHEN 5 THEN 10
                     ELSE 100 + oe.EXISTS_ID
                  END",
                 $allParams + [':date_from' => $dateFrom, ':date_to' => $dateTo]
