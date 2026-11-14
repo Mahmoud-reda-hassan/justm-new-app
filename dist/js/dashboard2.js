@@ -89,9 +89,12 @@ $(function () {
             var style = statusCards[item.metric_key] || {};
             var color = style.color || colors[index % colors.length];
             var icon = style.icon || 'fa-clipboard-list';
-            return '<div class="col-lg-3 col-6"><div class="small-box ' + color + '"><div class="inner"><h3>' +
+            var card = '<div class="col-lg-3 col-6"><div class="small-box ' + color + '"><div class="inner"><h3>' +
                 number(item.total) + '</h3><p>' + escapeHtml(item.exists_name || 'حالة غير محددة') +
                 '</p></div><div class="icon"><i class="fas ' + icon + '"></i></div></div></div>';
+            return index === 5
+                ? card + '<div class="col-12"><div class="dashboard-exists-group-separator" style="clear:both; margin: 1.5rem 0 2rem; border-top: 2px solid #dee2e6;"></div></div>'
+                : card;
         }).join('');
         $container.html(html);
     }
