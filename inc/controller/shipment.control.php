@@ -248,6 +248,15 @@ function ResponseData($data){
 						ResponseData(array('error', 'خطأ', $e->getMessage()));
 					}
 					break;
+				case 'listCourierReopen':
+					// قائمة شاشة "رد أوامر المندوب للمخزن" (للمصرّح لهم فقط)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					$reopen = new CourierReopen($db);
+					ResponseData(array('success', 'ناجح', '', $reopen->listReopenable()));
+					break;
 				case 'custodySettlement':
 					$shipment_tbl->orderobj    = $_POST["orderobj"];
 	    			$shipment_tbl->delivery_id = $_POST["delivery_id"];

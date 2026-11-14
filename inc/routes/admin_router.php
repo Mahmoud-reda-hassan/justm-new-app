@@ -165,6 +165,12 @@ return [
         "js" => ["InventoryReconciliation.js"],
         "permission" => $perm['StockAudit']['view']
     ],
+    "CourierReopen" => [
+        "view" => "CourierReopen",
+        "title" => "رد أوامر المندوب للمخزن",
+        "js" => ["CourierReopen.js"],
+        "permission" => in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
+    ],
     "ReceivePayments" => [
         "view" => "ReceivePayments",
         "title" => "استلام المدفوعات",
