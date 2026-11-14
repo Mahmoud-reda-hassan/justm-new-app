@@ -18,15 +18,21 @@ $canDashboardAny = $canDashboardAdmin || $canDashboardCS1 || $canDashboardCS2 ||
 ?>
 <section class="content" id="adminDashboard" dir="rtl" data-endpoint="/inc/controller/dashbord.control.php">
   <div class="container-fluid">
-    <div class="row mb-2">
-      <div class="col-sm-6"><h1 class="m-0">لوحة التحكم</h1><small class="text-muted">ملخص تشغيلي مباشر حسب صلاحيات المستخدم</small></div>
-      <div class="col-sm-6">
-        <div class="float-sm-left d-flex flex-wrap align-items-center">
-          <input type="text" id="dashboardDateRange" class="d-none" autocomplete="off" aria-label="الفترة الزمنية">
-          <button type="button" class="btn btn-tool mb-1" id="dashboardCalendar" title="اختيار الفترة الزمنية" aria-label="اختيار الفترة الزمنية"><i class="far fa-calendar-alt"></i></button>
-          <small class="text-muted ml-2 mb-1" id="dashboardSelectedPeriod"></small>
-          <small class="text-muted ml-2 mb-1" id="dashboardUpdatedAt">التحديث التلقائي كل 10 ثوانٍ</small>
-          <button type="button" class="btn btn-tool mb-1" id="dashboardRefresh" title="تحديث الآن"><i class="fas fa-sync-alt"></i></button>
+    <div class="row align-items-center mb-3">
+      <div class="col-12">
+        <div class="d-flex flex-wrap align-items-center justify-content-between">
+          <small class="text-muted mb-2 mb-md-0">ملخص تشغيلي مباشر حسب صلاحيات المستخدم</small>
+          <div class="d-flex flex-wrap align-items-center">
+            <input type="text" id="dashboardDateRange" class="d-none" autocomplete="off" aria-label="الفترة الزمنية">
+            <div class="d-flex align-items-center border rounded px-2 py-1 ml-3 mb-2 mb-md-0 bg-light">
+              <button type="button" class="btn btn-tool p-1" id="dashboardCalendar" title="اختيار الفترة الزمنية" aria-label="اختيار الفترة الزمنية"><i class="far fa-calendar-alt"></i></button>
+              <small class="text-muted mr-2" id="dashboardSelectedPeriod"></small>
+            </div>
+            <div class="d-flex align-items-center mb-2 mb-md-0">
+              <button type="button" class="btn btn-tool p-1" id="dashboardRefresh" title="تحديث الآن" aria-label="تحديث الآن"><i class="fas fa-sync-alt"></i></button>
+              <small class="text-muted mr-2" id="dashboardUpdatedAt">التحديث التلقائي كل دقيقة</small>
+            </div>
+          </div>
         </div>
       </div>
     </div>
