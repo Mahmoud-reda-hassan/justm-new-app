@@ -17,9 +17,9 @@ class CourierReopen {
     /** أسماء مجموعات المستخدمين المسموح لها برد الأمر للمخزن */
     public const ALLOWED_GROUPS = ['Administrator', 'Owner', 'المدير المالي'];
 
-    private PDO $db;
+    private $db; // قد يكون PDO أو TrimmedPDO (غلاف الاتصال)
 
-    public function __construct(PDO $db) {
+    public function __construct($db) {
         $this->db = $db;
     }
 
