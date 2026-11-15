@@ -1209,9 +1209,22 @@ class finance_BE {
 			
 			$resultFinal = $this->Add_partners_balance( 'SUPPLIER', $supplier_id, NULL, 'CREDIT', $total_amount,'استلام نقدية من مرتجع مورد','15' );
 			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المورد");
-	
-	
-	        
+
+			// تسجيل التحصيل على أوامر المرتجع (الأقدم أولًا): لا يعود المرتجع يخصم من متبقي أمر الشراء
+			$rs = $this->conn->prepare("SELECT ORDER_ID, TOTAL_PRICE, TOTAL_PAYMENTS FROM purchases_return_orders WHERE SUPPLIER_ID = ? AND STATUSE = 'DEFERRED' AND TOTAL_PRICE > TOTAL_PAYMENTS ORDER BY ORDER_ID ASC FOR UPDATE");
+			$rs->execute([$supplier_id]);
+			$left = round((float)$total_amount, 2);
+			$up = $this->conn->prepare("UPDATE purchases_return_orders SET TOTAL_PAYMENTS = ?, STATUSE = ? WHERE ORDER_ID = ?");
+			foreach ($rs->fetchAll(PDO::FETCH_ASSOC) as $ro) {
+				if ($left <= 0.004) break;
+				$remain = round((float)$ro['TOTAL_PRICE'] - (float)$ro['TOTAL_PAYMENTS'], 2);
+				$take   = min($left, $remain);
+				$newPay = round((float)$ro['TOTAL_PAYMENTS'] + $take, 2);
+				$up->execute([$newPay, ($newPay >= (float)$ro['TOTAL_PRICE'] - 0.004) ? 'COMPLETED' : 'DEFERRED', $ro['ORDER_ID']]);
+				$totalPaid += $take;
+				$left = round($left - $take, 2);
+			}
+
 	        $this->conn->commit();
 	
 	        return [
