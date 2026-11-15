@@ -63,6 +63,40 @@ class PaymentDisbursement {
 	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 	
+	/** الموردون الذين لهم مرتجعات لم تُستلم نقدًا بعد (للاستلام النقدي من المورد). نفس منطق finance_BE::supplierRefundable. */
+	public function GetMoradRefundData(){
+	    $search = trim($this->Requst['search'] ?? '');
+	    include_once(__DIR__ . '/../../Classes/Accounting/SystemFlags.php');
+	    if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+	        $inner = "SELECT d.partner_id AS sid,
+	                COALESCE(SUM(CASE WHEN e.reference_type='PURCHASE_RETURN' THEN d.debit ELSE 0 END),0)
+	              - COALESCE(SUM(CASE WHEN e.reference_type='SUPPLIER_REFUND' THEN d.credit ELSE 0 END),0) AS refundable
+	            FROM journal_entry_details d JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
+	            WHERE d.partner_type = 'SUPPLIER' AND e.reference_type IN ('PURCHASE_RETURN','SUPPLIER_REFUND')
+	            GROUP BY d.partner_id";
+	    } else {
+	        $inner = "SELECT PARTNER_ID AS sid,
+	                SUM(CASE WHEN TRANSACTION_TYPE='DEBIT' THEN BALANCE ELSE -BALANCE END) AS refundable
+	            FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' AND TRANSACTION_CATEGORY_ID = 15
+	            GROUP BY PARTNER_ID";
+	    }
+	    $query = "SELECT S.SUP_ID AS id, S.SUP_NAME AS name,
+	            (SELECT T.TEL_NUMBER FROM telephones T WHERE T.SUPPLIER_ID = S.SUP_ID LIMIT 1) AS phone,
+	            R.refundable AS refundable
+	        FROM suppliers S JOIN ($inner) R ON R.sid = S.SUP_ID
+	        WHERE R.refundable > 0.004";
+	    $params = [];
+	    if ($search !== "") {
+	        $query .= " AND (S.SUP_NAME LIKE :search OR EXISTS (SELECT 1 FROM telephones T2 WHERE T2.SUPPLIER_ID = S.SUP_ID AND T2.TEL_NUMBER LIKE :search2)) ";
+	        $params['search'] = "%$search%";
+	        $params['search2'] = "%$search%";
+	    }
+	    $query .= " ORDER BY S.SUP_NAME LIMIT 1000";
+	    $stmt = $this->conn->prepare($query);
+	    $stmt->execute($params);
+	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	public function GetMoradData(){
 	
 	    $search = trim($this->Requst['search'] ?? '');

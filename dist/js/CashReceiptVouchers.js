@@ -1049,7 +1049,7 @@ $(function() {
     // تهيئة المندوب والمسوق والمورد
     initPartnerSelect2('#select-mandob', 'GetDeliveryData', 'اختر المندوب');
     initPartnerSelect2('#select-masouq', 'GetMasouqData', 'اختر المسوق');
-    initPartnerSelect2('#select-morad', 'GetMoradData', 'اختر المورد');
+    initPartnerSelect2('#select-morad', 'GetMoradRefundData', 'اختر مورداً له مرتجعات مستحقة');
 	
     // أحداث تحميل الرصيد مع مؤشر التحميل
     $('#select-mandob').on('change', function() {
