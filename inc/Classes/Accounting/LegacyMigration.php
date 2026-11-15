@@ -25,6 +25,35 @@ class LegacyMigration {
             ORDER BY o.LAST_UPDATE DESC LIMIT 5000")->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /** نفس أوامر closedOrders لكن ببيانات قائمة الأوامر الكاملة (للعرض فقط). */
+    public function closedOrdersDetailed(): array {
+        include_once(__DIR__ . '/../OrderListFields.php');
+        return $this->db->query("SELECT " . OrderListFields::COLUMNS . "
+            FROM orders o " . OrderListFields::JOINS . "
+            WHERE o.ORDER_SUCCESS = 1 AND o.SALE_ENTRY_ID IS NULL AND o.ORDER_STATUS IN (3,4,5,6,7)
+              AND o.DELIVERY_ID > 0 AND o.ORDER_TYPE_ID <> 5
+              AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.reference_type = 'COURIER_COLLECTION' AND e.reference_id = o.ORDER_ID AND e.status = 'POSTED')
+            ORDER BY o.LAST_UPDATE DESC LIMIT 5000")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** مرتجعات غير مُرحَّلة ببيانات قائمة الأوامر الكاملة (للعرض فقط). */
+    public function unpostedReturnsDetailed(): array {
+        include_once(__DIR__ . '/../OrderListFields.php');
+        return $this->db->query("SELECT r.RETURN_VALUE, r.POSTED_VALUE, " . OrderListFields::COLUMNS . "
+						FROM (
+							SELECT o.ORDER_ID,
+								ROUND(SUM(op.RETURNED_QTY * (op.PRICE - op.DISCOUNT)),2) AS RETURN_VALUE,
+								COALESCE((SELECT SUM(d.debit) FROM journal_entries e JOIN journal_entry_details d ON d.journal_entry_id = e.id
+									WHERE e.reference_type = 'COURIER_SALES_RETURN' AND e.reference_id = o.ORDER_ID AND e.status = 'POSTED'
+									  AND d.account_id = (SELECT account_id FROM account_settings WHERE setting_key = 'SALES_RETURNS' LIMIT 1)),0) AS POSTED_VALUE
+							FROM orders o JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
+							WHERE o.ORDER_STATUS IN (6,7) AND o.SALE_ENTRY_ID IS NOT NULL
+							GROUP BY o.ORDER_ID
+							HAVING RETURN_VALUE > POSTED_VALUE + 0.005
+						) r JOIN orders o ON o.ORDER_ID = r.ORDER_ID " . OrderListFields::JOINS . "
+						ORDER BY o.ORDER_ID DESC LIMIT 5000")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function unpostedReturns(): array {
         return $this->db->query("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS,
                 ROUND(SUM(op.RETURNED_QTY * (op.PRICE - op.DISCOUNT)),2) AS RETURN_VALUE,

@@ -358,6 +358,14 @@ try {
     (new AccountingEvents($w));
 } catch (Throwable $e) { $wrapOk = false; $wrapErr = $e->getMessage(); }
 check('wrapper: screen classes work with TrimmedPDO', $wrapOk, $wrapErr);
+$lmw = new LegacyMigration($w);
+$detOk = true; $detErr = '';
+try {
+    $a1 = (new CourierReopen($w))->listReopenable(); $a2 = $lmw->closedOrdersDetailed(); $a3 = $lmw->unpostedReturnsDetailed();
+    foreach ([$a1, $a2, $a3] as $set) { if ($set && !array_key_exists('CLIENT_NAME', $set[0])) { $detOk = false; $detErr = 'missing CLIENT_NAME'; } }
+} catch (Throwable $e) { $detOk = false; $detErr = $e->getMessage(); }
+check('order lists: detailed queries run and carry order-list fields', $detOk, $detErr);
+check('order lists: backfill detail count equals summary count', count($lmw->closedOrdersDetailed()) === count($lmw->closedOrders()));
 
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

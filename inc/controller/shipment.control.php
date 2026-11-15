@@ -265,7 +265,7 @@ function ResponseData($data){
 					}
 					// نفس مصدر الملخص تمامًا، حتى تتطابق القائمة مع الأعداد
 					include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
-					ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->closedOrders()));
+					ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->closedOrdersDetailed()));
 					break;
 				case 'backfillCourierOrder':
 					// ترحيل أمر مُقفل قديم إلى الأستاذ بأرقام النظام القديم
@@ -324,17 +324,8 @@ function ResponseData($data){
 					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
 						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
 					}
-					$stUr = $db->query("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS,
-							ROUND(SUM(op.RETURNED_QTY * (op.PRICE - op.DISCOUNT)),2) AS RETURN_VALUE,
-							COALESCE((SELECT SUM(d.debit) FROM journal_entries e JOIN journal_entry_details d ON d.journal_entry_id = e.id
-								WHERE e.reference_type = 'COURIER_SALES_RETURN' AND e.reference_id = o.ORDER_ID AND e.status = 'POSTED'
-								  AND d.account_id = (SELECT account_id FROM account_settings WHERE setting_key = 'SALES_RETURNS' LIMIT 1)),0) AS POSTED_VALUE
-						FROM orders o JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
-						WHERE o.ORDER_STATUS IN (6,7) AND o.SALE_ENTRY_ID IS NOT NULL
-						GROUP BY o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS
-						HAVING RETURN_VALUE > POSTED_VALUE + 0.005
-						ORDER BY o.ORDER_ID DESC LIMIT 200");
-					ResponseData(array('success', 'ناجح', '', $stUr->fetchAll(PDO::FETCH_ASSOC)));
+					include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+					ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->unpostedReturnsDetailed()));
 					break;
 				case 'postReturnEntry':
 					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');

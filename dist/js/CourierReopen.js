@@ -2,30 +2,81 @@
 	const url = `../../inc/controller/shipment.control.php`;
 	const statusNames = {3: 'تم التسليم', 4: 'تسليم جزئي', 5: 'مرفوض', 6: 'مرتجع', 7: 'مرتجع جزئي'};
 	const esc = (v) => $('<div>').text(v == null ? '' : v).html();
+	// نص للعرض (مهرّب) ونص خام للبحث/الفلترة
+	const txt = (d, t) => t === 'display' ? esc(d) : (d == null ? '' : String(d));
+	const escRe = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const actionCol = (cls, icon, label) => ({
+		data: null, className: 'text-center text-nowrap', orderable: false, searchable: false,
+		render: (d, t, r) => `<button type="button" class="btn btn-sm ${cls.btn} ${cls.name}" data-oid="${esc(r.ORDER_ID)}"><i class="fa ${icon}"></i> ${label}</button>`
+	});
+	// أعمدة بيانات الأمر (مثل قائمة الأوامر). select = عمود قيمه قليلة فيُفلتر بقائمة منسدلة
+	const orderCols = () => [
+		{data: 'SUB_ORDER_ID', render: (d, t, r) => txt(d || r.ORDER_ID, t)},
+		{data: 'ORDER_TYPE_NAME', render: txt, select: true},
+		{data: 'CLIENT_NAME', render: txt},
+		{data: 'TELEPHONE', render: txt},
+		{data: 'ADDRESS', render: txt},
+		{data: 'ZONE_NAME', render: txt, select: true},
+		{data: 'DELIVERY_NAME', render: txt, select: true},
+		{data: 'ORDER_STATUS', render: (d, t) => txt(statusNames[d] || d, t), select: true},
+		{data: 'PRO_QTY', render: txt},
+		{data: 'ORDER_TOTAL', render: txt},
+		{data: 'SHIPPING_VAL', render: txt},
+		{data: 'DATE_CREATED', render: txt},
+		{data: 'DELIVERED_DATE', render: txt}
+	];
 
+	// صف فلاتر تحت رأس الجدول: خانة بحث لكل عمود، وقائمة منسدلة للأعمدة محدودة القيم
+	function addColumnFilters(dt, selectCols) {
+		const cols = dt.settings()[0].aoColumns;
+		const $head = $(dt.table().header());
+		const $tr = $('<tr class="column-filters"></tr>');
+		cols.forEach((c, i) => {
+			const $th = $('<th class="p-1"></th>');
+			if (c.searchable === false) { $tr.append($th); return; }
+			if (selectCols.includes(i)) {
+				$th.append('<select class="form-control form-control-sm cf-select" data-col="' + i + '"><option value="">الكل</option></select>');
+			} else {
+				$th.append('<input type="text" class="form-control form-control-sm cf-input" data-col="' + i + '" placeholder="بحث">');
+			}
+			$tr.append($th);
+		});
+		$head.append($tr);
+		$head.on('keyup change input', '.cf-input', function () {
+			dt.column(+$(this).data('col')).search(this.value).draw();
+		});
+		$head.on('change', '.cf-select', function () {
+			const v = this.value;
+			dt.column(+$(this).data('col')).search(v ? '^' + escRe(v) + '$' : '', true, false).draw();
+		});
+		dt.on('draw.cf', function () {}); // موضع تمديد
+		return function refresh() {
+			selectCols.forEach(i => {
+				const $s = $head.find('.cf-select[data-col=' + i + ']'), cur = $s.val();
+				const vals = [...new Set(dt.column(i).data().toArray().map(v => v == null ? '' : String(v)).filter(v => v !== ''))].sort();
+				$s.html('<option value="">الكل</option>' + vals.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join(''));
+				if (cur && vals.includes(cur)) { $s.val(cur); }
+			});
+		};
+	}
+	const selectIdx = (cols) => cols.map((c, i) => c.select ? i : -1).filter(i => i >= 0);
+	const dtLang = (empty) => ({emptyTable: empty, zeroRecords: 'لا توجد نتائج مطابقة للفلاتر', search: 'بحث عام:', lengthMenu: 'عرض _MENU_', info: 'من _START_ إلى _END_ من _TOTAL_', paginate: {next: 'التالي', previous: 'السابق'}});
+
+
+	const tableCols = orderCols().concat([]).concat([actionCol({btn: 'btn-warning', name: 'btnReopen'}, 'fa-undo', 'رد للمخزن')]);
 	const table = $('#courier-reopen-table').DataTable({
 		data: [],
 		ordering: false,
-		language: {emptyTable: 'لا توجد أوامر قابلة للرد للمخزن'},
-		columns: [
-			{data: 'SUB_ORDER_ID', render: (d, t, r) => esc(d || r.ORDER_ID)},
-			{data: 'DELIVERY_NAME', render: esc},
-			{data: 'ORDER_STATUS', render: (d) => esc(statusNames[d] || d)},
-			{data: 'ADDRESS', render: esc},
-			{data: 'TELEPHONE', render: esc},
-			{data: 'DELIVERED_DATE', render: esc},
-			{
-				data: null, className: 'text-center text-nowrap',
-				render: (d, t, r) => `<button type="button" class="btn btn-sm btn-warning btnReopen" data-oid="${esc(r.ORDER_ID)}">
-					<i class="fa fa-undo"></i> رد للمخزن</button>`
-			}
-		]
+		pageLength: 25,
+		language: dtLang('لا توجد أوامر قابلة للرد للمخزن'),
+		columns: tableCols
 	});
+	const tableRefresh = addColumnFilters(table, selectIdx(tableCols));
 
 	function load() {
 		$.post(url, {CONTROL: 'listCourierReopen'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
-				table.clear().rows.add(res[3] || []).draw();
+				table.clear().rows.add(res[3] || []).draw(); tableRefresh();
 			} else {
 				Swal.fire({icon: 'error', title: 'خطأ', text: (res && res[2]) || 'تعذر تحميل القائمة'});
 			}
@@ -57,23 +108,15 @@
 	load();
 
 	// ---- ترحيل أوامر مُقفلة قبل تشغيل الأستاذ ----
+	const bfTableCols = orderCols().concat([]).concat([actionCol({btn: 'btn-primary', name: 'btnBackfill'}, 'fa-book', 'ترحيل للأستاذ')]);
 	const bfTable = $('#courier-backfill-table').DataTable({
 		data: [],
 		ordering: false,
-		language: {emptyTable: 'لا توجد أوامر مُقفلة بلا قيد'},
-		columns: [
-			{data: 'SUB_ORDER_ID', render: (d, t, r) => esc(d || r.ORDER_ID)},
-			{data: 'DELIVERY_NAME', render: esc},
-			{data: 'ORDER_STATUS', render: (d) => esc(statusNames[d] || d)},
-			{data: 'SHIPPING_VAL', render: esc},
-			{data: 'LAST_UPDATE', render: esc},
-			{
-				data: null, className: 'text-center text-nowrap',
-				render: (d, t, r) => `<button type="button" class="btn btn-sm btn-primary btnBackfill" data-oid="${esc(r.ORDER_ID)}">
-					<i class="fa fa-book"></i> ترحيل للأستاذ</button>`
-			}
-		]
+		pageLength: 25,
+		language: dtLang('لا توجد أوامر مُقفلة بلا قيد'),
+		columns: bfTableCols
 	});
+	const bfTableRefresh = addColumnFilters(bfTable, selectIdx(bfTableCols));
 
 	let bfCount = 0, obCount = 0, urCount = 0;
 	const fmt = (n) => Number(n || 0).toLocaleString('en-US', {maximumFractionDigits: 2});
@@ -170,7 +213,7 @@
 	function loadBackfill() {
 		$.post(url, {CONTROL: 'listBackfillOrders'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
-				bfTable.clear().rows.add(res[3] || []).draw();
+				bfTable.clear().rows.add(res[3] || []).draw(); bfTableRefresh();
 				bfCount = (res[3] || []).length;
 				updateAlert();
 			}
@@ -200,28 +243,31 @@
 
 	// ---- مطابقة أرصدة النظام القديم ----
 	const kindNames = {CLIENT: 'عميل', DELIVERY: 'مندوب', MARKETER: 'مسوق', SUPPLIER: 'مورد', INVENTORY: 'مخزن'};
+	const obCols = [
+		{data: 'kind', render: (d, t) => txt(kindNames[d] || d, t), select: true},
+		{data: 'name', render: txt},
+		{data: 'legacy', render: txt},
+		{data: 'gl', render: txt},
+		{data: 'diff', render: txt},
+		{
+			data: null, className: 'text-center text-nowrap', searchable: false, orderable: false,
+			render: (d, t, r) => `<button type="button" class="btn btn-sm btn-primary btnOpening" data-kind="${esc(r.kind)}" data-id="${esc(r.id)}">
+				<i class="fa fa-book"></i> ترحيل</button>`
+		}
+	];
 	const obTable = $('#opening-balance-table').DataTable({
 		data: [],
 		ordering: false,
-		language: {emptyTable: 'الأستاذ مطابق للنظام القديم'},
-		columns: [
-			{data: 'kind', render: (d) => esc(kindNames[d] || d)},
-			{data: 'name', render: esc},
-			{data: 'legacy', render: esc},
-			{data: 'gl', render: esc},
-			{data: 'diff', render: esc},
-			{
-				data: null, className: 'text-center text-nowrap',
-				render: (d, t, r) => `<button type="button" class="btn btn-sm btn-primary btnOpening" data-kind="${esc(r.kind)}" data-id="${esc(r.id)}">
-					<i class="fa fa-book"></i> ترحيل</button>`
-			}
-		]
+		pageLength: 25,
+		language: dtLang('الأستاذ مطابق للنظام القديم'),
+		columns: obCols
 	});
+	const obTableRefresh = addColumnFilters(obTable, selectIdx(obCols));
 
 	function loadOpening() {
 		$.post(url, {CONTROL: 'listOpeningBalances'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
-				obTable.clear().rows.add(res[3] || []).draw();
+				obTable.clear().rows.add(res[3] || []).draw(); obTableRefresh();
 				obCount = (res[3] || []).length;
 				updateAlert();
 			}
@@ -287,27 +333,20 @@
 	loadOpening();
 
 	// ---- مرتجعات لم تُرحَّل ----
+	const urTableCols = orderCols().concat([{data: 'RETURN_VALUE', render: txt}, {data: 'POSTED_VALUE', render: txt}]).concat([actionCol({btn: 'btn-primary', name: 'btnReturnEntry'}, 'fa-book', 'ترحيل')]);
 	const urTable = $('#unposted-returns-table').DataTable({
 		data: [],
 		ordering: false,
-		language: {emptyTable: 'لا توجد مرتجعات غير مُرحَّلة'},
-		columns: [
-			{data: 'SUB_ORDER_ID', render: (d, t, r) => esc(d || r.ORDER_ID)},
-			{data: 'ORDER_STATUS', render: (d) => esc(statusNames[d] || d)},
-			{data: 'RETURN_VALUE', render: esc},
-			{data: 'POSTED_VALUE', render: esc},
-			{
-				data: null, className: 'text-center text-nowrap',
-				render: (d, t, r) => `<button type="button" class="btn btn-sm btn-primary btnReturnEntry" data-oid="${esc(r.ORDER_ID)}">
-					<i class="fa fa-book"></i> ترحيل</button>`
-			}
-		]
+		pageLength: 25,
+		language: dtLang('لا توجد مرتجعات غير مُرحَّلة'),
+		columns: urTableCols
 	});
+	const urTableRefresh = addColumnFilters(urTable, selectIdx(urTableCols));
 
 	function loadReturns() {
 		$.post(url, {CONTROL: 'listUnpostedReturns'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
-				urTable.clear().rows.add(res[3] || []).draw();
+				urTable.clear().rows.add(res[3] || []).draw(); urTableRefresh();
 				urCount = (res[3] || []).length;
 				updateAlert();
 			}
