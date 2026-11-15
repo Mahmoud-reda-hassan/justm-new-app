@@ -240,6 +240,13 @@ class PaymentDisbursement {
 	}
 	
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
+		// مفتاح مصدر الأرصدة (الأستاذ العام > الفترات والإعدادات): الافتراضي legacy = السلوك القديم بلا تغيير
+		if (!$order_id && in_array($partnerType, ['CLIENT','SUPPLIER','DELIVERY','MARKETER'], true)) {
+			include_once(__DIR__ . '/../../Classes/Accounting/SystemFlags.php');
+			if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+				return [['total_balance' => PartnerBalanceSource::net($this->conn, $partnerType, (int)$partnerId)]];
+			}
+		}
 		$query = "SELECT COALESCE(Sum(CASE
 				    WHEN TRANSACTION_TYPE = 'CREDIT'
 				    THEN BALANCE

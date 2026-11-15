@@ -172,6 +172,13 @@ return [
         "permission" => (in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
             || ($perm['CourierReopen']['view'] ?? '') === 'true' || ($perm['CourierReopen']['reopen'] ?? '') === 'true')
     ],
+    "GlLedger" => [
+        "view" => "GlLedger",
+        "title" => "الأستاذ العام",
+        "js" => ["GlLedger.js"],
+        "permission" => (in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
+            || ($perm['GlLedger']['view'] ?? '') === 'true' || ($perm['GlLedger']['post'] ?? '') === 'true' || ($perm['GlLedger']['admin'] ?? '') === 'true')
+    ],
     "DatabaseUpdate" => [
         "view" => "DatabaseUpdate",
         "title" => "تحديث قاعدة البيانات",

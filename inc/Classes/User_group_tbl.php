@@ -553,6 +553,12 @@ class User_group_tbl {
                 	"view" => false,
                 	"reopen" => false,
                 ],
+                // الأستاذ العام: تقارير (view) + تسجيل افتتاحي النقدية/تصحيح تحصيل (post) + إقفال الفترات ومصدر الأرصدة (admin)
+                'GlLedger' =>[
+                	"view" => false,
+                	"post" => false,
+                	"admin" => false,
+                ],
                 
                 'CriticalItemsReport' =>[
                 	"view" => false,
@@ -679,6 +685,7 @@ class User_group_tbl {
             'StockTransfer' =>  'اذن تحويل مخزنى',
             'StockAudit' => 'جرد ومطابقة مخزون',
             'CourierReopen' => 'رد أوامر المندوب للمخزن',
+            'GlLedger' => 'الأستاذ العام (التقارير والأدوات)',
             'CriticalItemsReport' => 'تقرير الاصناف الحرجه',
             'DelegatesShipmentReport' => 'تقرير حركة عهدة المندوبين',
             'DelegatesInventoryReport' =>'تقرير حركة الاستلامات المخزنيه',
@@ -696,6 +703,8 @@ class User_group_tbl {
             
             'view' => 'عرض',
             'reopen' => 'تنفيذ رد الأمر للمخزن (عكس القيود وحركة المخزن)',
+            'post' => 'تسجيل قيود (افتتاحي النقدية، تصحيح تحصيل)',
+            'admin' => 'إدارة (إقفال الفترات، مصدر الأرصدة)',
             "viewAllCompany" =>  'يمكن للمستخدم التعامل مع كل الشركات',
            	"viewAllBranches" => 'يمكن للمستخدم التعامل مع كل الفروع',
             "viewAllStores" => 'يمكن للمستخدم التعامل مع كل المخازن',

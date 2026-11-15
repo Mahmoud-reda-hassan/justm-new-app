@@ -377,5 +377,81 @@ check('perm: reopen permission can view and reopen', CourierReopen::canView('م�
 check('perm: approved groups keep access without permission', CourierReopen::canReopen('Administrator') && CourierReopen::canView('المدير المالي'));
 $_SESSION = [];
 
+// 20) ledger tools: reports, flags, period lock, cash opening, collection correction
+require_once __DIR__ . '/../../inc/Classes/Accounting/Reports.php';
+require_once __DIR__ . '/../../inc/Classes/Accounting/SystemFlags.php';
+require_once __DIR__ . '/../../inc/Classes/Accounting/PeriodGuard.php';
+require_once __DIR__ . '/../../inc/Classes/Accounting/CashOpening.php';
+require_once __DIR__ . '/../../inc/Classes/Accounting/CollectionCorrection.php';
+$gr = new GlReports($db);
+$tbRows = $gr->trialBalance(null, null);
+check('ledger: trial balance is balanced', count($tbRows) > 0 && abs(array_sum(array_column($tbRows, 'closing_debit')) - array_sum(array_column($tbRows, 'closing_credit'))) < 0.01);
+$cashAcc = (int)$db->query("SELECT id FROM accounts WHERE account_code = '1110'")->fetchColumn();
+$st1 = $gr->accountStatement($cashAcc, null, null);
+check('ledger: account statement running balance ends at closing', !$st1['lines'] || abs(end($st1['lines'])['running'] - $st1['closing']) < 0.005);
+$pRow = $db->query("SELECT d.partner_type, d.partner_id FROM journal_entry_details d WHERE d.partner_type = 'CLIENT' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+if ($pRow) {
+    $ps = $gr->partnerStatement('CLIENT', (int)$pRow['partner_id'], null, null);
+    check('ledger: partner statement closing equals GL total and has legacy compare', abs($ps['closing'] - $ps['gl_total']) < 0.005 && array_key_exists('legacy_total', $ps));
+}
+check('ledger: journal book + entry lines', count($gr->journalBook(null, null)) > 0 && count($gr->entryLines((int)$gr->journalBook(null, null)[0]['id'])) >= 2);
+$iv = $gr->inventoryValuation();
+check('ledger: inventory valuation compare returns numbers', isset($iv['gl_inventory'], $iv['current_cost_value'], $iv['diff']));
+check('ledger: partner search validates type', throwsMsg(fn() => $gr->searchPartners('X', 'a'), 'نوع الطرف'));
+
+// flags + balance source
+check('flag: default balance source is legacy', SystemFlags::get($db, 'BALANCE_SOURCE', 'legacy') === 'legacy');
+check('flag: invalid value refused', throwsMsg(fn() => SystemFlags::set($db, 'BALANCE_SOURCE', 'zzz', $userId), 'إعداد غير مسموح'));
+if ($pRow) {
+    SystemFlags::set($db, 'BALANCE_SOURCE', 'gl', $userId);
+    $glNet = PartnerBalanceSource::net($db, 'CLIENT', (int)$pRow['partner_id']);
+    $expect = (float)$db->query("SELECT COALESCE(SUM(d.credit - d.debit),0) FROM journal_entry_details d JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status='POSTED' WHERE d.partner_type='CLIENT' AND d.partner_id=" . (int)$pRow['partner_id'])->fetchColumn();
+    check('flag: GL source returns ledger net (credit-debit)', abs($glNet - round($expect, 2)) < 0.005);
+    SystemFlags::set($db, 'BALANCE_SOURCE', 'legacy', $userId);
+    check('flag: back to legacy', SystemFlags::get($db, 'BALANCE_SOURCE') === 'legacy');
+}
+
+// period lock
+$db->exec("INSERT INTO accounting_periods (date_from, date_to, note, is_closed, closed_by) VALUES ('2025-01-01', '2025-01-31', 'test', 1, $userId)");
+$pid = (int)$db->lastInsertId();
+check('period: closed period refuses entry date', throwsMsg(fn() => PeriodGuard::assertOpen($db, '2025-01-15 10:00:00'), 'مقفولة'));
+check('period: date outside closed period is allowed', !throwsMsg(fn() => PeriodGuard::assertOpen($db, '2025-02-15'), 'مقفولة'));
+$jm = new JournalManager($db);
+$jm->create(['branch_id' => $branch, 'entry_date' => '2025-01-15 00:00:00', 'reference_type' => 'TEST_PERIOD', 'reference_id' => 1, 'description' => 'x', 'created_by' => $userId]);
+$jm->addLine(['account_id' => $cashAcc, 'debit' => 1]);
+$jm->addLine(['account_id' => (int)$db->query("SELECT id FROM accounts WHERE account_code = '4100'")->fetchColumn(), 'credit' => 1]);
+check('period: JournalManager refuses posting in a closed period', throwsMsg(fn() => $jm->post(), 'مقفولة'));
+$jm->reset();
+$db->exec("UPDATE accounting_periods SET is_closed = 0 WHERE id = $pid");
+check('period: reopened period accepts entries again', !throwsMsg(fn() => PeriodGuard::assertOpen($db, '2025-01-15'), 'مقفولة'));
+
+// cash opening
+$co = new CashOpening($db);
+$accs = $co->listAccounts();
+check('cash opening: lists cash boxes', count($accs) > 0);
+$a0 = (int)$accs[0]['account_id'];
+$e1 = $co->set($a0, 500, '2026-01-01', $branch, $userId);
+check('cash opening: first set posts an entry', $e1 > 0);
+check('cash opening: same amount posts nothing', $co->set($a0, 500, '2026-01-01', $branch, $userId) === 0);
+$e3 = $co->set($a0, 700, '2026-01-01', $branch, $userId);
+$op = array_values(array_filter($co->listAccounts(), fn($r) => (int)$r['account_id'] === $a0))[0]['opening'];
+check('cash opening: raising amount posts the difference only', $e3 > 0 && abs($op - 700) < 0.005);
+check('cash opening: negative refused', throwsMsg(fn() => $co->set($a0, -1, '2026-01-01', $branch, $userId), 'سالبًا'));
+
+// collection correction
+$cc = new CollectionCorrection($db);
+$col = $db->query("SELECT e.id, e.reference_id FROM journal_entries e WHERE e.reference_type = 'COURIER_COLLECTION' AND e.status = 'POSTED' ORDER BY e.id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+if ($col) {
+    $found = $cc->find((string)$col['reference_id']);
+    check('correction: finds the collection entry with lines', count($found) >= 1 && count($found[0]['lines']) >= 2 && (int)$found[0]['reversed'] === 0);
+    check('correction: reason is mandatory', throwsMsg(fn() => $cc->reverse((int)$col['id'], 'x', $userId), 'سبب'));
+    $before = (float)$db->query("SELECT COALESCE(SUM(debit - credit),0) FROM journal_entry_details d JOIN journal_entries e ON e.id=d.journal_entry_id AND e.status='POSTED' WHERE e.id IN (" . (int)$col['id'] . ")")->fetchColumn();
+    $rid = $cc->reverse((int)$col['id'], 'تصحيح اختبار', $userId);
+    $net = (float)$db->query("SELECT COALESCE(SUM(d.debit - d.credit),0) FROM journal_entry_details d WHERE d.journal_entry_id IN (" . (int)$col['id'] . ", $rid)")->fetchColumn();
+    check('correction: reversal nets the collection entry to zero', $rid > 0 && abs($net) < 0.005);
+    check('correction: cannot reverse twice', throwsMsg(fn() => $cc->reverse((int)$col['id'], 'تصحيح ثاني', $userId), 'معكوس'));
+    check('correction: non-collection entry refused', throwsMsg(fn() => $cc->reverse(1, 'سبب كافي هنا', $userId), 'ليس قيد تحصيل'));
+}
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

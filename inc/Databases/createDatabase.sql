@@ -5469,3 +5469,28 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+-- ------------------------------------------------------------
+-- Part 5: GL ledger tools (periods lock + system flags). No data is changed.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `accounting_periods` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `date_from` date NOT NULL,
+  `date_to` date NOT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `is_closed` tinyint(1) NOT NULL DEFAULT 1,
+  `closed_by` int(11) DEFAULT NULL,
+  `closed_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_period_dates` (`date_from`, `date_to`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `system_flags` (
+  `flag_key` varchar(60) NOT NULL,
+  `flag_value` varchar(255) NOT NULL,
+  `updated_by` int(11) DEFAULT NULL,
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`flag_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT IGNORE INTO `system_flags` (`flag_key`, `flag_value`) VALUES ('BALANCE_SOURCE', 'legacy');

@@ -98,6 +98,11 @@ class DatabaseUpdater {
             $st->execute([$v]);
             $checks[] = ['label' => 'تقرير ' . $v, 'ok' => (int)$st->fetchColumn() > 0];
         }
+        $tb = $this->db->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
+        foreach (['accounting_periods', 'system_flags'] as $t) {
+            $tb->execute([$t]);
+            $checks[] = ['label' => 'جدول ' . $t, 'ok' => (int)$tb->fetchColumn() > 0];
+        }
         $ct = $this->db->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='inventory_movement' AND COLUMN_NAME='IM_MOVE_TYPE'")->fetchColumn();
         $checks[] = ['label' => 'نوع حركة المخزن REOPEN_RETURN_SHIPP', 'ok' => is_string($ct) && strpos($ct, 'REOPEN_RETURN_SHIPP') !== false];
         return $checks;

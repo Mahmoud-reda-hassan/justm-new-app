@@ -5,7 +5,8 @@
 -- *** RUN ON A TEST COPY OF THE DATABASE FIRST, NEVER DIRECTLY ON PRODUCTION. ***
 -- Take a full backup before running. Nothing here deletes or rewrites existing data.
 -- Contents: (1) courier custody + commission payable accounts, (2) reopen inventory movement type,
---           (3) marketer commission accounts + opening balance account 3300, (4) read-only GL reporting views.
+--           (3) marketer commission accounts + opening balance account 3300, (4) read-only GL reporting views,
+--           (5) accounting_periods + system_flags tables (empty/default = no behaviour change).
 -- Part 2 changes an ENUM: it assumes the schema in inc/Databases/createDatabase.sql;
 -- if your IM_MOVE_TYPE has extra custom values, add them to the list first.
 -- ============================================================
@@ -105,3 +106,28 @@ JOIN `journal_entries` e ON e.`id` = d.`journal_entry_id` AND e.`status` = 'POST
 JOIN `accounts` a ON a.`id` = d.`account_id`
 WHERE d.`partner_type` IS NOT NULL
 GROUP BY d.`partner_type`, d.`partner_id`, a.`account_code`;
+
+-- ------------------------------------------------------------
+-- Part 5: GL ledger tools (periods lock + system flags). No data is changed.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `accounting_periods` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `date_from` date NOT NULL,
+  `date_to` date NOT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `is_closed` tinyint(1) NOT NULL DEFAULT 1,
+  `closed_by` int(11) DEFAULT NULL,
+  `closed_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_period_dates` (`date_from`, `date_to`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `system_flags` (
+  `flag_key` varchar(60) NOT NULL,
+  `flag_value` varchar(255) NOT NULL,
+  `updated_by` int(11) DEFAULT NULL,
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`flag_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT IGNORE INTO `system_flags` (`flag_key`, `flag_value`) VALUES ('BALANCE_SOURCE', 'legacy');

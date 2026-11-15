@@ -410,6 +410,9 @@ class JournalManager{
 	
 	    if (empty($this->header['created_by']))
 	        throw new Exception("Created by is required.");
+
+	    include_once(__DIR__ . '/PeriodGuard.php');
+	    PeriodGuard::assertOpen($this->db, (string)$this->header['entry_date']);
 	}
 	
 	
