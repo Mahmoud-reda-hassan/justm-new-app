@@ -278,7 +278,9 @@ class AccountingEvents {
 	        return 0;
 	    }
 
-	    $dup = $this->db->prepare("SELECT COUNT(*) FROM journal_entries WHERE reference_type = 'COURIER_COLLECTION' AND reference_id = ? AND status = 'POSTED'");
+	    // قيد التحصيل المعكوس (تصحيح) لا يمنع إعادة التحصيل
+	    $dup = $this->db->prepare("SELECT COUNT(*) FROM journal_entries e WHERE e.reference_type = 'COURIER_COLLECTION' AND e.reference_id = ? AND e.status = 'POSTED'
+	        AND NOT EXISTS (SELECT 1 FROM journal_entries r WHERE r.reference_type = 'JOURNAL_REVERSE' AND r.reference_id = e.id AND r.status = 'POSTED')");
 	    $dup->execute([$orderId]);
 	    if ((int)$dup->fetchColumn() > 0) {
 	        throw new Exception("Collection already posted.");
