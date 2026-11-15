@@ -38,7 +38,7 @@ class OpeningBalanceManager {
     }
 
     // أرصدة النظام القديم [id => ['name'=>, 'legacy'=>]]
-    protected function legacyBalances(string $kind): array {
+    protected function legacyBalances(string $kind, ?int $onlyId = null): array {
         if ($kind === 'INVENTORY') {
             $rows = $this->db->query("
                 SELECT s.STO_ID AS id, s.STO_NAME AS name,
@@ -57,14 +57,20 @@ class OpeningBalanceManager {
             $st = $this->db->prepare("
                 SELECT pb.PARTNER_ID AS id, ROUND(SUM($sign),2) AS legacy
                 FROM partners_balance pb
-                WHERE pb.PARTNER_TYPE = ? $skipOpen
+                WHERE pb.PARTNER_TYPE = ? $skipOpen" . ($onlyId !== null ? " AND pb.PARTNER_ID = ?" : "") . "
                 GROUP BY pb.PARTNER_ID");
-            $st->execute([$kind]);
+            $st->execute($onlyId !== null ? [$kind, $onlyId] : [$kind]);
             $rows = $st->fetchAll(PDO::FETCH_ASSOC);
         }
         $out = [];
         foreach ($rows as $r) { $out[(int)$r['id']] = ['name' => $r['name'] ?? null, 'legacy' => (float)$r['legacy']]; }
         return $out;
+    }
+
+    /** رصيد طرف واحد في النظام القديم بنفس معادلة التسوية (العميل: مدين − دائن دون أوامر لم تُقفل؛ غيره: دائن − مدين). */
+    public function legacyBalanceOf(string $kind, int $id): float {
+        if (!in_array($kind, self::KINDS, true) || $kind === 'INVENTORY') { throw new Exception('نوع طرف غير مدعوم.'); }
+        return (float)($this->legacyBalances($kind, $id)[$id]['legacy'] ?? 0.0);
     }
 
     // أرصدة الأستاذ الحالية [id => net] بنفس اتجاه الرصيد القديم

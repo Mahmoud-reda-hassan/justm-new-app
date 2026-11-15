@@ -111,10 +111,9 @@ class GlReports {
             WHERE d.partner_type = ? AND d.partner_id = ?");
         $st->execute([$type, $partnerId]);
         $glTotal = round($sign * (float)$st->fetchColumn(), 2);
-        $st = $this->db->prepare("SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='DEBIT' THEN BALANCE ELSE -BALANCE END),0)
-            FROM partners_balance WHERE PARTNER_TYPE = ? AND PARTNER_ID = ?" . ($type === 'CLIENT' ? " AND NOT (TRANSACTION_CATEGORY_ID = 8 AND REFERENCE_ID IN (SELECT ORDER_ID FROM orders WHERE ORDER_SUCCESS = 0))" : ''));
-        $st->execute([$type, $partnerId]);
-        $legacy = round($sign * (float)$st->fetchColumn(), 2);
+        // نفس معادلة تسوية الأرصدة بالضبط (العميل: تُستبعد قيود الأوامر التي لم تُقفل ماليًا بعد)
+        include_once(__DIR__ . '/OpeningBalanceManager.php');
+        $legacy = round((new OpeningBalanceManager($this->db))->legacyBalanceOf($type, $partnerId), 2); // نفس اتجاه رصيد الكشف
         return ['opening' => round($opening, 2), 'closing' => round($run, 2), 'lines' => $lines,
                 'gl_total' => $glTotal, 'legacy_total' => $legacy, 'diff' => round($glTotal - $legacy, 2)];
     }

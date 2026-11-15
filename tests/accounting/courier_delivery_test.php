@@ -393,6 +393,14 @@ $pRow = $db->query("SELECT d.partner_type, d.partner_id FROM journal_entry_detai
 if ($pRow) {
     $ps = $gr->partnerStatement('CLIENT', (int)$pRow['partner_id'], null, null);
     check('ledger: partner statement closing equals GL total and has legacy compare', abs($ps['closing'] - $ps['gl_total']) < 0.005 && array_key_exists('legacy_total', $ps));
+    // رصيد قديم لأمر لم يُقفل بعد (ORDER_SUCCESS=0) لا يدخل في المقارنة، مثل تسوية الأرصدة
+    $openOid = (int)$db->query("SELECT ORDER_ID FROM orders WHERE ORDER_SUCCESS = 0 LIMIT 1")->fetchColumn();
+    if ($openOid) {
+        $beforeLegacy = $gr->partnerStatement('CLIENT', (int)$pRow['partner_id'], null, null)['legacy_total'];
+        $db->exec("INSERT INTO partners_balance (PARTNER_TYPE,PARTNER_ID,REFERENCE_ID,TRANSACTION_TYPE,BALANCE,NOTE) VALUES ('CLIENT'," . (int)$pRow['partner_id'] . ",$openOid,'CREDIT',777,'open order')");
+        $afterLegacy = $gr->partnerStatement('CLIENT', (int)$pRow['partner_id'], null, null)['legacy_total'];
+        check('ledger: legacy compare ignores balances of orders not yet closed', abs($afterLegacy - $beforeLegacy) < 0.005);
+    }
 }
 check('ledger: journal book + entry lines', count($gr->journalBook(null, null)) > 0 && count($gr->entryLines((int)$gr->journalBook(null, null)[0]['id'])) >= 2);
 $iv = $gr->inventoryValuation();
