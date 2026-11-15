@@ -87,7 +87,7 @@
             <div class="row g-3 mt-2">
                 <div class="col-12">
                     <div class="alert bg-dark py-2 mb-0 text-center">
-                        <small>إجمالي المديونية على المورد</small>
+                        <small>مديونية المورد للشركة (مرتجعات / مبالغ مستحقة الاسترداد)</small>
                         <h5 class="mt-1 mb-0" id="total-morad">0.00</h5>
                     </div>
                 </div>
@@ -95,9 +95,9 @@
 
             <!-- المبلغ المراد صرفه مع تلميح -->
             <div class="mt-4">
-                <label for="amount-morad" class="fw-bold">المبلغ المراد صرفه:</label>
+                <label for="amount-morad" class="fw-bold">المبلغ المستلم من المورد:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-morad" min="0" step="0.01">
-                <small class="text-muted">عند كتابة مبلغ سيتم توزيعه تلقائيًا على أوامر الشراء</small>
+                <small class="text-muted">يُسجَّل نقدًا في الصندوق ويُخفض مديونية المورد للشركة</small>
             </div>
 
             <!-- ملاحظات -->

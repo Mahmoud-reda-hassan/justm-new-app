@@ -47,6 +47,11 @@ try {
 			$orders = isset($_POST['orders']) ? $_POST['orders']: [];
 			echo json_encode($CBE->PaymentOfSupplierDues($supplier_id, $total_amount, $orders));
 			break;
+		case 'SaveSupplierRefund':
+			$CBE->transaction_user_id = $_SESSION['USER_ID'];
+			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];
+			echo json_encode($CBE->collectSupplierReturnAmount((int)$_POST['supplier_id'], (string)$_POST['total_amount']));
+			break;
 		case 'PaymentOfMarketerDues':
 			$marketerId= $_POST['partner_id'];
 			$total_amount = $_POST['amount'];

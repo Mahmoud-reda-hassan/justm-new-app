@@ -753,7 +753,7 @@ async function saveSupplierPayment(){
     }
 
     let payload = {
-        CONTROL : 'SaveSupplierPayment',
+        CONTROL : 'SaveSupplierRefund',
         supplier_id : supplierId,
         total_amount : totalAmount
     };
@@ -781,7 +781,7 @@ async function saveSupplierPayment(){
         return;
     }*/
 
-    showLoading('جارى حفظ الصرف...');
+    showLoading('جارى حفظ الاستلام...');
 
     try{
 		const data = await request(API_FINANCE, payload, 'POST');
@@ -1062,7 +1062,18 @@ $(function() {
         const sid = $(this).val();
         $('.payment-input').val(0).change();
         $('#amount-morad').val(0).change();
-        await loadPartnerBalance(sid, 'SUPPLIER', '#total-morad', '#total-morad');
+        // استلام مرتجع مورد: المعروض = ما يستحقه للشركة على المورد (عكس رصيد الدائنية)
+        $('#total-morad').text('...');
+        let owed = 0;
+        if (sid) {
+            try {
+                const bd = await request(API, { CONTROL: 'GetPartnersBalance', pid: sid, pt: 'SUPPLIER' });
+                const net = (bd && bd[0]) ? parseFloat(bd[0].total_balance) || 0 : 0;
+                owed = net < 0 ? -net : 0;
+            } catch (e) { console.error(e); }
+        }
+        $('#total-morad').text(formatMoney(owed));
+        $('#amount-morad').attr('max', owed);
         sidnaw = !sid ? -1 : sid;
         loadSupplierOrders(sidnaw);
     });
