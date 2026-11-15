@@ -548,6 +548,11 @@ class User_group_tbl {
                 	"viewAllBranches" => false,
                 	"viewStoreQty" => false,
                 ],
+                // رد أوامر المندوب للمخزن (قبل الاستلام المالي): عرض الشاشة + تنفيذ الرد
+                'CourierReopen' =>[
+                	"view" => false,
+                	"reopen" => false,
+                ],
                 
                 'CriticalItemsReport' =>[
                 	"view" => false,
@@ -673,6 +678,7 @@ class User_group_tbl {
             'StockIssue' => 'اذن صرف مخزنى',
             'StockTransfer' =>  'اذن تحويل مخزنى',
             'StockAudit' => 'جرد ومطابقة مخزون',
+            'CourierReopen' => 'رد أوامر المندوب للمخزن',
             'CriticalItemsReport' => 'تقرير الاصناف الحرجه',
             'DelegatesShipmentReport' => 'تقرير حركة عهدة المندوبين',
             'DelegatesInventoryReport' =>'تقرير حركة الاستلامات المخزنيه',
@@ -689,6 +695,7 @@ class User_group_tbl {
             'UserSpecificPermissions' => 'صلاحيات مخصصه للمستخدم',
             
             'view' => 'عرض',
+            'reopen' => 'تنفيذ رد الأمر للمخزن (عكس القيود وحركة المخزن)',
             "viewAllCompany" =>  'يمكن للمستخدم التعامل مع كل الشركات',
            	"viewAllBranches" => 'يمكن للمستخدم التعامل مع كل الفروع',
             "viewAllStores" => 'يمكن للمستخدم التعامل مع كل المخازن',

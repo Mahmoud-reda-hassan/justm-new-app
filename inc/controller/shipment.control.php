@@ -232,7 +232,7 @@ function ResponseData($data){
 					ResponseData($DirectSale->confirmOrderSales($_POST['oid']));
 	    			break;	
 				case 'reopenCourierOrder':
-					// رد أمر شحن مندوب للمخزن للتعديل (المدير العام/المالك/المدير المالي فقط)
+					// رد أمر شحن مندوب للمخزن للتعديل (مجموعات معتمدة أو صلاحية CourierReopen/reopen)
 					try {
 						include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
 						$reopen = new CourierReopen($db);
@@ -251,7 +251,7 @@ function ResponseData($data){
 				case 'listCourierReopen':
 					// قائمة شاشة "رد أوامر المندوب للمخزن" (للمصرّح لهم فقط)
 					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
-					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+					if (!CourierReopen::canView((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
 						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
 					}
 					$reopen = new CourierReopen($db);

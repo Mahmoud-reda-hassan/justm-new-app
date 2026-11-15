@@ -169,7 +169,8 @@ return [
         "view" => "CourierReopen",
         "title" => "رد أوامر المندوب للمخزن",
         "js" => ["CourierReopen.js"],
-        "permission" => in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
+        "permission" => (in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
+            || ($perm['CourierReopen']['view'] ?? '') === 'true' || ($perm['CourierReopen']['reopen'] ?? '') === 'true')
     ],
     "DatabaseUpdate" => [
         "view" => "DatabaseUpdate",

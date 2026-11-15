@@ -1,5 +1,11 @@
+<?php
+include_once(__DIR__ . '/../Classes/CourierReopen.php');
+// الترحيل والتسويات: للمجموعات المعتمدة فقط. من معه صلاحية رد الأمر يرى قائمة الرد فقط.
+$courierFull = CourierReopen::isAllowedGroup((string)($_SESSION['USER_GRUOP_NAME'] ?? ''));
+?>
+<script>window.COURIER_REOPEN_FULL = <?php echo $courierFull ? 'true' : 'false'; ?>;</script>
 <div class="container-fluid my-3" id="courierReopenPage">
-    <div class="card border-warning mb-3 d-none" id="legacy-summary-card">
+    <div class="card border-warning mb-3 d-none" id="legacy-summary-card"<?php echo $courierFull ? '' : ' style="display:none !important"'; ?>>
         <div class="card-header">
             <h5 class="mb-0">ترحيل النظام القديم إلى الأستاذ</h5>
             <small class="text-muted">ملخص ما لم يُرحَّل بعد، وزر واحد ينفّذ كل التسويات بالترتيب. لا يغيّر أي بيان قديم.</small>
@@ -54,7 +60,7 @@
             </div>
         </div>
     </div>
-    <div class="collapse" id="legacy-details">
+    <div class="collapse" id="legacy-details"<?php echo $courierFull ? '' : ' style="display:none !important"'; ?>>
     <div class="card mt-3">
         <div class="card-header">
             <h5 class="mb-0">ترحيل أوامر مُقفلة قبل تشغيل الأستاذ</h5>

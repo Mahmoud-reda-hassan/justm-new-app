@@ -1,6 +1,7 @@
 (function () {
 	const url = `../../inc/controller/shipment.control.php`;
 	const statusNames = {3: 'تم التسليم', 4: 'تسليم جزئي', 5: 'مرفوض', 6: 'مرتجع', 7: 'مرتجع جزئي'};
+	const FULL = window.COURIER_REOPEN_FULL !== false; // الترحيل والتسويات للمجموعات المعتمدة فقط
 	const esc = (v) => $('<div>').text(v == null ? '' : v).html();
 	// نص للعرض (مهرّب) ونص خام للبحث/الفلترة
 	const txt = (d, t) => t === 'display' ? esc(d) : (d == null ? '' : String(d));
@@ -148,6 +149,7 @@
 	function updateAlert() { loadSummary(); }
 
 	function loadSummary() {
+		if (!FULL) return;
 		$.post(url, {CONTROL: 'legacySummary'}, function (res) {
 			const btn = $('#btnLegacyRunAll');
 			if (Array.isArray(res) && res[0] === 'success') {
@@ -222,6 +224,7 @@
 	});
 
 	function loadBackfill() {
+		if (!FULL) return;
 		$.post(url, {CONTROL: 'listBackfillOrders'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
 				bfTable.clear().rows.add(res[3] || []).draw(); bfTableRefresh();
@@ -278,6 +281,7 @@
 	const obTableRefresh = addColumnFilters(obTable, selectIdx(obCols));
 
 	function loadOpening() {
+		if (!FULL) return;
 		$.post(url, {CONTROL: 'listOpeningBalances'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
 				obTable.clear().rows.add(res[3] || []).draw(); obTableRefresh();
@@ -359,6 +363,7 @@
 	const urTableRefresh = addColumnFilters(urTable, selectIdx(urTableCols));
 
 	function loadReturns() {
+		if (!FULL) return;
 		$.post(url, {CONTROL: 'listUnpostedReturns'}, function (res) {
 			if (Array.isArray(res) && res[0] === 'success') {
 				urTable.clear().rows.add(res[3] || []).draw(); urTableRefresh();

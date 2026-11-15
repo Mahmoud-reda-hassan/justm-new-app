@@ -17,6 +17,23 @@ class CourierReopen {
     /** أسماء مجموعات المستخدمين المسموح لها برد الأمر للمخزن */
     public const ALLOWED_GROUPS = ['Administrator', 'Owner', 'المدير المالي'];
 
+    /** صلاحية مخصصة من شاشة المجموعات: Admin > CourierReopen > view | reopen */
+    public static function hasPermission(string $key): bool {
+        $us = isset($_SESSION['USER_SCRIPT']) ? @unserialize($_SESSION['USER_SCRIPT']) : null;
+        $v = is_array($us) ? ($us['Admin']['CourierReopen'][$key] ?? null) : null;
+        return $v === 'true' || $v === true;
+    }
+
+    /** يفتح الشاشة ويرى قائمة الأوامر: مجموعة معتمدة أو صلاحية عرض/تنفيذ. */
+    public static function canView(string $groupName): bool {
+        return self::isAllowedGroup($groupName) || self::hasPermission('view') || self::hasPermission('reopen');
+    }
+
+    /** ينفّذ رد الأمر للمخزن: مجموعة معتمدة أو صلاحية التنفيذ. */
+    public static function canReopen(string $groupName): bool {
+        return self::isAllowedGroup($groupName) || self::hasPermission('reopen');
+    }
+
     private $db; // قد يكون PDO أو TrimmedPDO (غلاف الاتصال)
 
     public function __construct($db) {
@@ -49,7 +66,7 @@ class CourierReopen {
      * @throws Exception برسالة عربية/إنجليزية واضحة عند أي مخالفة
      */
     public function reopen(int $orderId, int $userId, int $branchId, string $userGroupName, string $reason): array {
-        if (!self::isAllowedGroup($userGroupName)) {
+        if (!self::canReopen($userGroupName)) {
             throw new Exception("ليس لديك صلاحية رد الأمر للمخزن.");
         }
         $reason = trim($reason);

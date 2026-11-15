@@ -367,5 +367,15 @@ try {
 check('order lists: detailed queries run and carry order-list fields', $detOk, $detErr);
 check('order lists: backfill detail count equals summary count', count($lmw->closedOrdersDetailed()) === count($lmw->closedOrders()));
 
+// 19) CourierReopen permission from the group permissions screen (Admin > CourierReopen)
+$_SESSION = [];
+check('perm: random group without permission cannot reopen/view', !CourierReopen::canReopen('موظف') && !CourierReopen::canView('موظف'));
+$_SESSION['USER_SCRIPT'] = serialize(['Admin' => ['CourierReopen' => ['view' => 'true', 'reopen' => 'false']]]);
+check('perm: view-only permission opens the screen but cannot reopen', CourierReopen::canView('موظف') && !CourierReopen::canReopen('موظف'));
+$_SESSION['USER_SCRIPT'] = serialize(['Admin' => ['CourierReopen' => ['view' => 'false', 'reopen' => 'true']]]);
+check('perm: reopen permission can view and reopen', CourierReopen::canView('موظف') && CourierReopen::canReopen('موظف'));
+check('perm: approved groups keep access without permission', CourierReopen::canReopen('Administrator') && CourierReopen::canView('المدير المالي'));
+$_SESSION = [];
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);
