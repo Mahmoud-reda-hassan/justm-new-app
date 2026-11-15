@@ -263,14 +263,9 @@ function ResponseData($data){
 					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
 						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
 					}
-					$stBf = $db->query("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS, o.SHIPPING_VAL, o.LAST_UPDATE,
-							CONCAT(u.FORENAME, ' ', u.LASTNAME) AS DELIVERY_NAME
-						FROM orders o LEFT JOIN users u ON u.USER_ID = o.DELIVERY_ID
-						WHERE o.ORDER_SUCCESS = 1 AND o.SALE_ENTRY_ID IS NULL AND o.ORDER_STATUS IN (3,4,5,6,7)
-						  AND o.DELIVERY_ID > 0 AND o.ORDER_TYPE_ID <> 5
-						  AND NOT EXISTS (SELECT 1 FROM journal_entries e WHERE e.reference_type = 'COURIER_COLLECTION' AND e.reference_id = o.ORDER_ID AND e.status = 'POSTED')
-						ORDER BY o.LAST_UPDATE DESC LIMIT 200");
-					ResponseData(array('success', 'ناجح', '', $stBf->fetchAll(PDO::FETCH_ASSOC)));
+					// نفس مصدر الملخص تمامًا، حتى تتطابق القائمة مع الأعداد
+					include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+					ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->closedOrders()));
 					break;
 				case 'backfillCourierOrder':
 					// ترحيل أمر مُقفل قديم إلى الأستاذ بأرقام النظام القديم
