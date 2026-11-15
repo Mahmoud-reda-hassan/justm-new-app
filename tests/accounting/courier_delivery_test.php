@@ -335,5 +335,29 @@ check('updater: second run is safe (idempotent)', $ur2['total'] === $ur['total']
 check('updater: unknown file refused', throwsMsg(fn() => $du->run('../../config.php', $userId), 'ملف غير معروف'));
 check('updater: splitter ignores comments and quoted semicolons', DatabaseUpdater::split("-- c;\nSELECT 'a;b'; SELECT 2;") === ["SELECT 'a;b'", "SELECT 2"]);
 
+// 18) the app passes a TrimmedPDO wrapper (not a raw PDO): every screen class must accept it
+if (!class_exists('TrimmedPDO')) {
+    class TrimmedPDO {
+        private $pdo;
+        public function __construct($pdo) { $this->pdo = $pdo; }
+        public function rollBack() { return $this->pdo->inTransaction() ? $this->pdo->rollBack() : true; }
+        public function commit() { return $this->pdo->inTransaction() ? $this->pdo->commit() : true; }
+        public function beginTransaction() { return $this->pdo->inTransaction() ? true : $this->pdo->beginTransaction(); }
+        public function prepare($sql, $options = []) { return $this->pdo->prepare(trim(preg_replace('/\s+/', ' ', $sql)), $options); }
+        public function __call($m, $a) { return call_user_func_array([$this->pdo, $m], $a); }
+    }
+}
+require_once __DIR__ . '/../../inc/Classes/CourierReopen.php';
+$w = new TrimmedPDO($db);
+$wrapOk = true; $wrapErr = '';
+try {
+    (new CourierReopen($w))->listReopenable();
+    (new LegacyMigration($w))->summary();
+    (new OpeningBalanceManager($w))->preview();
+    (new DatabaseUpdater($w))->status();
+    (new AccountingEvents($w));
+} catch (Throwable $e) { $wrapOk = false; $wrapErr = $e->getMessage(); }
+check('wrapper: screen classes work with TrimmedPDO', $wrapOk, $wrapErr);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);
