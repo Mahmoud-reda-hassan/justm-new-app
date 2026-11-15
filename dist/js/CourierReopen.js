@@ -28,8 +28,10 @@
 		{data: 'ORDER_TOTAL', render: txt},
 		{data: 'SHIPPING_VAL', render: txt},
 		{data: 'DATE_CREATED', render: txt},
-		{data: 'DELIVERED_DATE', render: txt}
+		{data: 'DELIVERED_DATE', render: txt},
+		{data: 'LAST_UPDATE', render: txt}
 	];
+	const LAST_UPDATE_COL = 18; // ترتيب افتراضي: الأحدث تحديثًا أولًا
 
 	// صف فلاتر تحت رأس الجدول: خانة بحث لكل عمود، وقائمة منسدلة للأعمدة محدودة القيم
 	function addColumnFilters(dt, selectCols) {
@@ -71,7 +73,9 @@
 	const tableCols = orderCols().concat([]).concat([actionCol({btn: 'btn-warning', name: 'btnReopen'}, 'fa-undo', 'رد للمخزن')]);
 	const table = $('#courier-reopen-table').DataTable({
 		data: [],
-		ordering: false,
+		ordering: true,
+		orderCellsTop: true,
+		order: [[LAST_UPDATE_COL, 'desc']],
 		pageLength: 25,
 		language: dtLang('لا توجد أوامر قابلة للرد للمخزن'),
 		columns: tableCols
@@ -116,7 +120,9 @@
 	const bfTableCols = orderCols().concat([]).concat([actionCol({btn: 'btn-primary', name: 'btnBackfill'}, 'fa-book', 'ترحيل للأستاذ')]);
 	const bfTable = $('#courier-backfill-table').DataTable({
 		data: [],
-		ordering: false,
+		ordering: true,
+		orderCellsTop: true,
+		order: [[LAST_UPDATE_COL, 'desc']],
 		pageLength: 25,
 		language: dtLang('لا توجد أوامر مُقفلة بلا قيد'),
 		columns: bfTableCols
@@ -262,7 +268,9 @@
 	];
 	const obTable = $('#opening-balance-table').DataTable({
 		data: [],
-		ordering: false,
+		ordering: true,
+		orderCellsTop: true,
+		order: [],
 		pageLength: 25,
 		language: dtLang('الأستاذ مطابق للنظام القديم'),
 		columns: obCols
@@ -341,7 +349,9 @@
 	const urTableCols = orderCols().concat([{data: 'RETURN_VALUE', render: txt}, {data: 'POSTED_VALUE', render: txt}]).concat([actionCol({btn: 'btn-primary', name: 'btnReturnEntry'}, 'fa-book', 'ترحيل')]);
 	const urTable = $('#unposted-returns-table').DataTable({
 		data: [],
-		ordering: false,
+		ordering: true,
+		orderCellsTop: true,
+		order: [[LAST_UPDATE_COL, 'desc']],
 		pageLength: 25,
 		language: dtLang('لا توجد مرتجعات غير مُرحَّلة'),
 		columns: urTableCols
