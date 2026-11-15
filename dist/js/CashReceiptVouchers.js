@@ -1062,14 +1062,13 @@ $(function() {
         const sid = $(this).val();
         $('.payment-input').val(0).change();
         $('#amount-morad').val(0).change();
-        // استلام مرتجع مورد: المعروض = ما يستحقه للشركة على المورد (عكس رصيد الدائنية)
+        // استلام مرتجع مورد: المعروض = قيمة مرتجعات المورد غير المستردة نقدًا
         $('#total-morad').text('...');
         let owed = 0;
         if (sid) {
             try {
-                const bd = await request(API, { CONTROL: 'GetPartnersBalance', pid: sid, pt: 'SUPPLIER' });
-                const net = (bd && bd[0]) ? parseFloat(bd[0].total_balance) || 0 : 0;
-                owed = net < 0 ? -net : 0;
+                const bd = await request(API_FINANCE, { CONTROL: 'GetSupplierRefundable', supplier_id: sid }, 'POST');
+                owed = (bd && bd[0]) ? parseFloat(bd[0].total_balance) || 0 : 0;
             } catch (e) { console.error(e); }
         }
         $('#total-morad').text(formatMoney(owed));

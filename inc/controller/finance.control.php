@@ -47,6 +47,9 @@ try {
 			$orders = isset($_POST['orders']) ? $_POST['orders']: [];
 			echo json_encode($CBE->PaymentOfSupplierDues($supplier_id, $total_amount, $orders));
 			break;
+		case 'GetSupplierRefundable':
+			echo json_encode(array(array('total_balance' => $CBE->supplierRefundable((int)$_POST['supplier_id']))));
+			break;
 		case 'SaveSupplierRefund':
 			$CBE->transaction_user_id = $_SESSION['USER_ID'];
 			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];

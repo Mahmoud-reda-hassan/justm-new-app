@@ -1157,17 +1157,20 @@ class finance_BE {
         }
 	}
 	
-	/** ما يستحقه للشركة على المورد (موجب) = مرتجعات/دفعات زائدة؛ صفر لو لا شيء. */
-	private function supplierOwesUs(int $supplierId): float {
+	/** قيمة مرتجعات الشراء المستحق استردادها نقدًا من المورد = مرتجعات - ما استُلم نقدًا (لا تقل عن صفر). */
+	public function supplierRefundable(int $supplierId): float {
 		include_once(ABSPATH.'/inc/Classes/Accounting/SystemFlags.php');
 		if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
-			$net = (float)PartnerBalanceSource::net($this->conn, 'SUPPLIER', $supplierId);
+			$st = $this->conn->prepare("SELECT COALESCE(SUM(CASE WHEN e.reference_type='PURCHASE_RETURN' THEN d.debit ELSE 0 END),0)
+					- COALESCE(SUM(CASE WHEN e.reference_type='SUPPLIER_REFUND' THEN d.credit ELSE 0 END),0)
+				FROM journal_entry_details d JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
+				WHERE d.partner_type = 'SUPPLIER' AND d.partner_id = ? AND e.reference_type IN ('PURCHASE_RETURN','SUPPLIER_REFUND')");
 		} else {
-			$st = $this->conn->prepare("SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE -BALANCE END),0) FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' AND PARTNER_ID = ?");
-			$st->execute([$supplierId]);
-			$net = (float)$st->fetchColumn();
+			$st = $this->conn->prepare("SELECT COALESCE(SUM(CASE WHEN TRANSACTION_TYPE='DEBIT' THEN BALANCE ELSE -BALANCE END),0)
+				FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' AND PARTNER_ID = ? AND TRANSACTION_CATEGORY_ID = 15");
 		}
-		return max(0.0, -$net);
+		$st->execute([$supplierId]);
+		return max(0.0, round((float)$st->fetchColumn(), 2));
 	}
 
  	//استلام قيمة مرتجع موردين
@@ -1204,9 +1207,9 @@ class finance_BE {
 	        if(count(ordersArray) <= 0 || count(ordersArray) != count($orders)) throw new Exception("لم يتم الحفظ - عدد الاوامر المطلوب تسويتها بها اوامر لا تستوفى شروط التنفيذ");
 	        $placeholders = implode(',', array_fill(0, count(ordersArray), '?'));*/
 	        // اضافة المعامله
-			// الرصيد المستحق للشركة على المورد (مرتجع نقدي): لا يُستلم أكثر منه
-			$owed = $this->supplierOwesUs((int)$supplier_id);
-			if ((float)$total_amount > $owed + 0.005) throw new Exception("لم يتم الحفظ - المبلغ أكبر من مديونية المورد للشركة (" . number_format($owed, 2, '.', '') . ")");
+			// لا يُستلم نقدًا أكثر من قيمة مرتجعات المورد غير المستردة
+			$owed = $this->supplierRefundable((int)$supplier_id);
+			if ((float)$total_amount > $owed + 0.005) throw new Exception("لم يتم الحفظ - المبلغ أكبر من قيمة مرتجعات المورد غير المستردة (" . number_format($owed, 2, '.', '') . ")");
 			// فئة 15 = استردادات مشتريات (CASH_IN)
 			$transactionRecorded = $this->Add_transaction(NULL, 'SUPPLIER', $supplier_id, $total_amount,1, '15' ,'COMPLETED','استلام نقدية من مرتجع مورد');
 			if(!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
