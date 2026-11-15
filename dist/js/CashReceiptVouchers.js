@@ -1049,7 +1049,7 @@ $(function() {
     // تهيئة المندوب والمسوق والمورد
     initPartnerSelect2('#select-mandob', 'GetDeliveryData', 'اختر المندوب');
     initPartnerSelect2('#select-masouq', 'GetMasouqData', 'اختر المسوق');
-    initPartnerSelect2('#select-morad', 'GetMoradRefundData', 'اختر مورداً له مرتجعات مستحقة');
+    initPartnerSelect2('#select-morad', 'GetMoradRefundData', 'اختر مورداً عليه مديونية للشركة');
 	
     // أحداث تحميل الرصيد مع مؤشر التحميل
     $('#select-mandob').on('change', function() {
@@ -1062,7 +1062,7 @@ $(function() {
         const sid = $(this).val();
         $('.payment-input').val(0).change();
         $('#amount-morad').val(0).change();
-        // استلام مرتجع مورد: المعروض = قيمة مرتجعات المورد غير المستردة نقدًا
+        // استلام مرتجع مورد: المعروض = مديونية المورد للشركة (الرصيد الصافي السالب فقط)
         $('#total-morad').text('...');
         let owed = 0;
         if (sid) {
