@@ -14,7 +14,6 @@
             </button>
         </div>
     </div>
-    <div class="collapse" id="legacy-details">
     <div class="card">
         <div class="card-header">
             <h5 class="mb-0">رد أوامر المندوب للمخزن</h5>
@@ -42,6 +41,7 @@
             </div>
         </div>
     </div>
+    <div class="collapse" id="legacy-details">
     <div class="card mt-3">
         <div class="card-header">
             <h5 class="mb-0">ترحيل أوامر مُقفلة قبل تشغيل الأستاذ</h5>
