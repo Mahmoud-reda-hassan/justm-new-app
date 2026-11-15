@@ -191,13 +191,16 @@ async function loadPartnerBalance(partnerId, type, targetId, amountFieldId = nul
     showBalanceLoading(targetId);
     
     const cacheKey = `${type}_${partnerId}`;
+    // الرصيد يتغير من شاشات أخرى (أوامر شراء/مرتجعات): لا نعتمد على نسخة قديمة محفوظة في الصفحة
+    delete balanceCache[cacheKey];
     let balance = balanceCache[cacheKey];
     
     if (balance === undefined) {
         const data = await request(API, {
             CONTROL: 'GetPartnersBalance',
             pid: partnerId,
-            pt: type
+            pt: type,
+            _t: Date.now()
         });
         if (data && data[0]) {
             balance = parseFloat(data[0].total_balance) || 0;
