@@ -428,6 +428,26 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->Pagelink = "InventoryReconciliation";
 	            				array_push($this->js_footer,"InventoryReconciliation.js");
 	            						
+	            		} else if ($_GET["Go"] === "CourierReopen" && (
+	            				(isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner','المدير المالي'], true))
+	            				|| (isset($usc['Admin']['CourierReopen']['view']) && $usc['Admin']['CourierReopen']['view'] == "true")
+	            				|| (isset($usc['Admin']['CourierReopen']['reopen']) && $usc['Admin']['CourierReopen']['reopen'] == "true"))){
+	            				$this->title 	= "رد أوامر المندوب للمخزن";
+	            				$this->Pagelink = "CourierReopen";
+	            				array_push($this->js_footer,"CourierReopen.js");
+	            		} else if ($_GET["Go"] === "GlLedger" && (
+	            				(isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner','المدير المالي'], true))
+	            				|| (isset($usc['Admin']['GlLedger']['view']) && $usc['Admin']['GlLedger']['view'] == "true")
+	            				|| (isset($usc['Admin']['GlLedger']['post']) && $usc['Admin']['GlLedger']['post'] == "true")
+	            				|| (isset($usc['Admin']['GlLedger']['admin']) && $usc['Admin']['GlLedger']['admin'] == "true"))){
+	            				$this->title 	= "الأستاذ العام";
+	            				$this->Pagelink = "GlLedger";
+	            				array_push($this->js_footer,"GlLedger.js");
+	            		} else if ($_GET["Go"] === "DatabaseUpdate" && isset($_SESSION["USER_GRUOP_NAME"]) &&
+	            				in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner'], true)){
+	            				$this->title 	= "تحديث قاعدة البيانات";
+	            				$this->Pagelink = "DatabaseUpdate";
+	            				array_push($this->js_footer,"DatabaseUpdate.js");
 	            		} else if (isset($usc['Admin']['CriticalItemsReport']['view']) && 
 	            				$usc['Admin']['CriticalItemsReport']['view'] == "true" && $_GET["Go"] === "stockShortageReport"){
 	            				$this->title 	= "تقرير الاصناف الحرجه";

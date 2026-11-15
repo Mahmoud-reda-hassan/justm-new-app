@@ -74,6 +74,11 @@ if($http_RQM === "GET") {
 				ResponseData($BE->GetMoradData());
 			    break;
 			
+			case 'GetMoradRefundData':
+				$BE->Requst = $_GET;
+				ResponseData($BE->GetMoradRefundData());
+			    break;
+
 			case 'GetPartnersBalance':
 				$BE->Requst = $_GET;
 				$oid = (isset($_GET['oid']) && !empty($_GET['oid'])) ? $_GET['oid'] : null;

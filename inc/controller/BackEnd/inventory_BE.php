@@ -453,6 +453,9 @@ class inventory_BE {
 		        throw new Exception("لم يتم تأكيد حفظ أمر الشراء.");
 		    }
 		    $this->InventoryManager->processInventory('receiving', [$resA], $userActionId, $branch_id, null, $store_id);
+		    // قيد الأستاذ: مدين المخزون / دائن المورد
+		    include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+		    (new AccountingEvents($this->conn))->supplierReceipt((int)$resA, (int)$supplierId, (int)$store_id, (float)$totalPrice);
 			//processPurchaseOrder('receiving', $resA, $userActionId, $branch_id, );     
 		    		
 		    $this->conn->commit();
@@ -512,6 +515,11 @@ class inventory_BE {
 		     
 		    //if($deliveryProduct)  $this->inventoryMovement($products, $resA, $supplierId, 'refundpurchises',$store_id):true;
 		   	if($deliveryProduct)  $this->InventoryManager->processInventory('refundpurchises', [$resA], $userActionId, $branchId, null, $store_id);
+		   	if($deliveryProduct) {
+		   		// قيد الأستاذ: مدين المورد / دائن المخزون
+		   		include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+		   		(new AccountingEvents($this->conn))->supplierReturn((int)$resA, (int)$supplierId, (int)$store_id, (float)$totalPrice);
+		   	}
 		   	
 		    if ($resB2) {
 		        $this->conn->commit();
@@ -554,6 +562,9 @@ class inventory_BE {
 		    }
 
 			$this->InventoryManager->processInventory('partialreceipt', [$orderid], $userActionId, $branch_id, null, $store_id , null, $products);
+			// قيد الأستاذ: مدين المخزون / دائن المورد بقيمة الكميات المستلمة
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->purchasePartialReceipt((int)$orderid, $products, (int)$store_id);
 			
 		    if ($resC) {
 		        $this->conn->commit();

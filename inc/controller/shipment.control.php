@@ -231,6 +231,170 @@ function ResponseData($data){
 					//session_write_close();
 					ResponseData($DirectSale->confirmOrderSales($_POST['oid']));
 	    			break;	
+				case 'reopenCourierOrder':
+					// رد أمر شحن مندوب للمخزن للتعديل (مجموعات معتمدة أو صلاحية CourierReopen/reopen)
+					try {
+						include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+						$reopen = new CourierReopen($db);
+						$reopen->reopen(
+							(int)($_POST['order_id'] ?? 0),
+							(int)$_SESSION["USER_ID"],
+							(int)$_SESSION["BRANCH_ID"],
+							(string)($_SESSION["USER_GRUOP_NAME"] ?? ''),
+							(string)($_POST['reason'] ?? '')
+						);
+						ResponseData(array('success', 'ناجح', 'تم رد الأمر للمخزن للتعديل', []));
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage()));
+					}
+					break;
+				case 'listCourierReopen':
+					// قائمة شاشة "رد أوامر المندوب للمخزن" (للمصرّح لهم فقط)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::canView((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					$reopen = new CourierReopen($db);
+					ResponseData(array('success', 'ناجح', '', $reopen->listReopenable()));
+					break;
+				case 'listBackfillOrders':
+					// أوامر مندوب أُقفلت ماليًا قبل تشغيل الأستاذ (للمصرّح لهم فقط)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					// نفس مصدر الملخص تمامًا، حتى تتطابق القائمة مع الأعداد
+					include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+					ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->closedOrdersDetailed()));
+					break;
+				case 'backfillCourierOrder':
+					// ترحيل أمر مُقفل قديم إلى الأستاذ بأرقام النظام القديم
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+						$db->beginTransaction();
+						$bfAcc = new AccountingEvents($db);
+						$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+						$bfRes = $bfAcc->backfillClosedCourierOrder((int)($_POST['order_id'] ?? 0), $blockMissingCost);
+						$db->commit();
+						ResponseData(array('success', 'ناجح', 'تم ترحيل الأمر للأستاذ', $bfRes));
+					} catch (Exception $e) {
+						if ($db->inTransaction()) { $db->rollBack(); }
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'listOpeningBalances':
+					// فروق أرصدة النظام القديم عن الأستاذ (للمصرّح لهم فقط)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/OpeningBalanceManager.php');
+						$obm = new OpeningBalanceManager($db);
+						ResponseData(array('success', 'ناجح', '', $obm->preview()));
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'postOpeningBalance':
+					// ترحيل قيد تسوية رصيد افتتاحي لطرف/مخزن
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/OpeningBalanceManager.php');
+						$db->beginTransaction();
+						$obm = new OpeningBalanceManager($db);
+						$entryId = $obm->post((string)($_POST['kind'] ?? ''), (int)($_POST['id'] ?? 0), (int)$_SESSION["BRANCH_ID"], (int)$_SESSION["USER_ID"]);
+						$db->commit();
+						ResponseData(array('success', 'ناجح', 'تم ترحيل التسوية', ['entry_id' => $entryId]));
+					} catch (Exception $e) {
+						if ($db->inTransaction()) { $db->rollBack(); }
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'listUnpostedReturns':
+					// مرتجعات أوامر مُرحَّلة ولم يُرحَّل مرتجعها (أو رُحِّل جزء منه)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+					ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->unpostedReturnsDetailed()));
+					break;
+				case 'postReturnEntry':
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+						$db->beginTransaction();
+						$urAcc = new AccountingEvents($db);
+						$urId = $urAcc->courierSalesReturn((int)($_POST['order_id'] ?? 0));
+						$db->commit();
+						ResponseData(array('success', 'ناجح', $urId ? 'تم ترحيل قيد المرتجع' : 'لا يوجد فرق للترحيل', ['entry_id' => $urId]));
+					} catch (Exception $e) {
+						if ($db->inTransaction()) { $db->rollBack(); }
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'dbUpdateStatus':
+				case 'dbUpdateRun':
+					// تحديث قاعدة البيانات من الإعدادات: للمدير العام/المالك فقط
+					if (!in_array(trim((string)($_SESSION["USER_GRUOP_NAME"] ?? '')), array('Administrator','Owner'), true)) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/DatabaseUpdater.php');
+						$dbu = new DatabaseUpdater($db);
+						if ($_POST['CONTROL'] === 'dbUpdateStatus') {
+							ResponseData(array('success', 'ناجح', '', array('files' => $dbu->status(), 'checks' => $dbu->verify())));
+						}
+						$dbuUser = (int)$_SESSION["USER_ID"];
+						session_write_close();
+						ResponseData(array('success', 'ناجح', 'تم تحديث قاعدة البيانات', $dbu->run((string)($_POST['file'] ?? ''), $dbuUser)));
+					} catch (Throwable $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'legacySummary':
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+						ResponseData(array('success', 'ناجح', '', (new LegacyMigration($db))->summary()));
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
+				case 'legacyRunAll':
+					// ترحيل النظام القديم كله دفعة واحدة (أوامر، مرتجعات، تسويات أرصدة)
+					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
+					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/Accounting/LegacyMigration.php');
+						$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
+						$lmBranch = (int)$_SESSION["BRANCH_ID"]; $lmUser = (int)$_SESSION["USER_ID"];
+						session_write_close(); // لا نحجز قفل الجلسة أثناء الترحيل حتى لا تتعطل الطلبات الأخرى
+						$lmSkip = isset($_POST['skip']) && is_array($_POST['skip']) ? array_map('strval', $_POST['skip']) : [];
+						$lmReport = (new LegacyMigration($db))->runAll($lmBranch, $lmUser, $blockMissingCost, 0, $lmSkip, 20,
+							in_array(($_POST['phase'] ?? 'all'), array('orders','opening','all'), true) ? $_POST['phase'] : 'all',
+							max(1, min(8, (int)($_POST['shards'] ?? 1))), max(0, (int)($_POST['shard'] ?? 0)));
+						ResponseData(array('success', 'ناجح', 'اكتمل الترحيل', $lmReport));
+					} catch (Throwable $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
 				case 'custodySettlement':
 					$shipment_tbl->orderobj    = $_POST["orderobj"];
 	    			$shipment_tbl->delivery_id = $_POST["delivery_id"];

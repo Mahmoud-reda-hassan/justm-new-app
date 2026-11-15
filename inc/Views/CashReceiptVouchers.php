@@ -87,7 +87,7 @@
             <div class="row g-3 mt-2">
                 <div class="col-12">
                     <div class="alert bg-dark py-2 mb-0 text-center">
-                        <small>إجمالي المديونية على المورد</small>
+                        <small>مديونية المورد للشركة</small>
                         <h5 class="mt-1 mb-0" id="total-morad">0.00</h5>
                     </div>
                 </div>
@@ -95,9 +95,9 @@
 
             <!-- المبلغ المراد صرفه مع تلميح -->
             <div class="mt-4">
-                <label for="amount-morad" class="fw-bold">المبلغ المراد صرفه:</label>
+                <label for="amount-morad" class="fw-bold">المبلغ المستلم من المورد:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-morad" min="0" step="0.01">
-                <small class="text-muted">عند كتابة مبلغ سيتم توزيعه تلقائيًا على أوامر الشراء</small>
+                <small class="text-muted">يُسجَّل نقدًا في الصندوق ويُنقص مديونية المورد للشركة</small>
             </div>
 
             <!-- ملاحظات -->
@@ -112,24 +112,24 @@
                 <button class="btn btn-primary px-4" id="saveMoradPayment" onclick="saveSupplierPayment()">حفظ</button>
             </div>
 
-            <!-- جدول أوامر الشراء 
+            <!-- أوامر مرتجع المورد غير المسددة: يُوزَّع المبلغ عليها من الأقدم للأحدث، أو تُحدَّد يدويًا -->
             <div class="table-responsive mt-4">
-                <table id="supplierOrdersTable" class="table table-bordered table-striped table-hover w-100 align-middle">
+                <table id="refundReturnsTable" class="table table-bordered table-striped table-hover w-100 align-middle">
                     <thead class="table-dark">
                         <tr>
-                            <th width="40"><input type="checkbox" id="checkAllOrders"></th>
-                            <th>رقم الأمر</th>
+                            <th width="40"><input type="checkbox" id="refundCheckAll"></th>
+                            <th>رقم أمر المرتجع</th>
+                            <th>أمر الشراء</th>
                             <th>التاريخ</th>
-                            <th>الإجمالي</th>
-                            <th>المرتجع</th>
-                            <th>المسدّد</th>
-                            <th>المتبقي</th>
-                            <th width="140">المبلغ الحالي</th>
+                            <th>قيمة المرتجع</th>
+                            <th>المسدد</th>
+                            <th>المتبقي (مديونية المورد)</th>
+                            <th width="140">المبلغ المستلم</th>
                         </tr>
                     </thead>
-                    <tbody></tbody>
+                    <tbody><tr><td colspan="8" class="text-center text-muted">اختر المورد</td></tr></tbody>
                 </table>
-            </div>-->
+            </div>
         </div>
 
         <!-- Form for Client Return -->

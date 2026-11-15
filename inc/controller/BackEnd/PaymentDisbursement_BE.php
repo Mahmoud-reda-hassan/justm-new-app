@@ -63,6 +63,35 @@ class PaymentDisbursement {
 	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 	
+	/** الموردون الذين عليهم مديونية للشركة فقط (الرصيد الصافي سالب): للاستلام النقدي من المورد. */
+	public function GetMoradRefundData(){
+	    $search = trim($this->Requst['search'] ?? '');
+	    include_once(__DIR__ . '/../../Classes/Accounting/SystemFlags.php');
+	    if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+	        $inner = "SELECT d.partner_id AS sid, SUM(d.credit - d.debit) AS net
+	            FROM journal_entry_details d JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
+	            WHERE d.partner_type = 'SUPPLIER' GROUP BY d.partner_id";
+	    } else {
+	        $inner = "SELECT PARTNER_ID AS sid, SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE -BALANCE END) AS net
+	            FROM partners_balance WHERE PARTNER_TYPE='SUPPLIER' GROUP BY PARTNER_ID";
+	    }
+	    $query = "SELECT S.SUP_ID AS id, S.SUP_NAME AS name,
+	            (SELECT T.TEL_NUMBER FROM telephones T WHERE T.SUPPLIER_ID = S.SUP_ID LIMIT 1) AS phone,
+	            -R.net AS refundable
+	        FROM suppliers S JOIN ($inner) R ON R.sid = S.SUP_ID
+	        WHERE R.net < -0.004";
+	    $params = [];
+	    if ($search !== "") {
+	        $query .= " AND (S.SUP_NAME LIKE :search OR EXISTS (SELECT 1 FROM telephones T2 WHERE T2.SUPPLIER_ID = S.SUP_ID AND T2.TEL_NUMBER LIKE :search2)) ";
+	        $params['search'] = "%$search%";
+	        $params['search2'] = "%$search%";
+	    }
+	    $query .= " ORDER BY S.SUP_NAME LIMIT 1000";
+	    $stmt = $this->conn->prepare($query);
+	    $stmt->execute($params);
+	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	public function GetMoradData(){
 	
 	    $search = trim($this->Requst['search'] ?? '');
@@ -257,6 +286,13 @@ class PaymentDisbursement {
 	}
 	
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
+		// مفتاح مصدر الأرصدة (الأستاذ العام > الفترات والإعدادات): الافتراضي legacy = السلوك القديم بلا تغيير
+		if (!$order_id && in_array($partnerType, ['CLIENT','SUPPLIER','DELIVERY','MARKETER'], true)) {
+			include_once(__DIR__ . '/../../Classes/Accounting/SystemFlags.php');
+			if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+				return [['total_balance' => PartnerBalanceSource::net($this->conn, $partnerType, (int)$partnerId)]];
+			}
+		}
 		$query = "SELECT COALESCE(Sum(CASE
 				    WHEN TRANSACTION_TYPE = 'CREDIT'
 				    THEN BALANCE
@@ -296,9 +332,8 @@ class PaymentDisbursement {
         LEFT JOIN (
             SELECT
                 REFERANC,
-                SUM(TOTAL_PRICE - TOTAL_PAYMENTS) AS RETURN_TOTAL
+                SUM(TOTAL_PAYMENTS) AS RETURN_TOTAL
             FROM purchases_return_orders
-            WHERE STATUSE = 'DEFERRED'
             GROUP BY REFERANC
         ) PRO ON PO.ORDER_ID = PRO.REFERANC
         WHERE
