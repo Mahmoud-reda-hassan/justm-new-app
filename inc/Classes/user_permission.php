@@ -433,6 +433,11 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->title 	= "رد أوامر المندوب للمخزن";
 	            				$this->Pagelink = "CourierReopen";
 	            				array_push($this->js_footer,"CourierReopen.js");
+	            		} else if ($_GET["Go"] === "DatabaseUpdate" && isset($_SESSION["USER_GRUOP_NAME"]) &&
+	            				in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner'], true)){
+	            				$this->title 	= "تحديث قاعدة البيانات";
+	            				$this->Pagelink = "DatabaseUpdate";
+	            				array_push($this->js_footer,"DatabaseUpdate.js");
 	            		} else if (isset($usc['Admin']['CriticalItemsReport']['view']) && 
 	            				$usc['Admin']['CriticalItemsReport']['view'] == "true" && $_GET["Go"] === "stockShortageReport"){
 	            				$this->title 	= "تقرير الاصناف الحرجه";

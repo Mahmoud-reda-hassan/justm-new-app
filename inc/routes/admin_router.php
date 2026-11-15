@@ -171,6 +171,12 @@ return [
         "js" => ["CourierReopen.js"],
         "permission" => in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
     ],
+    "DatabaseUpdate" => [
+        "view" => "DatabaseUpdate",
+        "title" => "تحديث قاعدة البيانات",
+        "js" => ["DatabaseUpdate.js"],
+        "permission" => in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner'], true)
+    ],
     "ReceivePayments" => [
         "view" => "ReceivePayments",
         "title" => "استلام المدفوعات",

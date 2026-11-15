@@ -358,6 +358,25 @@ function ResponseData($data){
 						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
 					}
 					break;
+				case 'dbUpdateStatus':
+				case 'dbUpdateRun':
+					// تحديث قاعدة البيانات من الإعدادات: للمدير العام/المالك فقط
+					if (!in_array(trim((string)($_SESSION["USER_GRUOP_NAME"] ?? '')), array('Administrator','Owner'), true)) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', []));
+					}
+					try {
+						include_once(ABSPATH.'/inc/Classes/DatabaseUpdater.php');
+						$dbu = new DatabaseUpdater($db);
+						if ($_POST['CONTROL'] === 'dbUpdateStatus') {
+							ResponseData(array('success', 'ناجح', '', array('files' => $dbu->status(), 'checks' => $dbu->verify())));
+						}
+						$dbuUser = (int)$_SESSION["USER_ID"];
+						session_write_close();
+						ResponseData(array('success', 'ناجح', 'تم تحديث قاعدة البيانات', $dbu->run((string)($_POST['file'] ?? ''), $dbuUser)));
+					} catch (Throwable $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					break;
 				case 'legacySummary':
 					include_once(ABSPATH.'/inc/Classes/CourierReopen.php');
 					if (!CourierReopen::isAllowedGroup((string)($_SESSION["USER_GRUOP_NAME"] ?? ''))) {

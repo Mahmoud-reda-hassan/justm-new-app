@@ -323,5 +323,17 @@ check('legacy runAll: order now has a sale entry', (int)$db->query("SELECT COUNT
 $sm2 = $lm->summary();
 check('legacy runAll: nothing left to settle afterwards', $sm2['closed_orders'] === 0 && $sm2['opening_total'] === 0, json_encode($sm2));
 
+// 17) settings page: automatic database updater
+require_once __DIR__ . '/../../inc/Classes/DatabaseUpdater.php';
+$du = new DatabaseUpdater($db);
+check('updater: file is pending before first run', $du->status()[0]['state'] === 'pending');
+$ur = $du->run('ACCOUNTING_COMPLETE_MIGRATION.sql', $userId);
+check('updater: executes and every readiness check passes', $ur['total'] >= 10 && count(array_filter($ur['checks'], fn($c) => !$c['ok'])) === 0, json_encode($ur));
+check('updater: recorded as applied', $du->status()[0]['state'] === 'applied');
+$ur2 = $du->run('ACCOUNTING_COMPLETE_MIGRATION.sql', $userId);
+check('updater: second run is safe (idempotent)', $ur2['total'] === $ur['total']);
+check('updater: unknown file refused', throwsMsg(fn() => $du->run('../../config.php', $userId), 'ملف غير معروف'));
+check('updater: splitter ignores comments and quoted semicolons', DatabaseUpdater::split("-- c;\nSELECT 'a;b'; SELECT 2;") === ["SELECT 'a;b'", "SELECT 2"]);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

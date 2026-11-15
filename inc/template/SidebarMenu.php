@@ -741,6 +741,16 @@ if ($loginType === 1 && $pageType > 0) {
 					            		<?php
 					            		}
 					            		?>
+            							<?php if(isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner'], true)){ ?>
+                                        <li class="nav-item">
+                                            <a href="?Go=DatabaseUpdate" class="nav-link">
+                                                <i class="fa fa-ellipsis-v nav-icon "></i>
+                                                <p>
+                                                    تحديث قاعدة البيانات
+                                                </p>
+                                            </a>
+                                        </li>
+            							<?php } ?>
             							<?php
             							if($UserScript_menu["Admin"]["Reports"]["View"] == "true"){
             							?>
