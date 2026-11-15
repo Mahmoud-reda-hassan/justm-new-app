@@ -27,3 +27,27 @@
 ## ملاحظات على كود قديم (بدون تعديل)
 - `shipment.control.php` حالة `custodySettlement` تستدعي دالة `custodySettlement()` غير معرّفة في أي كلاس، ولا يوجد استدعاء لها من الواجهة. استدعاؤها ينتج خطأ PHP قاتلًا.
 - فحص `ShipApproved` في `setConfirmShipment` يقبل `TRUE` و`'TRUE'` و`1`، فلا مشكلة نوع ظاهرة هناك.
+
+## تسوية مرتجعات الموردين على أوامر الشراء (قاعدة جديدة)
+
+- `purchases_return_orders.TOTAL_PAYMENTS` = الجزء المسدد من المرتجع (خُصم من أمر الشراء الأصلي أو استُلم نقدًا).
+- المتبقي (`TOTAL_PRICE - TOTAL_PAYMENTS`) = مديونية على المورد، حتى يُستلم نقدًا أو يُستخدم في مشتريات لاحقة.
+- عند إنشاء المرتجع يُحسب الجزء الذي يخصمه أمر الشراء الأصلي (متبقي الأمر بعد المرتجعات الأقدم) ويُسجَّل كمسدد.
+- للبيانات القديمة (يُنفَّذ يدويًا على قاعدة الاختبار بعد نسخة احتياطية؛ لا يراعي استلامًا نقديًا سابقًا — أعد تحصيل تلك الأوامر من الشاشة أو حدّثها يدويًا):
+
+```sql
+UPDATE purchases_return_orders r
+JOIN (
+  SELECT x.ORDER_ID, LEAST(x.TOTAL_PRICE, GREATEST(0, x.cap - x.prev)) AS settled
+  FROM (
+    SELECT r2.ORDER_ID, r2.TOTAL_PRICE,
+           GREATEST(0, po.TOTAL_PRICE - po.TOTAL_PAYMENTS) AS cap,
+           COALESCE(SUM(r2.TOTAL_PRICE) OVER (PARTITION BY r2.REFERANC ORDER BY r2.ORDER_ID
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS prev
+    FROM purchases_return_orders r2
+    JOIN purchases_orders po ON po.ORDER_ID = r2.REFERANC
+  ) x
+) y ON y.ORDER_ID = r.ORDER_ID
+SET r.TOTAL_PAYMENTS = y.settled,
+    r.STATUSE = IF(y.settled >= r.TOTAL_PRICE - 0.004, 'COMPLETED', 'DEFERRED');
+```

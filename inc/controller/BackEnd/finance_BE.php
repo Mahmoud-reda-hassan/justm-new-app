@@ -1164,6 +1164,14 @@ class finance_BE {
 		return max(0.0, round(-$net, 2));
 	}
 
+	/** أوامر مرتجع المورد غير المسددة (الباقي مديونية على المورد)، الأقدم أولًا. */
+	public function supplierUnsettledReturns(int $supplierId): array {
+		$st = $this->conn->prepare("SELECT ORDER_ID, CREATE_AT, REFERANC, TOTAL_PRICE, TOTAL_PAYMENTS, ROUND(TOTAL_PRICE - TOTAL_PAYMENTS, 2) AS REMAIN
+			FROM purchases_return_orders WHERE SUPPLIER_ID = ? AND TOTAL_PRICE - TOTAL_PAYMENTS > 0.004 ORDER BY ORDER_ID ASC");
+		$st->execute([$supplierId]);
+		return $st->fetchAll(PDO::FETCH_ASSOC);
+	}
+
  	//استلام قيمة مرتجع موردين
 	public function collectSupplierReturnAmount(int $supplier_id, string $total_amount, array $orders =[]){
 		if ($supplier_id <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار المورد اولا");
@@ -1210,19 +1218,39 @@ class finance_BE {
 			$resultFinal = $this->Add_partners_balance( 'SUPPLIER', $supplier_id, NULL, 'CREDIT', $total_amount,'استلام نقدية من مرتجع مورد','15' );
 			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المورد");
 
-			// تسجيل التحصيل على أوامر المرتجع (الأقدم أولًا): لا يعود المرتجع يخصم من متبقي أمر الشراء
-			$rs = $this->conn->prepare("SELECT ORDER_ID, TOTAL_PRICE, TOTAL_PAYMENTS FROM purchases_return_orders WHERE SUPPLIER_ID = ? AND STATUSE = 'DEFERRED' AND TOTAL_PRICE > TOTAL_PAYMENTS ORDER BY ORDER_ID ASC FOR UPDATE");
+			// تسجيل التحصيل على أوامر المرتجع: حسب اختيار المستخدم، أو الأقدم أولًا إن لم يحدد
+			$rs = $this->conn->prepare("SELECT ORDER_ID, TOTAL_PRICE, TOTAL_PAYMENTS FROM purchases_return_orders WHERE SUPPLIER_ID = ? AND TOTAL_PRICE - TOTAL_PAYMENTS > 0.004 ORDER BY ORDER_ID ASC FOR UPDATE");
 			$rs->execute([$supplier_id]);
-			$left = round((float)$total_amount, 2);
+			$open = [];
+			foreach ($rs->fetchAll(PDO::FETCH_ASSOC) as $ro) { $open[(int)$ro['ORDER_ID']] = $ro; }
+			$plan = [];
+			$chosen = 0.0;
+			foreach ($orders as $o) {
+				$oid = (int)($o['orderId'] ?? $o['order_id'] ?? 0);
+				$amt = round((float)($o['amount'] ?? $o['paid_amount'] ?? 0), 2);
+				if ($oid <= 0 || $amt <= 0) continue;
+				if (!isset($open[$oid])) throw new Exception("لم يتم الحفظ - أمر المرتجع رقم $oid غير موجود أو مسدد بالكامل");
+				$remain = round((float)$open[$oid]['TOTAL_PRICE'] - (float)$open[$oid]['TOTAL_PAYMENTS'], 2);
+				if ($amt > $remain + 0.005) throw new Exception("لم يتم الحفظ - المبلغ المسدد لأمر المرتجع رقم $oid أكبر من المتبقي ($remain)");
+				$plan[$oid] = ($plan[$oid] ?? 0) + $amt;
+				$chosen += $amt;
+			}
+			if ($plan) {
+				if (abs($chosen - (float)$total_amount) > 0.005) throw new Exception("لم يتم الحفظ - مجموع مبالغ الأوامر لا يساوي المبلغ المستلم");
+			} else {
+				$left = round((float)$total_amount, 2);
+				foreach ($open as $oid => $ro) {
+					if ($left <= 0.004) break;
+					$take = min($left, round((float)$ro['TOTAL_PRICE'] - (float)$ro['TOTAL_PAYMENTS'], 2));
+					$plan[$oid] = $take;
+					$left = round($left - $take, 2);
+				}
+			}
 			$up = $this->conn->prepare("UPDATE purchases_return_orders SET TOTAL_PAYMENTS = ?, STATUSE = ? WHERE ORDER_ID = ?");
-			foreach ($rs->fetchAll(PDO::FETCH_ASSOC) as $ro) {
-				if ($left <= 0.004) break;
-				$remain = round((float)$ro['TOTAL_PRICE'] - (float)$ro['TOTAL_PAYMENTS'], 2);
-				$take   = min($left, $remain);
-				$newPay = round((float)$ro['TOTAL_PAYMENTS'] + $take, 2);
-				$up->execute([$newPay, ($newPay >= (float)$ro['TOTAL_PRICE'] - 0.004) ? 'COMPLETED' : 'DEFERRED', $ro['ORDER_ID']]);
+			foreach ($plan as $oid => $take) {
+				$newPay = round((float)$open[$oid]['TOTAL_PAYMENTS'] + $take, 2);
+				$up->execute([$newPay, ($newPay >= (float)$open[$oid]['TOTAL_PRICE'] - 0.004) ? 'COMPLETED' : 'DEFERRED', $oid]);
 				$totalPaid += $take;
-				$left = round($left - $take, 2);
 			}
 
 	        $this->conn->commit();

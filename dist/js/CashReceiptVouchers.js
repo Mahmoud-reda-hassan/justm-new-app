@@ -635,6 +635,56 @@ function autoDistributeSupplierPayment(amount) {
 
 }
 /*==================================================
+= SUPPLIER RETURNS (استلام نقدية من المورد)
+==================================================*/
+let refundMax = 0;   // مديونية المورد للشركة (الحد الأقصى للاستلام)
+
+async function loadRefundReturns(supplierId) {
+    const tb = $('#refundReturnsTable tbody');
+    $('#refundCheckAll').prop('checked', false);
+    if (!supplierId) { tb.html('<tr><td colspan="8" class="text-center text-muted">اختر المورد</td></tr>'); return; }
+    tb.html('<tr><td colspan="8" class="text-center"><i class="fas fa-spinner fa-spin"></i></td></tr>');
+    try {
+        const res = await request(API_FINANCE, { CONTROL: 'GetSupplierUnsettledReturns', supplier_id: supplierId }, 'POST');
+        const rows = (res && res.data) ? res.data : [];
+        if (!rows.length) { tb.html('<tr><td colspan="8" class="text-center text-muted">لا توجد أوامر مرتجع غير مسددة</td></tr>'); return; }
+        tb.html(rows.map(r => `<tr>
+            <td><input type="checkbox" class="refund-check"></td>
+            <td>${r.ORDER_ID}</td><td>${r.REFERANC}</td><td>${r.CREATE_AT}</td>
+            <td>${formatMoney(r.TOTAL_PRICE)}</td><td>${formatMoney(r.TOTAL_PAYMENTS)}</td>
+            <td><span class="text-danger">${formatMoney(r.REMAIN)}</span></td>
+            <td><input type="number" class="form-control refund-input" style="width:140px" data-order="${r.ORDER_ID}" data-remain="${r.REMAIN}" value="0" min="0" max="${r.REMAIN}" step="0.01"></td>
+        </tr>`).join(''));
+    } catch (e) {
+        console.error(e);
+        tb.html('<tr><td colspan="8" class="text-center text-danger">تعذر تحميل أوامر المرتجع</td></tr>');
+    }
+}
+
+function syncRefundTotal() {
+    let total = 0;
+    $('#refundReturnsTable .refund-input').each(function() { total += parseFloat($(this).val()) || 0; });
+    const amountInput = $('#amount-morad');
+    if (!amountInput.is(':focus')) amountInput.val(total ? total.toFixed(2) : 0);
+}
+
+function distributeRefund(amount) {
+    if (amount > refundMax) {
+        showAlert('warning', 'تنبيه', `المبلغ يتجاوز مديونية المورد (${formatMoney(refundMax)})`);
+        amount = refundMax;
+        $('#amount-morad').val(amount);
+    }
+    let left = Math.round(amount * 100) / 100;
+    $('#refundReturnsTable .refund-input').each(function() {
+        const remain = parseFloat($(this).data('remain')) || 0;
+        const take = Math.max(0, Math.min(left, remain));
+        $(this).val(take);
+        $(this).closest('tr').find('.refund-check').prop('checked', take > 0);
+        left = Math.round((left - take) * 100) / 100;
+    });
+}
+
+/*==================================================
 =            CUSTOMER RETURN (مع جلب الرصيد)
 ==================================================*/
 function initCustomerReturnSection() {
@@ -760,7 +810,7 @@ async function saveSupplierPayment(){
 
     let index = 0;
 
-	$('#supplierOrdersTable .payment-input').each(function(){
+	$('#refundReturnsTable .refund-input').each(function(){
 	
 	    let orderId = $(this).data('order');
 	
@@ -1071,50 +1121,43 @@ $(function() {
                 owed = (bd && bd[0]) ? parseFloat(bd[0].total_balance) || 0 : 0;
             } catch (e) { console.error(e); }
         }
+        refundMax = owed;
         $('#total-morad').text(formatMoney(owed));
         $('#amount-morad').attr('max', owed);
-        sidnaw = !sid ? -1 : sid;
-        loadSupplierOrders(sidnaw);
+        loadRefundReturns(sid);
     });
 
-    // أحداث جدول المورد والتوزيع
-    $(document).on('input', '.payment-input', function() {
+    // أحداث جدول مرتجعات المورد (توزيع تلقائي من الأقدم للأحدث أو تحديد يدوي)
+    $(document).on('input', '.refund-input', function() {
         let remain = parseFloat($(this).data('remain')) || 0;
         let val = parseFloat($(this).val()) || 0;
         if (val > remain) val = remain;
+        if (val < 0) val = 0;
         $(this).val(val);
-        $(this).closest('tr').find('.order-check').prop('checked', val > 0);
-        calculateSupplierTotal();
+        $(this).closest('tr').find('.refund-check').prop('checked', val > 0);
+        syncRefundTotal();
     });
-    $(document).on('change', '.order-check', function() {
-        const row = $(this).closest('tr');
-        const input = row.find('.payment-input');
-        const remain = parseFloat(input.data('remain')) || 0;
-        input.val($(this).is(':checked') ? remain : 0);
-        calculateSupplierTotal();
+    $(document).on('change', '.refund-check', function() {
+        const input = $(this).closest('tr').find('.refund-input');
+        input.val($(this).is(':checked') ? (parseFloat(input.data('remain')) || 0) : 0);
+        syncRefundTotal();
     });
-    // بدلاً من الربط بـ 'input' فقط، نستخدم معالجة محسنة
-	$('#amount-morad').on('input', function() {
-	    let rawValue = $(this).val();
-	    // السماح فقط بالأرقام والنقطة أو الفاصلة
-	    rawValue = rawValue.replace(/[^0-9.,]/g, '');
-	    // استبدال الفاصلة بنقطة
-	    rawValue = rawValue.replace(',', '.');
-	    // منع أكثر من نقطة
-	    let parts = rawValue.split('.');
-	    if (parts.length > 2) {
-	        rawValue = parts[0] + '.' + parts.slice(1).join('');
-	    }
-	    $(this).val(rawValue);
-	    
-	    // تحويل إلى رقم وتوزيع
-	    let numeric = parseFloat(rawValue);
-	    if (!isNaN(numeric)) {
-	        autoDistributeSupplierPayment(numeric);
-	    } else if (rawValue === '') {
-	        autoDistributeSupplierPayment(0);
-	    }
-	});
+    $('#refundCheckAll').on('change', function() {
+        const on = $(this).is(':checked');
+        $('#refundReturnsTable .refund-check').prop('checked', on).each(function() {
+            const input = $(this).closest('tr').find('.refund-input');
+            input.val(on ? (parseFloat(input.data('remain')) || 0) : 0);
+        });
+        syncRefundTotal();
+    });
+    // كتابة مبلغ => يوزَّع تلقائيًا من الأقدم للأحدث
+    $('#amount-morad').on('input', function() {
+        let raw = $(this).val().replace(/[^0-9.,]/g, '').replace(',', '.');
+        const parts = raw.split('.');
+        if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+        $(this).val(raw);
+        distributeRefund(parseFloat(raw) || 0);
+    });
 
     // قسم العميل والمرتجعات
     initCustomerReturnSection();

@@ -112,24 +112,24 @@
                 <button class="btn btn-primary px-4" id="saveMoradPayment" onclick="saveSupplierPayment()">حفظ</button>
             </div>
 
-            <!-- جدول أوامر الشراء 
+            <!-- أوامر مرتجع المورد غير المسددة: يُوزَّع المبلغ عليها من الأقدم للأحدث، أو تُحدَّد يدويًا -->
             <div class="table-responsive mt-4">
-                <table id="supplierOrdersTable" class="table table-bordered table-striped table-hover w-100 align-middle">
+                <table id="refundReturnsTable" class="table table-bordered table-striped table-hover w-100 align-middle">
                     <thead class="table-dark">
                         <tr>
-                            <th width="40"><input type="checkbox" id="checkAllOrders"></th>
-                            <th>رقم الأمر</th>
+                            <th width="40"><input type="checkbox" id="refundCheckAll"></th>
+                            <th>رقم أمر المرتجع</th>
+                            <th>أمر الشراء</th>
                             <th>التاريخ</th>
-                            <th>الإجمالي</th>
-                            <th>المرتجع</th>
-                            <th>المسدّد</th>
-                            <th>المتبقي</th>
-                            <th width="140">المبلغ الحالي</th>
+                            <th>قيمة المرتجع</th>
+                            <th>المسدد</th>
+                            <th>المتبقي (مديونية المورد)</th>
+                            <th width="140">المبلغ المستلم</th>
                         </tr>
                     </thead>
-                    <tbody></tbody>
+                    <tbody><tr><td colspan="8" class="text-center text-muted">اختر المورد</td></tr></tbody>
                 </table>
-            </div>-->
+            </div>
         </div>
 
         <!-- Form for Client Return -->

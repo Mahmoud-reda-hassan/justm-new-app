@@ -280,6 +280,14 @@ class PurchaseOrderDAO {
 		if (!$response1) {
 			throw new Exception("partner balanceis not confirmed");
 		}
+		// تسوية المرتجع على أمر الشراء الأصلي: الجزء الذي يتخصم من المتبقي = مسدد، والباقي مديونية على المورد = غير مسدد
+		$cap = $this->pdo->prepare("SELECT GREATEST(0, po.TOTAL_PRICE - po.TOTAL_PAYMENTS - COALESCE((SELECT SUM(r.TOTAL_PAYMENTS) FROM purchases_return_orders r WHERE r.REFERANC = po.ORDER_ID AND r.ORDER_ID <> ?), 0))
+			FROM purchases_orders po WHERE po.ORDER_ID = ?");
+		$cap->execute([$orderId, $reference]);
+		$capacity = (float)$cap->fetchColumn();
+		$settled = round(min((float)$total_price, $capacity), 2);
+		$upd = $this->pdo->prepare("UPDATE purchases_return_orders SET TOTAL_PAYMENTS = ?, STATUSE = ? WHERE ORDER_ID = ?");
+		$upd->execute([$settled, ($settled >= round((float)$total_price, 2) - 0.004) ? 'COMPLETED' : 'DEFERRED', $orderId]);
 		return $orderId;
 	}
 	// داله لتحديث بينات امر الشراء فى جدول purchases_orders

@@ -315,9 +315,8 @@ class PaymentDisbursement {
         LEFT JOIN (
             SELECT
                 REFERANC,
-                SUM(TOTAL_PRICE - TOTAL_PAYMENTS) AS RETURN_TOTAL
+                SUM(TOTAL_PAYMENTS) AS RETURN_TOTAL
             FROM purchases_return_orders
-            WHERE STATUSE = 'DEFERRED'
             GROUP BY REFERANC
         ) PRO ON PO.ORDER_ID = PRO.REFERANC
         WHERE
