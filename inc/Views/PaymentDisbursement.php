@@ -125,7 +125,7 @@
             <div class="mt-4">
                 <label for="amount-morad" class="fw-bold">المبلغ المراد صرفه:</label>
                 <input type="number" class="form-control form-control-lg mt-1" id="amount-morad" min="0" step="0.01">
-                <small class="text-muted">عند كتابة مبلغ سيتم توزيعه تلقائيًا على أوامر الشراء</small>
+                <small class="text-muted">عند كتابة مبلغ يُوزَّع تلقائيًا على أوامر الشراء من الأقدم للأحدث، ويمكنك تحديد الأوامر يدويًا. الزيادة عن متبقي الأوامر تُسجَّل على رصيد المورد (مثل رصيد أول المدة)</small>
             </div>
 
             <!-- ملاحظات -->
@@ -140,24 +140,24 @@
                 <button class="btn btn-primary px-4" id="saveMoradPayment" onclick="saveSupplierPayment()">حفظ</button>
             </div>
 
-            <!-- جدول أوامر الشراء 
+            <!-- أوامر الشراء غير المسددة: يُوزَّع المبلغ عليها من الأقدم للأحدث، أو تُحدَّد يدويًا -->
             <div class="table-responsive mt-4">
-                <table id="supplierOrdersTable" class="table table-bordered table-striped table-hover w-100 align-middle">
+                <table id="payOrdersTable" class="table table-bordered table-striped table-hover w-100 align-middle">
                     <thead class="table-dark">
                         <tr>
-                            <th width="40"><input type="checkbox" id="checkAllOrders"></th>
+                            <th width="40"><input type="checkbox" id="payCheckAll"></th>
                             <th>رقم الأمر</th>
                             <th>التاريخ</th>
                             <th>الإجمالي</th>
-                            <th>المرتجع</th>
+                            <th>المرتجع المسدد</th>
                             <th>المسدّد</th>
                             <th>المتبقي</th>
-                            <th width="140">المبلغ الحالي</th>
+                            <th width="140">المبلغ المصروف</th>
                         </tr>
                     </thead>
-                    <tbody></tbody>
+                    <tbody><tr><td colspan="8" class="text-center text-muted">اختر المورد</td></tr></tbody>
                 </table>
-            </div>-->
+            </div>
         </div>
 
         <!-- Form for Client Return -->

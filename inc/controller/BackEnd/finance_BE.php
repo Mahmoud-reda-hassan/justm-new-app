@@ -1430,6 +1430,46 @@ class finance_BE {
 			//$resultFinal = $this->addClientDebt($order['CLIENT_ID'], $order['ORDER_ID'], $order['ACTUAL_TOTAL'], 18);
 			$resultFinal = $this->Add_partners_balance( 'SUPPLIER', $supplier_id, NULL, 'DEBIT', $total_amount,'دفعة من حساب المورد','11' );
 			if(!$resultFinal) throw new Exception("غير قادر على تحديث رصيد المورد");
+
+			// توزيع الدفعة على أوامر الشراء: حسب اختيار المستخدم، أو الأقدم أولًا. الزيادة عن متبقي الأوامر تبقى على رصيد المورد (مثل رصيد أول المدة).
+			$po = $this->conn->prepare("SELECT P.ORDER_ID, P.TOTAL_PRICE, P.TOTAL_PAYMENTS,
+					COALESCE((SELECT SUM(R.TOTAL_PAYMENTS) FROM purchases_return_orders R WHERE R.REFERANC = P.ORDER_ID),0) AS RET
+				FROM purchases_orders P WHERE P.SUPPLIER_ID = ?
+				AND P.TOTAL_PRICE - P.TOTAL_PAYMENTS - COALESCE((SELECT SUM(R2.TOTAL_PAYMENTS) FROM purchases_return_orders R2 WHERE R2.REFERANC = P.ORDER_ID),0) > 0.004
+				ORDER BY P.ORDER_ID ASC FOR UPDATE");
+			$po->execute([$supplier_id]);
+			$open = [];
+			foreach ($po->fetchAll(PDO::FETCH_ASSOC) as $r) { $open[(int)$r['ORDER_ID']] = $r; }
+			$plan = [];
+			$chosen = 0.0;
+			foreach ($orders as $o) {
+				$oid = (int)($o['orderId'] ?? $o['order_id'] ?? 0);
+				$amt = round((float)($o['amount'] ?? $o['paid_amount'] ?? 0), 2);
+				if ($oid <= 0 || $amt <= 0) continue;
+				if (!isset($open[$oid])) throw new Exception("لم يتم الحفظ - أمر الشراء رقم $oid غير موجود أو مسدد بالكامل");
+				$remain = round((float)$open[$oid]['TOTAL_PRICE'] - (float)$open[$oid]['RET'] - (float)$open[$oid]['TOTAL_PAYMENTS'], 2);
+				if (($plan[$oid] ?? 0) + $amt > $remain + 0.005) throw new Exception("لم يتم الحفظ - المبلغ لأمر الشراء رقم $oid أكبر من المتبقي ($remain)");
+				$plan[$oid] = ($plan[$oid] ?? 0) + $amt;
+				$chosen += $amt;
+			}
+			if ($plan) {
+				if ($chosen > (float)$total_amount + 0.005) throw new Exception("لم يتم الحفظ - مجموع مبالغ الأوامر أكبر من المبلغ المصروف");
+			} else {
+				$left = round((float)$total_amount, 2);
+				foreach ($open as $oid => $r) {
+					if ($left <= 0.004) break;
+					$take = min($left, round((float)$r['TOTAL_PRICE'] - (float)$r['RET'] - (float)$r['TOTAL_PAYMENTS'], 2));
+					$plan[$oid] = $take;
+					$left = round($left - $take, 2);
+				}
+			}
+			$up = $this->conn->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS = ?, STATUSE = ? WHERE ORDER_ID = ?");
+			foreach ($plan as $oid => $take) {
+				$newPay = round((float)$open[$oid]['TOTAL_PAYMENTS'] + $take, 2);
+				$done = ($newPay + (float)$open[$oid]['RET'] >= (float)$open[$oid]['TOTAL_PRICE'] - 0.004);
+				$up->execute([$newPay, $done ? 'COMPLETED' : 'DEFERRED', $oid]);
+				$totalPaid += $take;
+			}
 	
 	
 	        

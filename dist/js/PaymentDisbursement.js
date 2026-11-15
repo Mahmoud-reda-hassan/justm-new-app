@@ -404,6 +404,51 @@ function autoDistributeSupplierPayment(amount) {
 
 }
 /*==================================================
+= SUPPLIER PURCHASE ORDERS (صرف للمورد)
+==================================================*/
+let payMax = 0;   // ما تدين به الشركة للمورد (الحد الأقصى للصرف)
+
+async function loadPayOrders(supplierId) {
+    const tb = $('#payOrdersTable tbody');
+    $('#payCheckAll').prop('checked', false);
+    if (!supplierId) { tb.html('<tr><td colspan="8" class="text-center text-muted">اختر المورد</td></tr>'); return; }
+    tb.html('<tr><td colspan="8" class="text-center"><i class="fas fa-spinner fa-spin"></i></td></tr>');
+    const res = await request(API, { CONTROL: 'GetSupplierOrderList', supplierId }, 'POST');
+    const rows = (res && res.data) ? res.data : [];
+    if (!rows.length) { tb.html('<tr><td colspan="8" class="text-center text-muted">لا توجد أوامر شراء غير مسددة (قد يكون المستحق رصيد أول مدة)</td></tr>'); return; }
+    tb.html(rows.map(r => `<tr>
+        <td><input type="checkbox" class="pay-check"></td>
+        <td>${r.ORDER_ID}</td><td>${r.CREATE_AT}</td>
+        <td>${formatMoney(r.TOTAL_PRICE)}</td><td>${formatMoney(r.RETURN_TOTAL)}</td><td>${formatMoney(r.TOTAL_PAYMENTS)}</td>
+        <td><span class="text-danger">${formatMoney(r.REMAIN)}</span></td>
+        <td><input type="number" class="form-control pay-input" style="width:140px" data-order="${r.ORDER_ID}" data-remain="${r.REMAIN}" value="0" min="0" max="${r.REMAIN}" step="0.01"></td>
+    </tr>`).join(''));
+}
+
+function syncPayTotal() {
+    let total = 0;
+    $('#payOrdersTable .pay-input').each(function() { total += parseFloat($(this).val()) || 0; });
+    const amountInput = $('#amount-morad');
+    if (!amountInput.is(':focus')) amountInput.val(total ? total.toFixed(2) : 0);
+}
+
+function distributePay(amount) {
+    if (amount > payMax) {
+        showAlert('warning', 'تنبيه', `المبلغ يتجاوز إجمالي المستحق للمورد (${formatMoney(payMax)})`);
+        amount = payMax;
+        $('#amount-morad').val(amount);
+    }
+    let left = Math.round(amount * 100) / 100;
+    $('#payOrdersTable .pay-input').each(function() {
+        const remain = parseFloat($(this).data('remain')) || 0;
+        const take = Math.max(0, Math.min(left, remain));
+        $(this).val(take);
+        $(this).closest('tr').find('.pay-check').prop('checked', take > 0);
+        left = Math.round((left - take) * 100) / 100;
+    });
+}
+
+/*==================================================
 = CUSTOMER RETURN (مع جلب الرصيد)
 ==================================================*/
 function initCustomerReturnSection() {
@@ -529,7 +574,7 @@ async function saveSupplierPayment(){
 
     let index = 0;
 
-	$('#supplierOrdersTable .payment-input').each(function(){
+	$('#payOrdersTable .pay-input').each(function(){
 	
 	    let orderId = $(this).data('order');
 	
@@ -832,48 +877,41 @@ $(function() {
         $('.payment-input').val(0).change();
         $('#amount-morad').val(0).change();
         await loadPartnerBalance(sid, 'SUPPLIER', '#total-morad', '#total-morad');
-        sidnaw = !sid ? -1 : sid;
-        loadSupplierOrders(sidnaw);
+        payMax = sid ? Math.max(0, parseFloat(balanceCache['SUPPLIER_' + sid]) || 0) : 0;
+        loadPayOrders(sid);
     });
 
-    // أحداث جدول المورد والتوزيع
-    $(document).on('input', '.payment-input', function() {
+    // أحداث جدول أوامر الشراء (توزيع تلقائي من الأقدم للأحدث أو تحديد يدوي)
+    $(document).on('input', '.pay-input', function() {
         let remain = parseFloat($(this).data('remain')) || 0;
         let val = parseFloat($(this).val()) || 0;
         if (val > remain) val = remain;
+        if (val < 0) val = 0;
         $(this).val(val);
-        $(this).closest('tr').find('.order-check').prop('checked', val > 0);
-        calculateSupplierTotal();
+        $(this).closest('tr').find('.pay-check').prop('checked', val > 0);
+        syncPayTotal();
     });
-    $(document).on('change', '.order-check', function() {
-        const row = $(this).closest('tr');
-        const input = row.find('.payment-input');
-        const remain = parseFloat(input.data('remain')) || 0;
-        input.val($(this).is(':checked') ? remain : 0);
-        calculateSupplierTotal();
+    $(document).on('change', '.pay-check', function() {
+        const input = $(this).closest('tr').find('.pay-input');
+        input.val($(this).is(':checked') ? (parseFloat(input.data('remain')) || 0) : 0);
+        syncPayTotal();
     });
-    // بدلاً من الربط بـ 'input' فقط، نستخدم معالجة محسنة
-	$('#amount-morad').on('input', function() {
-	    let rawValue = $(this).val();
-	    // السماح فقط بالأرقام والنقطة أو الفاصلة
-	    rawValue = rawValue.replace(/[^0-9.,]/g, '');
-	    // استبدال الفاصلة بنقطة
-	    rawValue = rawValue.replace(',', '.');
-	    // منع أكثر من نقطة
-	    let parts = rawValue.split('.');
-	    if (parts.length > 2) {
-	        rawValue = parts[0] + '.' + parts.slice(1).join('');
-	    }
-	    $(this).val(rawValue);
-	    
-	    // تحويل إلى رقم وتوزيع
-	    let numeric = parseFloat(rawValue);
-	    if (!isNaN(numeric)) {
-	        autoDistributeSupplierPayment(numeric);
-	    } else if (rawValue === '') {
-	        autoDistributeSupplierPayment(0);
-	    }
-	});
+    $('#payCheckAll').on('change', function() {
+        const on = $(this).is(':checked');
+        $('#payOrdersTable .pay-check').prop('checked', on).each(function() {
+            const input = $(this).closest('tr').find('.pay-input');
+            input.val(on ? (parseFloat(input.data('remain')) || 0) : 0);
+        });
+        syncPayTotal();
+    });
+    // كتابة مبلغ => يوزَّع تلقائيًا من الأقدم للأحدث
+    $('#amount-morad').on('input', function() {
+        let raw = $(this).val().replace(/[^0-9.,]/g, '').replace(',', '.');
+        const parts = raw.split('.');
+        if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+        $(this).val(raw);
+        distributePay(parseFloat(raw) || 0);
+    });
 
     // قسم العميل والمرتجعات
     initCustomerReturnSection();
