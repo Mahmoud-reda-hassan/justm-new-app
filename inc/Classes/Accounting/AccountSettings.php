@@ -331,6 +331,11 @@ class AccountSettings{
 	    return $this->get('MARKETER_COMMISSION_PAYABLE');
 	}
 
+	/** عمولات الوسطاء المستحقة (التزام): الفرق بين سعر البيع والحد الأدنى للمنتج. */
+	public function brokerCommissionPayable(): int {
+	    return $this->get('BROKER_COMMISSION_PAYABLE');
+	}
+
 	/**
 	 * أرصدة افتتاحية (حقوق ملكية) تُقابل تسويات ترحيل أرصدة النظام القديم.
 	 */

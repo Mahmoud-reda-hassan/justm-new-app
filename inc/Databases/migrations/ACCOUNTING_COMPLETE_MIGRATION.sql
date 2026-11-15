@@ -131,3 +131,24 @@ CREATE TABLE IF NOT EXISTS `system_flags` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 INSERT IGNORE INTO `system_flags` (`flag_key`, `flag_value`) VALUES ('BALANCE_SOURCE', 'legacy');
+
+-- ------------------------------------------------------------
+-- Part 6: Broker (وسيط) accounts. Chart-of-accounts only; no posting logic yet.
+-- Rule: revenue is recognised at the product minimum price; (selling price - minimum)
+-- is owed to the broker as commission -> credited to 2230 until paid.
+-- ------------------------------------------------------------
+ALTER TABLE `journal_entry_details`
+  MODIFY `partner_type` enum('CLIENT','SUPPLIER','DELIVERY','MARKETER','EMPLOYEE','BROKER') DEFAULT NULL;
+
+INSERT INTO `accounts`
+  (`parent_id`, `account_code`, `account_name`, `account_type`, `normal_balance`, `account_level`, `is_active`, `allow_posting`, `system_account`, `is_system_created`)
+SELECT p.`id`, '2230', 'عمولات وسطاء مستحقة', 'LIABILITY', 'CREDIT', 3, 1, 1, 0, 0
+FROM `accounts` p
+WHERE p.`account_code` = '2200'
+  AND NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '2230');
+
+INSERT INTO `account_settings` (`setting_key`, `account_id`, `description`)
+SELECT 'BROKER_COMMISSION_PAYABLE', a.`id`, 'عمولات الوسطاء المستحقة (التزام): الفرق بين سعر البيع والحد الأدنى'
+FROM `accounts` a
+WHERE a.`account_code` = '2230'
+  AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'BROKER_COMMISSION_PAYABLE');

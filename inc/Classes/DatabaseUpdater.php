@@ -82,14 +82,14 @@ class DatabaseUpdater {
     /** فحوصات بعد التنفيذ: هل كل ما تحتاجه الشاشات موجود؟ */
     public function verify(): array {
         $checks = [];
-        $accounts = ['1510', '2210', '2220', '3300', '5700', '5710'];
+        $accounts = ['1510', '2210', '2220', '2230', '3300', '5700', '5710'];
         $st = $this->db->prepare("SELECT COUNT(*) FROM accounts WHERE account_code = ?");
         foreach ($accounts as $code) {
             $st->execute([$code]);
             $checks[] = ['label' => 'حساب ' . $code, 'ok' => (int)$st->fetchColumn() > 0];
         }
         $st = $this->db->prepare("SELECT COUNT(*) FROM account_settings WHERE setting_key = ?");
-        foreach (['DELIVERY_CUSTODY', 'DELIVERY_COMMISSION_PAYABLE', 'MARKETER_COMMISSION_PAYABLE', 'OPENING_BALANCE_EQUITY'] as $k) {
+        foreach (['DELIVERY_CUSTODY', 'DELIVERY_COMMISSION_PAYABLE', 'MARKETER_COMMISSION_PAYABLE', 'BROKER_COMMISSION_PAYABLE', 'OPENING_BALANCE_EQUITY'] as $k) {
             $st->execute([$k]);
             $checks[] = ['label' => 'إعداد ' . $k, 'ok' => (int)$st->fetchColumn() > 0];
         }
