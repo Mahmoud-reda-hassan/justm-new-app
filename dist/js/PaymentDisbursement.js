@@ -456,7 +456,7 @@ function distributePay(amount) {
 ==================================================*/
 function initCustomerReturnSection() {
     let clientSelect = $('#select-client');
-    initPartnerSelect2('#select-client', 'GetClientData', 'اختر العميل');
+    initPartnerSelect2('#select-client', 'GetClientReturnDueData', 'اختر عميلاً له مرتجعات مستحقة');
 
     clientSelect.off('change').on('change', function() {
         loadReturnOrders($(this).val());

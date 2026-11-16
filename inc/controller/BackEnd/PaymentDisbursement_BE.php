@@ -190,6 +190,31 @@ class PaymentDisbursement {
 	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 	
+	/** العملاء الذين لهم مرتجعات مستحقة الصرف فعلًا (نفس شروط جدول الأوامر). */
+	public function GetClientReturnDueData(){
+	    $search = trim($this->Requst['search'] ?? '');
+	    $query = "SELECT A.PARTNER_ID AS id, C.CLIENT_NAME AS name,
+	            (SELECT T.TEL_NUMBER FROM telephones T WHERE T.CLIENT_ID = A.PARTNER_ID LIMIT 1) AS phone,
+	            ROUND(SUM(A.BALANCE),2) AS due
+	        FROM partners_balance A
+	        LEFT JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
+	        LEFT JOIN client C ON C.CLIENT_ID = A.PARTNER_ID
+	        WHERE A.PARTNER_TYPE = 'CLIENT' AND A.TRANSACTION_CATEGORY_ID = 14
+	         AND NOT EXISTS (SELECT 1 FROM partners_balance B WHERE B.REFERENCE_ID = A.REFERENCE_ID AND B.PARTNER_ID = A.PARTNER_ID
+	           AND B.PARTNER_TYPE = 'CLIENT' AND B.TRANSACTION_CATEGORY_ID = 18)
+	         AND (O.ORDER_SUCCESS IS NULL OR O.ORDER_SUCCESS <> 2)";
+	    $params = [];
+	    if ($search !== "") {
+	        $query .= " AND (C.CLIENT_NAME LIKE :search OR EXISTS (SELECT 1 FROM telephones T2 WHERE T2.CLIENT_ID = A.PARTNER_ID AND T2.TEL_NUMBER LIKE :search2))";
+	        $params['search']  = "%$search%";
+	        $params['search2'] = "$search%";
+	    }
+	    $query .= " GROUP BY A.PARTNER_ID, C.CLIENT_NAME HAVING SUM(A.BALANCE) > 0 ORDER BY C.CLIENT_NAME LIMIT 200";
+	    $stmt = $this->conn->prepare($query);
+	    $stmt->execute($params);
+	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	/** أوامر البيع التي لها مرتجع مؤجل لم يُصرف للعميل بعد (الأقدم أولًا). */
 	public function GetClientReturnOrdersDue($clientId){
 	    $query = "SELECT A.REFERENCE_ID AS id, O.SUB_ORDER_ID AS name, O.LAST_UPDATE AS last_update, ROUND(MAX(A.BALANCE),2) AS amount
