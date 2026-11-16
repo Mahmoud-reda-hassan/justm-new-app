@@ -247,6 +247,27 @@ class PurchaseOrderDAO {
 		if (!$response1) {
 			throw new Exception("partner balanceis not confirmed");
 		}
+		// مرتجعات المورد غير المسددة (مديونية المورد للشركة) تُستخدم في هذا الأمر: تُسدَّد من الأقدم، ويُسجَّل ما استُخدم كمدفوع على الأمر
+		$need = round((float)$total_price - (float)$total_payments, 2);
+		if ($need > 0.004) {
+			$rs = $this->pdo->prepare("SELECT ORDER_ID, TOTAL_PRICE, TOTAL_PAYMENTS FROM purchases_return_orders WHERE SUPPLIER_ID = ? AND TOTAL_PRICE - TOTAL_PAYMENTS > 0.004 ORDER BY ORDER_ID ASC FOR UPDATE");
+			$rs->execute([$supplierId]);
+			$upR = $this->pdo->prepare("UPDATE purchases_return_orders SET TOTAL_PAYMENTS = ?, STATUSE = ? WHERE ORDER_ID = ?");
+			$applied = 0.0;
+			foreach ($rs->fetchAll(PDO::FETCH_ASSOC) as $ro) {
+				if ($need <= 0.004) break;
+				$take   = min($need, round((float)$ro['TOTAL_PRICE'] - (float)$ro['TOTAL_PAYMENTS'], 2));
+				$newPay = round((float)$ro['TOTAL_PAYMENTS'] + $take, 2);
+				$upR->execute([$newPay, ($newPay >= (float)$ro['TOTAL_PRICE'] - 0.004) ? 'COMPLETED' : 'DEFERRED', $ro['ORDER_ID']]);
+				$applied = round($applied + $take, 2);
+				$need    = round($need - $take, 2);
+			}
+			if ($applied > 0) {
+				$newPaid = round((float)$total_payments + $applied, 2);
+				$upO = $this->pdo->prepare("UPDATE purchases_orders SET TOTAL_PAYMENTS = ?, STATUSE = ? WHERE ORDER_ID = ?");
+				$upO->execute([$newPaid, ($newPaid >= (float)$total_price - 0.004) ? 'COMPLETED' : 'DEFERRED', $orderId]);
+			}
+		}
 		
 		return $orderId;
 	}
