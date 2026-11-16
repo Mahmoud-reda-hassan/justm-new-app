@@ -479,6 +479,7 @@ $newRev = $oc->addAccount('RECEIPT', 'إيراد اختبار ' . uniqid());
 $rid1 = $oc->post('RECEIPT', (int)$newRev['id'], 10, '', $branch, $userId);
 check('open cash: receipt posts', $rid1 > 0 && (int)$newRev['account_code'] >= 4301);
 
+$_SESSION = ['USER_ID' => $userId, 'BRANCH_ID' => $branch];
 // broker (وسيط): company books the minimum price, the markup is owed to the broker
 $ob = makeOrder($db, $store, $tel, 3, 0, 1, [[2, 100, 0, 60, 2]]);
 $db->exec("UPDATE orders SET ORDER_TYPE_ID = 3, ORDER_BY = $userId WHERE ORDER_ID = $ob");
