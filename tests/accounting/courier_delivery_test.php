@@ -461,5 +461,23 @@ if ($col) {
     check('correction: non-collection entry refused', throwsMsg(fn() => $cc->reverse(1, 'سبب كافي هنا', $userId), 'ليس قيد تحصيل'));
 }
 
+// open cash (صرف/استلام مفتوح)
+if (!class_exists('OpenCash')) { include_once(__DIR__ . '/../../inc/Classes/Accounting/OpenCash.php'); }
+$oc = new OpenCash($db);
+$newExp = $oc->addAccount('PAYOUT', 'بند اختبار ' . uniqid());
+check('open cash: new expense account gets a code in the 59xx range', (int)$newExp['account_code'] >= 5901 && (int)$newExp['account_code'] <= 5999);
+check('open cash: duplicate name refused', throwsMsg(fn() => $oc->addAccount('PAYOUT', $newExp['account_name']), 'بهذا الاسم'));
+check('open cash: new item is listed as a reason', in_array((string)$newExp['id'], array_map('strval', array_column($oc->listAccounts('PAYOUT'), 'id')), true));
+check('open cash: COGS is not offered as a reason', !in_array('5100', array_column($oc->listAccounts('PAYOUT'), 'account_code'), true));
+$cashBefore = (float)$db->query("SELECT COALESCE(SUM(d.debit - d.credit),0) FROM journal_entry_details d JOIN journal_entries e ON e.id=d.journal_entry_id AND e.status='POSTED' WHERE d.account_id = $cashAcc")->fetchColumn();
+$pid1 = $oc->post('PAYOUT', (int)$newExp['id'], 25.5, 'اختبار', $branch, $userId);
+$cashAfter = (float)$db->query("SELECT COALESCE(SUM(d.debit - d.credit),0) FROM journal_entry_details d JOIN journal_entries e ON e.id=d.journal_entry_id AND e.status='POSTED' WHERE d.account_id = $cashAcc")->fetchColumn();
+check('open cash: payout posts and reduces cash', $pid1 > 0 && abs(($cashBefore - $cashAfter) - 25.5) < 0.005);
+check('open cash: zero amount refused', throwsMsg(fn() => $oc->post('PAYOUT', (int)$newExp['id'], 0, '', $branch, $userId), 'مبلغ'));
+check('open cash: non-reason account refused', throwsMsg(fn() => $oc->post('PAYOUT', $cashAcc, 5, '', $branch, $userId), 'سببًا'));
+$newRev = $oc->addAccount('RECEIPT', 'إيراد اختبار ' . uniqid());
+$rid1 = $oc->post('RECEIPT', (int)$newRev['id'], 10, '', $branch, $userId);
+check('open cash: receipt posts', $rid1 > 0 && (int)$newRev['account_code'] >= 4301);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

@@ -181,7 +181,7 @@
             </div>
             <div class="mt-4 d-flex justify-content-between">
                 <button class="btn btn-danger px-4" onclick="backToTiles()">رجوع</button>
-                <button class="btn btn-primary px-4" onclick="backToTiles()">حفظ</button>
+                <button class="btn btn-primary px-4" id="saveOpen">حفظ</button>
             </div>
         </div>
     </div>

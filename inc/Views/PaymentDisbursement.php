@@ -207,7 +207,7 @@
         <div id="form-open" class="form-container bg-white rounded-4 shadow-lg p-4 mb-5">
             <h4 class="border-bottom pb-2 mb-4 text-secondary"><i class="fas fa-hand-holding-usd"></i> صرف مفتوح</h4>
             <div class="mb-3">
-                <label class="form-label fw-bold">سبب الصرف</label>
+                <label class="form-label fw-bold">سبب الصرف (بند المصروفات)</label>
                 <select class="form-control" id="reason-select">
                     <option value="">اختر السبب</option>
                 </select>
@@ -222,7 +222,7 @@
             </div>
             <div class="mt-4 d-flex justify-content-between">
                 <button class="btn btn-danger px-4" onclick="backToTiles()">رجوع</button>
-                <button class="btn btn-primary px-4" onclick="backToTiles()">حفظ</button>
+                <button class="btn btn-primary px-4" id="saveOpen">حفظ</button>
             </div>
         </div>
     </div>

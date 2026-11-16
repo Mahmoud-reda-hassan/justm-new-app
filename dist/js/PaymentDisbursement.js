@@ -940,3 +940,58 @@ $(function() {
 	    $(this).select();
 	});
 });
+
+/*==================================================
+= الصرف/الاستلام المفتوح (صرف): الأسباب = حسابات من دليل الحسابات، وآخر اختيار لإضافة بند جديد
+==================================================*/
+(function () {
+    const KIND = 'PAYOUT';
+    const CTRL = '../../inc/controller/openCash.control.php';
+    const NEW = '__new__';
+    async function oc(control, extra) {
+        const body = new URLSearchParams(Object.assign({ CONTROL: control, kind: KIND }, extra || {}));
+        const r = await fetch(CTRL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+        return r.json();
+    }
+    async function loadReasons(selectId) {
+        const res = await oc('OpenCashAccounts');
+        const sel = $('#reason-select');
+        sel.empty().append('<option value="">اختر السبب</option>');
+        (res[3] || []).forEach(a => sel.append($('<option>').val(a.id).text(a.account_name)));
+        sel.append($('<option>').val(NEW).text('+ إضافة بند جديد'));
+        if (selectId) sel.val(String(selectId));
+    }
+    $(function () {
+        if (!$('#form-open').length) return;
+        loadReasons();
+        $('#btn-open').on('click', () => loadReasons());
+        $('#reason-select').off('change.oc').on('change.oc', async function () {
+            if ($(this).val() !== NEW) return;
+            $(this).val('');
+            const r = await Swal.fire({ title: 'بند جديد', input: 'text', inputLabel: 'اسم البند', showCancelButton: true,
+                confirmButtonText: 'إضافة', cancelButtonText: 'إلغاء', inputValidator: v => (!v || !v.trim()) ? 'اكتب اسم البند' : null });
+            if (!r.isConfirmed) return;
+            const res = await oc('OpenCashAddAccount', { name: r.value });
+            if (res[0] !== 'success') { Swal.fire('خطأ', res[2] || 'تعذرت الإضافة', 'error'); return; }
+            await loadReasons(res[3].id);
+        });
+        $('#saveOpen').off('click.oc').on('click.oc', async function () {
+            const account = $('#reason-select').val();
+            const amount = parseFloat($('#amount-open').val()) || 0;
+            if (!account || account === NEW) { Swal.fire('تنبيه', 'اختر السبب أولاً', 'warning'); return; }
+            if (amount <= 0) { Swal.fire('تنبيه', 'قم بإدخال مبلغ صحيح', 'warning'); return; }
+            const btn = $(this).prop('disabled', true);
+            try {
+                const res = await oc('OpenCashSave', { account_id: account, amount, note: $('#notes').val() });
+                if (res[0] === 'success') {
+                    Swal.fire('ناجح', res[2], 'success');
+                    $('#amount-open').val(''); $('#notes').val(''); $('#reason-select').val('');
+                } else {
+                    Swal.fire('خطأ', res[2] || 'تعذر الحفظ', 'error');
+                }
+            } catch (e) {
+                Swal.fire('خطأ', 'تعذر الاتصال بالخادم', 'error');
+            } finally { btn.prop('disabled', false); }
+        });
+    });
+})();
