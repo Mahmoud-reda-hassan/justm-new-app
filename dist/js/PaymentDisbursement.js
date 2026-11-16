@@ -81,6 +81,8 @@ function backToTiles() {
 }
 
 function showForm(formType) {
+    // القوائم تعتمد على الأرصدة الحالية: لا نستخدم نتائج بحث قديمة
+    Object.keys(searchCache).forEach(k => { searchCache[k] = {}; });
     $('#metro-container').hide();
     $('.form-container').removeClass('active').hide();
     $('#form-' + formType).addClass('active').show();
@@ -856,8 +858,8 @@ $(function() {
     initBackButton();
 
     // تهيئة المندوب والمسوق والمورد
-    initPartnerSelect2('#select-mandob', 'GetDeliveryData', 'اختر المندوب');
-    initPartnerSelect2('#select-masouq', 'GetMasouqData', 'اختر المسوق');
+    initPartnerSelect2('#select-mandob', 'GetDeliveryDueData', 'اختر مندوباً له مستحقات');
+    initPartnerSelect2('#select-masouq', 'GetMasouqDueData', 'اختر مسوقاً له مستحقات');
     initPartnerSelect2('#select-morad', 'GetMoradData', 'اختر المورد');
 	
     // أحداث تحميل الرصيد مع مؤشر التحميل

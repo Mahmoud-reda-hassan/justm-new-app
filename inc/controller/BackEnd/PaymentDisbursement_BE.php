@@ -63,6 +63,40 @@ class PaymentDisbursement {
 	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 	
+	/** مستخدمون (مندوب/مسوق) مستحق لهم مبلغ على الشركة فقط (الرصيد الصافي موجب) — لشاشة صرف المستحقات. */
+	private function GetUsersWithDue(string $partnerType, string $roleTable){
+	    $search = trim($this->Requst['search'] ?? '');
+	    include_once(__DIR__ . '/../../Classes/Accounting/SystemFlags.php');
+	    if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+	        $inner = "SELECT d.partner_id AS pid, SUM(d.credit - d.debit) AS net
+	            FROM journal_entry_details d JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
+	            WHERE d.partner_type = :ptype GROUP BY d.partner_id";
+	    } else {
+	        $inner = "SELECT PARTNER_ID AS pid, SUM(CASE WHEN TRANSACTION_TYPE='CREDIT' THEN BALANCE ELSE -BALANCE END) AS net
+	            FROM partners_balance WHERE PARTNER_TYPE = :ptype GROUP BY PARTNER_ID";
+	    }
+	    $query = "SELECT U.USER_ID AS id, CONCAT(U.FORENAME,' ',U.LASTNAME) AS name,
+	            (SELECT T.TEL_NUMBER FROM telephones T WHERE T.USER_ID = U.USER_ID LIMIT 1) AS phone,
+	            ROUND(R.net,2) AS due
+	        FROM $roleTable A
+	        JOIN users U ON U.USER_ID = A.USER_ID
+	        JOIN ($inner) R ON R.pid = U.USER_ID
+	        WHERE R.net > 0.004";
+	    $params = ['ptype' => $partnerType];
+	    if ($search !== "") {
+	        $query .= " AND (CONCAT(U.FORENAME,' ',U.LASTNAME) LIKE :search OR EXISTS (SELECT 1 FROM telephones T2 WHERE T2.USER_ID = U.USER_ID AND T2.TEL_NUMBER LIKE :search2))";
+	        $params['search']  = "%$search%";
+	        $params['search2'] = "%$search%";
+	    }
+	    $query .= " ORDER BY name LIMIT 1000";
+	    $stmt = $this->conn->prepare($query);
+	    $stmt->execute($params);
+	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	public function GetDeliveryDueData(){ return $this->GetUsersWithDue('DELIVERY', 'users_delivery'); }
+	public function GetMasouqDueData(){ return $this->GetUsersWithDue('MARKETER', 'users_affiliate'); }
+
 	/** الموردون الذين عليهم مديونية للشركة فقط (الرصيد الصافي سالب): للاستلام النقدي من المورد. */
 	public function GetMoradRefundData(){
 	    $search = trim($this->Requst['search'] ?? '');
