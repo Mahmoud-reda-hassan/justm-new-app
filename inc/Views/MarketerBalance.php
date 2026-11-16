@@ -21,7 +21,7 @@ session_start();
         
       </form>
       <div id="balance-summary" class="alert alert-secondary mb-3" style="display:none"></div>
-      <small class="text-muted d-block mb-2">الرصيد: <span class="text-primary">له</span> = مستحق للطرف عند الشركة، <span class="text-danger">عليه</span> = مستحق للشركة عند الطرف.</small>
+      <small class="text-muted d-block mb-2">الحركة والرصيد: <span class="text-primary">له (+)</span> = مستحق للطرف عند الشركة، <span class="text-danger">عليه (−)</span> = مستحق للشركة عند الطرف.</small>
       <table id="balance-table" class="table table-bordered table-hover table-striped">
         <thead class="thead-dark">
           <tr>
@@ -31,8 +31,7 @@ session_start();
             <th>الكميه المطلوبه</th>
             <th>الكميه المستلمه</th>
             <th>المرتجع</th>
-            <th>دائن</th>
-            <th>مدين</th>
+            <th>الحركة (+ له / − عليه)</th>
             <th>الرصيد (له / عليه)</th>
           </tr>
         </thead>
@@ -102,6 +101,14 @@ session_start();
 	    if (v < -0.004) return {txt:'عليه', cls:'text-danger font-weight-bold'};
 	    return {txt:'متزن', cls:'text-muted'};
 	  }
+	  function renderMovement(data, type, row){
+	    if (!row || row.id === null || typeof row.id === 'undefined') return type === 'display' ? '' : 0; // صفوف الرصيد السابق/الحالي
+	    var v = (parseFloat(row.credit)||0) - (parseFloat(row.debit)||0);
+	    if (type !== 'display') return v;
+	    if (v > 0.004)  return '<span class="text-primary font-weight-bold">+' + fmtMoney(v) + '</span>';
+	    if (v < -0.004) return '<span class="text-danger font-weight-bold">&minus;' + fmtMoney(v) + '</span>';
+	    return '<span class="text-muted">0.00</span>';
+	  }
 	  function renderBalance(data, type){
 	    if (type !== 'display' || data === null || data === '' || typeof data === 'undefined') return data;
 	    var s = balanceSide(data);
@@ -115,7 +122,7 @@ session_start();
 	    var detail = s.txt === 'له' ? 'مستحق له عند الشركة' : (s.txt === 'عليه' ? 'مستحق للشركة عنده' : 'لا يوجد رصيد');
 	    $('#balance-summary').removeClass('alert-primary alert-danger alert-secondary')
 	      .addClass(s.txt === 'له' ? 'alert-primary' : (s.txt === 'عليه' ? 'alert-danger' : 'alert-secondary'))
-	      .html('<strong>' + (who ? who + ' — ' : '') + 'الرصيد حتى نهاية الفترة: ' + s.txt + ' ' + (s.txt === 'متزن' ? '' : fmtMoney(last.running_balance)) + '</strong> <small>(' + detail + ')</small>')
+	      .html('<strong>' + (who ? who + ' — ' : '') + 'الرصيد حتى نهاية الفترة: ' + s.txt + ' ' + (s.txt === 'متزن' ? '' : fmtMoney(last.running_balance)) + '</strong> <small>(' + detail + ')</small>' + (rows.length > 2 ? '<br><small>إجمالي له: ' + fmtMoney(last.credit) + ' &nbsp;|&nbsp; إجمالي عليه: ' + fmtMoney(last.debit) + ' (تراكمي حتى نهاية الفترة)</small>' : ''))
 	      .show();
 	  }
 	  var table = $('#balance-table').DataTable({
@@ -141,8 +148,7 @@ session_start();
 		  { data: 'QTY_ORDER',className:"text-nowrap text-center" },
 		  { data: 'QTY_SUPPLIED',className:"text-nowrap text-center" },
 		  { data: 'QTY_RETURN',className:"text-nowrap text-center" },
-	      { data: 'debit',className:"text-nowrap text-center"},
-	      { data: 'credit',className:"text-nowrap"},
+	      { data: null, className:"text-nowrap text-center", orderable:false, render: renderMovement},
 	      { data: 'running_balance',className:"text-nowrap text-center", render: renderBalance},
 	    ],
 	    pageLength: -1,
