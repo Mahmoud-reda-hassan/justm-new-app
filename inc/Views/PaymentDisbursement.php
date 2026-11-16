@@ -16,6 +16,12 @@
             </div>
         </div>
         <div class="col-md-6 col-lg-4 col-xl-2">
+            <div id="btn-broker" class="metro-tile new-tile text-center p-4 rounded-4 shadow-sm bg-gradient-warning">
+                <i class="tile-icon fas fa-handshake fa-3x mb-2"></i>
+                <div class="tile-title fw-bold">صرف مستحقات وسيط</div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-4 col-xl-2">
             <div id="btn-morad" class="metro-tile new-tile text-center p-4 rounded-4 shadow-sm bg-gradient-dark">
                 <i class="tile-icon fas fa-cogs fa-3x mb-2"></i>
                 <div class="tile-title fw-bold">صرف مستحقات مورد</div>
@@ -96,6 +102,33 @@
             <div class="mt-4 d-flex justify-content-between">
                 <button class="btn btn-danger px-4" onclick="backToTiles()">رجوع</button>
                 <button class="btn btn-success px-4" onclick="saveMarketerPayment()">حفظ</button>
+            </div>
+        </div>
+
+        <!-- Form for Broker (الوسيط) -->
+        <div id="form-broker" class="form-container bg-white rounded-4 shadow-lg p-4 mb-5">
+            <h4 class="border-bottom pb-2 mb-4 text-warning"><i class="fas fa-handshake"></i> صرف مستحقات الوسيط</h4>
+            <div class="mb-3">
+                <label class="form-label fw-bold">اختيار الوسيط</label>
+                <select class="form-control mb-3" id="select-broker">
+                    <option value="">اختر الوسيط</option>
+                </select>
+            </div>
+            <div class="row g-3 mt-2">
+                <div class="col-12">
+                    <div class="alert alert-warning py-2 mb-0 text-center">
+                        <small>إجمالي مستحقات الوسيط (الفرق بين سعر البيع والحد الأدنى)</small>
+                        <h5 class="mt-1 mb-0" id="total-broker">0.00</h5>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3">
+                <label for="amount-broker" class="fw-bold">المبلغ المراد صرفه:</label>
+                <input type="number" class="form-control form-control-lg mt-1" id="amount-broker" min="0" step="0.01">
+            </div>
+            <div class="mt-4 d-flex justify-content-between">
+                <button class="btn btn-danger px-4" onclick="backToTiles()">رجوع</button>
+                <button class="btn btn-warning px-4" onclick="saveBrokerPayment()">حفظ</button>
             </div>
         </div>
 

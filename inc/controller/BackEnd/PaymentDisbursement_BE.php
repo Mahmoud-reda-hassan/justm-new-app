@@ -67,7 +67,7 @@ class PaymentDisbursement {
 	private function GetUsersWithDue(string $partnerType, string $roleTable){
 	    $search = trim($this->Requst['search'] ?? '');
 	    include_once(__DIR__ . '/../../Classes/Accounting/SystemFlags.php');
-	    if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+	    if ($partnerType === 'BROKER' || SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
 	        $inner = "SELECT d.partner_id AS pid, SUM(d.credit - d.debit) AS net
 	            FROM journal_entry_details d JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
 	            WHERE d.partner_type = :ptype GROUP BY d.partner_id";
@@ -96,6 +96,7 @@ class PaymentDisbursement {
 
 	public function GetDeliveryDueData(){ return $this->GetUsersWithDue('DELIVERY', 'users_delivery'); }
 	public function GetMasouqDueData(){ return $this->GetUsersWithDue('MARKETER', 'users_affiliate'); }
+	public function GetBrokerDueData(){ return $this->GetUsersWithDue('BROKER', '(SELECT USER_ID FROM users WHERE INTERMEDIARY_TYPE = 1)'); }
 
 	/** الموردون الذين عليهم مديونية للشركة فقط (الرصيد الصافي سالب): للاستلام النقدي من المورد. */
 	public function GetMoradRefundData(){
@@ -345,9 +346,9 @@ class PaymentDisbursement {
 	
 	public function GetPartnersBalance($partnerType,$partnerId,$order_id=null){
 		// مفتاح مصدر الأرصدة (الأستاذ العام > الفترات والإعدادات): الافتراضي legacy = السلوك القديم بلا تغيير
-		if (!$order_id && in_array($partnerType, ['CLIENT','SUPPLIER','DELIVERY','MARKETER'], true)) {
+		if (!$order_id && in_array($partnerType, ['CLIENT','SUPPLIER','DELIVERY','MARKETER','BROKER'], true)) {
 			include_once(__DIR__ . '/../../Classes/Accounting/SystemFlags.php');
-			if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+			if ($partnerType === 'BROKER' || SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
 				return [['total_balance' => PartnerBalanceSource::net($this->conn, $partnerType, (int)$partnerId)]];
 			}
 		}

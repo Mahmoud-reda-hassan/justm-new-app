@@ -1385,6 +1385,35 @@ class finance_BE {
         }
 	}
 
+	// صرف مستحقات وسيط (الرصيد من الأستاذ فقط: دائن 2230 − مدين)
+	public function PaymentOfBrokerDues(int $brokerId, string $total_amount): array {
+		if ($brokerId <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار الوسيط اولا");
+		if ((float)$total_amount <= 0) throw new Exception("لم يتم الحفظ - من فضلك ادخل مبلغ صحيح لحفظ اذن الصرف ");
+		try {
+			$this->conn->beginTransaction();
+			$this->acquireGlobalFinanceLock();
+
+			include_once(ABSPATH.'/inc/Classes/Accounting/SystemFlags.php');
+			$due = PartnerBalanceSource::net($this->conn, 'BROKER', $brokerId);
+			if ($due <= 0) throw new Exception("لم يتم الحفظ - رصيد الوسيط صفر");
+			if ((float)$total_amount > $due + 0.005) throw new Exception("لم يتم الحفظ - رصيد الوسيط لا يكفى لصرف المبلغ الحالى ($due)");
+
+			$transactionRecorded = $this->Add_transaction(NULL, 'BROKER', $brokerId, $total_amount, 1, '17', 'COMPLETED', 'صرف مستحقات وسيط');
+			if (!$transactionRecorded) throw new Exception("غير قادر على اضافة الحركه المالية");
+
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->commissionPayout('BROKER', $brokerId, (float)$total_amount, (int)$transactionRecorded);
+
+			$this->conn->commit();
+			return ['success', 'ناجح', 'تم صرف دفعه للوسيط بنجاح'];
+		} catch (Exception $e) {
+			try { $this->conn->rollBack(); } catch (Throwable $t) {}
+			throw $e;
+		} finally {
+			$this->releaseGlobalFinanceLock();
+		}
+	}
+
 	// صرف مستحقات مورد
 	public function PaymentOfSupplierDues(int $supplier_id, string $total_amount, array $orders =[]): array {
 	    if ($supplier_id <= 0) throw new Exception("لم يتم الحفظ - من فضلك قم بإختيار المورد اولا");

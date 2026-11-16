@@ -78,6 +78,31 @@ class AccountingEvents {
 	}
 	
 /*****************************************************
+* الوسيط (أوامر وسيط بيع ORDER_TYPE_ID = 3): الشركة تثبت الحد الأدنى كإيراد، والفرق (سعر البيع − الحد الأدنى) مستحق للوسيط
+* الحد الأدنى = BASE_PRICE المسجَّل على سطر الأمر، وإلا LOWEST_PRICE الحالي للمنتج.
+*****************************************************/
+	const BROKER_ORDER_TYPE = 3;
+
+	/** @return array [markup, brokerUserId]؛ $qtyCol = DELIVERED_QTY أو RETURNED_QTY */
+	protected function brokerMarkup(int $orderId, string $qtyCol): array{
+	    if (!in_array($qtyCol, ['DELIVERED_QTY', 'RETURNED_QTY'], true)) {
+	        throw new Exception("Invalid quantity column.");
+	    }
+	    $st = $this->db->prepare("
+	        SELECT o.ORDER_BY AS BROKER_ID,
+	               COALESCE(SUM(GREATEST(0, (op.PRICE - op.DISCOUNT) - COALESCE(op.BASE_PRICE, pc.LOWEST_PRICE, op.PRICE - op.DISCOUNT)) * op.$qtyCol), 0) AS MARKUP
+	        FROM orders o
+	        LEFT JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
+	        LEFT JOIN product_codes pc ON pc.PRO_CODE = op.PRO_CODE
+	        WHERE o.ORDER_ID = ?
+	        GROUP BY o.ORDER_ID, o.ORDER_BY");
+	    $st->execute([$orderId]);
+	    $r = $st->fetch(PDO::FETCH_ASSOC);
+	    return $r ? [round((float)$r['MARKUP'], 2), (int)$r['BROKER_ID']] : [0.0, 0];
+	}
+
+
+/*****************************************************
 * تسليم المندوب: إثبات البيع وإيراد الشحن وتكلفة البضاعة
 * (لا يغير الشاشات؛ يُستدعى من داخل معاملة تأكيد الشحنة)
 *****************************************************/
@@ -180,11 +205,27 @@ class AccountingEvents {
 	        'partner_id'   => (int)$order['CLIENT_ID'],
 	        'debit'        => $receivable
 	    ]);
+	    $brokerMarkup = 0.0; $brokerId = 0;
+	    if ($sales > 0 && (int)$order['ORDER_TYPE_ID'] === self::BROKER_ORDER_TYPE) {
+	        [$brokerMarkup, $brokerId] = $this->brokerMarkup($orderId, 'DELIVERED_QTY');
+	        $brokerMarkup = min($brokerMarkup, $sales);
+	        if ($brokerMarkup > 0 && $brokerId <= 0) {
+	            throw new Exception("لا يمكن ترحيل أمر وسيط بدون وسيط (ORDER_BY).");
+	        }
+	    }
 	    if ($sales > 0) {
 	        $this->journal->addLine([
 	            'account_id' => $this->settings->sales(),
-	            'credit'     => $sales
+	            'credit'     => round($sales - $brokerMarkup, 2)
 	        ]);
+	        if ($brokerMarkup > 0) {
+	            $this->journal->addLine([
+	                'account_id'   => $this->settings->brokerCommissionPayable(),
+	                'partner_type' => 'BROKER',
+	                'partner_id'   => $brokerId,
+	                'credit'       => $brokerMarkup
+	            ]);
+	        }
 	    }
 	    if ($shipping > 0) {
 	        $this->journal->addLine([
@@ -344,7 +385,7 @@ class AccountingEvents {
 
 	/**
 	 * قيد صرف مستحقات مندوب/مسوق نقداً: مدين العمولات المستحقة (الطرف: المستفيد) / دائن الصندوق.
-	 * @param string $partnerType 'DELIVERY' أو 'MARKETER'
+	 * @param string $partnerType 'DELIVERY' أو 'MARKETER' أو 'BROKER'
 	 * @param int $transactionId رقم الحركة المالية (financial_transactions) كمرجع
 	 */
 	public function commissionPayout(string $partnerType, int $partnerId, float $amount, int $transactionId): int{
@@ -356,6 +397,8 @@ class AccountingEvents {
 	        $payable = $this->settings->deliveryCommissionPayable(); $ref = 'DELIVERY_PAYOUT'; $label = 'صرف مستحقات مندوب';
 	    } elseif ($partnerType === 'MARKETER') {
 	        $payable = $this->settings->marketerCommissionPayable(); $ref = 'MARKETER_PAYOUT'; $label = 'صرف مستحقات مسوق';
+	    } elseif ($partnerType === 'BROKER') {
+	        $payable = $this->settings->brokerCommissionPayable(); $ref = 'BROKER_PAYOUT'; $label = 'صرف مستحقات وسيط';
 	    } else {
 	        throw new Exception("Unsupported partner type.");
 	    }
@@ -809,7 +852,17 @@ class AccountingEvents {
 	        'description'    => 'مرتجع أمر شحن رقم '.$order['SUB_ORDER_ID'],
 	        'created_by'     => $this->getCurrentUserId()
 	    ]);
-	    $this->journal->addLine(['account_id' => $this->settings->salesReturns(), 'debit' => $sales]);
+	    $retMarkup = $this->brokerReturnMarkup($order, $orderId, $sales, 'COURIER_SALES_RETURN');
+	    $brokerId  = $retMarkup > 0 ? $this->brokerMarkup($orderId, 'RETURNED_QTY')[1] : 0;
+	    $this->journal->addLine(['account_id' => $this->settings->salesReturns(), 'debit' => round($sales - $retMarkup, 2)]);
+	    if ($retMarkup > 0) {
+	        $this->journal->addLine([
+	            'account_id'   => $this->settings->brokerCommissionPayable(),
+	            'partner_type' => 'BROKER',
+	            'partner_id'   => $brokerId,
+	            'debit'        => $retMarkup
+	        ]);
+	    }
 	    $this->journal->addLine([
 	        'account_id'   => $this->settings->customers(),
 	        'partner_type' => 'CLIENT',
@@ -825,6 +878,19 @@ class AccountingEvents {
 	    $journalId = $this->journal->post();
 	    $this->markSalesReturnPosted($orderId, $journalId);
 	    return $journalId;
+	}
+
+	/** جزء مرتجع الوسيط الذي يُخصم من مستحقاته (الباقي من قيمة المرتجع يُخصم من المبيعات). */
+	protected function brokerReturnMarkup(array $order, int $orderId, float $returnSales, string $refType): float{
+	    if ((int)($order['ORDER_TYPE'] ?? $order['ORDER_TYPE_ID'] ?? 0) !== self::BROKER_ORDER_TYPE) {
+	        return 0.0;
+	    }
+	    [$total, ] = $this->brokerMarkup($orderId, 'RETURNED_QTY');
+	    $posted = $this->db->prepare("SELECT COALESCE(SUM(d.debit),0) FROM journal_entries e
+	        JOIN journal_entry_details d ON d.journal_entry_id = e.id
+	        WHERE e.reference_type = ? AND e.reference_id = ? AND e.status = 'POSTED' AND d.account_id = ?");
+	    $posted->execute([$refType, $orderId, $this->settings->brokerCommissionPayable()]);
+	    return round(max(0.0, min($total - (float)$posted->fetchColumn(), $returnSales)), 2);
 	}
 
 	// الدالة الرئيسية لاستلام مرتجع مبيعات للمخزون
@@ -851,11 +917,20 @@ class AccountingEvents {
 	        'created_by'     => $this->getCurrentUserId()
 	    ]);
 	
-	    // إلغاء الإيراد
-	     $this->journal->addLine([
+	    // إلغاء الإيراد (وللوسيط: جزء الفرق يُخصم من مستحقاته)
+	    $retMarkup = $this->brokerReturnMarkup($order, $orderId, $salesAmount, 'SALES_RETURN');
+	    $this->journal->addLine([
 	        'account_id' => $this->settings->salesReturns(),
-	        'debit'      => $salesAmount
+	        'debit'      => round($salesAmount - $retMarkup, 2)
 	    ]);
+	    if ($retMarkup > 0) {
+	        $this->journal->addLine([
+	            'account_id'   => $this->settings->brokerCommissionPayable(),
+	            'partner_type' => 'BROKER',
+	            'partner_id'   => $this->brokerMarkup($orderId, 'RETURNED_QTY')[1],
+	            'debit'        => $retMarkup
+	        ]);
+	    }
 	
 	    $this->journal->addLine([
 	        'account_id'   => $this->settings->customers(),

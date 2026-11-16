@@ -479,5 +479,24 @@ $newRev = $oc->addAccount('RECEIPT', 'إيراد اختبار ' . uniqid());
 $rid1 = $oc->post('RECEIPT', (int)$newRev['id'], 10, '', $branch, $userId);
 check('open cash: receipt posts', $rid1 > 0 && (int)$newRev['account_code'] >= 4301);
 
+// broker (وسيط): company books the minimum price, the markup is owed to the broker
+$ob = makeOrder($db, $store, $tel, 3, 0, 1, [[2, 100, 0, 60, 2]]);
+$db->exec("UPDATE orders SET ORDER_TYPE_ID = 3, ORDER_BY = $userId WHERE ORDER_ID = $ob");
+$db->exec("UPDATE order_product SET BASE_PRICE = 80 WHERE ORDER_ID = $ob");
+[$h, $l] = entry($db, $ev->courierDelivery($ob));
+check('broker: customers debit 200, sales credit 160 (min price), 2230 credit 40', lineSum($l, '1200', 'debit') === 200.0 && lineSum($l, '4100', 'credit') === 160.0 && lineSum($l, '2230', 'credit') === 40.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
+check('broker: 2230 line carries the broker partner', count(array_filter($l, fn($x) => $x['account_code'] === '2230' && $x['partner_type'] === 'BROKER')) === 1);
+check('broker: balance owed = 40', abs(PartnerBalanceSource::net($db, 'BROKER', $userId) - 40.0) < 0.005);
+$db->exec("UPDATE order_product SET RETURNED_QTY = 1 WHERE ORDER_ID = $ob");
+$db->exec("UPDATE orders SET ORDER_STATUS = 6 WHERE ORDER_ID = $ob");
+[$h, $l] = entry($db, $ev->courierSalesReturn($ob));
+check('broker return: sales (returns) debit 80, 2230 debit 20, customers credit 100', lineSum($l, '4100', 'debit') === 80.0 && lineSum($l, '2230', 'debit') === 20.0 && lineSum($l, '1200', 'credit') === 100.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
+check('broker: balance after return = 20', abs(PartnerBalanceSource::net($db, 'BROKER', $userId) - 20.0) < 0.005);
+[$h, $l] = entry($db, $ev->commissionPayout('BROKER', $userId, 20, 9001));
+check('broker payout: debit 2230 / credit cash, balance 0', lineSum($l, '2230', 'debit') === 20.0 && abs(PartnerBalanceSource::net($db, 'BROKER', $userId)) < 0.005);
+$obn = makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 60, 1]]);   // non-broker order unaffected
+[$h, $l] = entry($db, $ev->courierDelivery($obn));
+check('non-broker order: no 2230 line', lineSum($l, '2230', 'credit') === 0.0 && lineSum($l, '4100', 'credit') === 100.0);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

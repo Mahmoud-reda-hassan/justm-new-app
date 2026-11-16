@@ -478,6 +478,7 @@ class JournalManager{
 	        'SUPPLIER'  => 'suppliers',
 	        'DELIVERY'  => 'users',
 	        'MARKETER'  => 'users',
+	        'BROKER'    => 'users',
 	        'EMPLOYEE'  => 'users'
 	
 	    ];
@@ -488,6 +489,7 @@ class JournalManager{
 	        'SUPPLIER'  => 'SUP_ID',
 	        'DELIVERY'  => 'USER_ID',
 	        'MARKETER'  => 'USER_ID',
+	        'BROKER'    => 'USER_ID',
 	        'EMPLOYEE'  => 'USER_ID'
 	
 	    ];

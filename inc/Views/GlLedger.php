@@ -55,7 +55,7 @@ $glAdmin = in_array($glGroup, ['Administrator', 'Owner'], true) || $glP('admin')
             <div class="form-inline mb-2">
                 <select id="pt-type" class="form-control form-control-sm ml-3">
                     <option value="CLIENT">عميل</option><option value="SUPPLIER">مورد</option>
-                    <option value="DELIVERY">مندوب</option><option value="MARKETER">مسوق</option>
+                    <option value="DELIVERY">مندوب</option><option value="MARKETER">مسوق</option><option value="BROKER">وسيط</option>
                 </select>
                 <input type="text" id="pt-q" class="form-control form-control-sm ml-3" placeholder="اكتب الاسم ثم اختر" autocomplete="off">
                 <select id="pt-id" class="form-control form-control-sm ml-3" style="min-width:200px"><option value="">اختر الطرف</option></select>

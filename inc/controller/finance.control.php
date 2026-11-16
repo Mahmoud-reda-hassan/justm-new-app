@@ -64,6 +64,9 @@ try {
 			$total_balance = isset($_POST['balance']) ? $_POST['balance']: 0;
 			echo json_encode($CBE->PaymentOfMarketerDues($marketerId, $total_balance, $total_amount));
 			break;
+		case 'PaymentOfBrokerDues':
+			echo json_encode($CBE->PaymentOfBrokerDues((int)$_POST['partner_id'], (string)$_POST['amount']));
+			break;
 		case 'PaymentOfDeliveryDues':
 			$deliveryid= $_POST['partner_id'];
 			$total_amount = $_POST['amount'];
