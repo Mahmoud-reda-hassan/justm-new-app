@@ -190,6 +190,22 @@ class PaymentDisbursement {
 	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 	
+	/** أوامر البيع التي لها مرتجع مؤجل لم يُصرف للعميل بعد (الأقدم أولًا). */
+	public function GetClientReturnOrdersDue($clientId){
+	    $query = "SELECT A.REFERENCE_ID AS id, O.SUB_ORDER_ID AS name, O.LAST_UPDATE AS last_update, ROUND(MAX(A.BALANCE),2) AS amount
+			FROM partners_balance A
+			LEFT JOIN orders O ON A.REFERENCE_ID = O.ORDER_ID
+			WHERE A.PARTNER_TYPE = 'CLIENT' AND A.TRANSACTION_CATEGORY_ID = 14 AND A.PARTNER_ID = :cid
+			 AND NOT EXISTS (SELECT 1 FROM partners_balance B WHERE B.REFERENCE_ID = A.REFERENCE_ID AND B.PARTNER_ID = A.PARTNER_ID
+			   AND B.PARTNER_TYPE = 'CLIENT' AND B.TRANSACTION_CATEGORY_ID = 18)
+			 AND (O.ORDER_SUCCESS IS NULL OR O.ORDER_SUCCESS <> 2)
+			GROUP BY A.REFERENCE_ID, O.SUB_ORDER_ID, O.LAST_UPDATE
+			ORDER BY A.REFERENCE_ID ASC LIMIT 1000";
+	    $stmt = $this->conn->prepare($query);
+	    $stmt->execute(['cid' => (int)$clientId]);
+	    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	public function GetClientdirctOrder(){
 	    $search = trim($this->Requst['search'] ?? '');
 		$Client_id = trim($this->Requst['cid'] ?? '');

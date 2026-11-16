@@ -74,6 +74,10 @@ if($http_RQM === "GET") {
 				ResponseData($BE->GetMoradData());
 			    break;
 			
+			case 'GetClientReturnOrdersDue':
+				ResponseData(['data' => $BE->GetClientReturnOrdersDue($_GET['cid'] ?? 0)]);
+				break;
+
 			case 'GetMoradRefundData':
 				$BE->Requst = $_GET;
 				ResponseData($BE->GetMoradRefundData());

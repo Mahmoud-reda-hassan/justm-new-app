@@ -169,20 +169,33 @@
                     <option value="">اختر العميل</option>
                 </select>
             </div>
-            <div class="mb-3">
-                <label class="form-label fw-bold">أختر أمر البيع</label>
-                <select class="form-control" id="select-order">
-                    <option value="">اختر أمر البيع</option>
-                </select>
-            </div>
             <!-- عرض الإجماليات -->
             <div class="row g-3 mt-2">
                 <div class="col-12">
                     <div class="alert bg-info py-2 mb-0 text-center">
-                        <small>إجمالي المرتجع</small>
+                        <small>إجمالي المرتجع المحدد للصرف</small>
                         <h5 class="mt-1 mb-0" id="return-amount">0.00</h5>
+                        <small>إجمالي مستحقات العميل: <span id="return-due-total">0.00</span></small>
                     </div>
                 </div>
+            </div>
+            <div class="mt-3">
+                <label for="amount-return" class="fw-bold">المبلغ المراد صرفه:</label>
+                <input type="number" class="form-control form-control-lg mt-1" id="amount-return" min="0" step="0.01">
+                <small class="text-muted">عند كتابة مبلغ تُحدَّد أوامر المرتجع من الأقدم للأحدث بالكامل (كل أمر يُصرف كاملًا). أو حدّد الأوامر يدويًا.</small>
+            </div>
+            <div class="table-responsive mt-4">
+                <table id="returnOrdersTable" class="table table-bordered table-striped table-hover w-100 align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th width="40"><input type="checkbox" id="returnCheckAll"></th>
+                            <th>رقم أمر البيع</th>
+                            <th>آخر تحديث</th>
+                            <th>مبلغ المرتجع المستحق</th>
+                        </tr>
+                    </thead>
+                    <tbody><tr><td colspan="4" class="text-center text-muted">اختر العميل</td></tr></tbody>
+                </table>
             </div>
             <div class="mt-4 d-flex justify-content-between">
                 <button class="btn btn-danger px-4" onclick="backToTiles()">رجوع</button>
