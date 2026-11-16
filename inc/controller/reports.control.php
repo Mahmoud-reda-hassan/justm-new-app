@@ -3,6 +3,7 @@ session_start();
 include_once(__dir__.'/../../config.php');
 include_once(ABSPATH.'/inc/Databases/dbconn.php');
 include_once(ABSPATH.'/inc/controller/BackEnd/reports_BE.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/Reports.php');
 
 $DBconn        	= new dbconn();
 $db            	= $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
@@ -104,6 +105,32 @@ try {
 			$partnerId     = $_SESSION['USER_ID'] == '' ? 0 : $_SESSION['USER_ID'];
 			$order_statuse = $_POST['order_statuse'];
 			ResponseData($CBE->marketerDailyDetails($partnerId, $order_statuse, $dateFrom, $dateTo));
+		    break;
+		case 'PublicReport':
+			// التقرير العام: ملخص مالي من دفتر الأستاذ (أرباح وخسائر عن الفترة + أرصدة آخر الفترة)
+			$us = isset($_SESSION['USER_SCRIPT']) ? @unserialize($_SESSION['USER_SCRIPT']) : null;
+			$okPerm = is_array($us) && (($us['Admin']['Reports']['View'] ?? '') === 'true');
+			if (!$okPerm) { ResponseData(array('error', 'خطاء', 'ليس لديك صلاحية عرض التقرير العام', [])); break; }
+			$from = $_POST['date_from'] ?? null; $to = $_POST['date_to'] ?? null;
+			$tb = (new GlReports($db))->trialBalance($from, $to);
+			$sum = function ($rows, $pred, $fn) { $t = 0; foreach ($rows as $r) { if ($pred($r)) { $t += $fn($r); } } return round($t, 2); };
+			$net = function ($r) { return $r['closing_debit'] - $r['closing_credit']; };
+			$byCode = function ($prefix) use ($tb, $sum, $net) { return $sum($tb, function ($r) use ($prefix) { return strpos($r['account_code'], $prefix) === 0; }, $net); };
+			$revenue = array(); $expense = array();
+			foreach ($tb as $r) {
+				if ($r['account_type'] === 'REVENUE') { $v = round($r['period_credit'] - $r['period_debit'], 2); if ($v != 0) { $revenue[] = array('account_code' => $r['account_code'], 'account_name' => $r['account_name'], 'amount' => $v); } }
+				if ($r['account_type'] === 'EXPENSE') { $v = round($r['period_debit'] - $r['period_credit'], 2); if ($v != 0) { $expense[] = array('account_code' => $r['account_code'], 'account_name' => $r['account_name'], 'amount' => $v); } }
+			}
+			$totRev = round(array_sum(array_column($revenue, 'amount')), 2);
+			$totExp = round(array_sum(array_column($expense, 'amount')), 2);
+			ResponseData(array('s', 'ok', array(
+				'revenue' => $revenue, 'expense' => $expense,
+				'total_revenue' => $totRev, 'total_expense' => $totExp, 'net_profit' => round($totRev - $totExp, 2),
+				'balances' => array(
+					'cash' => $byCode('11'), 'customers_owe' => $byCode('1200'), 'inventory' => $byCode('1300'),
+					'suppliers_owed' => -$byCode('2100'), 'courier_payable' => -$byCode('2210'), 'marketer_payable' => -$byCode('2220'),
+				),
+			)));
 		    break;
 		default:
 		    ResponseData(array('error', 'Error', 'Your request is not available', []));

@@ -321,9 +321,10 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->Pagelink = "Suppliers";
 	            				$this->title= "الموردين";
 	            				array_push($this->js_footer,"Suppliers.js");
-	            		} else if ($usc['Admin']['Suppliers']['View'] == "true" && isset($usc['Admin']['PublicReports']['View']) && $usc['Admin']['PublicReports']['View'] == "true" && $_GET["Go"] === "PublicReports"){
+	            		} else if (isset($usc['Admin']['Reports']['View']) && $usc['Admin']['Reports']['View'] == "true" && $_GET["Go"] === "PublicReports"){
 	            				$this->Pagelink = "Reports";
 	            				$this->title= "تقرير عامه";
+	            				array_push($this->js_footer,"PublicReports.js");
 	            			//.........................................................
 	            		} else if ($usc['Admin']['Product-Categories']['View'] == "true" && $_GET["Go"] === "Product-Categories"){
 	            				$this->Pagelink = "Categoris";
