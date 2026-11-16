@@ -17,6 +17,7 @@ DELIVERY Debit  داخل (عليه)
 
 */
 include_once(__dir__.'/../../configDateTimeFN.php');
+include_once(__dir__.'/../../Classes/Accounting/SystemFlags.php');
 class reports_BE {
 
 	private $conn;
@@ -347,6 +348,75 @@ class reports_BE {
 		
 	}
 
+	/**
+	 * كشف حساب طرف (عميل/مورد/مندوب/مسوق) من الأستاذ العام بنفس شكل الكشف القديم.
+	 * الرصيد الجاري = دائن − مدين كما في الكشف القديم (له موجب / عليه سالب).
+	 */
+	private function accountStatementFromGl($partnerType, $partnerId, $start, $end){
+		if (!in_array($partnerType, array('CLIENT','SUPPLIER','DELIVERY','MARKETER'), true)) {
+			return array("draw" => intval($_POST['draw']), "iTotalRecords" => 0, "iTotalDisplayRecords" => 0, "data" => array());
+		}
+		$q = $this->conn->prepare("SELECT COALESCE(SUM(d.credit - d.debit),0) FROM journal_entry_details d
+			JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
+			WHERE d.partner_type = ? AND d.partner_id = ? AND e.entry_date < ?");
+		$q->execute(array($partnerType, $partnerId, $start));
+		$opening = round((float)$q->fetchColumn(), 2);
+
+		$q = $this->conn->prepare("SELECT d.id, d.debit, d.credit, e.entry_date, e.reference_type, e.reference_id, e.description,
+				o.SUB_ORDER_ID,
+				(SELECT SUM(QTY) FROM order_product WHERE ORDER_ID = o.ORDER_ID) AS o_qty,
+				(SELECT SUM(DELIVERED_QTY) FROM order_product WHERE ORDER_ID = o.ORDER_ID) AS o_dqty,
+				(SELECT SUM(RETURNED_QTY) FROM order_product WHERE ORDER_ID = o.ORDER_ID) AS o_rqty,
+				(SELECT SUM(QTY) FROM purchases_products WHERE ORDER_ID = e.reference_id) AS p_qty,
+				(SELECT SUM(QTY_SUPPLIED) FROM purchases_products WHERE ORDER_ID = e.reference_id) AS p_qsup,
+				(SELECT SUM(QTY_SUPPLIED) FROM purchases_return_products WHERE ORDER_ID = e.reference_id) AS pr_qsup,
+				(SELECT SUM(QTY_RETURN) FROM purchases_return_products WHERE ORDER_ID = e.reference_id) AS pr_qret
+			FROM journal_entry_details d
+			JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
+			LEFT JOIN orders o ON o.ORDER_ID = e.reference_id
+				AND e.reference_type IN ('COURIER_DELIVERY','COURIER_COLLECTION','COURIER_SALES_RETURN','DIRECT_SALE','SALES_RETURN')
+			WHERE d.partner_type = ? AND d.partner_id = ? AND e.entry_date BETWEEN ? AND ?
+			ORDER BY e.entry_date, e.id, d.line_no");
+		$q->execute(array($partnerType, $partnerId, $start, $end));
+
+		$orderRefs = array('COURIER_DELIVERY','COURIER_COLLECTION','COURIER_SALES_RETURN','DIRECT_SALE','SALES_RETURN');
+		$rows = array();
+		$rows[] = array('note' => 'رصيد سابق', 'id' => null, 'ORDER_ID' => null, 'QTY_ORDER' => null, 'QTY_SUPPLIED' => null,
+			'QTY_RETURN' => null, 'transaction_date' => null, 'TRANSACTION_TYPE' => null, 'BALANCE' => null,
+			'debit' => null, 'credit' => null, 'running_balance' => number_format($opening, 2, '.', ''));
+		$run = $opening;
+		foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $r) {
+			$dr = (float)$r['debit']; $cr = (float)$r['credit'];
+			$run = round($run + $cr - $dr, 2);
+			$rt = $r['reference_type'];
+			$orderId = null; $qo = ''; $qs = ''; $qr = '';
+			if (in_array($rt, $orderRefs, true)) {
+				$orderId = $r['SUB_ORDER_ID']; $qo = $r['o_qty']; $qs = $r['o_dqty'];
+				if (in_array($rt, array('COURIER_SALES_RETURN','SALES_RETURN'), true)) { $qr = $r['o_rqty']; }
+			} elseif ($rt === 'PURCHASE_RECEIPT') {
+				$orderId = $r['reference_id']; $qo = $r['p_qty']; $qs = $r['p_qsup'];
+			} elseif ($rt === 'PURCHASE_RETURN') {
+				$orderId = $r['reference_id']; $qs = $r['pr_qsup']; $qr = $r['pr_qret'];
+			}
+			$amount = $dr > 0 ? $dr : $cr;
+			$rows[] = array('note' => $r['description'], 'id' => $r['id'], 'ORDER_ID' => $orderId, 'QTY_ORDER' => $qo,
+				'QTY_SUPPLIED' => $qs, 'QTY_RETURN' => $qr, 'transaction_date' => substr($r['entry_date'], 0, 10),
+				'TRANSACTION_TYPE' => $dr > 0 ? 'DEBIT' : 'CREDIT', 'BALANCE' => $amount,
+				'debit' => $dr > 0 ? $dr : null, 'credit' => $cr > 0 ? $cr : null, 'running_balance' => number_format($run, 2, '.', ''));
+		}
+		// صف الرصيد الحالي في الكشف القديم تراكمي حتى نهاية الفترة (وليس عن الفترة فقط)
+		$q = $this->conn->prepare("SELECT COALESCE(SUM(d.debit),0), COALESCE(SUM(d.credit),0) FROM journal_entry_details d
+			JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
+			WHERE d.partner_type = ? AND d.partner_id = ? AND e.entry_date <= ?");
+		$q->execute(array($partnerType, $partnerId, $end));
+		list($sumDebit, $sumCredit) = array_map('floatval', $q->fetch(PDO::FETCH_NUM));
+		$rows[] = array('note' => 'رصيد حالي', 'id' => null, 'ORDER_ID' => null, 'QTY_ORDER' => null, 'QTY_SUPPLIED' => null,
+			'QTY_RETURN' => null, 'transaction_date' => null, 'TRANSACTION_TYPE' => null, 'BALANCE' => null,
+			'debit' => number_format($sumDebit, 2, '.', ''), 'credit' => number_format($sumCredit, 2, '.', ''),
+			'running_balance' => number_format($run, 2, '.', ''));
+		return array("draw" => intval($_POST['draw']), "iTotalRecords" => count($rows), "iTotalDisplayRecords" => count($rows), "data" => $rows);
+	}
+
 	public function AccountStatement(){
 		// استقبال المعلمات من DataTables
 		$start  = $_POST['start'].' 00:00:00';
@@ -359,6 +429,11 @@ class reports_BE {
 		$dates = explode(' - ', $dateRange);
 		$start = isset($dates[0]) ? trim($dates[0]) : null;
 		$end = isset($dates[1]) ? trim($dates[1].' 23:59:59') : null;
+
+		// بعد تحويل مصدر الأرصدة إلى الأستاذ العام: نفس الكشف ونفس الأعمدة لكن من قيود اليومية المعتمدة
+		if (SystemFlags::get($this->conn, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+			return $this->accountStatementFromGl($partnerType, (int)$partnerId, $start, $end);
+		}
 
 		$where = "";
 		$limit = "";

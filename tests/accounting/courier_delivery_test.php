@@ -415,6 +415,14 @@ if ($pRow) {
     $glNet = PartnerBalanceSource::net($db, 'CLIENT', (int)$pRow['partner_id']);
     $expect = (float)$db->query("SELECT COALESCE(SUM(d.credit - d.debit),0) FROM journal_entry_details d JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status='POSTED' WHERE d.partner_type='CLIENT' AND d.partner_id=" . (int)$pRow['partner_id'])->fetchColumn();
     check('flag: GL source returns ledger net (credit-debit)', abs($glNet - round($expect, 2)) < 0.005);
+    // كشف الحساب (شاشة التقارير) من الأستاذ: نفس الصفوف والرصيد الحالي = صافي الأستاذ
+    require_once __DIR__ . '/../../inc/controller/BackEnd/reports_BE.php';
+    $_POST = ['draw' => 1, 'start' => 0, 'length' => -1, 'search' => ['value' => ''], 'partner_type' => 'CLIENT',
+              'partner_id' => (int)$pRow['partner_id'], 'daterange' => '2000-01-01 - 2099-12-31'];
+    $stm = (new reports_BE($db))->AccountStatement();
+    $last = end($stm['data']);
+    check('statement(gl): first row is opening, last row is current balance', $stm['data'][0]['note'] === 'رصيد سابق' && $last['note'] === 'رصيد حالي');
+    check('statement(gl): current balance equals ledger net', abs((float)$last['running_balance'] - round($expect, 2)) < 0.005);
     SystemFlags::set($db, 'BALANCE_SOURCE', 'legacy', $userId);
     check('flag: back to legacy', SystemFlags::get($db, 'BALANCE_SOURCE') === 'legacy');
 }
