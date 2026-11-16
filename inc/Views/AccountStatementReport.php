@@ -100,6 +100,8 @@ $partnerMap = [
       <h5 class="mb-0">نتائج الحركات</h5>
     </div>
     <div class="card-body table-responsive p-2">
+      <div id="balance-summary" class="alert alert-secondary mb-3" style="display:none"></div>
+      <small class="text-muted d-block mb-2">الرصيد: <span class="text-primary">له</span> = مستحق للطرف عند الشركة، <span class="text-danger">عليه</span> = مستحق للشركة عند الطرف.</small>
       <table id="balance-table" class="table table-bordered table-hover table-striped">
         <thead class="thead-dark">
           <tr>
@@ -110,7 +112,7 @@ $partnerMap = [
             <th>المرتجع</th>
             <th><?php echo $debit;?></th>
             <th><?php echo $credit;?></th>
-            <th>الرصيد</th>
+            <th>الرصيد (له / عليه)</th>
             <th>ملاحظة</th>
           </tr>
         </thead>
@@ -169,6 +171,32 @@ $partnerMap = [
 	      $(this).val('');
 	    });
 	  });
+
+	  // له / عليه: الرصيد = دائن − مدين. الموجب = له (مستحق للطرف عند الشركة) والسالب = عليه (مستحق للشركة عند الطرف)
+	  function fmtMoney(n){ return Math.abs(parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+	  function balanceSide(v){
+	    v = parseFloat(v);
+	    if (isNaN(v)) return {txt:'', cls:''};
+	    if (v > 0.004)  return {txt:'له',    cls:'text-primary font-weight-bold'};
+	    if (v < -0.004) return {txt:'عليه', cls:'text-danger font-weight-bold'};
+	    return {txt:'متزن', cls:'text-muted'};
+	  }
+	  function renderBalance(data, type){
+	    if (type !== 'display' || data === null || data === '' || typeof data === 'undefined') return data;
+	    var s = balanceSide(data);
+	    return '<span class="' + s.cls + '">' + fmtMoney(data) + ' ' + s.txt + '</span>';
+	  }
+	  function updateBalanceSummary(json, who){
+	    var rows = (json && json.data) ? json.data : [];
+	    var last = rows.length ? rows[rows.length-1] : null;
+	    if (!last || last.note !== 'رصيد حالي') { $('#balance-summary').hide(); return; }
+	    var s = balanceSide(last.running_balance);
+	    var detail = s.txt === 'له' ? 'مستحق له عند الشركة' : (s.txt === 'عليه' ? 'مستحق للشركة عنده' : 'لا يوجد رصيد');
+	    $('#balance-summary').removeClass('alert-primary alert-danger alert-secondary')
+	      .addClass(s.txt === 'له' ? 'alert-primary' : (s.txt === 'عليه' ? 'alert-danger' : 'alert-secondary'))
+	      .html('<strong>' + (who ? who + ' — ' : '') + 'الرصيد حتى نهاية الفترة: ' + s.txt + ' ' + (s.txt === 'متزن' ? '' : fmtMoney(last.running_balance)) + '</strong> <small>(' + detail + ')</small>')
+	      .show();
+	  }
 	  var table = $('#balance-table').DataTable({
 	    processing: true,
 	    serverSide: true,
@@ -193,13 +221,14 @@ $partnerMap = [
 		  { data: 'QTY_RETURN',className:"text-nowrap text-center" },
 	      { data: 'debit',className:"text-nowrap <?php echo $debitColor;?>"},
 	      { data: 'credit',className:"text-nowrap <?php echo $creditColor;?>"},
-	      { data: 'running_balance',className:"text-nowrap text-center"},
+	      { data: 'running_balance',className:"text-nowrap text-center", render: renderBalance},
 	      { data: 'note',className:"text-nowrap text-center"},
 	    ],
 	    pageLength: -1,
         lengthMenu: [[10, 25, 50, 100, 500, -1], [10, 25, 50, 100, 500, "الكل"]]
 	  });
 	
+	  table.on('xhr.dt', function (e, settings, json) { updateBalanceSummary(json, $('#partnerselect option:selected').text().trim()); });
 	  $('#filter-form').on('submit', function (e) {
 	    e.preventDefault();
 	    table.ajax.reload();
