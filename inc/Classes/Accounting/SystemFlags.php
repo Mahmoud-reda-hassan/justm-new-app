@@ -25,8 +25,7 @@ class SystemFlags {
 /** رصيد طرف صافي (دائن − مدين) من المصدر المختار. للنظام القديم نفس معادلة الشاشات القديمة. */
 class PartnerBalanceSource {
     public static function net($db, string $type, int $partnerId): float {
-        // الوسيط مقرَّه الأستاذ فقط (لا يوجد له رصيد قديم)
-        if ($type === 'BROKER' || SystemFlags::get($db, 'BALANCE_SOURCE', 'legacy') === 'gl') {
+        if (SystemFlags::get($db, 'BALANCE_SOURCE', 'legacy') === 'gl') {
             $st = $db->prepare("SELECT COALESCE(SUM(d.credit - d.debit),0) FROM journal_entry_details d
                 JOIN journal_entries e ON e.id = d.journal_entry_id AND e.status = 'POSTED'
                 WHERE d.partner_type = ? AND d.partner_id = ?");

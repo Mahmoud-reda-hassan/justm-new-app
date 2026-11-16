@@ -5,7 +5,7 @@
  */
 class GlReports {
     /** الأطراف: نوع الطرف → حساب دفتر الأطراف + اتجاه الرصيد الطبيعي */
-    const PARTNERS = ['CLIENT' => '1200', 'SUPPLIER' => '2100', 'DELIVERY' => '2210', 'MARKETER' => '2220', 'BROKER' => '2230'];
+    const PARTNERS = ['CLIENT' => '1200', 'SUPPLIER' => '2100', 'DELIVERY' => '2210', 'MARKETER' => '2220'];
 
     protected $db;
     public function __construct($db) { $this->db = $db; }
@@ -113,8 +113,7 @@ class GlReports {
         $glTotal = round($sign * (float)$st->fetchColumn(), 2);
         // نفس معادلة تسوية الأرصدة بالضبط (العميل: تُستبعد قيود الأوامر التي لم تُقفل ماليًا بعد)
         include_once(__DIR__ . '/OpeningBalanceManager.php');
-        // الوسيط جديد: لا يوجد له رصيد في النظام القديم للمقارنة
-        $legacy = $type === 'BROKER' ? $glTotal : round((new OpeningBalanceManager($this->db))->legacyBalanceOf($type, $partnerId), 2); // نفس اتجاه رصيد الكشف
+        $legacy = round((new OpeningBalanceManager($this->db))->legacyBalanceOf($type, $partnerId), 2); // نفس اتجاه رصيد الكشف
         return ['opening' => round($opening, 2), 'closing' => round($run, 2), 'lines' => $lines,
                 'gl_total' => $glTotal, 'legacy_total' => $legacy, 'diff' => round($glTotal - $legacy, 2)];
     }
@@ -126,8 +125,7 @@ class GlReports {
             case 'CLIENT':   $sql = "SELECT CLIENT_ID AS id, CLIENT_NAME AS name FROM client WHERE CLIENT_NAME LIKE ? ORDER BY CLIENT_NAME LIMIT 30"; break;
             case 'SUPPLIER': $sql = "SELECT SUP_ID AS id, SUP_NAME AS name FROM suppliers WHERE SUP_NAME LIKE ? ORDER BY SUP_NAME LIMIT 30"; break;
             case 'DELIVERY':
-            case 'MARKETER':
-            case 'BROKER': $sql = "SELECT USER_ID AS id, CONCAT(FORENAME,' ',LASTNAME) AS name FROM users WHERE CONCAT(FORENAME,' ',LASTNAME) LIKE ? ORDER BY FORENAME LIMIT 30"; break;
+            case 'MARKETER': $sql = "SELECT USER_ID AS id, CONCAT(FORENAME,' ',LASTNAME) AS name FROM users WHERE CONCAT(FORENAME,' ',LASTNAME) LIKE ? ORDER BY FORENAME LIMIT 30"; break;
             default: throw new Exception('نوع الطرف غير معروف.');
         }
         $st = $this->db->prepare($sql); $st->execute([$q]);

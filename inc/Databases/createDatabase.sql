@@ -5515,13 +5515,3 @@ SELECT 'BROKER_COMMISSION_PAYABLE', a.`id`, 'عمولات الوسطاء الم�
 FROM `accounts` a
 WHERE a.`account_code` = '2230'
   AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'BROKER_COMMISSION_PAYABLE');
-
--- ------------------------------------------------------------
--- Part 7: Broker (وسيط) support columns.
--- order_product.BASE_PRICE = company minimum price snapshot for broker orders (ORDER_TYPE_ID = 3).
--- financial_transactions.entity_type gets BROKER for payouts.
--- ------------------------------------------------------------
-ALTER TABLE `order_product` ADD COLUMN IF NOT EXISTS `BASE_PRICE` decimal(18,2) DEFAULT NULL;
-
-ALTER TABLE `financial_transactions`
-  MODIFY `entity_type` enum('CLIENT','SUPPLIER','EMPLOYEE','DELIVERY','MARKETER','BROKER') DEFAULT NULL;

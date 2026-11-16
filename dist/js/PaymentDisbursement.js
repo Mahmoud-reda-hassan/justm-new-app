@@ -732,38 +732,6 @@ async function saveMarketerPayment(){
 }
 
 /*==================================================
-=            SAVE BROKER PAYMENT
-==================================================*/
-async function saveBrokerPayment() {
-    const brokerId = $('#select-broker').val();
-    const due = parseFloat(String($('#total-broker').text()).replace(/,/g, '')) || 0;
-    const amount = parseFloat($('#amount-broker').val()) || 0;
-    if (!brokerId) { showAlert('warning', 'تنبيه', 'قم بإختيار الوسيط'); return; }
-    if (amount <= 0) { showAlert('warning', 'تنبيه', 'قم بإدخال مبلغ صحيح'); return; }
-    if (amount > due + 0.005) {
-        showAlert('warning', 'تنبيه', 'المبلغ الذى ادخلته اكبر من مستحقات الوسيط');
-        $('#amount-broker').val(due);
-        return;
-    }
-    showLoading('جارى حفظ عملية الصرف...');
-    try {
-        const data = await request(API_FINANCE, { CONTROL: 'PaymentOfBrokerDues', partner_id: brokerId, amount }, 'POST');
-        hideLoading();
-        if (!data) return;
-        showAlert(data[0], data[1], data[2]);
-        if (data[0] === 'success') {
-            $('#select-broker').val(null).trigger('change').html('<option value=""></option>');
-            $('#amount-broker').val('');
-            $('#total-broker').text('0.00');
-            delete balanceCache[`BROKER_${brokerId}`];
-        }
-    } catch (error) {
-        hideLoading();
-        showAlert('error', 'خطأ', error.message);
-    }
-}
-
-/*==================================================
 =            SAVE DELIVERY PAYMENT
 ==================================================*/
 
@@ -892,15 +860,11 @@ $(function() {
     // تهيئة المندوب والمسوق والمورد
     initPartnerSelect2('#select-mandob', 'GetDeliveryDueData', 'اختر مندوباً له مستحقات');
     initPartnerSelect2('#select-masouq', 'GetMasouqDueData', 'اختر مسوقاً له مستحقات');
-    initPartnerSelect2('#select-broker', 'GetBrokerDueData', 'اختر وسيطاً له مستحقات');
     initPartnerSelect2('#select-morad', 'GetMoradData', 'اختر المورد');
 	
     // أحداث تحميل الرصيد مع مؤشر التحميل
     $('#select-mandob').on('change', function() {
         loadPartnerBalance($(this).val(), 'DELIVERY', '#total-mandob', '#amount-mandob');
-    });
-    $('#select-broker').on('change', function() {
-        loadPartnerBalance($(this).val(), 'BROKER', '#total-broker', '#amount-broker');
     });
     $('#select-masouq').on('change', function() {
         loadPartnerBalance($(this).val(), 'MARKETER', '#total-masouq', '#amount-masouq');
@@ -957,7 +921,6 @@ $(function() {
     // أزرار إظهار النماذج
     $('#btn-mandob').click(() => showForm('mandob'));
     $('#btn-masouq').click(() => showForm('masouq'));
-    $('#btn-broker').click(() => showForm('broker'));
     $('#btn-morad').click(() => showForm('morad'));
     $('#btn-client-return').click(() => {
         $('#select-client').val(null).trigger('change');

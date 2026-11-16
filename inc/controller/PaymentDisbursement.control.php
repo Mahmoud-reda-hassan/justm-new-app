@@ -64,11 +64,6 @@ if($http_RQM === "GET") {
 				ResponseData($BE->GetDeliveryDueData());
 				break;
 
-			case 'GetBrokerDueData':
-				$BE->Requst = $_GET;
-				ResponseData($BE->GetBrokerDueData());
-				break;
-
 			case 'GetMasouqDueData':
 				$BE->Requst = $_GET;
 				ResponseData($BE->GetMasouqDueData());
