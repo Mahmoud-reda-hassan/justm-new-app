@@ -152,3 +152,12 @@ SELECT 'BROKER_COMMISSION_PAYABLE', a.`id`, 'عمولات الوسطاء الم�
 FROM `accounts` a
 WHERE a.`account_code` = '2230'
   AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'BROKER_COMMISSION_PAYABLE');
+
+-- ------------------------------------------------------------
+-- Part 7: Broker = marketer with a different commission formula.
+-- PER_PIECE : fixed amount per received piece (COMMISSION_SALES)  [marketer]
+-- PRICE_DIFF: (selling price - product minimum price) x received qty [broker]
+-- Both flow through the same marketer pipeline (2220 / MARKETER partner).
+-- ------------------------------------------------------------
+ALTER TABLE `users_affiliate`
+  ADD COLUMN IF NOT EXISTS `COMMISSION_TYPE` enum('PER_PIECE','PRICE_DIFF') NOT NULL DEFAULT 'PER_PIECE' AFTER `COMMISSION_SALES`;

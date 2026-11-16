@@ -479,5 +479,22 @@ $newRev = $oc->addAccount('RECEIPT', 'إيراد اختبار ' . uniqid());
 $rid1 = $oc->post('RECEIPT', (int)$newRev['id'], 10, '', $branch, $userId);
 check('open cash: receipt posts', $rid1 > 0 && (int)$newRev['account_code'] >= 4301);
 
+// ---- commission method: marketer (per piece) vs broker (price difference over minimum) ----
+$colDefault = $db->query("SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users_affiliate' AND COLUMN_NAME='COMMISSION_TYPE'")->fetchColumn();
+check('commission type: column exists, default PER_PIECE', $colDefault !== false && trim((string)$colDefault, "'") === 'PER_PIECE');
+$db->exec("INSERT INTO users_affiliate (USER_ID,COMMISSION_SALES,TEAM_COMMISSION,COMMISSION_TYPE) VALUES ($userId,3,0,'PRICE_DIFF')");
+$db->exec("INSERT INTO product_codes (PRODUCT_ID,PRO_CODE,CODE_PRICE,CODE_COST_PRICE,LOWEST_PRICE) VALUES (1,'BRK1',150,50,100),(1,'BRK2',90,50,100)");
+$expr = "CASE WHEN UA.COMMISSION_TYPE = 'PRICE_DIFF'
+    THEN Round(SUM(CP.DELIVERED_QTY * GREATEST(0, (CP.PRICE - CP.DISCOUNT) - IFNULL(PCM.LOWEST_PRICE, CP.PRICE))),2)
+    ELSE Round(SUM(CP.DELIVERED_QTY)*UA.COMMISSION_SALES,2) END";
+$db->exec("INSERT INTO custody_product (ORDER_ID,USER_ID,PRO_CODE,QTY,PRICE,DISCOUNT,DELIVERED_QTY) VALUES (990001,$userId,'BRK1',3,130,10,2),(990001,$userId,'BRK2',1,95,0,1)");
+$q = $db->prepare("SELECT $expr FROM custody_product CP LEFT JOIN product_codes PCM ON PCM.PRO_CODE=CP.PRO_CODE LEFT JOIN users_affiliate UA ON UA.USER_ID=CP.USER_ID WHERE CP.ORDER_ID=990001 GROUP BY UA.USER_ID");
+$q->execute();
+// BRK1: (130-10-100)=20 x 2 = 40 ; BRK2: price below minimum -> 0
+check('broker commission = (price - discount - minimum) x received qty, never negative', abs((float)$q->fetchColumn() - 40.0) < 0.005);
+$db->exec("UPDATE users_affiliate SET COMMISSION_TYPE='PER_PIECE' WHERE USER_ID=$userId");
+$q->execute();
+check('marketer commission unchanged: per piece x received qty', abs((float)$q->fetchColumn() - 9.0) < 0.005);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

@@ -222,8 +222,20 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="form-group">
+                                <label for="COMMISSION_TYPE">طريقة حساب العمولة</label>
+                                <div class="input-group mb-3">
+                                    <select id="COMMISSION_TYPE" class="form-control cli" name="COMMISSION_TYPE">
+                                        <option value="PER_PIECE" selected>مسوق: مبلغ ثابت عن كل قطعة مستلمة</option>
+                                        <option value="PRICE_DIFF">وسيط: فرق سعر البيع عن الحد الأدنى للمنتج</option>
+                                    </select>
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text"><i class="fas fa-calculator"></i></span>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="row">
-                                <div class="col-6 form-group">
+                                <div id="commission_sales_box" class="col-6 form-group">
                                     <label for="COMMISSION_SALES">عمولة المسوق</label>
 						            <div class="input-group mb-3">
                                         <input id="COMMISSION_SALES" type="number" class="form-control cli req" name="COMMISSION_SALES" placeholder="0.00" inputmode="number" required="">

@@ -339,6 +339,7 @@ $(document).ready(function(){
 				
 			//	$('#USER_PASSWORD').val('*************').change();
 				$('#AFFILIATEED_WITH').val(u['AFFILIATEED_WITH']).change(); 
+				$('#COMMISSION_TYPE').val(u['COMMISSION_TYPE'] || 'PER_PIECE').change();
 				$('#COMMISSION_SALES').val(u['COMMISSION_SALES']).change(); 
 				$('#TEAM_COMMISSION').val(u['TEAM_COMMISSION']).change(); 
                 //$('#USER_LOGIN').attr('disabled',true);
@@ -494,6 +495,16 @@ $(document).ready(function(){
 	    }else{
 	        $('#CommissionSales').val('');
 	        $('#affiliate_setting').fadeOut(700);
+	    }
+	})
+	//COMMISSION_TYPE: الوسيط يحسب عمولته من فرق السعر فلا يحتاج مبلغ ثابت للقطعة
+	$(document).on('change','#COMMISSION_TYPE',function(){
+	    if($(this).val() === 'PRICE_DIFF'){
+	        $('#COMMISSION_SALES').val('0').removeClass('req is-invalid');
+	        $('#commission_sales_box').hide();
+	    }else{
+	        $('#COMMISSION_SALES').addClass('req');
+	        $('#commission_sales_box').show();
 	    }
 	})
 	//INTERMEDIARY_TYPE

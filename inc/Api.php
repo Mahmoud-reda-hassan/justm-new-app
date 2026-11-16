@@ -403,6 +403,7 @@ $http_RQM = $_SERVER['REQUEST_METHOD'];
 		    $Users_tbl->AFFILIATEED_WITH   = $x['AFFILIATEED_WITH'];
 		    $Users_tbl->LIVEL              = 0;
 		    $Users_tbl->COMMISSION_SALES   = $x['COMMISSION_SALES'];
+		    $Users_tbl->COMMISSION_TYPE    = $x['COMMISSION_TYPE'] ?? 'PER_PIECE';
 		    $Users_tbl->TEAM_COMMISSION    = $x['TEAM_COMMISSION'];
 		    //---------Delivery-------------
 		    $Users_tbl->ZONE_ID            = $x['ZONE_ID'];
@@ -466,6 +467,7 @@ $http_RQM = $_SERVER['REQUEST_METHOD'];
 		    //---------affilate-------------
 		    $Users_tbl->AFFILIATEED_WITH   = $x['AFFILIATEED_WITH'];
 		    $Users_tbl->COMMISSION_SALES   = $x['COMMISSION_SALES'];
+		    $Users_tbl->COMMISSION_TYPE    = $x['COMMISSION_TYPE'] ?? 'PER_PIECE';
 		    $Users_tbl->TEAM_COMMISSION    = $x['TEAM_COMMISSION'];
 		    //---------Delivery-------------
 		    $Users_tbl->ZONE_ID            = $x['ZONE_ID'];

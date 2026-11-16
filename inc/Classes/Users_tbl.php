@@ -41,6 +41,7 @@ class Users_tbl {
     public $AFFILIATEED_WITH;
     public $LIVEL;
     public $COMMISSION_SALES;
+    public $COMMISSION_TYPE = 'PER_PIECE';
     public $TEAM_COMMISSION;
     public $BIRTHDAY;
     //---------delivery-----------
@@ -114,6 +115,11 @@ class Users_tbl {
         $this->AFFILIATEED_WITH = htmlspecialchars(strip_tags($this->AFFILIATEED_WITH));
         $this->LIVEL = htmlspecialchars(strip_tags($this->LIVEL));
         $this->COMMISSION_SALES = htmlspecialchars(strip_tags($this->COMMISSION_SALES));
+        // طريقة حساب العمولة: PER_PIECE (مبلغ ثابت للقطعة) أو PRICE_DIFF (فرق السعر عن الحد الأدنى - الوسيط)
+        $this->COMMISSION_TYPE = ($this->COMMISSION_TYPE === 'PRICE_DIFF') ? 'PRICE_DIFF' : 'PER_PIECE';
+        if ($this->COMMISSION_TYPE === 'PRICE_DIFF' && $this->COMMISSION_SALES === '') {
+            $this->COMMISSION_SALES = '0';
+        }
         $this->TEAM_COMMISSION = htmlspecialchars(strip_tags($this->TEAM_COMMISSION));
 
         $this->ZONE_ID = htmlspecialchars(strip_tags($this->ZONE_ID));
@@ -204,6 +210,7 @@ class Users_tbl {
 		ZA.AFFILIATEED_WITH,
 		ZA.LIVEL,
 		ZA.COMMISSION_SALES,
+		ZA.COMMISSION_TYPE,
 		ZA.TEAM_COMMISSION,
 		ZB.ZONE_ID AS SHIPPING_ZONE_ID,
 		ZB.PERCENT,
@@ -351,6 +358,7 @@ class Users_tbl {
             $rows['SHIPPING_ZONE_ID']  = $record['SHIPPING_ZONE_ID'];
 			$rows['AFFILIATEED_WITH']  = $record['AFFILIATEED_WITH'];
 			$rows['COMMISSION_SALES']  = $record['COMMISSION_SALES'];
+			$rows['COMMISSION_TYPE']   = $record['COMMISSION_TYPE'] ?: 'PER_PIECE';
 			$rows['TEAM_COMMISSION']   = $record['TEAM_COMMISSION'];
             $rows['ADMIN_TYPE']        = $record['ADMIN_TYPE'];
             $rows['AFFILIATE_TYPE']    = $record['AFFILIATE_TYPE'];
@@ -567,6 +575,15 @@ class Users_tbl {
     }*/
     
 	
+	private function commissionOk() {
+	    return $this->COMMISSION_TYPE === 'PRICE_DIFF' || !empty($this->COMMISSION_SALES);
+	}
+	private function saveCommissionType($userId) {
+	    $st = $this->conn->prepare('UPDATE `USERS_AFFILIATE` SET `COMMISSION_TYPE` = ? WHERE `USER_ID` = ?');
+	    $st->bindValue(1, $this->COMMISSION_TYPE, PDO::PARAM_STR);
+	    $st->bindValue(2, $userId, PDO::PARAM_INT);
+	    return $st->execute();
+	}
 	public function insertUser() {
 
 	    $sql = $this->insert();
@@ -606,7 +623,7 @@ class Users_tbl {
 	            ) &&
 	
 	            (
-	                (!empty($this->AFFILIATE_TYPE) && $this->AFFILIATE_TYPE == 'true' && !empty($this->COMMISSION_SALES) && !empty($this->TEAM_COMMISSION)) ||
+	                (!empty($this->AFFILIATE_TYPE) && $this->AFFILIATE_TYPE == 'true' && $this->commissionOk() && !empty($this->TEAM_COMMISSION)) ||
 	                (!empty($this->AFFILIATE_TYPE) && $this->AFFILIATE_TYPE != 'true')
 	            )
 	
@@ -709,7 +726,7 @@ class Users_tbl {
 	                    if (
 	                        !empty($this->AFFILIATE_TYPE) &&
 	                        $this->AFFILIATE_TYPE == 'true' &&
-	                        !empty($this->COMMISSION_SALES) &&
+	                        $this->commissionOk() &&
 	                        !empty($this->TEAM_COMMISSION)
 	                    ) {
 	
@@ -729,7 +746,7 @@ class Users_tbl {
 	                        $stmtAffiliate->bindValue(3, $this->COMMISSION_SALES, PDO::PARAM_STR);
 	                        $stmtAffiliate->bindValue(4, $this->TEAM_COMMISSION, PDO::PARAM_STR);
 	
-	                        if (!$stmtAffiliate->execute()) {
+	                        if (!$stmtAffiliate->execute() || !$this->saveCommissionType($userid)) {
 	                            $err++;
 	                        }
 	                    }
@@ -850,7 +867,7 @@ class Users_tbl {
                     (!empty($this->DELIVERY_TYPE) && $this->DELIVERY_TYPE != 'true')
                 ) &&
                 (
-                    (!empty($this->AFFILIATE_TYPE) && $this->AFFILIATE_TYPE == 'true' && !empty($this->COMMISSION_SALES) && !empty($this->TEAM_COMMISSION)) ||
+                    (!empty($this->AFFILIATE_TYPE) && $this->AFFILIATE_TYPE == 'true' && $this->commissionOk() && !empty($this->TEAM_COMMISSION)) ||
                     (!empty($this->AFFILIATE_TYPE) && $this->AFFILIATE_TYPE != 'true')
                 )) 
                 
@@ -1242,7 +1259,7 @@ class Users_tbl {
 	                            $stmtAffiliate->bindValue(3, $this->TEAM_COMMISSION, PDO::PARAM_STR);
 	                            $stmtAffiliate->bindValue(4, $this->USER_ID, PDO::PARAM_INT);
 	
-	                            if (!$stmtAffiliate->execute()) {
+	                            if (!$stmtAffiliate->execute() || !$this->saveCommissionType($this->USER_ID)) {
 	                                $err++;
 	                            }
 	
@@ -1266,7 +1283,7 @@ class Users_tbl {
 	                            $stmtAffiliate->bindValue(3, $this->COMMISSION_SALES, PDO::PARAM_STR);
 	                            $stmtAffiliate->bindValue(4, $this->TEAM_COMMISSION, PDO::PARAM_STR);
 	
-	                            if (!$stmtAffiliate->execute()) {
+	                            if (!$stmtAffiliate->execute() || !$this->saveCommissionType($this->USER_ID)) {
 	                                $err++;
 	                            }
 	                        }
