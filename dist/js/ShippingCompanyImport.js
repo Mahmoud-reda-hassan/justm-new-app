@@ -1,5 +1,4 @@
 (function () {
-	if (!window.SC_CAN_ADMIN) { return; }
 	const url = `../../inc/controller/shippingCompanies.control.php`;
 	const esc = (v) => $('<div>').text(v == null ? '' : v).html();
 	const call = (ctl, data) => new Promise((resolve, reject) => {
@@ -191,15 +190,14 @@
 		return call('scImportSave', {id, settings: JSON.stringify(st)});
 	};
 
-	// ---------- رفع الكشف (اختيار الشركة + الملف فقط) ----------
-	let saved = null, lastRes = null, statusMap = {}, rowsCache = null;
-
+	// ---------- أدوات القراءة بالإعدادات المحفوظة (تستخدمها شاشة عهدة المندوبين) ----------
 	function gridRows(grid, st) {
 		const h = headersOf(grid, st.header_row || 1);
 		const co = parseInt(findCol(st.order_col, h), 10);
 		if (isNaN(co)) { throw new Error('عمود رقم الأمر «' + ((st.order_col && st.order_col.name) || '') + '» غير موجود في هذا الملف. عدّل إعدادات الشركة بملف نموذجي جديد.'); }
 		const g = (ref) => { const v = findCol(ref, h); return v === '' ? -1 : parseInt(v, 10); };
 		const ca = g(st.amount_col), cst = g(st.status_col), cf = g(st.fee_col);
+		if (ca < 0) { throw new Error('عمود المبلغ المحصل «' + ((st.amount_col && st.amount_col.name) || '') + '» غير موجود في هذا الملف. عدّل إعدادات الشركة بملف نموذجي جديد.'); }
 		const out = [];
 		grid.forEach((r, i) => {
 			if (i < (st.header_row || 1) || !r) { return; }
@@ -209,67 +207,22 @@
 		});
 		return out;
 	}
-	function run() {
-		const company = $('#imp-company').val();
-		if (!company || !saved || !rowsCache) { return; }
-		call('scPreview', {company_id: company, rows: JSON.stringify(rowsCache), status_map: JSON.stringify(Object.assign({}, saved.status_map || {}, statusMap)),
-			includes_shipping: Number(saved.includes_shipping) ? 1 : 0, tolerance: saved.tolerance == null ? 1 : saved.tolerance})
-			.then(r => { lastRes = r; renderResult(); }).catch(fail);
-	}
-	function renderResult() {
-		const r = lastRes, s = r.summary;
-		$('#imp-result').show();
-		$('#imp-summary').html('<span class="badge badge-secondary p-2 ml-1">الإجمالي ' + s.total + '</span><span class="badge badge-success p-2 ml-1">سليم ' + s.OK + '</span><span class="badge badge-warning p-2 ml-1">يحتاج مراجعة ' + s.REVIEW + '</span><span class="badge badge-danger p-2 ml-1">خطأ ' + s.ERROR + '</span>');
-		const keys = Object.keys(r.statuses || {});
-		if (keys.length) {
-			let h = '<div class="small font-weight-bold mb-1">تفسير الحالات (تعديل مؤقت لهذا الرفع فقط؛ للتثبيت عدّل إعدادات الشركة):</div><div class="form-row">';
-			keys.forEach(k => { const cur = statusMap[k] || r.statuses[k].action; h += '<div class="col-md-4 mb-1"><div class="input-group input-group-sm"><div class="input-group-prepend"><span class="input-group-text">' + esc(k) + ' (' + r.statuses[k].count + ')</span></div>' + actionSelect(k, cur, 'imp-st') + '</div></div>'; });
-			$('#imp-statuses').html(h + '</div>');
-		} else { $('#imp-statuses').empty(); }
-		renderTable();
-		const m = r.not_in_file;
-		$('#imp-missing').text(m.count ? 'أوامر على عهدة الشركة (بانتظار النتيجة) ولم تظهر في الكشف: ' + m.count + (m.sample.length ? ' — مثال: ' + m.sample.slice(0, 10).join('، ') : '') : 'كل أوامر عهدة الشركة الجارية ظهرت في الكشف.');
-	}
-	function renderTable() {
-		const f = $('#imp-filter .active').data('f');
-		let h = '<thead class="thead-dark"><tr><th>صف</th><th>رقم الأمر</th><th>حالة الكشف</th><th>المحصل</th><th>قيمة النظام</th><th>شحن النظام</th><th>شحن الشركة</th><th>المتوقع</th><th>الاستنتاج</th><th>الإجراء المقترح</th><th>الحكم</th><th>ملاحظات</th></tr></thead><tbody>';
-		lastRes.rows.filter(x => f === 'ALL' || x.flag === f).forEach(x => {
-			const b = FLAG[x.flag], notes = x.notes.concat(x.candidates.length ? ['التوزيع: ' + x.candidates.join(' | ')] : []);
-			h += '<tr><td>' + x.row + '</td><td class="text-nowrap">' + esc(x.order) + '</td><td>' + esc(x.file_status) + '</td><td>' + money(x.amount) + '</td><td>' + money(x.order_value) + '</td><td>' + money(x.shipping) + '</td><td>' + money(x.company_shipping) + '</td><td>' + money(x.expected) + '</td><td>' + esc(DERIVED[x.derived] || '—') + '</td><td>' + esc(ACTIONS[x.proposed] || '—') + '</td><td><span class="badge ' + b[0] + '">' + b[1] + '</span></td><td class="small">' + esc(notes.join(' — ')) + '</td></tr>';
-		});
-		$('#imp-table').html(h + '</tbody>');
-	}
-	function loadCompany() {
-		saved = null; $('#imp-saved,#imp-nosaved').hide();
-		const id = $('#imp-company').val(); if (!id) { return Promise.resolve(); }
-		return call('scGet', {id}).then(c => {
-			try { saved = c.import_settings ? JSON.parse(c.import_settings) : null; } catch (e) { saved = null; }
-			$('#imp-saved').toggle(!!saved); $('#imp-nosaved').toggle(!saved);
-		}).catch(fail);
-	}
-	async function onImpFile(file) {
-		if (!file) { return; }
-		try {
-			if (!$('#imp-company').val()) { throw new Error('اختر شركة الشحن أولًا.'); }
-			if (!saved) { throw new Error('لم تُضبط إعدادات ملف هذه الشركة. افتح "تعديل" للشركة وارفع ملفًا نموذجيًا.'); }
+	async function sha256(buf) { try { const d = await crypto.subtle.digest('SHA-256', buf); return Array.from(new Uint8Array(d)).map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return ''; } }
+	window.ScImport = {
+		/** يقرأ الملف بإعدادات الشركة المحفوظة ويرجع {rows, sheet, hash} */
+		async parse(file, st) {
+			const buf = await file.arrayBuffer();
 			const sh = await readFile(file);
-			let k = sh.findIndex(x => x.name === saved.sheet); if (k < 0) { k = largest(sh); }
-			statusMap = {}; rowsCache = gridRows(sh[k].rows, saved);
-			if (!rowsCache.length) { throw new Error('لا توجد صفوف بأرقام أوامر في الورقة «' + sh[k].name + '».'); }
-			run();
-		} catch (e) { fail(e); }
-	}
+			let k = sh.findIndex(x => x.name === st.sheet); if (k < 0) { k = largest(sh); }
+			const rows = gridRows(sh[k].rows, st);
+			if (!rows.length) { throw new Error('لا توجد صفوف بأرقام أوامر في الورقة «' + sh[k].name + '».'); }
+			return {rows, sheet: sh[k].name, hash: await sha256(buf)};
+		},
+		ACTIONS, DERIVED, FLAG, money
+	};
 
 	$(function () {
-		if (!$('#scImportPage').length) { return; }
-		$('#scImportPage').show();
-		call('scList').then(list => {
-			$('#imp-company').html('<option value="">— اختر —</option>' + list.filter(c => Number(c.is_active) === 1).map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join(''));
-		}).catch(fail);
-		$('#imp-company').on('change', loadCompany);
-		$('#imp-file').on('change', function () { onImpFile(this.files[0]); });
-		$('#imp-filter').on('click', 'button', function () { $('#imp-filter button').removeClass('active'); $(this).addClass('active'); if (lastRes) { renderTable(); } });
-		$('#imp-statuses').on('change', '.imp-st', function () { statusMap[$(this).data('k')] = this.value; run(); });
+		if (!$('#cs-file').length) { return; }
 
 		// نافذة إعدادات الشركة
 		$(document).on('sc:open', function (e, c) {

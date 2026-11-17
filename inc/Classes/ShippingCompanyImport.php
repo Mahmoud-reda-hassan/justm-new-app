@@ -105,7 +105,7 @@ class ShippingCompanyImport {
                 'row' => $r['row'], 'order' => $r['order'], 'amount' => $r['amount'], 'file_status' => $r['status'], 'fee' => $r['fee'],
                 'expected' => null, 'order_value' => null, 'shipping' => null,
                 'derived' => null, 'status_action' => null, 'proposed' => null,
-                'flag' => 'OK', 'notes' => [], 'candidates' => [],
+                'flag' => 'OK', 'notes' => [], 'candidates' => [], 'order_id' => null,
             ];
             $o = $orders[$r['order']] ?? null;
             $stAct = null;
@@ -122,6 +122,7 @@ class ShippingCompanyImport {
             } elseif ($o['CO_USER'] === null) {
                 $row['flag'] = 'ERROR'; $row['notes'][] = 'الأمر ليس على عهدة هذه الشركة';
             } else {
+                $row['order_id'] = (int)$o['ORDER_ID'];
                 $ls = $lines[(int)$o['ORDER_ID']] ?? [];
                 $value = 0.0; $done = false;
                 foreach ($ls as $l) {
@@ -215,6 +216,86 @@ class ShippingCompanyImport {
             'statuses' => $statuses, 'rows' => $out,
             'not_in_file' => ['count' => count($notInFile), 'sample' => array_slice($notInFile, 0, 50)],
         ];
+    }
+
+    /** يحلل الكشف ويحفظ صفوفه (آخر صف لكل أمر) ليُعرض تحت الأوامر في عهدة الشركة. لا يغيّر أي أمر أو عهدة. */
+    public function saveStatement(int $companyId, array $rows, bool $includesShipping, array $statusMap, float $tol, string $fileName, string $fileHash, int $userId): array {
+        $res = $this->preview($companyId, $rows, $includesShipping, $statusMap, $tol);
+        $own = !$this->db->inTransaction();
+        if ($own) { $this->db->beginTransaction(); }
+        try {
+            $im = $this->db->prepare("INSERT INTO shipping_company_imports (company_id, file_name, file_hash, rows_total, summary, uploaded_by) VALUES (?,?,?,?,?,?)");
+            $im->execute([$companyId, mb_substr($fileName, 0, 255), preg_match('/^[a-f0-9]{64}$/', $fileHash) ? $fileHash : null, count($res['rows']),
+                json_encode($res['summary'], JSON_UNESCAPED_UNICODE), $userId ?: null]);
+            $importId = (int)$this->db->lastInsertId();
+            $up = $this->db->prepare(
+                "INSERT INTO shipping_company_statement_rows
+                    (company_id, import_id, order_id, sub_order_id, row_no, amount, fee, file_status, status_action, derived, proposed, flag,
+                     order_value, shipping, company_shipping, shipping_diff, expected, notes, candidates)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 ON DUPLICATE KEY UPDATE import_id=VALUES(import_id), order_id=VALUES(order_id), row_no=VALUES(row_no), amount=VALUES(amount), fee=VALUES(fee),
+                     file_status=VALUES(file_status), status_action=VALUES(status_action), derived=VALUES(derived), proposed=VALUES(proposed), flag=VALUES(flag),
+                     order_value=VALUES(order_value), shipping=VALUES(shipping), company_shipping=VALUES(company_shipping), shipping_diff=VALUES(shipping_diff),
+                     expected=VALUES(expected), notes=VALUES(notes), candidates=VALUES(candidates), uploaded_at=NOW()"
+            );
+            foreach ($res['rows'] as $r) {
+                $up->execute([$companyId, $importId, $r['order_id'], mb_substr((string)$r['order'], 0, 32), $r['row'], $r['amount'], $r['fee'],
+                    mb_substr((string)$r['file_status'], 0, 100), $r['status_action'], $r['derived'], $r['proposed'], $r['flag'],
+                    $r['order_value'], $r['shipping'], $r['company_shipping'] ?? null, $r['shipping_diff'] ?? null, $r['expected'],
+                    json_encode($r['notes'], JSON_UNESCAPED_UNICODE), json_encode($r['candidates'], JSON_UNESCAPED_UNICODE)]);
+            }
+            if ($own) { $this->db->commit(); }
+        } catch (Throwable $e) {
+            if ($own && $this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $e;
+        }
+        $res['import_id'] = $importId;
+        unset($res['rows']);
+        return $res;
+    }
+
+    /** معلومات المندوب: هل هو مربوط بشركة شحن؟ (null لو مندوب عادي) */
+    public function companyOfCourier(int $courierId): ?array {
+        $st = $this->db->prepare("SELECT id, name, is_active, import_settings FROM shipping_companies WHERE user_id = ?");
+        $st->execute([$courierId]);
+        $c = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$c) { return null; }
+        $last = $this->db->prepare("SELECT file_name, uploaded_at, rows_total FROM shipping_company_imports WHERE company_id = ? ORDER BY id DESC LIMIT 1");
+        $last->execute([(int)$c['id']]);
+        $cnt = $this->db->prepare("SELECT COUNT(*) FROM shipping_company_statement_rows WHERE company_id = ? AND order_id IS NOT NULL");
+        $cnt->execute([(int)$c['id']]);
+        return ['id' => (int)$c['id'], 'name' => $c['name'], 'is_active' => (int)$c['is_active'], 'import_settings' => $c['import_settings'],
+                'last_import' => $last->fetch(PDO::FETCH_ASSOC) ?: null, 'linked_orders' => (int)$cnt->fetchColumn()];
+    }
+
+    /** صفوف الكشف المحفوظة لأوامر معينة (مفتاحها رقم الأمر) مع الحالة الحالية للعهدة */
+    public function statementForOrders(int $companyId, array $orderIds): array {
+        $orderIds = array_values(array_unique(array_filter(array_map('intval', $orderIds))));
+        if (!$orderIds) { return []; }
+        $ph = implode(',', array_fill(0, count($orderIds), '?'));
+        $st = $this->db->prepare(
+            "SELECT r.*, i.file_name, co.CUST_STAT AS custody_state
+             FROM shipping_company_statement_rows r
+             JOIN shipping_company_imports i ON i.id = r.import_id
+             JOIN shipping_companies c ON c.id = r.company_id
+             LEFT JOIN custody_orders co ON co.ORDER_ID = r.order_id AND co.USER_ID = c.user_id
+             WHERE r.company_id = ? AND r.order_id IN ($ph)"
+        );
+        $st->execute(array_merge([$companyId], $orderIds));
+        $out = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $r['notes'] = json_decode((string)$r['notes'], true) ?: [];
+            $r['candidates'] = json_decode((string)$r['candidates'], true) ?: [];
+            $out[(int)$r['order_id']] = $r;
+        }
+        return $out;
+    }
+
+    /** كل أوامر الكشف المرتبطة بالشركة (لفلتر "الواردة من الشركة") */
+    public function statementOrderIds(int $companyId): array {
+        $st = $this->db->prepare("SELECT order_id FROM shipping_company_statement_rows WHERE company_id = ? AND order_id IS NOT NULL");
+        $st->execute([$companyId]);
+        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
     }
 
     /**

@@ -608,6 +608,23 @@ $res5 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q3), 'amount' => '25
 check('import: return with collected below the shipping = shipping paid with a shipping-difference note', $res5['rows'][0]['derived'] === 'RETURN_SHIPPING_PAID' && $res5['rows'][0]['proposed'] === 'RETURN_SHIPPING_PAID' && count($res5['rows'][0]['notes']) >= 1);
 $res6 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '220', 'status' => 'تم التسليم', 'fee' => '40']], true, [], 1.0);
 check('import: company shipping differing from system shipping is accepted and reported', $res6['rows'][0]['derived'] === 'FULL' && $res6['rows'][0]['flag'] === 'OK' && abs($res6['rows'][0]['shipping_diff'] - 10.0) < 0.005);
+$sv = $imp->saveStatement($scId, [
+    ['row' => 2, 'order' => $sub($q1), 'amount' => '180', 'status' => 'استلم', 'fee' => '30'],
+    ['row' => 3, 'order' => $sub($q3), 'amount' => '30', 'status' => 'مرتجع ودفع الشحن'],
+    ['row' => 4, 'order' => 'NOPE-9', 'amount' => '5', 'status' => ''],
+], false, [], 1.0, 'كشف.xlsx', str_repeat('a', 64), $userId);
+check('statement saved: import log + one row per file row', (int)$db->query("SELECT COUNT(*) FROM shipping_company_statement_rows WHERE company_id=$scId")->fetchColumn() === 3
+    && (int)$db->query("SELECT rows_total FROM shipping_company_imports WHERE id=" . (int)$sv['import_id'])->fetchColumn() === 3);
+$link = $imp->statementForOrders($scId, [$q1, $q3, $q2]);
+check('statement linked to the custody orders by order id', isset($link[$q1], $link[$q3]) && !isset($link[$q2]) && $link[$q1]['derived'] === 'FULL' && $link[$q1]['custody_state'] === 'WAITING');
+check('statement keeps the unknown order unlinked', (int)$db->query("SELECT COUNT(*) FROM shipping_company_statement_rows WHERE company_id=$scId AND order_id IS NULL")->fetchColumn() === 1);
+$imp->saveStatement($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '0', 'status' => 'اجل']], false, [], 1.0, 'كشف2.xlsx', '', $userId);
+check('re-upload replaces the latest row per order (no duplicates)', (int)$db->query("SELECT COUNT(*) FROM shipping_company_statement_rows WHERE company_id=$scId AND sub_order_id='" . $sub($q1) . "'")->fetchColumn() === 1
+    && $imp->statementForOrders($scId, [$q1])[$q1]['proposed'] === 'IGNORE');
+check('statement order ids for the company filter', in_array($q1, $imp->statementOrderIds($scId), true) && in_array($q3, $imp->statementOrderIds($scId), true));
+$coi = $imp->companyOfCourier($scCourier);
+check('courier linked to a company reports it with last import', $coi && (int)$coi['id'] === $scId && $coi['last_import']['file_name'] === 'كشف2.xlsx');
+check('plain courier is not a company', $imp->companyOfCourier($userId) === null);
 check('import: preview never writes (custody still waiting)', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE USER_ID=$scCourier AND CUST_STAT='WAITING'")->fetchColumn() === 3);
 check('import: order numbers from Excel E-notation normalized', ShippingCompanyImport::normalizeOrder('6.9261113125989E+13') === '69261113125989');
 check('import: status text defaults', ShippingCompanyImport::defaultAction('فشل التسليم') === 'RETURN' && ShippingCompanyImport::defaultAction('تم التسليم') === 'FULL');

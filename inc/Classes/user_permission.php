@@ -405,6 +405,7 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->title 	= "عهدة المندوبين";
 	            				$this->Pagelink = "viewOrders";
 	            				array_push($this->js_footer,'filterOrderList.js',"viewOrders.js","viewOrderData.js","DatatablesFromObject.js");
+	            				array_push($this->js_footer,"ShippingCompanyImport.js","ShippingCustodyStatement.js");
 	            		
 						} else if (isset($usc['Admin']['StockReceipt']['view']) && 
 	            				$usc['Admin']['StockReceipt']['view'] == "true" && $_GET["Go"] === "AddStock"){

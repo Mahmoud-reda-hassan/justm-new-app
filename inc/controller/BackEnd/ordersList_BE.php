@@ -784,6 +784,10 @@ class ordersList_BE {
                         $globalwhere[] = 'DELIVERY_ID = '.$request['did'];
                         $WQ1 = 'USER_ID = '.$request['did'];
                         $WQ2 = 'A.DELIVERY_ID = '.$request['did'];
+                        // عرض الأوامر الواردة في كشف شركة الشحن فقط (يُستخدم لمندوب مربوط بشركة)
+                        if(!empty($request['stmt'])){
+                            $globalwhere[] = 'ORDER_ID IN (SELECT order_id FROM shipping_company_statement_rows WHERE order_id IS NOT NULL AND company_id IN (SELECT id FROM shipping_companies WHERE user_id = '.(int)$request['did'].'))';
+                        }
                     }
                     if(isset($request['cofi'])){
                         if($request['cofi'] === "OLUnderSettlement"){

@@ -173,39 +173,3 @@ if (!$scAdmin) {
         </div>
     </div>
 </div>
-
-<div class="container-fluid my-3" id="scImportPage" style="display:none">
-    <div class="card shadow rounded">
-        <div class="card-header">
-            <h5 class="mb-0">رفع كشف شركة الشحن (معاينة)</h5>
-            <small class="text-muted">اختر الشركة وارفع الملف فقط: الأعمدة من إعدادات الشركة (زر تعديل). المعاينة لا تغيّر أي بيانات.</small>
-        </div>
-        <div class="card-body">
-            <div class="form-row">
-                <div class="form-group col-md-4">
-                    <label for="imp-company">شركة الشحن</label>
-                    <select id="imp-company" class="form-control"></select>
-                    <small id="imp-saved" class="text-success" style="display:none"><i class="fa fa-check"></i> إعدادات الملف محفوظة.</small>
-                    <small id="imp-nosaved" class="text-danger" style="display:none">لم تُضبط إعدادات ملف هذه الشركة: افتح "تعديل" للشركة وارفع ملفًا نموذجيًا.</small>
-                </div>
-                <div class="form-group col-md-5">
-                    <label for="imp-file">ملف الكشف (xlsx / xls / csv)</label>
-                    <input type="file" id="imp-file" class="form-control-file" accept=".xlsx,.xls,.csv">
-                </div>
-            </div>
-            <div id="imp-result" style="display:none">
-                <hr>
-                <div id="imp-summary" class="mb-2"></div>
-                <div id="imp-statuses" class="mb-3"></div>
-                <div class="btn-group btn-group-sm mb-2" id="imp-filter">
-                    <button type="button" class="btn btn-outline-secondary active" data-f="ALL">الكل</button>
-                    <button type="button" class="btn btn-outline-success" data-f="OK">سليم</button>
-                    <button type="button" class="btn btn-outline-warning" data-f="REVIEW">يحتاج مراجعة</button>
-                    <button type="button" class="btn btn-outline-danger" data-f="ERROR">خطأ</button>
-                </div>
-                <div class="table-responsive"><table class="table table-sm table-bordered table-striped" id="imp-table"></table></div>
-                <div id="imp-missing" class="small text-muted mt-2"></div>
-            </div>
-        </div>
-    </div>
-</div>

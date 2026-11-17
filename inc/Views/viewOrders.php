@@ -410,6 +410,19 @@ if($_GET['Go'] === 'OrdersCustody' || $_GET['Go'] === 'ListOrdersDelivery'){
 						
 					</select>
 				</div>
+				<div class="row mt-2" id="scCustodyTools" style="display:none">
+					<div class="col-12 d-flex flex-wrap align-items-center" style="gap:8px">
+						<span class="badge badge-info p-2"><i class="fa fa-truck"></i> <span id="scCustodyName"></span></span>
+						<button type="button" class="btn btn-sm btn-success" id="scUploadBtn"><i class="fa fa-file-excel"></i> رفع كشف الشركة</button>
+						<input type="file" id="scUploadFile" accept=".xlsx,.xls,.csv" style="display:none">
+						<div class="btn-group btn-group-sm" id="scFilterGroup" style="display:none">
+							<button type="button" class="btn btn-light active" data-f="ALL">كل أوامر العهدة</button>
+							<button type="button" class="btn btn-light" data-f="STMT">الواردة من الشركة فقط</button>
+						</div>
+						<small class="text-white" id="scCustodyInfo"></small>
+					</div>
+				</div>
+				<script src="/libraries/jszip/jszip.min.js"></script>
         	</div>
 		<?php
         	}

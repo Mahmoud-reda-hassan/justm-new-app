@@ -40,6 +40,11 @@ $scGroup    = trim((string)($_SESSION['USER_GRUOP_NAME'] ?? ''));
 $scApproved = in_array($scGroup, ['Administrator', 'Owner', 'المدير المالي'], true);
 $scCanView  = $scApproved || scPerm('view') || scPerm('admin');
 $scCanAdmin = $scApproved || scPerm('admin');
+// شاشة عهدة المندوبين تستخدم كشف الشركة أيضًا: صلاحيتها تكفي للعرض والرفع
+$scUs = isset($_SESSION['USER_SCRIPT']) ? @unserialize($_SESSION['USER_SCRIPT']) : null;
+$scCustody = is_array($scUs) && (($scUs['Admin']['OrdersCustody']['View_order_list'] ?? '') === 'true');
+$scCanViewCustody = $scCanView || $scCustody;
+$scCanUpload = $scCanAdmin || $scCustody;
 $deny = function () { ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', [])); };
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !isset($_POST['CONTROL'])) {
@@ -81,6 +86,25 @@ try {
             if (!$scCanAdmin) { $deny(); }
             $sc->saveImportSettings((int)($_POST['id'] ?? 0), json_decode((string)($_POST['settings'] ?? ''), true));
             $ok([], 'تم حفظ إعدادات ملف الشركة');
+        case 'scCustodyInfo':
+            if (!$scCanViewCustody) { $deny(); }
+            $ok((new ShippingCompanyImport($db))->companyOfCourier((int)($_POST['user_id'] ?? 0)));
+        case 'scStatementOrders':
+            if (!$scCanViewCustody) { $deny(); }
+            $imp = new ShippingCompanyImport($db);
+            $ids = json_decode((string)($_POST['order_ids'] ?? '[]'), true);
+            $ok($imp->statementForOrders((int)($_POST['company_id'] ?? 0), is_array($ids) ? $ids : []));
+        case 'scStatementIds':
+            if (!$scCanViewCustody) { $deny(); }
+            $ok((new ShippingCompanyImport($db))->statementOrderIds((int)($_POST['company_id'] ?? 0)));
+        case 'scStatementSave':
+            if (!$scCanUpload) { $deny(); }
+            $rows = json_decode((string)($_POST['rows'] ?? '[]'), true);
+            $map  = json_decode((string)($_POST['status_map'] ?? '{}'), true);
+            if (!is_array($rows)) { throw new Exception('بيانات الكشف غير صالحة.'); }
+            $imp = new ShippingCompanyImport($db);
+            $ok($imp->saveStatement((int)($_POST['company_id'] ?? 0), $rows, ((string)($_POST['includes_shipping'] ?? '0')) === '1', is_array($map) ? $map : [],
+                (float)($_POST['tolerance'] ?? 1), (string)($_POST['file_name'] ?? ''), (string)($_POST['file_hash'] ?? ''), $userId), 'تم حفظ كشف الشركة وربطه بالأوامر');
         case 'scPreview':
             if (!$scCanAdmin) { $deny(); }
             $rows = json_decode((string)($_POST['rows'] ?? '[]'), true);

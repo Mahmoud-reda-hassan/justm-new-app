@@ -5549,3 +5549,45 @@ CREATE TABLE IF NOT EXISTS `shipping_company_rates` (
   `fee` decimal(15,2) NOT NULL DEFAULT 0.00,
   PRIMARY KEY (`company_id`, `zone_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Saved shipping-company statement (Excel) rows: one latest row per (company, order), linked to the custody list.
+CREATE TABLE IF NOT EXISTS `shipping_company_imports` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `company_id` int(11) NOT NULL,
+  `file_name` varchar(255) DEFAULT NULL,
+  `file_hash` char(64) DEFAULT NULL,
+  `rows_total` int(11) NOT NULL DEFAULT 0,
+  `summary` text DEFAULT NULL,
+  `uploaded_by` int(11) DEFAULT NULL,
+  `uploaded_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_sci_company` (`company_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `shipping_company_statement_rows` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `company_id` int(11) NOT NULL,
+  `import_id` int(11) NOT NULL,
+  `order_id` bigint(20) DEFAULT NULL,
+  `sub_order_id` varchar(32) NOT NULL,
+  `row_no` int(11) DEFAULT NULL,
+  `amount` decimal(15,2) DEFAULT NULL,
+  `fee` decimal(15,2) DEFAULT NULL,
+  `file_status` varchar(100) DEFAULT NULL,
+  `status_action` varchar(30) DEFAULT NULL,
+  `derived` varchar(30) DEFAULT NULL,
+  `proposed` varchar(30) DEFAULT NULL,
+  `flag` enum('OK','REVIEW','ERROR') NOT NULL DEFAULT 'OK',
+  `order_value` decimal(15,2) DEFAULT NULL,
+  `shipping` decimal(15,2) DEFAULT NULL,
+  `company_shipping` decimal(15,2) DEFAULT NULL,
+  `shipping_diff` decimal(15,2) DEFAULT NULL,
+  `expected` decimal(15,2) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `candidates` text DEFAULT NULL,
+  `uploaded_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_scsr_company_order` (`company_id`, `sub_order_id`),
+  KEY `idx_scsr_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
