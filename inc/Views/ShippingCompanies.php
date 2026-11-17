@@ -48,6 +48,18 @@ if (!$scAdmin) {
                     <label for="sc-name">اسم الشركة</label>
                     <input type="text" id="sc-name" class="form-control" maxlength="100">
                 </div>
+                <div class="form-group" id="sc-courier-box">
+                    <label>المندوب الذي يمثل الشركة (للعهدة والحسابات)</label>
+                    <div id="sc-courier-new-edit">
+                        <select id="sc-courier-mode" class="form-control">
+                            <option value="NEW">إنشاء مستخدم مندوب جديد تلقائيًا (لا يستطيع الدخول)</option>
+                            <option value="EXISTING">ربط بمندوب موجود حاليًا</option>
+                        </select>
+                        <select id="sc-courier-user" class="form-control mt-2" style="display:none"></select>
+                        <small class="text-muted" id="sc-courier-hint">لا يمكن تغيير المندوب بعد إنشاء الشركة.</small>
+                    </div>
+                    <div id="sc-courier-fixed" class="form-control-plaintext" style="display:none"></div>
+                </div>
                 <div class="form-row">
                     <div class="form-group col-md-6">
                         <label for="sc-policy">سياسة استلام المرتجع في المخزن</label>

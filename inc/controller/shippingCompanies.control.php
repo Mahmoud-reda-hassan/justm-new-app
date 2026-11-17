@@ -55,6 +55,9 @@ try {
         case 'scList':
             if (!$scCanView) { $deny(); }
             $ok($sc->listAll());
+        case 'scCouriers':
+            if (!$scCanAdmin) { $deny(); }
+            $ok($sc->availableCouriers());
         case 'scGet':
             if (!$scCanView) { $deny(); }
             $ok($sc->get((int)($_POST['id'] ?? 0)));

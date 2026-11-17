@@ -48,12 +48,24 @@
 		$('#sc-method').val(c.settlement_method); $('#sc-feemode').val(c.fee_mode);
 		$('#sc-fixed').val(Number(c.fixed_fee || 0).toFixed(2)); $('#sc-note').val(c.note || '');
 		$('#sc-fixed-box').toggle(c.fee_mode === 'FIXED');
+		const isNew = !c.id;
+		$('#sc-courier-new-edit').toggle(isNew); $('#sc-courier-fixed').toggle(!isNew);
+		$('#sc-courier-mode').val('NEW'); $('#sc-courier-user').hide().empty();
+		if (!isNew) { $('#sc-courier-fixed').text(c.courier_name ? 'المندوب المرتبط: ' + c.courier_name + (Number(c.courier_internal) ? ' (مستخدم داخلي أُنشئ تلقائيًا)' : ' (مندوب موجود)') : ''); }
 		$('#scModal').modal('show');
 		$(document).trigger('sc:open', [c]);
 	}
 
 	$(document).on('change', '#sc-feemode', function () { $('#sc-fixed-box').toggle($(this).val() === 'FIXED'); });
 	$(document).on('click', '#scAdd', () => openForm());
+	$(document).on('change', '#sc-courier-mode', function () {
+		const $u = $('#sc-courier-user');
+		if ($(this).val() !== 'EXISTING') { $u.hide(); return; }
+		call('scCouriers').then(list => {
+			$u.html('<option value="">— اختر المندوب —</option>' + list.map(x => '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('')).show();
+			if (!list.length) { Swal.fire({icon: 'info', title: 'لا يوجد مناديب متاحون', text: 'كل المناديب النشطين مرتبطون بشركات أو لا يوجد مناديب.'}); }
+		}).catch(fail);
+	});
 	$(document).on('click', '.sc-edit', function () {
 		call('scGet', {id: $(this).data('id')}).then(openForm).catch(fail);
 	});
@@ -62,7 +74,8 @@
 		if (!name) { Swal.fire({icon: 'warning', title: 'اسم الشركة مطلوب'}); return; }
 		call('scSave', {
 			id: $('#sc-id').val(), name: name, receiving_policy: $('#sc-policy').val(), settlement_method: $('#sc-method').val(),
-			fee_mode: $('#sc-feemode').val(), fixed_fee: $('#sc-fixed').val(), note: $('#sc-note').val()
+			fee_mode: $('#sc-feemode').val(), fixed_fee: $('#sc-fixed').val(), note: $('#sc-note').val(),
+			courier_mode: $('#sc-courier-mode').val(), courier_user_id: $('#sc-courier-user').val() || 0
 		}).then(r => (window.scImportSaveHook ? window.scImportSaveHook(r && r.id) : null)).then(() => { $('#scModal').modal('hide'); return load(); }).catch(fail);
 	});
 	$(document).on('click', '.sc-toggle', function () {

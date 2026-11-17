@@ -20,7 +20,7 @@ class ShippingCompanies {
     /** مزامنة حالة المندوب الداخلي مع حالة الشركة (نشط = يظهر في قوائم المندوب). */
     private function syncUsers(): void {
         $this->db->exec("UPDATE users u JOIN shipping_companies c ON c.user_id = u.USER_ID SET u.SUSPENDED = c.is_active
-                         WHERE u.SUSPENDED <> c.is_active");
+                         WHERE u.SUSPENDED <> c.is_active AND u.USER_LOGIN LIKE 'shipco\\_%'");
     }
 
     public function listAll(): array {
@@ -28,14 +28,16 @@ class ShippingCompanies {
         return $this->db->query(
             "SELECT c.id, c.name, c.user_id, c.receiving_policy, c.settlement_method, c.fee_mode, c.fixed_fee,
                     c.is_active, c.note, c.created_at,
+                    CONCAT(u.FORENAME, ' ', u.LASTNAME) AS courier_name, (u.USER_LOGIN LIKE 'shipco\\_%') AS courier_internal,
                     (SELECT COUNT(*) FROM shipping_company_rates r WHERE r.company_id = c.id) AS rates_count,
                     (c.import_settings IS NOT NULL AND c.import_settings <> '') AS has_import
-             FROM shipping_companies c ORDER BY c.is_active DESC, c.name"
+             FROM shipping_companies c LEFT JOIN users u ON u.USER_ID = c.user_id ORDER BY c.is_active DESC, c.name"
         )->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function get(int $id): array {
-        $st = $this->db->prepare("SELECT * FROM shipping_companies WHERE id = ?");
+        $st = $this->db->prepare("SELECT c.*, CONCAT(u.FORENAME, ' ', u.LASTNAME) AS courier_name, (u.USER_LOGIN LIKE 'shipco\\_%') AS courier_internal
+                                  FROM shipping_companies c LEFT JOIN users u ON u.USER_ID = c.user_id WHERE c.id = ?");
         $st->execute([$id]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         if (!$row) { throw new Exception('شركة الشحن غير موجودة.'); }
@@ -100,10 +102,12 @@ class ShippingCompanies {
                 $st = $this->db->prepare("UPDATE shipping_companies SET name=?, receiving_policy=?, settlement_method=?, fee_mode=?, fixed_fee=?, note=? WHERE id=?");
                 $st->execute([$name, $policy, $method, $mode, $fixed, $note, $id]);
                 // اسم المندوب الداخلي يتبع اسم الشركة
-                $u = $this->db->prepare("UPDATE users SET FORENAME=? WHERE USER_ID=?");
+                $u = $this->db->prepare("UPDATE users SET FORENAME=? WHERE USER_ID=? AND USER_LOGIN LIKE 'shipco\\_%'");
                 $u->execute([mb_substr($name, 0, 50), (int)$row['user_id']]);
             } else {
-                $uid = $this->createInternalUser($name, $branchId);
+                $uid = ((string)($d['courier_mode'] ?? 'NEW')) === 'EXISTING'
+                    ? $this->checkExistingCourier((int)($d['courier_user_id'] ?? 0))
+                    : $this->createInternalUser($name, $branchId);
                 $st = $this->db->prepare("INSERT INTO shipping_companies (name, user_id, receiving_policy, settlement_method, fee_mode, fixed_fee, note, created_by) VALUES (?,?,?,?,?,?,?,?)");
                 $st->execute([$name, $uid, $policy, $method, $mode, $fixed, $note, $userId]);
                 $id = (int)$this->db->lastInsertId();
@@ -114,6 +118,30 @@ class ShippingCompanies {
             throw $e;
         }
         return $id;
+    }
+
+    /** مناديب موجودون (نشطون) غير مرتبطين بأي شركة شحن */
+    public function availableCouriers(): array {
+        return $this->db->query(
+            "SELECT u.USER_ID AS id, CONCAT(u.FORENAME, ' ', u.LASTNAME) AS name
+             FROM users_delivery d JOIN users u ON u.USER_ID = d.USER_ID
+             WHERE u.SUSPENDED = 1 AND u.USER_LOGIN NOT LIKE 'shipco\\_%'
+               AND NOT EXISTS (SELECT 1 FROM shipping_companies c WHERE c.user_id = u.USER_ID)
+             ORDER BY u.FORENAME, u.LASTNAME"
+        )->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private function checkExistingCourier(int $uid): int {
+        if ($uid <= 0) { throw new Exception('اختر المندوب المراد ربطه بالشركة.'); }
+        $st = $this->db->prepare("SELECT u.SUSPENDED FROM users u JOIN users_delivery d ON d.USER_ID = u.USER_ID WHERE u.USER_ID = ?");
+        $st->execute([$uid]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) { throw new Exception('المندوب المختار غير موجود.'); }
+        if ((int)$row['SUSPENDED'] !== 1) { throw new Exception('المندوب المختار غير نشط.'); }
+        $used = $this->db->prepare("SELECT 1 FROM shipping_companies WHERE user_id = ?");
+        $used->execute([$uid]);
+        if ($used->fetchColumn()) { throw new Exception('هذا المندوب مرتبط بشركة شحن أخرى.'); }
+        return $uid;
     }
 
     /** مندوب داخلي (لا دخول) يمثل الشركة في العهدة والأستاذ. */

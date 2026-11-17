@@ -536,6 +536,20 @@ check('shipping company: deactivate (never deleted)', (int)$scs->get($scId)['is_
 check('shipping company: deactivating also hides the courier user from pickers', (int)$db->query("SELECT SUSPENDED FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 0);
 $scs->setActive($scId, true);
 check('shipping company: reactivating restores the courier user', (int)$db->query("SELECT SUSPENDED FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 1);
+// 7b) link a company to an EXISTING courier
+$db->exec("INSERT INTO users (BRANCH_ID,FORENAME,LASTNAME,GENDER,SUSPENDED,USER_LOGIN,USER_PASSWORD,DELIVERY_TYPE,BIRTHDAY) VALUES ($branch,'مندوب','قائم','male',1,'real.courier@example.com','x',1,'1990-01-01')");
+$realCourier = (int)$db->lastInsertId();
+$db->exec("INSERT INTO users_delivery (USER_ID,ZONE_ID,PERCENT) VALUES ($realCourier,NULL,5)");
+check('existing courier listed as available', in_array($realCourier, array_map('intval', array_column($scs->availableCouriers(), 'id')), true));
+$linkId = $scs->save(['name' => 'شركة مرتبطة', 'courier_mode' => 'EXISTING', 'courier_user_id' => $realCourier, 'fee_mode' => 'ORDER_SHIPPING'], $userId, $branch);
+check('company linked to existing courier keeps that user', (int)$scs->get($linkId)['user_id'] === $realCourier && (int)$scs->get($linkId)['courier_internal'] === 0);
+check('linked courier no longer available', !in_array($realCourier, array_map('intval', array_column($scs->availableCouriers(), 'id')), true));
+check('same courier cannot be linked twice', throwsMsg(fn() => $scs->save(['name' => 'شركة ثانية', 'courier_mode' => 'EXISTING', 'courier_user_id' => $realCourier, 'fee_mode' => 'ORDER_SHIPPING'], $userId, $branch), 'مرتبط بشركة'));
+check('non-courier user cannot be linked', throwsMsg(fn() => $scs->save(['name' => 'شركة ثالثة', 'courier_mode' => 'EXISTING', 'courier_user_id' => $userId, 'fee_mode' => 'ORDER_SHIPPING'], $userId, $branch), 'غير موجود'));
+$scs->save(['id' => $linkId, 'name' => 'شركة مرتبطة معدلة', 'fee_mode' => 'ORDER_SHIPPING'], $userId, $branch);
+check('renaming the company does not rename a real courier', $db->query("SELECT FORENAME FROM users WHERE USER_ID=$realCourier")->fetchColumn() === 'مندوب');
+$scs->setActive($linkId, false);
+check('deactivating the company never suspends a real courier', (int)$db->query("SELECT SUSPENDED FROM users WHERE USER_ID=$realCourier")->fetchColumn() === 1);
 
 // 8) shipping company Excel preview (read-only classification)
 require_once __DIR__ . '/../../inc/Classes/ShippingCompanyImport.php';
