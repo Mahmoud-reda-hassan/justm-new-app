@@ -1,7 +1,9 @@
 <?php
 /**
  * شركات الشحن الخارجية (إدارة البيانات الأساسية).
- * الشركة ليست مستخدمًا يدخل النظام: كل شركة مرتبطة بمستخدم مندوب داخلي موقوف (SUSPENDED=0، لا دخول)
+ * الشركة ليست مستخدمًا يدخل النظام: كل شركة مرتبطة بمستخدم مندوب داخلي لا يستطيع الدخول
+ * (كلمة المرور المخزنة 64 حرفًا بينما الدخول يقارن md5 من 32 حرفًا، واسم الدخول عشوائي).
+ * حالة المستخدم نشط (SUSPENDED=1) طالما الشركة نشطة ليظهر في قوائم اختيار المندوب، وتتبع إيقاف الشركة.
  * ليعمل صرف العهدة وتأكيد التسليم وطرف DELIVERY في الأستاذ بالكود القائم دون تكرار.
  * لا يحذف شيئًا: الإيقاف فقط.
  */
@@ -13,7 +15,14 @@ class ShippingCompanies {
     private $db;
     public function __construct($db) { $this->db = $db; }
 
+    /** مزامنة حالة المندوب الداخلي مع حالة الشركة (نشط = يظهر في قوائم المندوب). */
+    private function syncUsers(): void {
+        $this->db->exec("UPDATE users u JOIN shipping_companies c ON c.user_id = u.USER_ID SET u.SUSPENDED = c.is_active
+                         WHERE u.SUSPENDED <> c.is_active");
+    }
+
     public function listAll(): array {
+        $this->syncUsers();
         return $this->db->query(
             "SELECT c.id, c.name, c.user_id, c.receiving_policy, c.settlement_method, c.fee_mode, c.fixed_fee,
                     c.is_active, c.note, c.created_at,
@@ -75,7 +84,7 @@ class ShippingCompanies {
         return $id;
     }
 
-    /** مندوب داخلي موقوف (لا دخول) يمثل الشركة في العهدة والأستاذ. */
+    /** مندوب داخلي (لا دخول) يمثل الشركة في العهدة والأستاذ. */
     private function createInternalUser(string $name, int $branchId): int {
         if ($branchId <= 0) { throw new Exception('تعذر تحديد الفرع.'); }
         $login = 'shipco_' . bin2hex(random_bytes(6));
@@ -83,7 +92,7 @@ class ShippingCompanies {
         $st = $this->db->prepare(
             "INSERT INTO users (USER_GRUOP_ID, BRANCH_ID, FORENAME, LASTNAME, GENDER, SUSPENDED, USER_LOGIN, USER_PASSWORD,
                                 ADMIN_TYPE, MERCHANT_TYPE, AFFILIATE_TYPE, INTERMEDIARY_TYPE, DELIVERY_TYPE, BIRTHDAY)
-             VALUES (NULL, ?, ?, 'شركة شحن', 'male', 0, ?, ?, 0, 0, 0, 0, 1, '1984-09-30')"
+             VALUES (NULL, ?, ?, 'شركة شحن', 'male', 1, ?, ?, 0, 0, 0, 0, 1, '1984-09-30')"
         );
         $st->execute([$branchId, mb_substr($name, 0, 50), $login, $pass]);
         $uid = (int)$this->db->lastInsertId();
@@ -96,6 +105,7 @@ class ShippingCompanies {
         $this->get($id);
         $st = $this->db->prepare("UPDATE shipping_companies SET is_active=? WHERE id=?");
         $st->execute([$active ? 1 : 0, $id]);
+        $this->syncUsers();
     }
 
     /** المناطق مع رسم الشركة (إن وُجد) */

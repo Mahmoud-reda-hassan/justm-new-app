@@ -511,8 +511,9 @@ $scs = new ShippingCompanies($db);
 $scId = $scs->save(['name' => 'شركة اختبار', 'receiving_policy' => 'PARTIAL', 'settlement_method' => 'GROSS_THEN_FEE', 'fee_mode' => 'ZONE_RATE'], $userId, $scBranch);
 $scRow = $scs->get($scId);
 check('shipping company: saved with policy/method/fee mode', $scRow['receiving_policy'] === 'PARTIAL' && $scRow['settlement_method'] === 'GROSS_THEN_FEE' && $scRow['fee_mode'] === 'ZONE_RATE');
-$scu = $db->query("SELECT SUSPENDED, DELIVERY_TYPE FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetch(PDO::FETCH_ASSOC);
-check('shipping company: backed by suspended courier user (cannot log in)', $scu && (int)$scu['SUSPENDED'] === 0 && (int)$scu['DELIVERY_TYPE'] === 1);
+$scu = $db->query("SELECT SUSPENDED, DELIVERY_TYPE, LENGTH(USER_PASSWORD) AS pl FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetch(PDO::FETCH_ASSOC);
+check('shipping company: active courier user so it appears in courier pickers', $scu && (int)$scu['SUSPENDED'] === 1 && (int)$scu['DELIVERY_TYPE'] === 1);
+check('shipping company: stored password can never equal an md5 login (no login)', $scu && (int)$scu['pl'] === 64);
 check('shipping company: users_delivery row exists', (int)$db->query("SELECT COUNT(*) FROM users_delivery WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 1);
 check('shipping company: duplicate name refused', throwsMsg(fn() => $scs->save(['name' => 'شركة اختبار'], $userId, $scBranch), 'مستخدم'));
 check('shipping company: FIXED needs a fee', throwsMsg(fn() => $scs->save(['name' => 'ثابتة', 'fee_mode' => 'FIXED', 'fixed_fee' => 0], $userId, $scBranch), 'الرسم الثابت'));
@@ -532,6 +533,9 @@ if ($zoneId > 0) {
 }
 $scs->setActive($scId, false);
 check('shipping company: deactivate (never deleted)', (int)$scs->get($scId)['is_active'] === 0);
+check('shipping company: deactivating also hides the courier user from pickers', (int)$db->query("SELECT SUSPENDED FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 0);
+$scs->setActive($scId, true);
+check('shipping company: reactivating restores the courier user', (int)$db->query("SELECT SUSPENDED FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 1);
 
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);
