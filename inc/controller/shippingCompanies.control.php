@@ -74,6 +74,10 @@ try {
             $rates = isset($_POST['rates']) && is_array($_POST['rates']) ? $_POST['rates'] : [];
             $n = $sc->saveRates((int)($_POST['id'] ?? 0), $rates);
             $ok(['saved' => $n], 'تم حفظ أسعار المناطق');
+        case 'scImportSave':
+            if (!$scCanAdmin) { $deny(); }
+            $sc->saveImportSettings((int)($_POST['id'] ?? 0), json_decode((string)($_POST['settings'] ?? ''), true));
+            $ok([], 'تم حفظ إعدادات ملف الشركة');
         case 'scPreview':
             if (!$scCanAdmin) { $deny(); }
             $rows = json_decode((string)($_POST['rows'] ?? '[]'), true);

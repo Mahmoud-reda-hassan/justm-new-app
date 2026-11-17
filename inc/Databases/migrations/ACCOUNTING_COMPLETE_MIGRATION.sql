@@ -182,10 +182,14 @@ CREATE TABLE IF NOT EXISTS `shipping_companies` (
   `note` varchar(255) DEFAULT NULL,
   `created_by` int(11) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
+  `import_settings` text DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_shipping_company_name` (`name`),
   UNIQUE KEY `uq_shipping_company_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- saved Excel statement settings (sheet, header row, columns by header name, status map) so staff only upload the file
+ALTER TABLE `shipping_companies` ADD COLUMN IF NOT EXISTS `import_settings` text DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS `shipping_company_rates` (
   `company_id` int(11) NOT NULL,

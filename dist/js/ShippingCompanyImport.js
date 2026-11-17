@@ -16,6 +16,40 @@
 	let grid = [];        // الصفوف الخام للورقة المختارة
 	let statusMap = {};   // نص الحالة -> إجراء (تعديل المستخدم)
 	let lastRes = null;
+	let saved = null;     // إعدادات الشركة المحفوظة
+
+	function colRef($s) { const v = $s.val(); if (v === '' || v == null) { return null; } const i = parseInt(v, 10); return {name: (headerCells()[i] || '').trim(), index: i}; }
+	function findCol(ref, headers) {
+		if (!ref) { return ''; }
+		if (ref.name) { const i = headers.findIndex(h => h.trim() === ref.name); if (i >= 0) { return String(i); } }
+		return ref.index < headers.length && (!ref.name || !headers[ref.index].trim()) ? String(ref.index) : '';
+	}
+	function applySaved() {
+		if (!saved || !grid.length) { return false; }
+		$('#imp-hrow').val(saved.header_row || 1);
+		buildMapping(false);
+		const h = headerCells();
+		const set = (sel, ref, optional) => { fillSelect($(sel), h, null, optional); const v = findCol(ref, h); $(sel).val(v === '' ? (optional ? '' : '0') : v); return v !== ''; };
+		const okOrder = set('#imp-c-order', saved.order_col, false);
+		set('#imp-c-amount', saved.amount_col, true); set('#imp-c-status', saved.status_col, true); set('#imp-c-fee', saved.fee_col, true);
+		$('#imp-incl').prop('checked', !!Number(saved.includes_shipping)); $('#imp-tol').val(saved.tolerance == null ? 1 : saved.tolerance);
+		statusMap = Object.assign({}, saved.status_map || {});
+		buildMapping(false);
+		return okOrder;
+	}
+	function currentSettings() {
+		return {sheet: sheets.length ? sheets[parseInt($('#imp-sheet').val() || 0, 10)].name : '', header_row: parseInt($('#imp-hrow').val(), 10) || 1,
+			order_col: colRef($('#imp-c-order')), amount_col: colRef($('#imp-c-amount')), status_col: colRef($('#imp-c-status')), fee_col: colRef($('#imp-c-fee')),
+			includes_shipping: $('#imp-incl').is(':checked') ? 1 : 0, tolerance: parseFloat($('#imp-tol').val()) || 0, status_map: Object.assign({}, lastRes ? Object.fromEntries(Object.entries(lastRes.statuses || {}).map(([k, v]) => [k, statusMap[k] || v.action])) : statusMap)};
+	}
+	function loadCompany() {
+		saved = null; $('#imp-saved').hide();
+		const id = $('#imp-company').val(); if (!id) { return Promise.resolve(); }
+		return call('scGet', {id}).then(c => {
+			try { saved = c.import_settings ? JSON.parse(c.import_settings) : null; } catch (e) { saved = null; }
+			$('#imp-saved').toggle(!!saved);
+		}).catch(fail);
+	}
 
 	// ---------- قراءة الملفات ----------
 	const colIdx = (ref) => { let n = 0; const m = /^([A-Z]+)/.exec(ref || ''); if (!m) { return 0; } for (const ch of m[1]) { n = n * 26 + ch.charCodeAt(0) - 64; } return n - 1; };
@@ -114,9 +148,12 @@
 		grid.slice(start, start + 3).forEach(r => { html += '<tr>' + h.map((x, i) => '<td>' + esc(r && r[i] != null ? r[i] : '') + '</td>').join('') + '</tr>'; });
 		$('#imp-sample').html(html + '</tbody>');
 	}
-	function pickSheet(i) {
+	function pickSheet(i, auto) {
 		grid = sheets[i].rows; $('#imp-hrow').val(guessHeaderRow(grid)); buildMapping(true);
 		$('#imp-map').show(); $('#imp-result').hide();
+		if (auto && saved) {
+			if (applySaved()) { run(); } else { fail(new Error('أعمدة الإعدادات المحفوظة غير موجودة في هذا الملف. اضبط الأعمدة يدويًا ثم احفظ الإعدادات من جديد.')); }
+		}
 	}
 
 	function collectRows() {
@@ -192,7 +229,8 @@
 			$('#imp-sheet-box').toggle(sheets.length > 1);
 			// أكبر ورقة افتراضيًا
 			let best = 0; sheets.forEach((s, i) => { if (s.rows.length > sheets[best].rows.length) { best = i; } });
-			$('#imp-sheet').val(best); pickSheet(best);
+			if (saved && saved.sheet) { const k = sheets.findIndex(x => x.name === saved.sheet); if (k >= 0) { best = k; } }
+			$('#imp-sheet').val(best); pickSheet(best, true);
 		} catch (e) { fail(e); }
 	}
 
@@ -203,7 +241,13 @@
 			$('#imp-company').html('<option value="">— اختر —</option>' + list.filter(c => Number(c.is_active) === 1).map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join(''));
 		}).catch(fail);
 		$('#imp-file').on('change', function () { onFile(this.files[0]); });
-		$('#imp-sheet').on('change', function () { pickSheet(parseInt(this.value, 10)); });
+		$('#imp-sheet').on('change', function () { pickSheet(parseInt(this.value, 10), true); });
+		$('#imp-company').on('change', function () { loadCompany().then(() => { if (sheets.length) { pickSheet(parseInt($('#imp-sheet').val() || 0, 10), true); } }); });
+		$('#imp-save').on('click', function () {
+			const id = $('#imp-company').val(); if (!id) { return fail(new Error('اختر شركة الشحن.')); }
+			const st = currentSettings(); if (!st.order_col) { return fail(new Error('حدد عمود رقم الأمر.')); }
+			call('scImportSave', {id, settings: JSON.stringify(st)}).then(() => { saved = st; $('#imp-saved').show(); Swal.fire({icon: 'success', title: 'تم حفظ إعدادات ملف ' + $('#imp-company option:selected').text(), text: 'من الآن ارفع الملف فقط وستُطبَّق الإعدادات تلقائيًا.'}); }).catch(fail);
+		});
 		$('#imp-hrow').on('change', () => buildMapping(true));
 		$('#imp-run').on('click', run);
 		$('#imp-filter').on('click', 'button', function () { $('#imp-filter button').removeClass('active'); $(this).addClass('active'); if (lastRes) { renderTable(); } });

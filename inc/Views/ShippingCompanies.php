@@ -128,6 +128,7 @@ if (!$scAdmin) {
                 <div class="form-group col-md-4">
                     <label for="imp-company">شركة الشحن</label>
                     <select id="imp-company" class="form-control"></select>
+                    <small id="imp-saved" class="text-success" style="display:none"><i class="fa fa-check"></i> إعدادات الملف محفوظة: ارفع الملف فقط.</small>
                 </div>
                 <div class="form-group col-md-5">
                     <label for="imp-file">ملف الكشف (xlsx / xls / csv)</label>
@@ -155,7 +156,8 @@ if (!$scAdmin) {
                         </div>
                     </div>
                     <div class="form-group col-md-3"><label for="imp-tol">سماحية الفرق (جنيه)</label><input type="number" id="imp-tol" class="form-control" min="0" max="50" step="0.5" value="1"></div>
-                    <div class="form-group col-md-4 text-md-left"><button type="button" class="btn btn-primary" id="imp-run"><i class="fa fa-search"></i> معاينة</button></div>
+                    <div class="form-group col-md-4 text-md-left"><button type="button" class="btn btn-primary" id="imp-run"><i class="fa fa-search"></i> معاينة</button>
+                        <button type="button" class="btn btn-outline-success" id="imp-save"><i class="fa fa-save"></i> حفظ هذه الإعدادات للشركة</button></div>
                 </div>
                 <div class="table-responsive"><table class="table table-sm table-bordered" id="imp-sample"></table></div>
             </div>

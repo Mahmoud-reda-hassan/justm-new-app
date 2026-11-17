@@ -7,6 +7,8 @@
  * ليعمل صرف العهدة وتأكيد التسليم وطرف DELIVERY في الأستاذ بالكود القائم دون تكرار.
  * لا يحذف شيئًا: الإيقاف فقط.
  */
+require_once __DIR__ . '/ShippingCompanyImport.php';
+
 class ShippingCompanies {
     public const POLICIES = ['SINGLE', 'PARTIAL'];
     public const METHODS  = ['NET_OF_FEE', 'GROSS_THEN_FEE'];
@@ -37,6 +39,34 @@ class ShippingCompanies {
         $row = $st->fetch(PDO::FETCH_ASSOC);
         if (!$row) { throw new Exception('شركة الشحن غير موجودة.'); }
         return $row;
+    }
+
+    /** إعدادات قراءة كشف الشركة (JSON): الورقة، صف العناوين، الأعمدة بأسماء عناوينها، المبلغ شامل الشحن، السماحية، تفسير الحالات */
+    public function saveImportSettings(int $id, $settings): void {
+        $this->get($id);
+        if (!is_array($settings)) { throw new Exception('إعدادات الكشف غير صالحة.'); }
+        $col = function ($c) {
+            if (!is_array($c)) { return null; }
+            return ['name' => mb_substr(trim((string)($c['name'] ?? '')), 0, 100), 'index' => max(0, (int)($c['index'] ?? 0))];
+        };
+        $map = [];
+        foreach ((array)($settings['status_map'] ?? []) as $k => $v) {
+            if (in_array($v, ShippingCompanyImport::ACTIONS, true)) { $map[mb_substr((string)$k, 0, 100)] = $v; }
+        }
+        $clean = [
+            'sheet' => mb_substr(trim((string)($settings['sheet'] ?? '')), 0, 100),
+            'header_row' => max(1, min(100, (int)($settings['header_row'] ?? 1))),
+            'order_col' => $col($settings['order_col'] ?? null),
+            'amount_col' => $col($settings['amount_col'] ?? null),
+            'status_col' => $col($settings['status_col'] ?? null),
+            'fee_col' => $col($settings['fee_col'] ?? null),
+            'includes_shipping' => !empty($settings['includes_shipping']) ? 1 : 0,
+            'tolerance' => max(0, min(50, (float)($settings['tolerance'] ?? 1))),
+            'status_map' => $map,
+        ];
+        if (!$clean['order_col']) { throw new Exception('عمود رقم الأمر مطلوب.'); }
+        $st = $this->db->prepare("UPDATE shipping_companies SET import_settings = ? WHERE id = ?");
+        $st->execute([json_encode($clean, JSON_UNESCAPED_UNICODE), $id]);
     }
 
     /** إنشاء أو تعديل. عند الإنشاء يُنشأ مستخدم مندوب داخلي موقوف تلقائيًا. */

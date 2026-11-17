@@ -573,6 +573,11 @@ $res3 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q2), 'amount' => '50
 check('import: partial amount suggests the matching quantity split', $res3['rows'][0]['derived'] === 'PARTIAL' && count($res3['rows'][0]['candidates']) === 1);
 $res4 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '0', 'status' => 'اجل']], false, [], 1.0);
 check('import: postponed with no collection means no change', $res4['rows'][0]['proposed'] === 'IGNORE');
+$scs->saveImportSettings($scId, ['sheet' => 'حساب', 'header_row' => 1, 'order_col' => ['name' => 'الكود', 'index' => 0], 'amount_col' => ['name' => 'المدفوع', 'index' => 5], 'includes_shipping' => 1, 'tolerance' => 1, 'status_map' => ['تم التسليم' => 'FULL', 'x' => 'BAD']]);
+$is = json_decode($scs->get($scId)['import_settings'], true);
+check('import settings: saved per company by header names', $is['order_col']['name'] === 'الكود' && $is['includes_shipping'] === 1 && $is['sheet'] === 'حساب');
+check('import settings: invalid status action dropped', isset($is['status_map']['تم التسليم']) && !isset($is['status_map']['x']));
+check('import settings: order column required', throwsMsg(fn() => $scs->saveImportSettings($scId, ['sheet' => 'a']), 'عمود رقم الأمر'));
 check('import: preview never writes (custody still waiting)', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE USER_ID=$scCourier AND CUST_STAT='WAITING'")->fetchColumn() === 3);
 check('import: order numbers from Excel E-notation normalized', ShippingCompanyImport::normalizeOrder('6.9261113125989E+13') === '69261113125989');
 check('import: status text defaults', ShippingCompanyImport::defaultAction('فشل التسليم') === 'RETURN' && ShippingCompanyImport::defaultAction('تم التسليم') === 'FULL');
