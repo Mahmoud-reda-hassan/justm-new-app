@@ -577,7 +577,9 @@ $scs->saveImportSettings($scId, ['sheet' => 'حساب', 'header_row' => 1, 'orde
 $is = json_decode($scs->get($scId)['import_settings'], true);
 check('import settings: saved per company by header names', $is['order_col']['name'] === 'الكود' && $is['includes_shipping'] === 1 && $is['sheet'] === 'حساب');
 check('import settings: invalid status action dropped', isset($is['status_map']['تم التسليم']) && !isset($is['status_map']['x']));
-check('import settings: order column required', throwsMsg(fn() => $scs->saveImportSettings($scId, ['sheet' => 'a']), 'عمود رقم الأمر'));
+$scs->saveImportSettings($scId, ['sheet'=>'حساب','order_col'=>['name'=>'a','index'=>0],'amount_col'=>['name'=>'b','index'=>1]]);
+check('import settings: amount column required', throwsMsg(fn() => $scs->saveImportSettings($scId, ['order_col'=>['name'=>'a','index'=>0]]), 'المبلغ المحصل'));
+check('import settings: order column required', throwsMsg(fn() => $scs->saveImportSettings($scId, ['sheet' => 'a', 'amount_col' => ['name'=>'b','index'=>1]]), 'عمود رقم الأمر'));
 check('import: preview never writes (custody still waiting)', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE USER_ID=$scCourier AND CUST_STAT='WAITING'")->fetchColumn() === 3);
 check('import: order numbers from Excel E-notation normalized', ShippingCompanyImport::normalizeOrder('6.9261113125989E+13') === '69261113125989');
 check('import: status text defaults', ShippingCompanyImport::defaultAction('فشل التسليم') === 'RETURN' && ShippingCompanyImport::defaultAction('تم التسليم') === 'FULL');

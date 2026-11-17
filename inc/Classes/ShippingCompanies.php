@@ -28,7 +28,8 @@ class ShippingCompanies {
         return $this->db->query(
             "SELECT c.id, c.name, c.user_id, c.receiving_policy, c.settlement_method, c.fee_mode, c.fixed_fee,
                     c.is_active, c.note, c.created_at,
-                    (SELECT COUNT(*) FROM shipping_company_rates r WHERE r.company_id = c.id) AS rates_count
+                    (SELECT COUNT(*) FROM shipping_company_rates r WHERE r.company_id = c.id) AS rates_count,
+                    (c.import_settings IS NOT NULL AND c.import_settings <> '') AS has_import
              FROM shipping_companies c ORDER BY c.is_active DESC, c.name"
         )->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -65,6 +66,7 @@ class ShippingCompanies {
             'status_map' => $map,
         ];
         if (!$clean['order_col']) { throw new Exception('عمود رقم الأمر مطلوب.'); }
+        if (!$clean['amount_col']) { throw new Exception('عمود المبلغ المحصل مطلوب.'); }
         $st = $this->db->prepare("UPDATE shipping_companies SET import_settings = ? WHERE id = ?");
         $st->execute([json_encode($clean, JSON_UNESCAPED_UNICODE), $id]);
     }

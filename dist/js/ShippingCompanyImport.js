@@ -152,13 +152,13 @@
 	}
 	function csHeaders(guess) {
 		const h = headersOf(cs.grid, parseInt($('#cs-hrow').val(), 10) || 1);
-		fillSelect($('#cs-c-order'), h, false); fillSelect($('#cs-c-amount'), h, true); fillSelect($('#cs-c-status'), h, true); fillSelect($('#cs-c-fee'), h, true);
+		fillSelect($('#cs-c-order'), h, false); fillSelect($('#cs-c-amount'), h, false); fillSelect($('#cs-c-status'), h, true); fillSelect($('#cs-c-fee'), h, true);
 		return h;
 	}
 	function csGuess() {
 		const h = csHeaders();
 		guessInto('#cs-c-order', h, /sub_?order|parcode|barcode|كود|رقم\s*(ال)?(امر|أمر|شحنة)|الشحنة/i, false);
-		guessInto('#cs-c-amount', h, /المبلغ\s*المحصل|المدفوع|المحصل|collected|cod/i, true);
+		guessInto('#cs-c-amount', h, /المبلغ\s*المحصل|المدفوع|المحصل|collected|cod/i, false);
 		guessInto('#cs-c-status', h, /حالة|الموقف|status/i, true);
 		guessInto('#cs-c-fee', h, /^الشحن$|رسوم|fee/i, true);
 	}
@@ -167,7 +167,7 @@
 		const h = csHeaders();
 		const set = (sel, ref, opt) => { const v = findCol(ref, h); $(sel).val(v === '' ? (opt ? '' : '0') : v); return v !== ''; };
 		const ok = set('#cs-c-order', st.order_col, false);
-		set('#cs-c-amount', st.amount_col, true); set('#cs-c-status', st.status_col, true); set('#cs-c-fee', st.fee_col, true);
+		set('#cs-c-amount', st.amount_col, false); set('#cs-c-status', st.status_col, true); set('#cs-c-fee', st.fee_col, true);
 		$('#cs-incl').prop('checked', !!Number(st.includes_shipping)); $('#cs-tol').val(st.tolerance == null ? 1 : st.tolerance);
 		cs.statusMap = Object.assign({}, st.status_map || {});
 		return ok;
@@ -180,6 +180,7 @@
 	function csSettings() {
 		if (!cs.dirty) { return null; }
 		const order = csRef($('#cs-c-order')); if (!order) { throw new Error('حدد عمود رقم الأمر في إعدادات الملف.'); }
+		if (!csRef($('#cs-c-amount'))) { throw new Error('حدد عمود المبلغ المحصل في إعدادات الملف.'); }
 		const map = {}; $('.cs-st').each(function () { map[$(this).data('k')] = this.value; });
 		return {sheet: cs.sheets[parseInt($('#cs-sheet').val() || 0, 10)].name, header_row: parseInt($('#cs-hrow').val(), 10) || 1, order_col: order,
 			amount_col: csRef($('#cs-c-amount')), status_col: csRef($('#cs-c-status')), fee_col: csRef($('#cs-c-fee')),

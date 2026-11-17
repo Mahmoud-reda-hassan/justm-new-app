@@ -24,6 +24,7 @@ if (!$scAdmin) {
                         <th>سياسة الاستلام</th>
                         <th>طريقة التسوية</th>
                         <th>الرسوم</th>
+                        <th>ملف الكشف</th>
                         <th>الحالة</th>
                         <th></th>
                     </tr>
@@ -83,6 +84,16 @@ if (!$scAdmin) {
                 </div>
                 <hr>
                 <h6>إعدادات ملف الكشف <small class="text-muted">(تُحفظ مع الشركة ويمكن تعديلها في أي وقت)</small></h6>
+                <div class="alert alert-info small py-2 mb-2">
+                    <strong>الأعمدة التي يحتاجها النظام من كشف الشركة:</strong>
+                    <ul class="mb-0 pr-3">
+                        <li><strong>رقم الأمر</strong> (SUB_ORDER_ID) — <span class="text-danger">مطلوب</span>: به يطابق النظام الأمر على عهدة الشركة.</li>
+                        <li><strong>المبلغ المحصل</strong> — <span class="text-danger">مطلوب</span>: بمقارنته بقيمة الأمر يعرف النظام حالته (كامل / جزئي / مرتجع / مرتجع مع دفع الشحن).</li>
+                        <li><strong>الحالة</strong> — اختياري: نص الحالة لتأكيد الاستنتاج وحسم الأوامر المؤجلة.</li>
+                        <li><strong>رسوم الشركة</strong> — اختياري: لو رسومها تختلف أمرًا بأمر (للتسوية المالية لاحقًا).</li>
+                    </ul>
+                    وباقي أعمدة الملف يتجاهلها النظام.
+                </div>
                 <div id="cs-current" class="small mb-2"></div>
                 <div class="form-row">
                     <div class="form-group col-md-8">
@@ -98,7 +109,7 @@ if (!$scAdmin) {
                     <div class="form-row">
                         <div class="form-group col-md-2"><label for="cs-hrow">صف العناوين</label><input type="number" id="cs-hrow" class="form-control" min="1" value="1"></div>
                         <div class="form-group col-md-3"><label for="cs-c-order">عمود رقم الأمر <span class="text-danger">*</span></label><select id="cs-c-order" class="form-control"></select></div>
-                        <div class="form-group col-md-3"><label for="cs-c-amount">عمود المبلغ المحصل</label><select id="cs-c-amount" class="form-control"></select></div>
+                        <div class="form-group col-md-3"><label for="cs-c-amount">عمود المبلغ المحصل <span class="text-danger">*</span></label><select id="cs-c-amount" class="form-control"></select></div>
                         <div class="form-group col-md-2"><label for="cs-c-status">عمود الحالة</label><select id="cs-c-status" class="form-control"></select></div>
                         <div class="form-group col-md-2"><label for="cs-c-fee">عمود رسوم الشركة</label><select id="cs-c-fee" class="form-control"></select></div>
                     </div>

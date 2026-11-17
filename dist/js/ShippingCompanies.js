@@ -20,7 +20,7 @@
 	function render() {
 		const $tb = $('#scTable tbody').empty();
 		if (!rows.length) {
-			$tb.append('<tr><td colspan="6" class="text-center text-muted">لا توجد شركات شحن بعد</td></tr>');
+			$tb.append('<tr><td colspan="7" class="text-center text-muted">لا توجد شركات شحن بعد</td></tr>');
 			return;
 		}
 		rows.forEach(c => {
@@ -34,6 +34,7 @@
 				'<td>' + esc(policyName[c.receiving_policy] || c.receiving_policy) + '</td>' +
 				'<td>' + esc(methodName[c.settlement_method] || c.settlement_method) + '</td>' +
 				'<td>' + esc(feeName(c)) + '</td>' +
+				'<td>' + (Number(c.has_import) ? '<span class="badge badge-success">مضبوط</span>' : '<span class="badge badge-warning">غير مضبوط</span>') + '</td>' +
 				'<td>' + (active ? '<span class="badge badge-success">نشطة</span>' : '<span class="badge badge-secondary">موقوفة</span>') + '</td>' +
 				'<td class="text-nowrap">' + btns + '</td></tr>');
 		});
