@@ -451,6 +451,7 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->title 	= "شركات الشحن";
 	            				$this->Pagelink = "ShippingCompanies";
 	            				array_push($this->js_footer,"ShippingCompanies.js");
+	            				array_push($this->js_footer,"ShippingCompanyImport.js");
 	            		} else if ($_GET["Go"] === "DatabaseUpdate" && isset($_SESSION["USER_GRUOP_NAME"]) &&
 	            				in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner'], true)){
 	            				$this->title 	= "تحديث قاعدة البيانات";

@@ -8,6 +8,7 @@ include_once(__dir__.'/../../config.php');
 include_once(ABSPATH.'/inc/Databases/dbconn.php');
 include_once(ABSPATH.'/inc/Classes/secure/TrafficGuard.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanies.php');
+include_once(ABSPATH.'/inc/Classes/ShippingCompanyImport.php');
 
 $DBconn = new dbconn();
 $db     = $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
@@ -73,6 +74,13 @@ try {
             $rates = isset($_POST['rates']) && is_array($_POST['rates']) ? $_POST['rates'] : [];
             $n = $sc->saveRates((int)($_POST['id'] ?? 0), $rates);
             $ok(['saved' => $n], 'تم حفظ أسعار المناطق');
+        case 'scPreview':
+            if (!$scCanAdmin) { $deny(); }
+            $rows = json_decode((string)($_POST['rows'] ?? '[]'), true);
+            $map  = json_decode((string)($_POST['status_map'] ?? '{}'), true);
+            if (!is_array($rows)) { throw new Exception('بيانات الكشف غير صالحة.'); }
+            $imp = new ShippingCompanyImport($db);
+            $ok($imp->preview((int)($_POST['company_id'] ?? 0), $rows, ((string)($_POST['includes_shipping'] ?? '0')) === '1', is_array($map) ? $map : [], (float)($_POST['tolerance'] ?? 1)));
         default:
             ResponseData(array('error', 'Error', 'Your request is not available', []));
     }

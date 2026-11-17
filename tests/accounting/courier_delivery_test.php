@@ -537,5 +537,45 @@ check('shipping company: deactivating also hides the courier user from pickers',
 $scs->setActive($scId, true);
 check('shipping company: reactivating restores the courier user', (int)$db->query("SELECT SUSPENDED FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 1);
 
+// 8) shipping company Excel preview (read-only classification)
+require_once __DIR__ . '/../../inc/Classes/ShippingCompanyImport.php';
+$imp = new ShippingCompanyImport($db);
+$scCourier = (int)$scRow['user_id'];
+function scCustody(PDO $db, int $oid, int $courier, string $stat = 'WAITING', string $line = 'waiting'): void {
+    $db->exec("UPDATE orders SET EXISTS_ID=10, DELIVERY_ID=$courier, ADDRESS='addr' WHERE ORDER_ID=$oid");
+    $db->exec("INSERT INTO custody_orders (ORDER_ID,USER_ID,SHIPPING_ADDRESS,RETURNS,CUST_STAT,ORDER_STATUSE) VALUES ($oid,$courier,'addr',1,'$stat',2)");
+    $db->exec("INSERT INTO custody_product (ORDER_ID,USER_ID,PRO_CODE,QTY,PRICE,DISCOUNT,DELIVERED_QTY,RETURNED_QTY,PRO_STATUSE) SELECT ORDER_ID,$courier,PRO_CODE,QTY,PRICE,DISCOUNT,0,0,'$line' FROM order_product WHERE ORDER_ID=$oid");
+}
+$q1 = makeOrder($db, $store, $tel, 2, 30, 1, [[2, 100, 10, 60, 0]]);   // value 180, shipping 30
+$q2 = makeOrder($db, $store, $tel, 2, 30, 1, [[2, 100, 10, 60, 0], [1, 50, 0, 30, 0]]); // 180 + 50
+$q3 = makeOrder($db, $store, $tel, 2, 30, 1, [[1, 100, 0, 60, 0]]);
+$q4 = makeOrder($db, $store, $tel, 2, 30, 1, [[1, 100, 0, 60, 0]]);
+foreach ([$q1, $q2, $q3] as $qq) { scCustody($db, $qq, $scCourier); }
+scCustody($db, $q4, $scCourier, 'DELIVERED', 'complete');
+$sub = fn($id) => $db->query("SELECT SUB_ORDER_ID FROM orders WHERE ORDER_ID=$id")->fetchColumn();
+$res = $imp->preview($scId, [
+    ['row' => 2, 'order' => $sub($q1), 'amount' => '180', 'status' => 'استلم'],
+    ['row' => 3, 'order' => $sub($q2), 'amount' => '230', 'status' => ''],
+    ['row' => 4, 'order' => $sub($q3), 'amount' => '30', 'status' => 'مرتجع ودفع الشحن'],
+    ['row' => 5, 'order' => $sub($q4), 'amount' => '100', 'status' => ''],
+    ['row' => 6, 'order' => 'NOPE-1', 'amount' => '10', 'status' => ''],
+    ['row' => 7, 'order' => $sub($q1), 'amount' => '180', 'status' => ''],
+], false, [], 1.0);
+$byRow = []; foreach ($res['rows'] as $r) { $byRow[$r['row']] = $r; }
+check('import: duplicate order in file flagged', $byRow[2]['flag'] === 'ERROR' && $byRow[7]['flag'] === 'ERROR');
+check('import: amount below value matches a partial distribution (230 = 180 + 50)', $byRow[3]['derived'] === 'FULL' || $byRow[3]['derived'] === 'PARTIAL');
+check('import: amount equal to shipping on a return = RETURN_SHIPPING_PAID', $byRow[4]['derived'] === 'RETURN_SHIPPING_PAID' && $byRow[4]['proposed'] === 'RETURN_SHIPPING_PAID' && $byRow[4]['flag'] === 'OK');
+check('import: already processed order is an error', $byRow[5]['flag'] === 'ERROR');
+check('import: unknown order is an error', $byRow[6]['flag'] === 'ERROR');
+$res2 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '210', 'status' => 'استلم']], true, [], 1.0);
+check('import: includes-shipping flag makes 210 a full delivery', $res2['rows'][0]['derived'] === 'FULL' && $res2['rows'][0]['flag'] === 'OK');
+$res3 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q2), 'amount' => '50', 'status' => '']], false, [], 1.0);
+check('import: partial amount suggests the matching quantity split', $res3['rows'][0]['derived'] === 'PARTIAL' && count($res3['rows'][0]['candidates']) === 1);
+$res4 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '0', 'status' => 'اجل']], false, [], 1.0);
+check('import: postponed with no collection means no change', $res4['rows'][0]['proposed'] === 'IGNORE');
+check('import: preview never writes (custody still waiting)', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE USER_ID=$scCourier AND CUST_STAT='WAITING'")->fetchColumn() === 3);
+check('import: order numbers from Excel E-notation normalized', ShippingCompanyImport::normalizeOrder('6.9261113125989E+13') === '69261113125989');
+check('import: status text defaults', ShippingCompanyImport::defaultAction('فشل التسليم') === 'RETURN' && ShippingCompanyImport::defaultAction('تم التسليم') === 'FULL');
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

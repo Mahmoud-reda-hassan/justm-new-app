@@ -5,6 +5,7 @@ if (!$scAdmin) {
     $scAdmin = is_array($us) && (($us['Admin']['ShippingCompanies']['admin'] ?? '') === 'true');
 }
 ?>
+<script src="/libraries/jszip/jszip.min.js"></script>
 <script>window.SC_CAN_ADMIN = <?php echo $scAdmin ? 'true' : 'false'; ?>;</script>
 <div class="container-fluid my-3" id="shippingCompaniesPage">
     <div class="card shadow rounded">
@@ -111,6 +112,65 @@ if (!$scAdmin) {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">إغلاق</button>
                 <button type="button" class="btn btn-success" id="scRatesSave" style="display:none">حفظ الأسعار</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid my-3" id="scImportPage" style="display:none">
+    <div class="card shadow rounded">
+        <div class="card-header">
+            <h5 class="mb-0">رفع كشف شركة الشحن (معاينة)</h5>
+            <small class="text-muted">المعاينة لا تغيّر أي بيانات. تطبيق النتائج خطوة منفصلة تأتي بعد مراجعتك.</small>
+        </div>
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-group col-md-4">
+                    <label for="imp-company">شركة الشحن</label>
+                    <select id="imp-company" class="form-control"></select>
+                </div>
+                <div class="form-group col-md-5">
+                    <label for="imp-file">ملف الكشف (xlsx / xls / csv)</label>
+                    <input type="file" id="imp-file" class="form-control-file" accept=".xlsx,.xls,.csv">
+                </div>
+                <div class="form-group col-md-3" id="imp-sheet-box" style="display:none">
+                    <label for="imp-sheet">الورقة</label>
+                    <select id="imp-sheet" class="form-control"></select>
+                </div>
+            </div>
+            <div id="imp-map" style="display:none">
+                <hr>
+                <div class="form-row">
+                    <div class="form-group col-md-2"><label for="imp-hrow">صف العناوين</label><input type="number" id="imp-hrow" class="form-control" min="1" value="1"></div>
+                    <div class="form-group col-md-3"><label for="imp-c-order">عمود رقم الأمر <span class="text-danger">*</span></label><select id="imp-c-order" class="form-control"></select></div>
+                    <div class="form-group col-md-3"><label for="imp-c-amount">عمود المبلغ المحصل</label><select id="imp-c-amount" class="form-control"></select></div>
+                    <div class="form-group col-md-2"><label for="imp-c-status">عمود الحالة</label><select id="imp-c-status" class="form-control"></select></div>
+                    <div class="form-group col-md-2"><label for="imp-c-fee">عمود رسوم الشركة</label><select id="imp-c-fee" class="form-control"></select></div>
+                </div>
+                <div class="form-row align-items-center">
+                    <div class="form-group col-md-5">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="imp-incl">
+                            <label class="custom-control-label" for="imp-incl">المبلغ المحصل شامل قيمة الشحن</label>
+                        </div>
+                    </div>
+                    <div class="form-group col-md-3"><label for="imp-tol">سماحية الفرق (جنيه)</label><input type="number" id="imp-tol" class="form-control" min="0" max="50" step="0.5" value="1"></div>
+                    <div class="form-group col-md-4 text-md-left"><button type="button" class="btn btn-primary" id="imp-run"><i class="fa fa-search"></i> معاينة</button></div>
+                </div>
+                <div class="table-responsive"><table class="table table-sm table-bordered" id="imp-sample"></table></div>
+            </div>
+            <div id="imp-result" style="display:none">
+                <hr>
+                <div id="imp-summary" class="mb-2"></div>
+                <div id="imp-statuses" class="mb-3"></div>
+                <div class="btn-group btn-group-sm mb-2" id="imp-filter">
+                    <button type="button" class="btn btn-outline-secondary active" data-f="ALL">الكل</button>
+                    <button type="button" class="btn btn-outline-success" data-f="OK">سليم</button>
+                    <button type="button" class="btn btn-outline-warning" data-f="REVIEW">يحتاج مراجعة</button>
+                    <button type="button" class="btn btn-outline-danger" data-f="ERROR">خطأ</button>
+                </div>
+                <div class="table-responsive"><table class="table table-sm table-bordered table-striped" id="imp-table"></table></div>
+                <div id="imp-missing" class="small text-muted mt-2"></div>
             </div>
         </div>
     </div>

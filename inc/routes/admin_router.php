@@ -182,7 +182,7 @@ return [
     "ShippingCompanies" => [
         "view" => "ShippingCompanies",
         "title" => "شركات الشحن",
-        "js" => ["ShippingCompanies.js"],
+        "js" => ["ShippingCompanies.js", "ShippingCompanyImport.js"],
         "permission" => (in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
             || ($perm['ShippingCompanies']['view'] ?? '') === 'true' || ($perm['ShippingCompanies']['admin'] ?? '') === 'true')
     ],
