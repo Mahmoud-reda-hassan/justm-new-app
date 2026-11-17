@@ -550,6 +550,16 @@ $scs->save(['id' => $linkId, 'name' => 'شركة مرتبطة معدلة', 'fee_
 check('renaming the company does not rename a real courier', $db->query("SELECT FORENAME FROM users WHERE USER_ID=$realCourier")->fetchColumn() === 'مندوب');
 $scs->setActive($linkId, false);
 check('deactivating the company never suspends a real courier', (int)$db->query("SELECT SUSPENDED FROM users WHERE USER_ID=$realCourier")->fetchColumn() === 1);
+$otherCourier = (function () use ($db, $branch) {
+    $db->exec("INSERT INTO users (BRANCH_ID,FORENAME,LASTNAME,GENDER,SUSPENDED,USER_LOGIN,USER_PASSWORD,DELIVERY_TYPE,BIRTHDAY) VALUES ($branch,'مندوب','آخر','male',1,'other.courier@example.com','x',1,'1990-01-01')");
+    $id = (int)$db->lastInsertId(); $db->exec("INSERT INTO users_delivery (USER_ID,ZONE_ID,PERCENT) VALUES ($id,NULL,0)"); return $id;
+})();
+$scs->save(['id' => $linkId, 'name' => 'شركة مرتبطة معدلة', 'fee_mode' => 'ORDER_SHIPPING', 'courier_mode' => 'EXISTING', 'courier_user_id' => $otherCourier], $userId, $branch);
+check('courier link can be changed while the current one has no activity', (int)$scs->get($linkId)['user_id'] === $otherCourier);
+$o777 = makeOrder($db, $store, $tel, 2, 0, 1, [[1, 10, 0, 5, 0]]);
+$db->exec("INSERT INTO custody_orders (ORDER_ID,USER_ID,SHIPPING_ADDRESS,RETURNS,CUST_STAT,ORDER_STATUSE) VALUES ($o777,$otherCourier,'a',1,'WAITING',2)");
+check('courier link change refused once custody exists', throwsMsg(fn() => $scs->save(['id' => $linkId, 'name' => 'شركة مرتبطة معدلة', 'fee_mode' => 'ORDER_SHIPPING', 'courier_mode' => 'NEW'], $userId, $branch), 'عهدة'));
+$db->exec("DELETE FROM custody_orders WHERE ORDER_ID=$o777");
 
 // 8) shipping company Excel preview (read-only classification)
 require_once __DIR__ . '/../../inc/Classes/ShippingCompanyImport.php';

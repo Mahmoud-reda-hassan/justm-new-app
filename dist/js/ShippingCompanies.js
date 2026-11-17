@@ -49,8 +49,10 @@
 		$('#sc-fixed').val(Number(c.fixed_fee || 0).toFixed(2)); $('#sc-note').val(c.note || '');
 		$('#sc-fixed-box').toggle(c.fee_mode === 'FIXED');
 		const isNew = !c.id;
-		$('#sc-courier-new-edit').toggle(isNew); $('#sc-courier-fixed').toggle(!isNew);
-		$('#sc-courier-mode').val('NEW'); $('#sc-courier-user').hide().empty();
+		$('#sc-courier-new-edit').show(); $('#sc-courier-fixed').toggle(!isNew);
+		$('#sc-courier-mode option[value="KEEP"]').remove();
+		if (!isNew) { $('#sc-courier-mode').prepend('<option value="KEEP">إبقاء المندوب الحالي</option>'); }
+		$('#sc-courier-mode').val(isNew ? 'NEW' : 'KEEP'); $('#sc-courier-user').hide().empty();
 		if (!isNew) { $('#sc-courier-fixed').text(c.courier_name ? 'المندوب المرتبط: ' + c.courier_name + (Number(c.courier_internal) ? ' (مستخدم داخلي أُنشئ تلقائيًا)' : ' (مندوب موجود)') : ''); }
 		$('#scModal').modal('show');
 		$(document).trigger('sc:open', [c]);

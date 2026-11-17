@@ -56,7 +56,7 @@ if (!$scAdmin) {
                             <option value="EXISTING">ربط بمندوب موجود حاليًا</option>
                         </select>
                         <select id="sc-courier-user" class="form-control mt-2" style="display:none"></select>
-                        <small class="text-muted" id="sc-courier-hint">لا يمكن تغيير المندوب بعد إنشاء الشركة.</small>
+                        <small class="text-muted" id="sc-courier-hint">يمكن تغيير المندوب فقط طالما لا توجد عليه عهدة أو أوامر أو قيود.</small>
                     </div>
                     <div id="sc-courier-fixed" class="form-control-plaintext" style="display:none"></div>
                 </div>

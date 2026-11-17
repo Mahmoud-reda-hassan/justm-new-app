@@ -101,6 +101,22 @@ class ShippingCompanies {
                 $row = $this->get($id);
                 $st = $this->db->prepare("UPDATE shipping_companies SET name=?, receiving_policy=?, settlement_method=?, fee_mode=?, fixed_fee=?, note=? WHERE id=?");
                 $st->execute([$name, $policy, $method, $mode, $fixed, $note, $id]);
+                // تغيير المندوب المرتبط (مسموح فقط لو المندوب الحالي بلا عهدة ولا أوامر ولا قيود)
+                $mode = (string)($d['courier_mode'] ?? 'KEEP');
+                if ($mode === 'EXISTING' || $mode === 'NEW') {
+                    $newUid = $mode === 'EXISTING' ? $this->checkExistingCourier((int)($d['courier_user_id'] ?? 0)) : 0;
+                    if ($newUid !== (int)$row['user_id']) {
+                        $this->assertCourierUnused((int)$row['user_id']);
+                        if ($mode === 'NEW') { $newUid = $this->createInternalUser($name, $branchId); }
+                        $lk = $this->db->prepare("UPDATE shipping_companies SET user_id=? WHERE id=?");
+                        $lk->execute([$newUid, $id]);
+                        if ((int)$row['courier_internal'] === 1) {
+                            // المندوب الداخلي القديم يُخفى ولا يُحذف
+                            $this->db->prepare("UPDATE users SET SUSPENDED=0 WHERE USER_ID=?")->execute([(int)$row['user_id']]);
+                        }
+                        $row['user_id'] = $newUid;
+                    }
+                }
                 // اسم المندوب الداخلي يتبع اسم الشركة
                 $u = $this->db->prepare("UPDATE users SET FORENAME=? WHERE USER_ID=? AND USER_LOGIN LIKE 'shipco\\_%'");
                 $u->execute([mb_substr($name, 0, 50), (int)$row['user_id']]);
@@ -118,6 +134,19 @@ class ShippingCompanies {
             throw $e;
         }
         return $id;
+    }
+
+    /** لا يُفك ربط مندوب له حركة: عهدة أو أوامر أو قيود محاسبية */
+    private function assertCourierUnused(int $uid): void {
+        $q = [
+            "SELECT 1 FROM custody_orders WHERE USER_ID = ? LIMIT 1",
+            "SELECT 1 FROM orders WHERE DELIVERY_ID = ? LIMIT 1",
+            "SELECT 1 FROM journal_entry_details WHERE partner_type = 'DELIVERY' AND partner_id = ? LIMIT 1",
+        ];
+        foreach ($q as $sql) {
+            $st = $this->db->prepare($sql); $st->execute([$uid]);
+            if ($st->fetchColumn()) { throw new Exception('لا يمكن تغيير مندوب الشركة بعد وجود عهدة أو أوامر أو قيود عليه.'); }
+        }
     }
 
     /** مناديب موجودون (نشطون) غير مرتبطين بأي شركة شحن */
