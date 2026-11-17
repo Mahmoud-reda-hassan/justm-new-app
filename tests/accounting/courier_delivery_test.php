@@ -582,6 +582,8 @@ check('import settings: amount column required', throwsMsg(fn() => $scs->saveImp
 check('import settings: order column required', throwsMsg(fn() => $scs->saveImportSettings($scId, ['sheet' => 'a', 'amount_col' => ['name'=>'b','index'=>1]]), 'عمود رقم الأمر'));
 $res5 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q3), 'amount' => '25', 'status' => 'مرتجع ودفع الشحن']], false, [], 1.0);
 check('import: return with collected below the shipping = shipping paid with a shipping-difference note', $res5['rows'][0]['derived'] === 'RETURN_SHIPPING_PAID' && $res5['rows'][0]['proposed'] === 'RETURN_SHIPPING_PAID' && count($res5['rows'][0]['notes']) >= 1);
+$res6 = $imp->preview($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '220', 'status' => 'تم التسليم', 'fee' => '40']], true, [], 1.0);
+check('import: company shipping differing from system shipping is accepted and reported', $res6['rows'][0]['derived'] === 'FULL' && $res6['rows'][0]['flag'] === 'OK' && abs($res6['rows'][0]['shipping_diff'] - 10.0) < 0.005);
 check('import: preview never writes (custody still waiting)', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE USER_ID=$scCourier AND CUST_STAT='WAITING'")->fetchColumn() === 3);
 check('import: order numbers from Excel E-notation normalized', ShippingCompanyImport::normalizeOrder('6.9261113125989E+13') === '69261113125989');
 check('import: status text defaults', ShippingCompanyImport::defaultAction('فشل التسليم') === 'RETURN' && ShippingCompanyImport::defaultAction('تم التسليم') === 'FULL');

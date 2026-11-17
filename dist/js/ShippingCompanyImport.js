@@ -232,10 +232,10 @@
 	}
 	function renderTable() {
 		const f = $('#imp-filter .active').data('f');
-		let h = '<thead class="thead-dark"><tr><th>صف</th><th>رقم الأمر</th><th>حالة الكشف</th><th>المحصل</th><th>قيمة النظام</th><th>المتوقع</th><th>الاستنتاج</th><th>الإجراء المقترح</th><th>الحكم</th><th>ملاحظات</th></tr></thead><tbody>';
+		let h = '<thead class="thead-dark"><tr><th>صف</th><th>رقم الأمر</th><th>حالة الكشف</th><th>المحصل</th><th>قيمة النظام</th><th>شحن النظام</th><th>شحن الشركة</th><th>المتوقع</th><th>الاستنتاج</th><th>الإجراء المقترح</th><th>الحكم</th><th>ملاحظات</th></tr></thead><tbody>';
 		lastRes.rows.filter(x => f === 'ALL' || x.flag === f).forEach(x => {
 			const b = FLAG[x.flag], notes = x.notes.concat(x.candidates.length ? ['التوزيع: ' + x.candidates.join(' | ')] : []);
-			h += '<tr><td>' + x.row + '</td><td class="text-nowrap">' + esc(x.order) + '</td><td>' + esc(x.file_status) + '</td><td>' + money(x.amount) + '</td><td>' + money(x.order_value) + '</td><td>' + money(x.expected) + '</td><td>' + esc(DERIVED[x.derived] || '—') + '</td><td>' + esc(ACTIONS[x.proposed] || '—') + '</td><td><span class="badge ' + b[0] + '">' + b[1] + '</span></td><td class="small">' + esc(notes.join(' — ')) + '</td></tr>';
+			h += '<tr><td>' + x.row + '</td><td class="text-nowrap">' + esc(x.order) + '</td><td>' + esc(x.file_status) + '</td><td>' + money(x.amount) + '</td><td>' + money(x.order_value) + '</td><td>' + money(x.shipping) + '</td><td>' + money(x.company_shipping) + '</td><td>' + money(x.expected) + '</td><td>' + esc(DERIVED[x.derived] || '—') + '</td><td>' + esc(ACTIONS[x.proposed] || '—') + '</td><td><span class="badge ' + b[0] + '">' + b[1] + '</span></td><td class="small">' + esc(notes.join(' — ')) + '</td></tr>';
 		});
 		$('#imp-table').html(h + '</tbody>');
 	}

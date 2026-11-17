@@ -131,28 +131,43 @@ class ShippingCompanyImport {
                 if ($o['CUST_STAT'] !== 'WAITING') { $done = true; }
                 if ($done) { $row['flag'] = 'ERROR'; $row['notes'][] = 'نتيجة هذا الأمر مسجلة من قبل'; }
                 $shipping = (float)$o['SHIPPING_VAL'];
+                // شحن النظام (على العميل) قد يختلف عن شحن الشركة المكتوب في الكشف: نقبل المبلغ مطابقًا لأي منهما
+                $coShip = $r['fee'];
+                $ships = [$shipping];
+                if ($coShip !== null && abs($coShip - $shipping) > 0.004) { $ships[] = (float)$coShip; $row['shipping_diff'] = round($coShip - $shipping, 2); }
+                $row['company_shipping'] = $coShip === null ? null : round($coShip, 2);
                 $expected = $value + ($includesShipping ? $shipping : 0.0);
                 $row['order_value'] = round($value, 2); $row['shipping'] = round($shipping, 2); $row['expected'] = round($expected, 2);
+                $maxShip = max($ships);
 
                 if ($r['amount'] !== null || $stAct === null) {
                     $a = (float)($r['amount'] ?? 0);
+                    $fullHit = false; $shipHit = false; $partialTargets = [];
+                    foreach ($ships as $sv) {
+                        if (abs($a - ($value + ($includesShipping ? $sv : 0.0))) <= $tol) { $fullHit = true; }
+                        if ($sv > 0 && abs($a - $sv) <= $tol) { $shipHit = true; }
+                        $partialTargets[] = $includesShipping ? $a - $sv : $a;
+                    }
                     if (abs($a) <= 0.004) { $row['derived'] = 'NO_COLLECTION'; }
-                    elseif (abs($a - $expected) <= $tol) { $row['derived'] = 'FULL'; }
-                    elseif ($shipping > 0 && abs($a - $shipping) <= $tol) { $row['derived'] = 'RETURN_SHIPPING_PAID'; }
-                    elseif ($shipping > 0 && $a <= $shipping + $tol && in_array($stAct, ['RETURN', 'RETURN_SHIPPING_PAID'], true)) {
+                    elseif ($fullHit) { $row['derived'] = 'FULL'; }
+                    elseif ($shipHit) { $row['derived'] = 'RETURN_SHIPPING_PAID'; }
+                    elseif ($maxShip > 0 && $a <= $maxShip + $tol && in_array($stAct, ['RETURN', 'RETURN_SHIPPING_PAID'], true)) {
                         // الكشف يقول مرتجع والمحصل لا يتجاوز الشحن: العميل دفع جزءًا من الشحن (فرق شحن)
                         $row['derived'] = 'RETURN_SHIPPING_PAID';
-                        $row['notes'][] = 'المحصل ' . number_format($a, 2, '.', '') . ' أقل من شحن الأمر ' . number_format($shipping, 2, '.', '') . ' (فرق شحن)';
+                        $row['notes'][] = 'المحصل ' . number_format($a, 2, '.', '') . ' أقل من الشحن ' . number_format($maxShip, 2, '.', '') . ' (فرق شحن)';
                     }
-                    elseif ($a > $expected + $tol) { $row['derived'] = 'OVER'; $row['notes'][] = 'المبلغ المحصل أكبر من قيمة الأمر'; }
+                    elseif ($a > $value + ($includesShipping ? $maxShip : 0.0) + $tol) { $row['derived'] = 'OVER'; $row['notes'][] = 'المبلغ المحصل أكبر من قيمة الأمر'; }
                     else {
-                        $target = $includesShipping ? $a - $shipping : $a;
-                        $found = $target > 0 ? $this->partialCombos($ls, $target, $tol) : [];
+                        $found = [];
+                        foreach (array_unique($partialTargets) as $t) {
+                            if ($t > 0) { $found = array_values(array_unique(array_merge($found, $this->partialCombos($ls, $t, $tol)))); }
+                        }
                         if (count($found) === 1) { $row['derived'] = 'PARTIAL'; $row['candidates'] = $found; }
-                        elseif (count($found) > 1) { $row['derived'] = 'PARTIAL'; $row['candidates'] = $found; $row['notes'][] = 'أكثر من توزيع ممكن للكميات المسلمة: اختر عند التطبيق'; }
+                        elseif (count($found) > 1) { $row['derived'] = 'PARTIAL'; $row['candidates'] = array_slice($found, 0, 4); $row['notes'][] = 'أكثر من توزيع ممكن للكميات المسلمة: اختر عند التطبيق'; }
                         else { $row['derived'] = 'PARTIAL_NO_MATCH'; $row['notes'][] = 'المبلغ لا يطابق أي توزيع لكميات الأمر'; }
                     }
                 }
+                if (isset($row['shipping_diff'])) { $row['notes'][] = 'شحن الشركة ' . number_format((float)$coShip, 2, '.', '') . ' يختلف عن شحن النظام ' . number_format($shipping, 2, '.', '') . ' (فرق ' . number_format($row['shipping_diff'], 2, '.', '') . ')'; }
 
                 // الإجراء المقترح + علامة المراجعة
                 $d = $row['derived'];
