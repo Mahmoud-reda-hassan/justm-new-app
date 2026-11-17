@@ -753,6 +753,17 @@ if ($loginType === 1 && $pageType > 0) {
                                             </a>
                                         </li>
             							<?php } ?>
+            							<?php if((isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner','المدير المالي'], true))
+                            		|| (($usm["ShippingCompanies"]["view"] ?? '') == "true") || (($usm["ShippingCompanies"]["admin"] ?? '') == "true")){ ?>
+                                        <li class="nav-item">
+                                            <a href="?Go=ShippingCompanies" class="nav-link">
+                                                <i class="fa fa-ellipsis-v nav-icon "></i>
+                                                <p>
+                                                    شركات الشحن
+                                                </p>
+                                            </a>
+                                        </li>
+            							<?php } ?>
             							<?php if(isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner'], true)){ ?>
                                         <li class="nav-item">
                                             <a href="?Go=DatabaseUpdate" class="nav-link">

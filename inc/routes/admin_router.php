@@ -179,6 +179,13 @@ return [
         "permission" => (in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
             || ($perm['GlLedger']['view'] ?? '') === 'true' || ($perm['GlLedger']['post'] ?? '') === 'true' || ($perm['GlLedger']['admin'] ?? '') === 'true')
     ],
+    "ShippingCompanies" => [
+        "view" => "ShippingCompanies",
+        "title" => "شركات الشحن",
+        "js" => ["ShippingCompanies.js"],
+        "permission" => (in_array(trim($_SESSION['USER_GRUOP_NAME'] ?? ''), ['Administrator','Owner','المدير المالي'], true)
+            || ($perm['ShippingCompanies']['view'] ?? '') === 'true' || ($perm['ShippingCompanies']['admin'] ?? '') === 'true')
+    ],
     "DatabaseUpdate" => [
         "view" => "DatabaseUpdate",
         "title" => "تحديث قاعدة البيانات",

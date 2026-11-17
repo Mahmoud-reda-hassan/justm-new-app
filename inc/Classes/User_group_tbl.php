@@ -553,6 +553,11 @@ class User_group_tbl {
                 	"view" => false,
                 	"reopen" => false,
                 ],
+                // شركات الشحن الخارجية: عرض (view) + إدارة الشركات وأسعارها (admin)
+                'ShippingCompanies' =>[
+                	"view" => false,
+                	"admin" => false,
+                ],
                 // الأستاذ العام: تقارير (view) + تسجيل افتتاحي النقدية/تصحيح تحصيل (post) + إقفال الفترات ومصدر الأرصدة (admin)
                 'GlLedger' =>[
                 	"view" => false,
@@ -685,6 +690,7 @@ class User_group_tbl {
             'StockTransfer' =>  'اذن تحويل مخزنى',
             'StockAudit' => 'جرد ومطابقة مخزون',
             'CourierReopen' => 'رد أوامر المندوب للمخزن',
+            'ShippingCompanies' => 'شركات الشحن',
             'GlLedger' => 'الأستاذ العام (التقارير والأدوات)',
             'CriticalItemsReport' => 'تقرير الاصناف الحرجه',
             'DelegatesShipmentReport' => 'تقرير حركة عهدة المندوبين',

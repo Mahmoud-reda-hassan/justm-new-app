@@ -504,5 +504,34 @@ $db->exec("UPDATE users_affiliate SET COMMISSION_TYPE='PER_PIECE' WHERE USER_ID=
 $q->execute();
 check('marketer commission unchanged: per piece x received qty', abs((float)$q->fetchColumn() - 9.0) < 0.005);
 
+// ---- shipping companies (master data; the company is backed by an internal suspended courier user) ----
+require_once __DIR__ . '/../../inc/Classes/ShippingCompanies.php';
+$scBranch = (int)$db->query("SELECT BR_ID FROM branches ORDER BY BR_ID LIMIT 1")->fetchColumn();
+$scs = new ShippingCompanies($db);
+$scId = $scs->save(['name' => 'شركة اختبار', 'receiving_policy' => 'PARTIAL', 'settlement_method' => 'GROSS_THEN_FEE', 'fee_mode' => 'ZONE_RATE'], $userId, $scBranch);
+$scRow = $scs->get($scId);
+check('shipping company: saved with policy/method/fee mode', $scRow['receiving_policy'] === 'PARTIAL' && $scRow['settlement_method'] === 'GROSS_THEN_FEE' && $scRow['fee_mode'] === 'ZONE_RATE');
+$scu = $db->query("SELECT SUSPENDED, DELIVERY_TYPE FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetch(PDO::FETCH_ASSOC);
+check('shipping company: backed by suspended courier user (cannot log in)', $scu && (int)$scu['SUSPENDED'] === 0 && (int)$scu['DELIVERY_TYPE'] === 1);
+check('shipping company: users_delivery row exists', (int)$db->query("SELECT COUNT(*) FROM users_delivery WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 1);
+check('shipping company: duplicate name refused', throwsMsg(fn() => $scs->save(['name' => 'شركة اختبار'], $userId, $scBranch), 'مستخدم'));
+check('shipping company: FIXED needs a fee', throwsMsg(fn() => $scs->save(['name' => 'ثابتة', 'fee_mode' => 'FIXED', 'fixed_fee' => 0], $userId, $scBranch), 'الرسم الثابت'));
+$scs->save(['id' => $scId, 'name' => 'شركة اختبار 2', 'receiving_policy' => 'SINGLE', 'settlement_method' => 'NET_OF_FEE', 'fee_mode' => 'FIXED', 'fixed_fee' => 25], $userId, $scBranch);
+$scRow2 = $scs->get($scId);
+check('shipping company: edit keeps the same internal user and renames it', (int)$scRow2['user_id'] === (int)$scRow['user_id']
+    && $db->query("SELECT FORENAME FROM users WHERE USER_ID=" . (int)$scRow['user_id'])->fetchColumn() === 'شركة اختبار 2');
+$zoneId = (int)$db->query("SELECT ZONE_ID FROM zones ORDER BY ZONE_ID LIMIT 1")->fetchColumn();
+if ($zoneId > 0) {
+    $scs->saveRates($scId, [$zoneId => '40']);
+    $zr = $scs->zonesWithRates($scId);
+    $hit = array_values(array_filter($zr, fn($r) => (int)$r['zone_id'] === $zoneId));
+    check('shipping company: zone rate saved', $hit && abs((float)$hit[0]['fee'] - 40.0) < 0.005);
+    $scs->saveRates($scId, [$zoneId => '']);
+    check('shipping company: empty rate removes the zone price', (int)$db->query("SELECT COUNT(*) FROM shipping_company_rates WHERE company_id=$scId")->fetchColumn() === 0);
+    check('shipping company: negative rate refused', throwsMsg(fn() => $scs->saveRates($scId, [$zoneId => '-5']), 'رسم غير صحيح'));
+}
+$scs->setActive($scId, false);
+check('shipping company: deactivate (never deleted)', (int)$scs->get($scId)['is_active'] === 0);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

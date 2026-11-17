@@ -5516,3 +5516,35 @@ SELECT 'BROKER_COMMISSION_PAYABLE', a.`id`, 'عمولات الوسطاء الم�
 FROM `accounts` a
 WHERE a.`account_code` = '2230'
   AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'BROKER_COMMISSION_PAYABLE');
+
+-- ------------------------------------------------------------
+-- Part 8: Shipping companies (external). A company is NOT a system user who logs in.
+-- Each company is backed by an internal suspended DELIVERY user so the existing courier
+-- custody / delivery-confirmation / GL partner (DELIVERY) machinery is reused as-is.
+-- receiving_policy : SINGLE (one warehouse receipt) | PARTIAL (several receipts)
+-- settlement_method: NET_OF_FEE (deduct fee from collection, remit net) | GROSS_THEN_FEE (remit full value, pay fee separately)
+-- fee_mode         : ORDER_SHIPPING (order SHIPPING_VAL) | FIXED (fixed_fee per shipment) | ZONE_RATE (shipping_company_rates by zone)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `shipping_companies` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `user_id` bigint(20) NOT NULL,
+  `receiving_policy` enum('SINGLE','PARTIAL') NOT NULL DEFAULT 'SINGLE',
+  `settlement_method` enum('NET_OF_FEE','GROSS_THEN_FEE') NOT NULL DEFAULT 'NET_OF_FEE',
+  `fee_mode` enum('ORDER_SHIPPING','FIXED','ZONE_RATE') NOT NULL DEFAULT 'ORDER_SHIPPING',
+  `fixed_fee` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `note` varchar(255) DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_shipping_company_name` (`name`),
+  UNIQUE KEY `uq_shipping_company_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `shipping_company_rates` (
+  `company_id` int(11) NOT NULL,
+  `zone_id` int(11) NOT NULL,
+  `fee` decimal(15,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`company_id`, `zone_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;

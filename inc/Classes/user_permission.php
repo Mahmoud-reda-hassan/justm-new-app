@@ -444,6 +444,13 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->title 	= "الأستاذ العام";
 	            				$this->Pagelink = "GlLedger";
 	            				array_push($this->js_footer,"GlLedger.js");
+	            		} else if ($_GET["Go"] === "ShippingCompanies" && (
+	            				(isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner','المدير المالي'], true))
+	            				|| (isset($usc['Admin']['ShippingCompanies']['view']) && $usc['Admin']['ShippingCompanies']['view'] == "true")
+	            				|| (isset($usc['Admin']['ShippingCompanies']['admin']) && $usc['Admin']['ShippingCompanies']['admin'] == "true"))){
+	            				$this->title 	= "شركات الشحن";
+	            				$this->Pagelink = "ShippingCompanies";
+	            				array_push($this->js_footer,"ShippingCompanies.js");
 	            		} else if ($_GET["Go"] === "DatabaseUpdate" && isset($_SESSION["USER_GRUOP_NAME"]) &&
 	            				in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner'], true)){
 	            				$this->title 	= "تحديث قاعدة البيانات";
