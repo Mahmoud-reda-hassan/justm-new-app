@@ -12,44 +12,6 @@
 	const DERIVED = {FULL: 'مبلغ كامل', RETURN_SHIPPING_PAID: 'مبلغ = الشحن', NO_COLLECTION: 'بلا تحصيل', PARTIAL: 'جزئي', PARTIAL_NO_MATCH: 'جزئي (لا توزيع)', OVER: 'أكبر من القيمة'};
 	const FLAG = {OK: ['badge-success', 'سليم'], REVIEW: ['badge-warning', 'مراجعة'], ERROR: ['badge-danger', 'خطأ']};
 
-	let sheets = [];      // [{name, rows:[[..]]}]
-	let grid = [];        // الصفوف الخام للورقة المختارة
-	let statusMap = {};   // نص الحالة -> إجراء (تعديل المستخدم)
-	let lastRes = null;
-	let saved = null;     // إعدادات الشركة المحفوظة
-
-	function colRef($s) { const v = $s.val(); if (v === '' || v == null) { return null; } const i = parseInt(v, 10); return {name: (headerCells()[i] || '').trim(), index: i}; }
-	function findCol(ref, headers) {
-		if (!ref) { return ''; }
-		if (ref.name) { const i = headers.findIndex(h => h.trim() === ref.name); if (i >= 0) { return String(i); } }
-		return ref.index < headers.length && (!ref.name || !headers[ref.index].trim()) ? String(ref.index) : '';
-	}
-	function applySaved() {
-		if (!saved || !grid.length) { return false; }
-		$('#imp-hrow').val(saved.header_row || 1);
-		buildMapping(false);
-		const h = headerCells();
-		const set = (sel, ref, optional) => { fillSelect($(sel), h, null, optional); const v = findCol(ref, h); $(sel).val(v === '' ? (optional ? '' : '0') : v); return v !== ''; };
-		const okOrder = set('#imp-c-order', saved.order_col, false);
-		set('#imp-c-amount', saved.amount_col, true); set('#imp-c-status', saved.status_col, true); set('#imp-c-fee', saved.fee_col, true);
-		$('#imp-incl').prop('checked', !!Number(saved.includes_shipping)); $('#imp-tol').val(saved.tolerance == null ? 1 : saved.tolerance);
-		statusMap = Object.assign({}, saved.status_map || {});
-		buildMapping(false);
-		return okOrder;
-	}
-	function currentSettings() {
-		return {sheet: sheets.length ? sheets[parseInt($('#imp-sheet').val() || 0, 10)].name : '', header_row: parseInt($('#imp-hrow').val(), 10) || 1,
-			order_col: colRef($('#imp-c-order')), amount_col: colRef($('#imp-c-amount')), status_col: colRef($('#imp-c-status')), fee_col: colRef($('#imp-c-fee')),
-			includes_shipping: $('#imp-incl').is(':checked') ? 1 : 0, tolerance: parseFloat($('#imp-tol').val()) || 0, status_map: Object.assign({}, lastRes ? Object.fromEntries(Object.entries(lastRes.statuses || {}).map(([k, v]) => [k, statusMap[k] || v.action])) : statusMap)};
-	}
-	function loadCompany() {
-		saved = null; $('#imp-saved').hide();
-		const id = $('#imp-company').val(); if (!id) { return Promise.resolve(); }
-		return call('scGet', {id}).then(c => {
-			try { saved = c.import_settings ? JSON.parse(c.import_settings) : null; } catch (e) { saved = null; }
-			$('#imp-saved').toggle(!!saved);
-		}).catch(fail);
-	}
 
 	// ---------- قراءة الملفات ----------
 	const colIdx = (ref) => { let n = 0; const m = /^([A-Z]+)/.exec(ref || ''); if (!m) { return 0; } for (const ch of m[1]) { n = n * 26 + ch.charCodeAt(0) - 64; } return n - 1; };
@@ -121,116 +83,179 @@
 		return parseCsv(t);
 	}
 
-	// ---------- الواجهة ----------
-	function guessHeaderRow(rows) {
-		for (let i = 0; i < Math.min(rows.length, 15); i++) {
-			if ((rows[i] || []).filter(x => String(x || '').trim() !== '').length >= 3) { return i + 1; }
-		}
-		return 1;
+	// ---------- مشترك ----------
+	async function readFile(file) {
+		const buf = await file.arrayBuffer();
+		const ext = (file.name.split('.').pop() || '').toLowerCase();
+		let sh = ext === 'xlsx' ? await readXlsx(buf) : (ext === 'xls' ? await readXls(buf) : (ext === 'csv' ? readCsv(buf) : null));
+		if (!sh) { throw new Error('نوع الملف غير مدعوم. استخدم xlsx أو xls أو csv.'); }
+		sh = sh.filter(x => x.rows.some(r => r && r.some(c => String(c || '').trim() !== '')));
+		if (!sh.length) { throw new Error('الملف لا يحتوي على بيانات.'); }
+		return sh;
 	}
-	function fillSelect($s, headers, pattern, optional) {
+	const largest = (sh) => { let b = 0; sh.forEach((x, i) => { if (x.rows.length > sh[b].rows.length) { b = i; } }); return b; };
+	const guessHeaderRow = (rows) => { for (let i = 0; i < Math.min(rows.length, 15); i++) { if ((rows[i] || []).filter(x => String(x || '').trim() !== '').length >= 3) { return i + 1; } } return 1; };
+	function headersOf(grid, hrow) {
+		const r = grid[hrow - 1] || [];
+		const n = Math.max(r.length, ...grid.slice(0, 30).map(x => (x || []).length));
+		return Array.from({length: n}, (_, i) => String(r[i] == null ? '' : r[i]).trim());
+	}
+	function findCol(ref, headers) {
+		if (!ref) { return ''; }
+		if (ref.name) { const i = headers.findIndex(h => h === ref.name); if (i >= 0) { return String(i); } return ''; }
+		return ref.index < headers.length ? String(ref.index) : '';
+	}
+	const money = (v) => v == null ? '—' : Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+	function defaultAction(t) {
+		t = String(t || '').trim().replace(/[ً-ْ]/g, '');
+		if (!t) { return 'IGNORE'; }
+		if (/دفع\s*الشحن|دفع\s*شحن/.test(t) && !/لم\s*يدفع|ولم\s*يدفع|لا\s*يدفع/.test(t)) { return 'RETURN_SHIPPING_PAID'; }
+		if ((/جزئ/.test(t) && !/مرتجع\s*جزئ/.test(t)) || /تم\s*التسليم\s*و/.test(t)) { return 'PARTIAL'; }
+		if (/استبدال/.test(t)) { return 'IGNORE'; }
+		if (/مرتجع|فشل|رفض|لاغي|الغاء|إلغاء|مرفوض/.test(t)) { return 'RETURN'; }
+		if (/استلم|تم\s*التسليم|تسليم|سلم/.test(t) && !/مكرر|قبل/.test(t)) { return 'FULL'; }
+		return 'IGNORE';
+	}
+	function fillSelect($s, headers, optional) {
 		$s.empty(); if (optional) { $s.append('<option value="">— بدون —</option>'); }
-		let pick = '';
-		headers.forEach((h, i) => { $s.append('<option value="' + i + '">' + esc((i + 1) + ' - ' + (h || '(بلا عنوان)')) + '</option>'); if (pick === '' && pattern && pattern.test(h)) { pick = String(i); } });
-		if (pick !== '') { $s.val(pick); } else if (!optional) { $s.val('0'); }
+		headers.forEach((h, i) => { $s.append('<option value="' + i + '">' + esc((i + 1) + ' - ' + (h || '(بلا عنوان)')) + '</option>'); });
 	}
-	function headerCells() { const r = grid[parseInt($('#imp-hrow').val(), 10) - 1] || []; const n = Math.max(r.length, ...grid.slice(0, 30).map(x => (x || []).length)); return Array.from({length: n}, (_, i) => String(r[i] == null ? '' : r[i]).trim()); }
-	function buildMapping(guess) {
-		const h = headerCells();
-		if (guess) {
-			fillSelect($('#imp-c-order'), h, /sub_?order|parcode|barcode|كود|رقم\s*(ال)?(امر|أمر|شحنة)|الشحنة/i, false);
-			fillSelect($('#imp-c-amount'), h, /المبلغ\s*المحصل|المدفوع|المحصل|collected|cod/i, true);
-			fillSelect($('#imp-c-status'), h, /حالة|الموقف|status/i, true);
-			fillSelect($('#imp-c-fee'), h, /^الشحن$|رسوم|fee/i, true);
-		}
-		const start = parseInt($('#imp-hrow').val(), 10);
-		let html = '<thead class="thead-light"><tr>' + h.map((x, i) => '<th>' + esc(x || (i + 1)) + '</th>').join('') + '</tr></thead><tbody>';
-		grid.slice(start, start + 3).forEach(r => { html += '<tr>' + h.map((x, i) => '<td>' + esc(r && r[i] != null ? r[i] : '') + '</td>').join('') + '</tr>'; });
-		$('#imp-sample').html(html + '</tbody>');
-	}
-	function pickSheet(i, auto) {
-		grid = sheets[i].rows; $('#imp-hrow').val(guessHeaderRow(grid)); buildMapping(true);
-		$('#imp-map').show(); $('#imp-result').hide();
-		if (auto && saved) {
-			if (applySaved()) { run(); } else { fail(new Error('أعمدة الإعدادات المحفوظة غير موجودة في هذا الملف. اضبط الأعمدة يدويًا ثم احفظ الإعدادات من جديد.')); }
-		}
-	}
+	function guessInto(sel, headers, re, optional) { const i = headers.findIndex(h => re.test(h)); $(sel).val(i >= 0 ? String(i) : (optional ? '' : '0')); }
+	function actionSelect(k, cur, cls) { return '<select class="form-control ' + cls + '" data-k="' + esc(k) + '">' + Object.keys(ACTIONS).map(a => '<option value="' + a + '"' + (a === cur ? ' selected' : '') + '>' + ACTIONS[a] + '</option>').join('') + '</select>'; }
 
-	function collectRows() {
-		const start = parseInt($('#imp-hrow').val(), 10);
-		const g = (v) => v === '' ? -1 : parseInt(v, 10);
-		const co = g($('#imp-c-order').val()), ca = g($('#imp-c-amount').val()), cs = g($('#imp-c-status').val()), cf = g($('#imp-c-fee').val());
+	// ---------- إعدادات الشركة (داخل نافذة تعديل الشركة) ----------
+	const cs = {sheets: [], grid: [], saved: null, dirty: false, statusMap: {}};
+	const csRef = ($s) => { const v = $s.val(); if (v === '' || v == null) { return null; } const i = parseInt(v, 10); return {name: headersOf(cs.grid, parseInt($('#cs-hrow').val(), 10) || 1)[i] || '', index: i}; };
+	function csDescribe() {
+		const st = cs.saved; const $d = $('#cs-current');
+		if (!st) { $d.html('<span class="text-danger">لم تُضبط إعدادات ملف هذه الشركة بعد.</span>'); return; }
+		const nm = (c) => c ? '«' + esc(c.name || ('عمود ' + (c.index + 1))) + '»' : '—';
+		$d.html('<span class="text-success">الإعدادات المحفوظة:</span> الورقة ' + esc(st.sheet || 'الأولى') + ' — صف العناوين ' + st.header_row + ' — رقم الأمر ' + nm(st.order_col) + ' — المحصل ' + nm(st.amount_col) + ' — الحالة ' + nm(st.status_col) + ' — الرسوم ' + nm(st.fee_col) + ' — المبلغ ' + (Number(st.includes_shipping) ? 'شامل' : 'غير شامل') + ' الشحن — سماحية ' + st.tolerance);
+	}
+	function csRenderSample() {
+		const h = headersOf(cs.grid, parseInt($('#cs-hrow').val(), 10) || 1), start = parseInt($('#cs-hrow').val(), 10) || 1;
+		let html = '<thead class="thead-light"><tr>' + h.map((x, i) => '<th>' + esc(x || (i + 1)) + '</th>').join('') + '</tr></thead><tbody>';
+		cs.grid.slice(start, start + 3).forEach(r => { html += '<tr>' + h.map((x, i) => '<td>' + esc(r && r[i] != null ? r[i] : '') + '</td>').join('') + '</tr>'; });
+		$('#cs-sample').html(html + '</tbody>');
+		csRenderStatuses();
+	}
+	function csRenderStatuses() {
+		const c = $('#cs-c-status').val(); const start = parseInt($('#cs-hrow').val(), 10) || 1;
+		if (c === '' || c == null) { $('#cs-statuses').empty(); return; }
+		const counts = {};
+		cs.grid.forEach((r, i) => { if (i < start || !r) { return; } const v = String(r[parseInt(c, 10)] == null ? '' : r[parseInt(c, 10)]).trim(); if (v) { counts[v] = (counts[v] || 0) + 1; } });
+		const keys = Object.keys(counts).slice(0, 60);
+		if (!keys.length) { $('#cs-statuses').empty(); return; }
+		let h = '<div class="small font-weight-bold mb-1">تفسير الحالات الموجودة في الملف:</div><div class="form-row">';
+		keys.forEach(k => { const cur = cs.statusMap[k] || defaultAction(k); cs.statusMap[k] = cur; h += '<div class="col-md-6 mb-1"><div class="input-group input-group-sm"><div class="input-group-prepend"><span class="input-group-text">' + esc(k) + ' (' + counts[k] + ')</span></div>' + actionSelect(k, cur, 'cs-st') + '</div></div>'; });
+		$('#cs-statuses').html(h + '</div>');
+	}
+	function csHeaders(guess) {
+		const h = headersOf(cs.grid, parseInt($('#cs-hrow').val(), 10) || 1);
+		fillSelect($('#cs-c-order'), h, false); fillSelect($('#cs-c-amount'), h, true); fillSelect($('#cs-c-status'), h, true); fillSelect($('#cs-c-fee'), h, true);
+		return h;
+	}
+	function csGuess() {
+		const h = csHeaders();
+		guessInto('#cs-c-order', h, /sub_?order|parcode|barcode|كود|رقم\s*(ال)?(امر|أمر|شحنة)|الشحنة/i, false);
+		guessInto('#cs-c-amount', h, /المبلغ\s*المحصل|المدفوع|المحصل|collected|cod/i, true);
+		guessInto('#cs-c-status', h, /حالة|الموقف|status/i, true);
+		guessInto('#cs-c-fee', h, /^الشحن$|رسوم|fee/i, true);
+	}
+	function csApplySaved() {
+		const st = cs.saved; $('#cs-hrow').val(st.header_row || 1);
+		const h = csHeaders();
+		const set = (sel, ref, opt) => { const v = findCol(ref, h); $(sel).val(v === '' ? (opt ? '' : '0') : v); return v !== ''; };
+		const ok = set('#cs-c-order', st.order_col, false);
+		set('#cs-c-amount', st.amount_col, true); set('#cs-c-status', st.status_col, true); set('#cs-c-fee', st.fee_col, true);
+		$('#cs-incl').prop('checked', !!Number(st.includes_shipping)); $('#cs-tol').val(st.tolerance == null ? 1 : st.tolerance);
+		cs.statusMap = Object.assign({}, st.status_map || {});
+		return ok;
+	}
+	function csPick(i) {
+		cs.grid = cs.sheets[i].rows;
+		if (cs.saved && cs.saved.sheet === cs.sheets[i].name) { if (!csApplySaved()) { csGuess(); } } else { $('#cs-hrow').val(guessHeaderRow(cs.grid)); csGuess(); }
+		$('#cs-map').show(); csRenderSample(); cs.dirty = true;
+	}
+	function csSettings() {
+		if (!cs.dirty) { return null; }
+		const order = csRef($('#cs-c-order')); if (!order) { throw new Error('حدد عمود رقم الأمر في إعدادات الملف.'); }
+		const map = {}; $('.cs-st').each(function () { map[$(this).data('k')] = this.value; });
+		return {sheet: cs.sheets[parseInt($('#cs-sheet').val() || 0, 10)].name, header_row: parseInt($('#cs-hrow').val(), 10) || 1, order_col: order,
+			amount_col: csRef($('#cs-c-amount')), status_col: csRef($('#cs-c-status')), fee_col: csRef($('#cs-c-fee')),
+			includes_shipping: $('#cs-incl').is(':checked') ? 1 : 0, tolerance: parseFloat($('#cs-tol').val()) || 0, status_map: Object.assign({}, cs.saved ? cs.saved.status_map : {}, map)};
+	}
+	window.scImportSaveHook = function (id) {
+		const st = csSettings(); if (!st || !id) { return Promise.resolve(); }
+		return call('scImportSave', {id, settings: JSON.stringify(st)});
+	};
+
+	// ---------- رفع الكشف (اختيار الشركة + الملف فقط) ----------
+	let saved = null, lastRes = null, statusMap = {}, rowsCache = null;
+
+	function gridRows(grid, st) {
+		const h = headersOf(grid, st.header_row || 1);
+		const co = parseInt(findCol(st.order_col, h), 10);
+		if (isNaN(co)) { throw new Error('عمود رقم الأمر «' + ((st.order_col && st.order_col.name) || '') + '» غير موجود في هذا الملف. عدّل إعدادات الشركة بملف نموذجي جديد.'); }
+		const g = (ref) => { const v = findCol(ref, h); return v === '' ? -1 : parseInt(v, 10); };
+		const ca = g(st.amount_col), cst = g(st.status_col), cf = g(st.fee_col);
 		const out = [];
 		grid.forEach((r, i) => {
-			if (i < start || !r) { return; }
+			if (i < (st.header_row || 1) || !r) { return; }
 			const o = String(r[co] == null ? '' : r[co]).trim();
 			if (o === '' || !/\d/.test(o)) { return; }
-			out.push({row: i + 1, order: o, amount: ca >= 0 ? r[ca] : null, status: cs >= 0 ? r[cs] : '', fee: cf >= 0 ? r[cf] : null});
+			out.push({row: i + 1, order: o, amount: ca >= 0 ? r[ca] : null, status: cst >= 0 ? r[cst] : '', fee: cf >= 0 ? r[cf] : null});
 		});
 		return out;
 	}
-
 	function run() {
 		const company = $('#imp-company').val();
-		if (!company) { return fail(new Error('اختر شركة الشحن.')); }
-		const rows = collectRows();
-		if (!rows.length) { return fail(new Error('لا توجد صفوف بأرقام أوامر. راجع صف العناوين وعمود رقم الأمر.')); }
-		const $b = $('#imp-run').prop('disabled', true);
-		call('scPreview', {company_id: company, rows: JSON.stringify(rows), status_map: JSON.stringify(statusMap),
-			includes_shipping: $('#imp-incl').is(':checked') ? 1 : 0, tolerance: $('#imp-tol').val()})
-			.then(r => { lastRes = r; renderResult(); }).catch(fail).finally(() => $b.prop('disabled', false));
+		if (!company || !saved || !rowsCache) { return; }
+		call('scPreview', {company_id: company, rows: JSON.stringify(rowsCache), status_map: JSON.stringify(Object.assign({}, saved.status_map || {}, statusMap)),
+			includes_shipping: Number(saved.includes_shipping) ? 1 : 0, tolerance: saved.tolerance == null ? 1 : saved.tolerance})
+			.then(r => { lastRes = r; renderResult(); }).catch(fail);
 	}
-
 	function renderResult() {
 		const r = lastRes, s = r.summary;
 		$('#imp-result').show();
-		$('#imp-summary').html('<span class="badge badge-secondary p-2 ml-1">الإجمالي ' + s.total + '</span>' +
-			'<span class="badge badge-success p-2 ml-1">سليم ' + s.OK + '</span>' +
-			'<span class="badge badge-warning p-2 ml-1">يحتاج مراجعة ' + s.REVIEW + '</span>' +
-			'<span class="badge badge-danger p-2 ml-1">خطأ ' + s.ERROR + '</span>');
+		$('#imp-summary').html('<span class="badge badge-secondary p-2 ml-1">الإجمالي ' + s.total + '</span><span class="badge badge-success p-2 ml-1">سليم ' + s.OK + '</span><span class="badge badge-warning p-2 ml-1">يحتاج مراجعة ' + s.REVIEW + '</span><span class="badge badge-danger p-2 ml-1">خطأ ' + s.ERROR + '</span>');
 		const keys = Object.keys(r.statuses || {});
 		if (keys.length) {
-			let h = '<div class="small font-weight-bold mb-1">فسّر كل حالة مكتوبة في الكشف (يمكنك التعديل ثم إعادة المعاينة):</div><div class="form-row">';
-			keys.forEach((k, i) => {
-				const cur = statusMap[k] || r.statuses[k].action;
-				h += '<div class="col-md-4 mb-1"><div class="input-group input-group-sm"><div class="input-group-prepend"><span class="input-group-text">' + esc(k) + ' (' + r.statuses[k].count + ')</span></div>' +
-					'<select class="form-control imp-st" data-k="' + esc(k) + '">' + Object.keys(ACTIONS).map(a => '<option value="' + a + '"' + (a === cur ? ' selected' : '') + '>' + ACTIONS[a] + '</option>').join('') + '</select></div></div>';
-			});
+			let h = '<div class="small font-weight-bold mb-1">تفسير الحالات (تعديل مؤقت لهذا الرفع فقط؛ للتثبيت عدّل إعدادات الشركة):</div><div class="form-row">';
+			keys.forEach(k => { const cur = statusMap[k] || r.statuses[k].action; h += '<div class="col-md-4 mb-1"><div class="input-group input-group-sm"><div class="input-group-prepend"><span class="input-group-text">' + esc(k) + ' (' + r.statuses[k].count + ')</span></div>' + actionSelect(k, cur, 'imp-st') + '</div></div>'; });
 			$('#imp-statuses').html(h + '</div>');
 		} else { $('#imp-statuses').empty(); }
 		renderTable();
 		const m = r.not_in_file;
 		$('#imp-missing').text(m.count ? 'أوامر على عهدة الشركة (بانتظار النتيجة) ولم تظهر في الكشف: ' + m.count + (m.sample.length ? ' — مثال: ' + m.sample.slice(0, 10).join('، ') : '') : 'كل أوامر عهدة الشركة الجارية ظهرت في الكشف.');
 	}
-	const money = (v) => v == null ? '—' : Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 	function renderTable() {
 		const f = $('#imp-filter .active').data('f');
 		let h = '<thead class="thead-dark"><tr><th>صف</th><th>رقم الأمر</th><th>حالة الكشف</th><th>المحصل</th><th>قيمة النظام</th><th>المتوقع</th><th>الاستنتاج</th><th>الإجراء المقترح</th><th>الحكم</th><th>ملاحظات</th></tr></thead><tbody>';
 		lastRes.rows.filter(x => f === 'ALL' || x.flag === f).forEach(x => {
-			const b = FLAG[x.flag];
-			const notes = x.notes.concat(x.candidates.length ? ['التوزيع: ' + x.candidates.join(' | ')] : []);
-			h += '<tr><td>' + x.row + '</td><td class="text-nowrap">' + esc(x.order) + '</td><td>' + esc(x.file_status) + '</td><td>' + money(x.amount) + '</td><td>' + money(x.order_value) + '</td><td>' + money(x.expected) + '</td>' +
-				'<td>' + esc(DERIVED[x.derived] || '—') + '</td><td>' + esc(ACTIONS[x.proposed] || '—') + '</td><td><span class="badge ' + b[0] + '">' + b[1] + '</span></td><td class="small">' + esc(notes.join(' — ')) + '</td></tr>';
+			const b = FLAG[x.flag], notes = x.notes.concat(x.candidates.length ? ['التوزيع: ' + x.candidates.join(' | ')] : []);
+			h += '<tr><td>' + x.row + '</td><td class="text-nowrap">' + esc(x.order) + '</td><td>' + esc(x.file_status) + '</td><td>' + money(x.amount) + '</td><td>' + money(x.order_value) + '</td><td>' + money(x.expected) + '</td><td>' + esc(DERIVED[x.derived] || '—') + '</td><td>' + esc(ACTIONS[x.proposed] || '—') + '</td><td><span class="badge ' + b[0] + '">' + b[1] + '</span></td><td class="small">' + esc(notes.join(' — ')) + '</td></tr>';
 		});
 		$('#imp-table').html(h + '</tbody>');
 	}
-
-	async function onFile(file) {
+	function loadCompany() {
+		saved = null; $('#imp-saved,#imp-nosaved').hide();
+		const id = $('#imp-company').val(); if (!id) { return Promise.resolve(); }
+		return call('scGet', {id}).then(c => {
+			try { saved = c.import_settings ? JSON.parse(c.import_settings) : null; } catch (e) { saved = null; }
+			$('#imp-saved').toggle(!!saved); $('#imp-nosaved').toggle(!saved);
+		}).catch(fail);
+	}
+	async function onImpFile(file) {
 		if (!file) { return; }
 		try {
-			const buf = await file.arrayBuffer();
-			const ext = (file.name.split('.').pop() || '').toLowerCase();
-			sheets = ext === 'xlsx' ? await readXlsx(buf) : (ext === 'xls' ? await readXls(buf) : (ext === 'csv' ? readCsv(buf) : null));
-			if (!sheets) { throw new Error('نوع الملف غير مدعوم. استخدم xlsx أو xls أو csv.'); }
-			sheets = sheets.filter(s => s.rows.some(r => r && r.some(c => String(c || '').trim() !== '')));
-			if (!sheets.length) { throw new Error('الملف لا يحتوي على بيانات.'); }
-			statusMap = {};
-			$('#imp-sheet').html(sheets.map((s, i) => '<option value="' + i + '">' + esc(s.name) + ' (' + s.rows.length + ')</option>').join(''));
-			$('#imp-sheet-box').toggle(sheets.length > 1);
-			// أكبر ورقة افتراضيًا
-			let best = 0; sheets.forEach((s, i) => { if (s.rows.length > sheets[best].rows.length) { best = i; } });
-			if (saved && saved.sheet) { const k = sheets.findIndex(x => x.name === saved.sheet); if (k >= 0) { best = k; } }
-			$('#imp-sheet').val(best); pickSheet(best, true);
+			if (!$('#imp-company').val()) { throw new Error('اختر شركة الشحن أولًا.'); }
+			if (!saved) { throw new Error('لم تُضبط إعدادات ملف هذه الشركة. افتح "تعديل" للشركة وارفع ملفًا نموذجيًا.'); }
+			const sh = await readFile(file);
+			let k = sh.findIndex(x => x.name === saved.sheet); if (k < 0) { k = largest(sh); }
+			statusMap = {}; rowsCache = gridRows(sh[k].rows, saved);
+			if (!rowsCache.length) { throw new Error('لا توجد صفوف بأرقام أوامر في الورقة «' + sh[k].name + '».'); }
+			run();
 		} catch (e) { fail(e); }
 	}
 
@@ -240,17 +265,32 @@
 		call('scList').then(list => {
 			$('#imp-company').html('<option value="">— اختر —</option>' + list.filter(c => Number(c.is_active) === 1).map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join(''));
 		}).catch(fail);
-		$('#imp-file').on('change', function () { onFile(this.files[0]); });
-		$('#imp-sheet').on('change', function () { pickSheet(parseInt(this.value, 10), true); });
-		$('#imp-company').on('change', function () { loadCompany().then(() => { if (sheets.length) { pickSheet(parseInt($('#imp-sheet').val() || 0, 10), true); } }); });
-		$('#imp-save').on('click', function () {
-			const id = $('#imp-company').val(); if (!id) { return fail(new Error('اختر شركة الشحن.')); }
-			const st = currentSettings(); if (!st.order_col) { return fail(new Error('حدد عمود رقم الأمر.')); }
-			call('scImportSave', {id, settings: JSON.stringify(st)}).then(() => { saved = st; $('#imp-saved').show(); Swal.fire({icon: 'success', title: 'تم حفظ إعدادات ملف ' + $('#imp-company option:selected').text(), text: 'من الآن ارفع الملف فقط وستُطبَّق الإعدادات تلقائيًا.'}); }).catch(fail);
-		});
-		$('#imp-hrow').on('change', () => buildMapping(true));
-		$('#imp-run').on('click', run);
+		$('#imp-company').on('change', loadCompany);
+		$('#imp-file').on('change', function () { onImpFile(this.files[0]); });
 		$('#imp-filter').on('click', 'button', function () { $('#imp-filter button').removeClass('active'); $(this).addClass('active'); if (lastRes) { renderTable(); } });
 		$('#imp-statuses').on('change', '.imp-st', function () { statusMap[$(this).data('k')] = this.value; run(); });
+
+		// نافذة إعدادات الشركة
+		$(document).on('sc:open', function (e, c) {
+			cs.sheets = []; cs.grid = []; cs.saved = null; cs.dirty = false; cs.statusMap = {};
+			$('#cs-file').val(''); $('#cs-map,#cs-sheet-box').hide(); $('#cs-statuses').empty(); csDescribe();
+			if (!c || !Number(c.id)) { return; }
+			call('scGet', {id: c.id}).then(r => { try { cs.saved = r.import_settings ? JSON.parse(r.import_settings) : null; } catch (x) { cs.saved = null; } csDescribe(); }).catch(fail);
+		});
+		$('#cs-file').on('change', async function () {
+			const f = this.files[0]; if (!f) { return; }
+			try {
+				cs.sheets = await readFile(f);
+				$('#cs-sheet').html(cs.sheets.map((x, i) => '<option value="' + i + '">' + esc(x.name) + ' (' + x.rows.length + ')</option>').join(''));
+				$('#cs-sheet-box').toggle(cs.sheets.length > 1);
+				let b = largest(cs.sheets); if (cs.saved && cs.saved.sheet) { const k = cs.sheets.findIndex(x => x.name === cs.saved.sheet); if (k >= 0) { b = k; } }
+				$('#cs-sheet').val(b); csPick(b);
+			} catch (e) { fail(e); }
+		});
+		$('#cs-sheet').on('change', function () { csPick(parseInt(this.value, 10)); });
+		$('#cs-hrow').on('change', function () { csGuess(); csRenderSample(); cs.dirty = true; });
+		$('#cs-c-order,#cs-c-amount,#cs-c-fee,#cs-incl,#cs-tol').on('change', function () { cs.dirty = true; });
+		$('#cs-c-status').on('change', function () { cs.dirty = true; csRenderStatuses(); });
+		$('#cs-statuses').on('change', '.cs-st', function () { cs.statusMap[$(this).data('k')] = this.value; cs.dirty = true; });
 	});
 })();

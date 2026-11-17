@@ -48,6 +48,7 @@
 		$('#sc-fixed').val(Number(c.fixed_fee || 0).toFixed(2)); $('#sc-note').val(c.note || '');
 		$('#sc-fixed-box').toggle(c.fee_mode === 'FIXED');
 		$('#scModal').modal('show');
+		$(document).trigger('sc:open', [c]);
 	}
 
 	$(document).on('change', '#sc-feemode', function () { $('#sc-fixed-box').toggle($(this).val() === 'FIXED'); });
@@ -61,7 +62,7 @@
 		call('scSave', {
 			id: $('#sc-id').val(), name: name, receiving_policy: $('#sc-policy').val(), settlement_method: $('#sc-method').val(),
 			fee_mode: $('#sc-feemode').val(), fixed_fee: $('#sc-fixed').val(), note: $('#sc-note').val()
-		}).then(() => { $('#scModal').modal('hide'); return load(); }).catch(fail);
+		}).then(r => (window.scImportSaveHook ? window.scImportSaveHook(r && r.id) : null)).then(() => { $('#scModal').modal('hide'); return load(); }).catch(fail);
 	});
 	$(document).on('click', '.sc-toggle', function () {
 		const id = $(this).data('id'), active = $(this).data('active');

@@ -81,6 +81,40 @@ if (!$scAdmin) {
                     <label for="sc-note">ملاحظة</label>
                     <input type="text" id="sc-note" class="form-control" maxlength="255">
                 </div>
+                <hr>
+                <h6>إعدادات ملف الكشف <small class="text-muted">(تُحفظ مع الشركة ويمكن تعديلها في أي وقت)</small></h6>
+                <div id="cs-current" class="small mb-2"></div>
+                <div class="form-row">
+                    <div class="form-group col-md-8">
+                        <label for="cs-file">ارفع ملفًا نموذجيًا من الشركة لضبط الأعمدة (xlsx / xls / csv)</label>
+                        <input type="file" id="cs-file" class="form-control-file" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <div class="form-group col-md-4" id="cs-sheet-box" style="display:none">
+                        <label for="cs-sheet">الورقة</label>
+                        <select id="cs-sheet" class="form-control"></select>
+                    </div>
+                </div>
+                <div id="cs-map" style="display:none">
+                    <div class="form-row">
+                        <div class="form-group col-md-2"><label for="cs-hrow">صف العناوين</label><input type="number" id="cs-hrow" class="form-control" min="1" value="1"></div>
+                        <div class="form-group col-md-3"><label for="cs-c-order">عمود رقم الأمر <span class="text-danger">*</span></label><select id="cs-c-order" class="form-control"></select></div>
+                        <div class="form-group col-md-3"><label for="cs-c-amount">عمود المبلغ المحصل</label><select id="cs-c-amount" class="form-control"></select></div>
+                        <div class="form-group col-md-2"><label for="cs-c-status">عمود الحالة</label><select id="cs-c-status" class="form-control"></select></div>
+                        <div class="form-group col-md-2"><label for="cs-c-fee">عمود رسوم الشركة</label><select id="cs-c-fee" class="form-control"></select></div>
+                    </div>
+                    <div class="form-row align-items-center">
+                        <div class="form-group col-md-7">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="cs-incl">
+                                <label class="custom-control-label" for="cs-incl">المبلغ المحصل شامل قيمة الشحن</label>
+                            </div>
+                        </div>
+                        <div class="form-group col-md-5"><label for="cs-tol">سماحية الفرق (جنيه)</label><input type="number" id="cs-tol" class="form-control" min="0" max="50" step="0.5" value="1"></div>
+                    </div>
+                    <div id="cs-statuses" class="mb-2"></div>
+                    <div class="table-responsive"><table class="table table-sm table-bordered" id="cs-sample"></table></div>
+                </div>
+
                 <div class="alert alert-info mb-0 small">
                     رسوم الشركة تُسجَّل كمصروف شحن خارجي وتُسوَّى مع الشركة نفسها، وليست عمولة مندوب داخلي.
                 </div>
@@ -121,45 +155,20 @@ if (!$scAdmin) {
     <div class="card shadow rounded">
         <div class="card-header">
             <h5 class="mb-0">رفع كشف شركة الشحن (معاينة)</h5>
-            <small class="text-muted">المعاينة لا تغيّر أي بيانات. تطبيق النتائج خطوة منفصلة تأتي بعد مراجعتك.</small>
+            <small class="text-muted">اختر الشركة وارفع الملف فقط: الأعمدة من إعدادات الشركة (زر تعديل). المعاينة لا تغيّر أي بيانات.</small>
         </div>
         <div class="card-body">
             <div class="form-row">
                 <div class="form-group col-md-4">
                     <label for="imp-company">شركة الشحن</label>
                     <select id="imp-company" class="form-control"></select>
-                    <small id="imp-saved" class="text-success" style="display:none"><i class="fa fa-check"></i> إعدادات الملف محفوظة: ارفع الملف فقط.</small>
+                    <small id="imp-saved" class="text-success" style="display:none"><i class="fa fa-check"></i> إعدادات الملف محفوظة.</small>
+                    <small id="imp-nosaved" class="text-danger" style="display:none">لم تُضبط إعدادات ملف هذه الشركة: افتح "تعديل" للشركة وارفع ملفًا نموذجيًا.</small>
                 </div>
                 <div class="form-group col-md-5">
                     <label for="imp-file">ملف الكشف (xlsx / xls / csv)</label>
                     <input type="file" id="imp-file" class="form-control-file" accept=".xlsx,.xls,.csv">
                 </div>
-                <div class="form-group col-md-3" id="imp-sheet-box" style="display:none">
-                    <label for="imp-sheet">الورقة</label>
-                    <select id="imp-sheet" class="form-control"></select>
-                </div>
-            </div>
-            <div id="imp-map" style="display:none">
-                <hr>
-                <div class="form-row">
-                    <div class="form-group col-md-2"><label for="imp-hrow">صف العناوين</label><input type="number" id="imp-hrow" class="form-control" min="1" value="1"></div>
-                    <div class="form-group col-md-3"><label for="imp-c-order">عمود رقم الأمر <span class="text-danger">*</span></label><select id="imp-c-order" class="form-control"></select></div>
-                    <div class="form-group col-md-3"><label for="imp-c-amount">عمود المبلغ المحصل</label><select id="imp-c-amount" class="form-control"></select></div>
-                    <div class="form-group col-md-2"><label for="imp-c-status">عمود الحالة</label><select id="imp-c-status" class="form-control"></select></div>
-                    <div class="form-group col-md-2"><label for="imp-c-fee">عمود رسوم الشركة</label><select id="imp-c-fee" class="form-control"></select></div>
-                </div>
-                <div class="form-row align-items-center">
-                    <div class="form-group col-md-5">
-                        <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input" id="imp-incl">
-                            <label class="custom-control-label" for="imp-incl">المبلغ المحصل شامل قيمة الشحن</label>
-                        </div>
-                    </div>
-                    <div class="form-group col-md-3"><label for="imp-tol">سماحية الفرق (جنيه)</label><input type="number" id="imp-tol" class="form-control" min="0" max="50" step="0.5" value="1"></div>
-                    <div class="form-group col-md-4 text-md-left"><button type="button" class="btn btn-primary" id="imp-run"><i class="fa fa-search"></i> معاينة</button>
-                        <button type="button" class="btn btn-outline-success" id="imp-save"><i class="fa fa-save"></i> حفظ هذه الإعدادات للشركة</button></div>
-                </div>
-                <div class="table-responsive"><table class="table table-sm table-bordered" id="imp-sample"></table></div>
             </div>
             <div id="imp-result" style="display:none">
                 <hr>
