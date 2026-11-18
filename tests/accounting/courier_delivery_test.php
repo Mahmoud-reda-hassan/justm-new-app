@@ -676,6 +676,7 @@ $db->exec("DELETE FROM custody_orders WHERE ORDER_ID IN ($rc1,$rc2) AND USER_ID=
 $scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'receiving_policy' => 'SINGLE'], $userId, $branch);
 
 // 10) shipping-company fee settlement (step 4)
+$_SESSION = ['USER_ID' => $userId, 'BRANCH_ID' => $branch];
 require_once __DIR__ . '/../../inc/Classes/ShippingCompanyFees.php';
 $scf = new ShippingCompanyFees($db);
 $fa = makeOrder($db, $store, $tel, 3, 30, 1, [[2, 100, 10, 60, 2]]);   // 210 gross, 30 shipping
