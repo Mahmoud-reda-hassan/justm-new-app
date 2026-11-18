@@ -1134,3 +1134,6 @@ if ($loginType === 1 && $pageType > 0) {
         <?php
     }
     ?>
+	<aside>
+		<p class ="mt-5"><p>
+	</aside>
