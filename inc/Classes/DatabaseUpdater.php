@@ -99,7 +99,7 @@ class DatabaseUpdater {
             $checks[] = ['label' => 'تقرير ' . $v, 'ok' => (int)$st->fetchColumn() > 0];
         }
         $tb = $this->db->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?");
-        foreach (['accounting_periods', 'system_flags', 'shipping_companies', 'shipping_company_rates', 'shipping_company_imports', 'shipping_company_statement_rows', 'shipping_company_statement_history', 'shipping_company_fees'] as $t) {
+        foreach (['accounting_periods', 'system_flags', 'shipping_companies', 'shipping_company_rates', 'shipping_company_imports', 'shipping_company_statement_rows', 'shipping_company_statement_history', 'shipping_company_fees', 'shipping_company_shortages'] as $t) {
             $tb->execute([$t]);
             $checks[] = ['label' => 'جدول ' . $t, 'ok' => (int)$tb->fetchColumn() > 0];
         }

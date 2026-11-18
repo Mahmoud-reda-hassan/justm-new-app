@@ -307,5 +307,53 @@ CREATE TABLE IF NOT EXISTS `shipping_company_fees` (
   UNIQUE KEY `uq_scf_company_order` (`company_id`, `order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- ---------- Part 10: shipping-company shortages (returned goods that never arrived) ----------
+INSERT INTO `accounts`
+  (`parent_id`, `account_code`, `account_name`, `account_type`, `normal_balance`, `account_level`, `is_active`, `allow_posting`, `system_account`, `is_system_created`)
+SELECT p.`id`, '1520', 'مستحق من شركات الشحن (عجز)', 'ASSET', 'DEBIT', 3, 1, 1, 0, 0
+FROM `accounts` p
+WHERE p.`account_code` = '1500'
+  AND NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '1520');
+
+INSERT INTO `accounts`
+  (`parent_id`, `account_code`, `account_name`, `account_type`, `normal_balance`, `account_level`, `is_active`, `allow_posting`, `system_account`, `is_system_created`)
+SELECT p.`id`, '4320', 'فروق تقييم عجز شركات الشحن', 'REVENUE', 'CREDIT', 2, 1, 1, 0, 0
+FROM `accounts` p
+WHERE p.`account_code` = '4300'
+  AND NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '4320');
+
+INSERT INTO `account_settings` (`setting_key`, `account_id`, `description`)
+SELECT 'SHIPPING_COMPANY_RECEIVABLE', a.`id`, 'مستحق من شركات الشحن (عجز)'
+FROM `accounts` a
+WHERE a.`account_code` = '1520'
+  AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'SHIPPING_COMPANY_RECEIVABLE');
+
+INSERT INTO `account_settings` (`setting_key`, `account_id`, `description`)
+SELECT 'SHIPPING_SHORTAGE_DIFF', a.`id`, 'فروق تقييم عجز شركات الشحن'
+FROM `accounts` a
+WHERE a.`account_code` = '4320'
+  AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'SHIPPING_SHORTAGE_DIFF');
+
+CREATE TABLE IF NOT EXISTS `shipping_company_shortages` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `company_id` int(11) NOT NULL,
+  `order_id` bigint(20) NOT NULL,
+  `pro_code` varchar(50) NOT NULL,
+  `qty` int(11) NOT NULL,
+  `unit_cost` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `unit_value` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `basis` enum('COST','SALE_PRICE') NOT NULL,
+  `value` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `status` enum('OPEN','SETTLED','WRITTEN_OFF') NOT NULL DEFAULT 'OPEN',
+  `journal_id` bigint(20) DEFAULT NULL,
+  `note` varchar(255) DEFAULT NULL,
+  `created_by` bigint(20) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_scs_company` (`company_id`, `status`),
+  KEY `idx_scs_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
 
 

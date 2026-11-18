@@ -331,6 +331,16 @@ class AccountSettings{
 	    return $this->get('MARKETER_COMMISSION_PAYABLE');
 	}
 
+	/** مستحق من شركات الشحن (عجز مرتجعات لم تصل). */
+	public function shippingCompanyReceivable(): int {
+	    return $this->get('SHIPPING_COMPANY_RECEIVABLE');
+	}
+
+	/** فروق تقييم العجز (قيمة العجز − تكلفته) عند التقييم بسعر البيع. */
+	public function shippingShortageDiff(): int {
+	    return $this->get('SHIPPING_SHORTAGE_DIFF');
+	}
+
 	/** رسوم شركات الشحن (مصروف). */
 	public function shippingCompanyFee(): int {
 	    return $this->get('SHIPPING_COMPANY_FEE');

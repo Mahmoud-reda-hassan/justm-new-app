@@ -728,5 +728,18 @@ $jp = $ev->courierCollection($fe, $userId, 0.0, 3.0);
 [$h, $l] = entry($db, $jp);
 check('plain courier, rejected unpaid: commission only, nothing on the customer or cash', lineSum($l, '5700', 'debit') === 3.0 && lineSum($l, '2210', 'credit') === 3.0 && lineSum($l, '1200', 'credit') === 0.0 && lineSum($l, '1110', 'debit') === 0.0, json_encode($l));
 
+// 11) shipping-company shortage (returned goods that never arrived)
+require_once __DIR__ . '/../../inc/Classes/ShippingCompanyShortage.php';
+$scsh = new ShippingCompanyShortage($db, $ev);
+$sh1 = makeOrder($db, $store, $tel, 4, 0, 1, [[3, 100, 0, 60, 1]]);   // 3 مطلوبة، 1 سلّمت، 2 مرتجعة
+check('shortage: refused when the order is not on a company custody', throwsMsg(fn() => $scsh->record($sh1, [['P1', 1]], $userId), 'عهدة'));
+$shCost = $ev->shippingShortage($scCourier, $sh1, 120.0, 120.0, (int)$store, (int)$branch, 'T-COST');
+[$h, $l] = entry($db, $shCost);
+check('shortage at COST: receivable vs inventory, no difference line', lineSum($l, '1520', 'debit') === 120.0 && lineSum($l, '1300', 'credit') === 120.0 && lineSum($l, '4320', 'credit') === 0.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
+$shSale = $ev->shippingShortage($scCourier, $sh1, 200.0, 120.0, (int)$store, (int)$branch, 'T-SALE');
+[$h, $l] = entry($db, $shSale);
+check('shortage at SALE_PRICE: difference credited to 4320', lineSum($l, '1520', 'debit') === 200.0 && lineSum($l, '1300', 'credit') === 120.0 && lineSum($l, '4320', 'credit') === 80.0, json_encode($l));
+check('shortage without cost is refused', throwsMsg(fn() => $ev->shippingShortage($scCourier, $sh1, 50.0, 0.0, (int)$store, (int)$branch, 'X'), 'تكلفة'));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

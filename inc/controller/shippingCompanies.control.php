@@ -10,6 +10,8 @@ include_once(ABSPATH.'/inc/Classes/secure/TrafficGuard.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanies.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyImport.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyReceipt.php');
+include_once(ABSPATH.'/inc/Classes/ShippingCompanyShortage.php');
+include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
 
 $DBconn = new dbconn();
 $db     = $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
@@ -46,6 +48,7 @@ $scUs = isset($_SESSION['USER_SCRIPT']) ? @unserialize($_SESSION['USER_SCRIPT'])
 $scCustody = is_array($scUs) && (($scUs['Admin']['OrdersCustody']['View_order_list'] ?? '') === 'true');
 $scCanViewCustody = $scCanView || $scCustody;
 $scCanUpload = $scCanAdmin || $scCustody;
+$scCanReceive = is_array($scUs) && (($scUs['Admin']['OrdersCustody']['ShipmentApproved'] ?? '') === 'true');
 $deny = function () { ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', [])); };
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !isset($_POST['CONTROL'])) {
@@ -99,6 +102,18 @@ try {
                 $info['pending_sample'] = array_slice(array_column($pend, 'sub_order_id'), 0, 15);
             }
             $ok($info);
+        case 'scShortageLines':
+            if (!$scCanViewCustody) { $deny(); }
+            $ok((new ShippingCompanyShortage($db, null))->remainingLines((int)($_POST['order_id'] ?? 0)));
+        case 'scShortageRecord':
+            if (!$scCanReceive) { $deny(); }
+            $lines = json_decode((string)($_POST['lines'] ?? '[]'), true);
+            if (!is_array($lines)) { throw new Exception('بيانات العجز غير صالحة.'); }
+            $r = (new ShippingCompanyShortage($db, new AccountingEvents($db)))->record((int)($_POST['order_id'] ?? 0), $lines, (int)($_SESSION['USER_ID'] ?? 0), (string)($_POST['note'] ?? ''));
+            $ok($r, 'تم تسجيل العجز على الشركة');
+        case 'scShortageList':
+            if (!$scCanViewCustody) { $deny(); }
+            $ok((new ShippingCompanyShortage($db, null))->listForCompany((int)($_POST['company_id'] ?? 0), (string)($_POST['status'] ?? 'OPEN')));
         case 'scStatementOrders':
             if (!$scCanViewCustody) { $deny(); }
             $imp = new ShippingCompanyImport($db);

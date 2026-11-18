@@ -375,6 +375,45 @@ class AccountingEvents {
 	}
 
 	/**
+	 * عجز مرتجع لم يصل من شركة شحن: مستحق على الشركة (مدين) مقابل خروج المخزون بالتكلفة (دائن)،
+	 * وفرق التقييم (لو التقييم بسعر البيع) على حساب مستقل.
+	 */
+	public function shippingShortage(int $courierUserId, int $orderId, float $value, float $cost, int $storeId, int $branchId, string $ref): int{
+	    $value = round($value, 2); $cost = round($cost, 2);
+	    if ($value <= 0) { throw new Exception("Shortage value must be positive."); }
+	    if ($cost <= 0)  { throw new Exception("لا يمكن تسجيل العجز: المنتج بلا تكلفة (cost price). حدّد تكلفته أولاً."); }
+	    if ($courierUserId <= 0) { throw new Exception("Shipping company courier is required."); }
+	    $now = $this->db->query("SELECT NOW(6)")->fetchColumn();
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => $branchId,
+	        'entry_date'     => $now,
+	        'reference_type' => 'SHIPPING_SHORTAGE',
+	        'reference_id'   => $orderId,
+	        'description'    => 'عجز مرتجع شركة شحن '.$ref,
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+	    $this->journal->addLine([
+	        'account_id'   => $this->settings->shippingCompanyReceivable(),
+	        'partner_type' => 'DELIVERY',
+	        'partner_id'   => $courierUserId,
+	        'debit'        => $value
+	    ]);
+	    $this->journal->addLine([
+	        'account_id' => $this->settings->inventory(),
+	        'store_id'   => $storeId,
+	        'credit'     => $cost
+	    ]);
+	    $diff = round($value - $cost, 2);
+	    if ($diff > 0) {
+	        $this->journal->addLine(['account_id' => $this->settings->shippingShortageDiff(), 'credit' => $diff]);
+	    } elseif ($diff < 0) {
+	        $this->journal->addLine(['account_id' => $this->settings->shippingShortageDiff(), 'debit' => abs($diff)]);
+	    }
+	    return $this->journal->post();
+	}
+
+	/**
 	 * قيد صرف مستحقات مندوب/مسوق نقداً: مدين العمولات المستحقة (الطرف: المستفيد) / دائن الصندوق.
 	 * @param string $partnerType 'DELIVERY' أو 'MARKETER'
 	 * @param int $transactionId رقم الحركة المالية (financial_transactions) كمرجع
