@@ -357,6 +357,7 @@ CREATE TABLE IF NOT EXISTS `shipping_company_shortages` (
 -- ---------- Part 11: المرفوض يبقى في عهدة المندوب/الشركة بعد الاستلام المخزني ليظهر في الاستلام المالي ويُسوّى هناك ----------
 -- (الإجراء كما هو، والتعديل الوحيد: لا يحذف الأمر المرفوض (حالة 5) من العهدة في آخره، ويحذف الإيقاف FREEZE فقط)
 -- @PROC-BEGIN
+DELIMITER $$
 CREATE OR REPLACE PROCEDURE `setDeliveryConfirmationOptimized` (IN `p_session_id` VARCHAR(64), IN `p_executed_by` INT, IN `p_executed_group` VARCHAR(250), IN `p_branch_id` INT, IN `p_update_inventory` VARCHAR(10))   proc_exit: BEGIN
     DECLARE v_status VARCHAR(10) DEFAULT 'ERROR';
     DECLARE v_total_orders INT DEFAULT 0;
@@ -648,5 +649,6 @@ CREATE OR REPLACE PROCEDURE `setDeliveryConfirmationOptimized` (IN `p_session_id
                   v_total_orders_selse, ' مبيعات, ', 
                   v_total_orders_refund, ' مرتجعات)') AS message;
            
-END
+END$$
+DELIMITER ;
 -- @PROC-END

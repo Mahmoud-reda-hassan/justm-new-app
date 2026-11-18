@@ -47,7 +47,10 @@ class DatabaseUpdater {
                 if ($c === '-' && trim($cur) === '' && substr($sql, $i, 15) === "-- @PROC-BEGIN\n") {
                     $e = strpos($sql, '-- @PROC-END', $i);
                     if ($e === false) { throw new Exception('كتلة إجراء بلا نهاية.'); }
-                    $out[] = trim(substr($sql, $i + 15, $e - ($i + 15)));
+                    $blk = substr($sql, $i + 15, $e - ($i + 15));
+                    $blk = preg_replace('/^\s*DELIMITER\b.*$/mi', '', $blk);   // DELIMITER أمر عميل mysql وليس SQL
+                    $blk = preg_replace('/\$\$\s*$/', '', rtrim($blk));
+                    $out[] = trim($blk);
                     $i = $e + 11; $cur = '';
                     while ($i + 1 < $n && $sql[$i + 1] !== "\n") { $i++; }
                     continue;
