@@ -375,6 +375,38 @@ class AccountingEvents {
 	}
 
 	/**
+	 * أمر مرفوض لم يدفع عميله شحنه واستُلم مرتجعه مخزنيًا: لا إيراد ولا مديونية عميل.
+	 * مندوب عادي: عمولته من قيمة الشحن بالنظام. شركة شحن: رسمها (مصروف 5720 ← مستحق 2240).
+	 * قيد واحد لكل أمر (لا يتكرر).
+	 */
+	public function rejectedReturnSettlement(int $orderId, int $courierId, float $commission, float $fee, int $branchId): int{
+	    $commission = round($commission, 2); $fee = round($fee, 2);
+	    if ($commission <= 0 && $fee <= 0) { return 0; }
+	    if ($commission < 0 || $fee < 0) { throw new Exception("Settlement amounts cannot be negative."); }
+	    $dup = $this->db->prepare("SELECT 1 FROM journal_entries WHERE reference_type = 'REJECTED_RETURN' AND reference_id = ? LIMIT 1");
+	    $dup->execute([$orderId]);
+	    if ($dup->fetchColumn()) { return 0; }
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => $branchId,
+	        'entry_date'     => $this->db->query("SELECT NOW(6)")->fetchColumn(),
+	        'reference_type' => 'REJECTED_RETURN',
+	        'reference_id'   => $orderId,
+	        'description'    => 'تسوية أمر مرفوض مستلم مخزنيًا رقم '.$orderId,
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+	    if ($commission > 0) {
+	        $this->journal->addLine(['account_id' => $this->settings->deliveryCommission(), 'debit' => $commission]);
+	        $this->journal->addLine(['account_id' => $this->settings->deliveryCommissionPayable(), 'partner_type' => 'DELIVERY', 'partner_id' => $courierId, 'credit' => $commission]);
+	    }
+	    if ($fee > 0) {
+	        $this->journal->addLine(['account_id' => $this->settings->shippingCompanyFee(), 'debit' => $fee]);
+	        $this->journal->addLine(['account_id' => $this->settings->shippingCompanyPayable(), 'partner_type' => 'DELIVERY', 'partner_id' => $courierId, 'credit' => $fee]);
+	    }
+	    return $this->journal->post();
+	}
+
+	/**
 	 * عجز مرتجع لم يصل من شركة شحن: مستحق على الشركة (مدين) مقابل خروج المخزون بالتكلفة (دائن)،
 	 * وفرق التقييم (لو التقييم بسعر البيع) على حساب مستقل.
 	 */

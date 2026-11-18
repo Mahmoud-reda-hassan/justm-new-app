@@ -741,5 +741,29 @@ $shSale = $ev->shippingShortage($scCourier, $sh1, 200.0, 120.0, (int)$store, (in
 check('shortage at SALE_PRICE: difference credited to 4320', lineSum($l, '1520', 'debit') === 200.0 && lineSum($l, '1300', 'credit') === 120.0 && lineSum($l, '4320', 'credit') === 80.0, json_encode($l));
 check('shortage without cost is refused', throwsMsg(fn() => $ev->shippingShortage($scCourier, $sh1, 50.0, 0.0, (int)$store, (int)$branch, 'X'), 'تكلفة'));
 
+// 12) rejected unpaid order settled at warehouse receipt
+require_once __DIR__ . '/../../inc/Classes/RejectedReturnSettlement.php';
+$rrs = new RejectedReturnSettlement($db, $ev);
+$rj1 = makeOrder($db, $store, $tel, 5, 40, 0, [[1, 100, 0, 50, 0]]);
+$r = $rrs->settle($rj1, $realCourier, (int)$branch);
+check('plain courier: commission = system shipping x percent (40 x 5% = 2)', $r && $r['type'] === 'COURIER_COMMISSION' && $r['amount'] === 2.0, json_encode($r));
+[$h, $l] = entry($db, $r['journal_id']);
+check('plain courier settlement entry: 5700 / 2210 only', lineSum($l, '5700', 'debit') === 2.0 && lineSum($l, '2210', 'credit') === 2.0 && lineSum($l, '1200', 'credit') === 0.0 && lineSum($l, '1110', 'debit') === 0.0);
+check('settlement is not repeated for the same order', $rrs->settle($rj1, $realCourier, (int)$branch) === null);
+$rj2 = makeOrder($db, $store, $tel, 5, 40, 1, [[1, 100, 0, 50, 0]]);   // الشحن مدفوع: مساره المالي
+check('rejected with shipping paid is not settled here', $rrs->settle($rj2, $realCourier, (int)$branch) === null);
+$rj3 = makeOrder($db, $store, $tel, 3, 40, 0, [[1, 100, 0, 50, 1]]);
+check('non-rejected order is not settled here', $rrs->settle($rj3, $realCourier, (int)$branch) === null);
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'return_fee_mode' => 'FIXED', 'return_fixed_fee' => 15], $userId, $branch);
+$rj4 = makeOrder($db, $store, $tel, 5, 40, 0, [[1, 100, 0, 50, 0]]);
+$r = $rrs->settle($rj4, $scCourier, (int)$branch);
+check('company: return fee from its setting (15)', $r && $r['type'] === 'COMPANY_FEE' && $r['amount'] === 15.0, json_encode($r));
+[$h, $l] = entry($db, $r['journal_id']);
+check('company settlement entry: 5720 / 2240 only, no courier commission', lineSum($l, '5720', 'debit') === 15.0 && lineSum($l, '2240', 'credit') === 15.0 && lineSum($l, '5700', 'debit') === 0.0);
+check('company fee recorded in fees table', (float)$db->query("SELECT fee FROM shipping_company_fees WHERE order_id=$rj4")->fetchColumn() === 15.0);
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'return_fee_mode' => 'NONE'], $userId, $branch);
+$rj5 = makeOrder($db, $store, $tel, 5, 40, 0, [[1, 100, 0, 50, 0]]);
+check('company with return fee NONE: nothing to settle', $rrs->settle($rj5, $scCourier, (int)$branch) === null);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

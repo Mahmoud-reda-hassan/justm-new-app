@@ -39,6 +39,7 @@ include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/LogManager.php');
 include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyReceipt.php');
+include_once(ABSPATH.'/inc/Classes/RejectedReturnSettlement.php');
 
 class shipment_BE {
 	private $orders_log_Tbl = 'ORDERS_LOG';
@@ -990,19 +991,16 @@ class shipment_BE {
 		if (!$stShMov->execute() || $stShMov->rowCount() <= 0) $ShResponse = false;
 
 		// فى حال امر البيع مجمد او مرفوض يتم حذف عهده المندوب
-		// المرفوض غير المدفوع الشحن (وكل مرفوض لشركة شحن) يبقى في العهدة حتى الاستلام المالي
-		$scKeep = false;
-		if ($custStat === "DELIVERED" && $orderStat == 5) {
-			$scq = $this->conn->prepare("SELECT 1 FROM shipping_companies WHERE user_id = ?");
-			$scq->execute([$this->delivery_id]);
-			$scKeep = (bool)$scq->fetchColumn();
-			if (!$scKeep) { // مندوب عادي: يبقى في العهدة فقط لو العميل لم يدفع الشحن (يُسوّى ماليًا بعمولة المندوب)
-				$pq = $this->conn->prepare("SELECT IFNULL(SHIPP_PAYMENT,0) FROM orders WHERE ORDER_ID = ?");
-				$pq->execute([$this->order_id]);
-				$scKeep = ((int)$pq->fetchColumn() !== 1);
+		if ($custStat === "FREEZE" || ($custStat === "DELIVERED" && $orderStat == 5)) $response = self::delete_custody($this->order_id, $this->delivery_id);
+
+		// أمر مرفوض لم يدفع عميله الشحن: تُسجَّل تسويته (عمولة المندوب أو رسم الشركة) عند الاستلام المخزني
+		if ($response && $custStat === "DELIVERED" && $orderStat == 5) {
+			try {
+				(new RejectedReturnSettlement($this->conn))->settle((int)$this->order_id, (int)$this->delivery_id, (int)$this->branch_id);
+			} catch (Exception $rsEx) {
+				return array('error', 'خطاء', 'تعذّر تسوية الأمر المرفوض: ' . $rsEx->getMessage(), [3]);
 			}
 		}
-		if ($custStat === "FREEZE" || ($custStat === "DELIVERED" && $orderStat == 5 && !$scKeep)) $response = self::delete_custody($this->order_id, $this->delivery_id);
 
 		// التأكد من تنفيذ كل الاجرأت السابقه بنجاح
 		if (!$stUpCust || !$stAddInve || !$response || !$ShResponse) return array('error', 'خطاء', 'خطاء غير معروف', [2]);
@@ -5813,6 +5811,17 @@ class DirectSale_BE {
 	        $call->closeCursor();
 	       
 	        if (!empty($result) && isset($result[0]['status']) && $result[0]['status'] == 'success') {
+	            // استلام مخزني مع التأكيد: الإجراء حذف المرفوض من العهدة، فتُسجَّل تسوية المرفوض غير المدفوع الشحن هنا
+	            if ($this->ShipApproved === TRUE || $this->ShipApproved === 'TRUE' || $this->ShipApproved === 'true' || $this->ShipApproved == 1) {
+	                $rrs = new RejectedReturnSettlement($this->conn);
+	                $seen = [];
+	                foreach ($items as $rrRow) {
+	                    $k = ((int)$rrRow['ORDER_ID']) . '-' . ((int)($rrRow['DELIVERY_ID'] ?? 0));
+	                    if (isset($seen[$k]) || strtoupper(trim($rrRow['TYPE'] ?? 'SELSE')) !== 'SELSE' || empty($rrRow['DELIVERY_ID'])) { continue; }
+	                    $seen[$k] = true;
+	                    $rrs->settle((int)$rrRow['ORDER_ID'], (int)$rrRow['DELIVERY_ID'], (int)$this->branch_id);
+	                }
+	            }
 	            $this->conn->commit();
 	            //$this->conn->rollBack();
 	            return [
