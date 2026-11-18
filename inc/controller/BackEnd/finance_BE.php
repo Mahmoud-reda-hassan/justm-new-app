@@ -730,6 +730,12 @@ class finance_BE {
 =========================================*/
 
  	//التحصيل من المندوب
+	private function isShippingCompanyCourier(int $courierId): bool {
+		$st = $this->conn->prepare("SELECT 1 FROM shipping_companies WHERE user_id = ?");
+		$st->execute([$courierId]);
+		return (bool)$st->fetchColumn();
+	}
+
 	public function registerCollection($delivery_id, $orderIds, $totalAmount) {
 
 		try{
@@ -764,8 +770,8 @@ class finance_BE {
 						Round(Sum(( CASE WHEN CO.ORDER_STATUSE <> 3 AND CO.RETURNS <> 1 THEN CP.QTY ELSE CP.DELIVERED_QTY END ) * (CP.PRICE - CP.DISCOUNT) ), 2) AS TOTAL_DELIVERED_PRICE,
 						Round(Sum(( CASE WHEN CO.ORDER_STATUSE <> 3 AND CO.RETURNS <> 1 THEN CP.QTY ELSE CP.DELIVERED_QTY END ) * CP.DISCOUNT), 2) AS TOTAL_DELIVERED_DISCOUNT,
 						Round(Sum(( CASE WHEN CO.ORDER_STATUSE <> 3 AND CO.RETURNS <> 1 THEN CP.QTY ELSE CP.DELIVERED_QTY END ) * ( CP.PRICE - CP.DISCOUNT )), 2) AS ACTUAL_TOTAL,
-						Round(if(CO.CUST_STAT = 'FREEZE' ,0,O.SHIPPING_VAL), 2) AS SHIPPING_VAL,
-						Round(Sum(if(CO.RETURNS = 0 ,CP.QTY ,CP.DELIVERED_QTY) * ( CP.PRICE - CP.DISCOUNT )) + if(CO.CUST_STAT = 'FREEZE',0,O.SHIPPING_VAL), 2) AS REQUIRED_PAYMENT,
+						Round(IF(CO.CUST_STAT = 'FREEZE' OR (CO.ORDER_STATUSE = 5 AND IFNULL(O.SHIPP_PAYMENT,0) <> 1),0,O.SHIPPING_VAL), 2) AS SHIPPING_VAL,
+						Round(Sum(if(CO.RETURNS = 0 ,CP.QTY ,CP.DELIVERED_QTY) * ( CP.PRICE - CP.DISCOUNT )) + IF(CO.CUST_STAT = 'FREEZE' OR (CO.ORDER_STATUSE = 5 AND IFNULL(O.SHIPP_PAYMENT,0) <> 1),0,O.SHIPPING_VAL), 2) AS REQUIRED_PAYMENT,
 						Json_arrayagg(
 							Json_object(
 								'PRODUCT_CODE', VOP.PRO_CODE, 
@@ -845,9 +851,13 @@ class finance_BE {
 								// مرفوض بعد محاولة: يُسمح بتحصيله فقط إذا دفع العميل الشحن (SHIPP_PAYMENT=1)
 								// وبقيمة شحن > 0 واستلم أمين المخزن المرفوضات (RETURNS=1)؛ المطلوب حينها قيمة الشحن فقط.
 								($orders[$orderId]['ORDER_STATUSE'] == 5 && !(
-									(int)$orders[$orderId]['SHIPP_PAYMENT'] === 1 &&
-									(float)$orders[$orderId]['SHIPPING_VAL'] > 0 &&
-									(int)$orders[$orderId]['RETURNS'] === 1
+									(
+										(int)$orders[$orderId]['SHIPP_PAYMENT'] === 1 &&
+										(float)$orders[$orderId]['SHIPPING_VAL'] > 0 &&
+										(int)$orders[$orderId]['RETURNS'] === 1
+									) ||
+									// أمر تابع لشركة شحن: يُسوّى ماليًا بعد استلام المرتجع (برسم الشركة فقط لو العميل لم يدفع الشحن)
+									((int)$orders[$orderId]['RETURNS'] === 1 && ((int)$orders[$orderId]['SHIPP_PAYMENT'] !== 1 || $this->isShippingCompanyCourier((int)$orders[$orderId]['DELIVERY_ID'])))
 								)) ||
 								 $orders[$orderId]['ORDER_STATUSE'] <  3 // اذا كان حالة امر البيع قيد الشحن او اقل
 							)
@@ -864,6 +874,15 @@ class finance_BE {
 				}
 					//===============================================
 				if($err === 0){
+						// أمر مرفوض لم يدفع عميله شيئًا: لا فاتورة ولا معاملات للعميل. شركة الشحن: رسمها فقط، المندوب: عمولته من قيمة الشحن بالنظام
+						$feeOnly = ((int)$orderData['ORDER_STATUSE'] === 5 && (float)$orderData['ACTUAL_TOTAL'] == 0.0 && (float)$orderData['SHIPPING_VAL'] == 0.0);
+						if($feeOnly && (float)$orderData['DELIVERY_CIMMISSION'] > 0 && $orderData['DELIVERY_ID']){
+							if(!$this->Add_partners_balance( 'DELIVERY', $orderData['DELIVERY_ID'], $orderData['ORDER_ID'], 'CREDIT', $orderData['DELIVERY_CIMMISSION'],'عمولة مستحقة للمندوب من خدمة الشحن','12')){
+								$error[] = "An error occurred while updating the delegate's balance.";
+								continue;
+							}
+						}
+						if(!$feeOnly){
 						// تسجيل فاتورة مبيعات المنتجات
 						$invoice_id1 = $this->Add_invoice($orderData['ORDER_ID'], 'SALES', $orderData['TOTAL_DELIVERED_PRICE'], $orderData['TOTAL_REJECTED_PRICE'], $orderData['ACTUAL_TOTAL'], 1);
 
@@ -917,6 +936,7 @@ class finance_BE {
 									continue;
 								}
 							}
+						}
 						}
 						// قيد الأستاذ: استلام النقدية من المندوب + عمولته (داخل نفس المعاملة)
 						try {

@@ -2151,7 +2151,7 @@ CREATE PROCEDURE `setDeliveryConfirmationOptimized` (IN `p_session_id` VARCHAR(6
         SELECT @status AS status, @message AS message, @error_code AS error_code;
         LEAVE proc_exit;
     END IF;
-    DELETE FROM custody_orders WHERE RETURNS = 1 AND (ORDER_STATUSE = 5 OR CUST_STAT = 'FREEZE') AND ORDER_ID IN(SELECT DISTINCT ORDER_ID FROM confirm_staging WHERE SESSION_ID = p_session_id AND TYPE = 'SELSE');
+    DELETE FROM custody_orders WHERE RETURNS = 1 AND CUST_STAT = 'FREEZE' AND ORDER_ID IN(SELECT DISTINCT ORDER_ID FROM confirm_staging WHERE SESSION_ID = p_session_id AND TYPE = 'SELSE');
 	DELETE FROM custody_return_orders  WHERE RETURNS = 1 AND ORDER_ID IN(SELECT DISTINCT ORDER_ID FROM confirm_staging WHERE SESSION_ID = p_session_id AND TYPE = 'REFUND');
 
     -- --------------------------------------------------------------

@@ -43,6 +43,15 @@ class DatabaseUpdater {
         for ($i = 0; $i < $n; $i++) {
             $c = $sql[$i];
             if ($q === '') {
+                // كتلة إجراء مخزّن: من -- @PROC-BEGIN إلى -- @PROC-END أمرٌ واحد (فيها فواصل منقوطة داخلية)
+                if ($c === '-' && trim($cur) === '' && substr($sql, $i, 15) === "-- @PROC-BEGIN\n") {
+                    $e = strpos($sql, '-- @PROC-END', $i);
+                    if ($e === false) { throw new Exception('كتلة إجراء بلا نهاية.'); }
+                    $out[] = trim(substr($sql, $i + 15, $e - ($i + 15)));
+                    $i = $e + 11; $cur = '';
+                    while ($i + 1 < $n && $sql[$i + 1] !== "\n") { $i++; }
+                    continue;
+                }
                 if ($c === '-' && ($sql[$i + 1] ?? '') === '-') { while ($i < $n && $sql[$i] !== "\n") { $i++; } continue; }
                 if ($c === '#') { while ($i < $n && $sql[$i] !== "\n") { $i++; } continue; }
                 if ($c === "'" || $c === '"' || $c === '`') { $q = $c; $cur .= $c; continue; }
