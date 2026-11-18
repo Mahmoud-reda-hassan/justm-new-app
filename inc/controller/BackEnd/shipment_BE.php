@@ -990,12 +990,17 @@ class shipment_BE {
 		if (!$stShMov->execute() || $stShMov->rowCount() <= 0) $ShResponse = false;
 
 		// فى حال امر البيع مجمد او مرفوض يتم حذف عهده المندوب
-		// أوامر شركات الشحن المرفوضة تبقى في العهدة حتى الاستلام المالي (تُسوّى هناك برسم الشركة)
+		// المرفوض غير المدفوع الشحن (وكل مرفوض لشركة شحن) يبقى في العهدة حتى الاستلام المالي
 		$scKeep = false;
 		if ($custStat === "DELIVERED" && $orderStat == 5) {
 			$scq = $this->conn->prepare("SELECT 1 FROM shipping_companies WHERE user_id = ?");
 			$scq->execute([$this->delivery_id]);
 			$scKeep = (bool)$scq->fetchColumn();
+			if (!$scKeep) { // مندوب عادي: يبقى في العهدة فقط لو العميل لم يدفع الشحن (يُسوّى ماليًا بعمولة المندوب)
+				$pq = $this->conn->prepare("SELECT IFNULL(SHIPP_PAYMENT,0) FROM orders WHERE ORDER_ID = ?");
+				$pq->execute([$this->order_id]);
+				$scKeep = ((int)$pq->fetchColumn() !== 1);
+			}
 		}
 		if ($custStat === "FREEZE" || ($custStat === "DELIVERED" && $orderStat == 5 && !$scKeep)) $response = self::delete_custody($this->order_id, $this->delivery_id);
 

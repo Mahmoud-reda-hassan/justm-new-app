@@ -723,5 +723,10 @@ $jr = $ev->courierCollection($fd, $scCourier, 0.0, 0.0, true, [], ['fee' => 18.0
 [$h, $l] = entry($db, $jr);
 check('rejected unpaid order: only fee expense / payable, nothing on the customer', lineSum($l, '5720', 'debit') === 18.0 && lineSum($l, '2240', 'credit') === 18.0 && lineSum($l, '1200', 'credit') === 0.0 && lineSum($l, '1110', 'debit') === 0.0, json_encode($l));
 
+$fe = makeOrder($db, $store, $tel, 5, 30, 0, [[1, 100, 0, 50, 0]]);
+$jp = $ev->courierCollection($fe, $userId, 0.0, 3.0);
+[$h, $l] = entry($db, $jp);
+check('plain courier, rejected unpaid: commission only, nothing on the customer or cash', lineSum($l, '5700', 'debit') === 3.0 && lineSum($l, '2210', 'credit') === 3.0 && lineSum($l, '1200', 'credit') === 0.0 && lineSum($l, '1110', 'debit') === 0.0, json_encode($l));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);
