@@ -258,7 +258,7 @@ class AccountingEvents {
 	 * يُستدعى داخل معاملة التحصيل. إن لم يكن التسليم مُرحَّلاً يُرحِّله أولاً.
 	 * @return int رقم القيد، أو 0 إن لم يكن هناك مبلغ ولا عمولة.
 	 */
-	public function courierCollection(int $orderId, int $deliveryUserId, float $amount, float $commission, bool $blockOnMissingCost = true, array $marketerCommissions = []): int{
+	public function courierCollection(int $orderId, int $deliveryUserId, float $amount, float $commission, bool $blockOnMissingCost = true, array $marketerCommissions = [], ?array $companyFee = null): int{
 	    $amount     = round($amount, 2);
 	    $commission = round($commission, 2);
 	    if ($amount < 0 || $commission < 0) {
@@ -274,7 +274,11 @@ class AccountingEvents {
 	        $mid = (int)($row[0] ?? 0); $mamt = round((float)($row[1] ?? 0), 2);
 	        if ($mid > 0 && $mamt > 0) { $mk[] = [$mid, $mamt]; }
 	    }
-	    if ($amount <= 0 && $commission <= 0 && !$mk) {
+	    // رسم شركة الشحن: ['fee' => مبلغ, 'method' => NET_OF_FEE|GROSS_THEN_FEE] (يُمرَّر لمندوب شركة فقط)
+	    $fee    = $companyFee ? round((float)($companyFee['fee'] ?? 0), 2) : 0.0;
+	    $method = $companyFee['method'] ?? 'GROSS_THEN_FEE';
+	    if ($fee < 0) { throw new Exception("Shipping company fee cannot be negative."); }
+	    if ($amount <= 0 && $commission <= 0 && !$mk && $fee <= 0) {
 	        return 0;
 	    }
 
@@ -303,17 +307,45 @@ class AccountingEvents {
 	        'created_by'     => $this->getCurrentUserId()
 	    ]);
 
+	    // صافي النقدية: في NET_OF_FEE تخصم الشركة رسمها من المحصَّل فلا يدخل الصندوق إلا الباقي
+	    $cashIn = $amount;
+	    $feePayable = 0.0;                       // ما نستحقه للشركة ولم يُخصم من المحصَّل
+	    if ($fee > 0) {
+	        if ($method === 'NET_OF_FEE') {
+	            $fromCash   = min($fee, $amount);
+	            $cashIn     = round($amount - $fromCash, 2);
+	            $feePayable = round($fee - $fromCash, 2);
+	        } else {
+	            $feePayable = $fee;
+	        }
+	    }
 	    if ($amount > 0) {
-	        $this->journal->addLine([
-	            'account_id' => $this->settings->cash($branchId),
-	            'debit'      => $amount
-	        ]);
+	        if ($cashIn > 0) {
+	            $this->journal->addLine([
+	                'account_id' => $this->settings->cash($branchId),
+	                'debit'      => $cashIn
+	            ]);
+	        }
 	        $this->journal->addLine([
 	            'account_id'   => $this->settings->customers(),
 	            'partner_type' => 'CLIENT',
 	            'partner_id'   => (int)$order['CLIENT_ID'],
 	            'credit'       => $amount
 	        ]);
+	    }
+	    if ($fee > 0) {
+	        $this->journal->addLine([
+	            'account_id' => $this->settings->shippingCompanyFee(),
+	            'debit'      => $fee
+	        ]);
+	        if ($feePayable > 0) {
+	            $this->journal->addLine([
+	                'account_id'   => $this->settings->shippingCompanyPayable(),
+	                'partner_type' => 'DELIVERY',
+	                'partner_id'   => $deliveryUserId,
+	                'credit'       => $feePayable
+	            ]);
+	        }
 	    }
 	    if ($commission > 0) {
 	        $this->journal->addLine([

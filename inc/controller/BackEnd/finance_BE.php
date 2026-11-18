@@ -923,7 +923,17 @@ class finance_BE {
 							include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
 							$collectAcc = new AccountingEvents($this->conn);
 							$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
-							$collectAcc->courierCollection(
+							// شركة شحن: رسمها يُحتسب عند الاستلام المالي فقط وبحساباتها الخاصة (لا عمولة مندوب)
+							$companyFee = null; $scRow = null;
+							include_once(ABSPATH.'/inc/Classes/ShippingCompanyFees.php');
+							$scFees = new ShippingCompanyFees($this->conn);
+							$scCo = $orderData['DELIVERY_ID'] ? $scFees->companyOfCourier((int)$orderData['DELIVERY_ID']) : null;
+							if ($scCo) {
+								$f = $scFees->feeForOrder($scCo, (int)$orderData['ORDER_ID']);
+								$companyFee = ['fee' => $f['fee'], 'method' => $scCo['settlement_method']];
+								$scRow = [$scCo, $f];
+							}
+							$jid = $collectAcc->courierCollection(
 								(int)$orderData['ORDER_ID'],
 								(int)$orderData['DELIVERY_ID'],
 								(float)$orderData['ACTUAL_TOTAL'] + (float)$orderData['SHIPPING_VAL'],
@@ -932,8 +942,17 @@ class finance_BE {
 								($orderData['ORDER_TYPE_ID'] == 2 && $orderData['MARKETER_ID'] && $orderData['CUST_STAT'] != 'FREEZE')
 									? [[(int)$orderData['MARKETER_ID'], (float)$orderData['MARKETER_COMMISSION']],
 									   [(int)($orderData['LEADER_ID'] ?? 0), (float)$orderData['LEADER_COMMISSION']]]
-									: []
+									: [],
+								$companyFee
 							);
+							if ($scRow) {
+								$gross = (float)$orderData['ACTUAL_TOTAL'] + (float)$orderData['SHIPPING_VAL'];
+								$fee = $scRow[1]['fee'];
+								$payable = $scRow[0]['settlement_method'] === 'NET_OF_FEE' ? max(0, round($fee - $gross, 2)) : $fee;
+								$ins = $this->conn->prepare("INSERT INTO shipping_company_fees (company_id, order_id, fee, source, method, gross_collected, payable_amount, journal_id) VALUES (?,?,?,?,?,?,?,?)
+									ON DUPLICATE KEY UPDATE fee=VALUES(fee), source=VALUES(source), method=VALUES(method), gross_collected=VALUES(gross_collected), payable_amount=VALUES(payable_amount), journal_id=VALUES(journal_id)");
+								$ins->execute([(int)$scRow[0]['id'], (int)$orderData['ORDER_ID'], $fee, $scRow[1]['source'], $scRow[0]['settlement_method'], $gross, $payable, $jid ?: null]);
+							}
 						} catch (Exception $glEx) {
 							$error[] = "تعذر ترحيل قيد التحصيل لأمر ".$orderData['SUB_ORDER_ID'].": ".$glEx->getMessage();
 							$errorlastupdatemsg[] = $orderData['SUB_ORDER_ID'].' '.$glEx->getMessage();

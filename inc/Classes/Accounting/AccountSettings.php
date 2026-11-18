@@ -331,6 +331,16 @@ class AccountSettings{
 	    return $this->get('MARKETER_COMMISSION_PAYABLE');
 	}
 
+	/** رسوم شركات الشحن (مصروف). */
+	public function shippingCompanyFee(): int {
+	    return $this->get('SHIPPING_COMPANY_FEE');
+	}
+
+	/** مستحق لشركات الشحن (التزام): رسومها المستحقة حتى تُصرف. */
+	public function shippingCompanyPayable(): int {
+	    return $this->get('SHIPPING_COMPANY_PAYABLE');
+	}
+
 	/** عمولات الوسطاء المستحقة (التزام): الفرق بين سعر البيع والحد الأدنى للمنتج. */
 	public function brokerCommissionPayable(): int {
 	    return $this->get('BROKER_COMMISSION_PAYABLE');

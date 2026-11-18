@@ -675,5 +675,34 @@ check('plain courier has no company receipt rules', $rcp->validate($userId, [$rc
 $db->exec("DELETE FROM custody_orders WHERE ORDER_ID IN ($rc1,$rc2) AND USER_ID=$scCourier");
 $scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'receiving_policy' => 'SINGLE'], $userId, $branch);
 
+// 10) shipping-company fee settlement (step 4)
+require_once __DIR__ . '/../../inc/Classes/ShippingCompanyFees.php';
+$scf = new ShippingCompanyFees($db);
+$fa = makeOrder($db, $store, $tel, 3, 30, 1, [[2, 100, 10, 60, 2]]);   // 210 gross, 30 shipping
+$ev->courierDelivery($fa);
+$jf = $ev->courierCollection($fa, $scCourier, 210.0, 0.0, true, [], ['fee' => 30.0, 'method' => 'GROSS_THEN_FEE']);
+[$h, $l] = entry($db, $jf);
+check('company GROSS_THEN_FEE: cash gross, fee expense, payable to company', lineSum($l, '1110', 'debit') === 210.0 && lineSum($l, '5720', 'debit') === 30.0 && lineSum($l, '2240', 'credit') === 30.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
+check('company fee never uses courier commission accounts', lineSum($l, '5700', 'debit') === 0.0 && lineSum($l, '2210', 'credit') === 0.0);
+$fb = makeOrder($db, $store, $tel, 3, 30, 1, [[2, 100, 10, 60, 2]]);
+$ev->courierDelivery($fb);
+$jf2 = $ev->courierCollection($fb, $scCourier, 210.0, 0.0, true, [], ['fee' => 30.0, 'method' => 'NET_OF_FEE']);
+[$h, $l] = entry($db, $jf2);
+check('company NET_OF_FEE: cash is net, customer credited gross, nothing payable', lineSum($l, '1110', 'debit') === 180.0 && lineSum($l, '1200', 'credit') === 210.0 && lineSum($l, '5720', 'debit') === 30.0 && lineSum($l, '2240', 'credit') === 0.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
+$fc = makeOrder($db, $store, $tel, 5, 0, 0, [[1, 100, 0, 50, 0]]);
+$jf3 = $ev->courierCollection($fc, $scCourier, 0.0, 0.0, true, [], ['fee' => 25.0, 'method' => 'NET_OF_FEE']);
+[$h, $l] = entry($db, $jf3);
+check('company NET_OF_FEE: fee with nothing collected stays payable', lineSum($l, '5720', 'debit') === 25.0 && lineSum($l, '2240', 'credit') === 25.0 && lineSum($l, '1110', 'debit') === 0.0, json_encode($l));
+check('negative company fee refused', throwsMsg(fn() => $ev->courierCollection(makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 50, 1]]), $scCourier, 100.0, 0.0, true, [], ['fee' => -1, 'method' => 'GROSS_THEN_FEE']), 'negative'));
+// fee resolution
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'FIXED', 'fixed_fee' => 22, 'settlement_method' => 'GROSS_THEN_FEE'], $userId, $branch);
+$coF = $scf->companyOfCourier($scCourier);
+check('fee mode FIXED uses the company fixed fee', $scf->feeForOrder($coF, $fa) === ['fee' => 22.0, 'source' => 'FIXED']);
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING'], $userId, $branch);
+$coF = $scf->companyOfCourier($scCourier);
+check('fee mode ORDER_SHIPPING uses order shipping', $scf->feeForOrder($coF, $fa) === ['fee' => 30.0, 'source' => 'ORDER_SHIPPING']);
+check('rejected order without paid shipping carries no fee', $scf->feeForOrder($coF, $fc) === ['fee' => 0.0, 'source' => 'NONE']);
+check('plain courier is not a company', $scf->companyOfCourier($userId) === null);
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

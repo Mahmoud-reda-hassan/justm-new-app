@@ -5612,4 +5612,47 @@ CREATE TABLE IF NOT EXISTS `shipping_company_statement_history` (
   KEY `idx_scsh_company_order` (`company_id`, `sub_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- ---------- Part 9: shipping-company fees (settlement at financial receipt) ----------
+INSERT INTO `accounts`
+  (`parent_id`, `account_code`, `account_name`, `account_type`, `normal_balance`, `account_level`, `is_active`, `allow_posting`, `system_account`, `is_system_created`)
+SELECT p.`id`, '5720', 'رسوم شركات الشحن', 'EXPENSE', 'DEBIT', 2, 1, 1, 0, 0
+FROM `accounts` p
+WHERE p.`account_code` = '5000'
+  AND NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '5720');
+
+INSERT INTO `accounts`
+  (`parent_id`, `account_code`, `account_name`, `account_type`, `normal_balance`, `account_level`, `is_active`, `allow_posting`, `system_account`, `is_system_created`)
+SELECT p.`id`, '2240', 'مستحق لشركات الشحن', 'LIABILITY', 'CREDIT', 3, 1, 1, 0, 0
+FROM `accounts` p
+WHERE p.`account_code` = '2200'
+  AND NOT EXISTS (SELECT 1 FROM `accounts` x WHERE x.`account_code` = '2240');
+
+INSERT INTO `account_settings` (`setting_key`, `account_id`, `description`)
+SELECT 'SHIPPING_COMPANY_FEE', a.`id`, 'رسوم شركات الشحن (مصروف)'
+FROM `accounts` a
+WHERE a.`account_code` = '5720'
+  AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'SHIPPING_COMPANY_FEE');
+
+INSERT INTO `account_settings` (`setting_key`, `account_id`, `description`)
+SELECT 'SHIPPING_COMPANY_PAYABLE', a.`id`, 'مستحق لشركات الشحن (التزام)'
+FROM `accounts` a
+WHERE a.`account_code` = '2240'
+  AND NOT EXISTS (SELECT 1 FROM `account_settings` s WHERE s.`setting_key` = 'SHIPPING_COMPANY_PAYABLE');
+
+CREATE TABLE IF NOT EXISTS `shipping_company_fees` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `company_id` int(11) NOT NULL,
+  `order_id` bigint(20) NOT NULL,
+  `fee` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `source` enum('STATEMENT','ORDER_SHIPPING','FIXED','ZONE_RATE','NONE') NOT NULL DEFAULT 'NONE',
+  `method` enum('NET_OF_FEE','GROSS_THEN_FEE') NOT NULL,
+  `gross_collected` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `payable_amount` decimal(15,2) NOT NULL DEFAULT 0.00,
+  `journal_id` bigint(20) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_scf_company_order` (`company_id`, `order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
 
