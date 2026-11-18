@@ -29,13 +29,18 @@
 	function infoText() {
 		if (!company) { return ''; }
 		const li = company.last_import;
-		return li ? 'آخر كشف: ' + (li.file_name || '') + ' — ' + li.uploaded_at + ' — أوامر مرتبطة: ' + company.linked_orders : 'لم يُرفع كشف لهذه الشركة بعد';
+		const pol = company.receiving_policy === 'SINGLE' ? 'سياسة الاستلام: إذن واحد' : 'سياسة الاستلام: دفعات';
+		const pend = ' — مرتجعات معلّقة على الشركة: ' + (company.pending_returns || 0);
+		return (li ? 'آخر كشف: ' + (li.file_name || '') + ' — ' + li.uploaded_at + ' — أوامر مرتبطة: ' + company.linked_orders : 'لم يُرفع كشف لهذه الشركة بعد') + ' — ' + pol + pend;
 	}
+	function canReceive() { try { return userlogin_data['uScript']['Admin']['OrdersCustody']['ShipmentApproved'] == 'true'; } catch (e) { return false; } }
 	function paintTools() {
 		if (!company) { $('#scCustodyTools').hide(); return; }
 		$('#scCustodyName').text(company.name);
 		$('#scCustodyInfo').text(infoText());
 		$('#scFilterGroup').toggle(company.linked_orders > 0);
+		$('#scPendingCount').text(company.pending_returns || 0);
+		$('#scReceiveAllBtn').toggle(canReceive() && (company.pending_returns || 0) > 0);
 		$('#scFilterGroup button').removeClass('active').filter('[data-f="' + (filterOn ? 'STMT' : 'ALL') + '"]').addClass('active');
 		$('#scCustodyTools').show();
 	}
@@ -141,6 +146,21 @@
 			company = await call('scCustodyInfo', {user_id: courierId()});
 			paintTools(); decorate();
 		} catch (e) { Swal.close(); fail(e); }
+	});
+
+	// ---------- استلام كل مرتجعات الشركة (إذن واحد) ----------
+	$(document).on('click', '#scReceiveAllBtn', function () {
+		if (!company) { return; }
+		const n = company.pending_returns || 0, smp = (company.pending_sample || []).join('، ');
+		Swal.fire({icon: 'question', title: 'استلام كل مرتجعات ' + company.name, showCancelButton: true, confirmButtonText: 'تأكيد الاستلام', cancelButtonText: 'إلغاء',
+			html: '<div class="text-right">سيُستلم مخزنيًا مرتجع <b>' + n + '</b> أمر بإذن واحد.<br><small>' + esc(smp) + (n > 15 ? ' …' : '') + '</small><br><span class="text-danger small">ما لم يصل فعليًا من الشركة لا تؤكد هذا الاستلام؛ يبقى عجزًا على الشركة.</span></div>'
+		}).then(r => {
+			if (!r.isConfirmed) { return; }
+			$.post('../../inc/controller/shipment.control.php', {CONTROL: 'companyReceiveAll', delivery_id: courierId()}, function (res) {
+				Swal.fire({icon: res[0] === 'success' ? 'success' : (res[0] === 'warning' ? 'warning' : 'error'), title: res[1] || '', html: res[2] || ''});
+				loadCompany(); if (typeof updateOrders === 'function') { updateOrders(); }
+			}, 'json').fail(() => fail(new Error('تعذر تنفيذ الاستلام.')));
+		});
 	});
 
 	$(document).on('change', '#SelectUserDelivery', loadCompany);

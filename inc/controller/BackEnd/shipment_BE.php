@@ -38,6 +38,7 @@ include_once(ABSPATH.'/inc/controller/BackEnd/inventory_BE.php');
 include_once(ABSPATH.'/inc/controller/BackEnd/finance_BE.php');
 include_once(ABSPATH.'/inc/Classes/LogManager.php');
 include_once(ABSPATH.'/inc/Classes/InventoryManager.php');
+include_once(ABSPATH.'/inc/Classes/ShippingCompanyReceipt.php');
 
 class shipment_BE {
 	private $orders_log_Tbl = 'ORDERS_LOG';
@@ -1743,6 +1744,15 @@ class shipment_BE {
 	    if (empty($this->shipmentobj['ship']) || !is_array($this->shipmentobj['ship'])) throw new Exception("بيانات الشحنة غير صالحة");
 		if($_POST['oshipp']['ptype'] != 1 && ($this->ShipApproved === TRUE || $this->ShipApproved === 'TRUE' || $this->ShipApproved == 1)) throw new Exception("انت لا تملك صلاحية انشاء اذن استلام مخزنى");
 
+		// مرتجعات شركة الشحن لا تُستلم مخزنيًا مع تأكيد التسليم: تُستلم لاحقًا من شاشة العهدة حسب سياسة الشركة
+		if($this->ShipApproved === TRUE || $this->ShipApproved === 'TRUE' || $this->ShipApproved === 'true' || $this->ShipApproved == 1){
+			$scRc = new ShippingCompanyReceipt($this->conn);
+			foreach ($this->shipmentobj['ship'] as $scRow) {
+				if (!empty($scRow['DELIVERY_ID']) && $scRc->companyOfCourier((int)$scRow['DELIVERY_ID'])) {
+					throw new Exception("مرتجعات شركة الشحن لا تُستلم مخزنيًا مع تأكيد النتيجة. أكّد النتيجة بدون استلام المرتجعات، ثم استلمها من عهدة الشركة (استلام كل مرتجعات الشركة أو لكل أمر حسب سياسة الشركة).");
+				}
+			}
+		}
 		$conn             = $this->conn;
 		$items            = $this->shipmentobj['ship'];
 		$sessionId        = uniqid('IM_', true);

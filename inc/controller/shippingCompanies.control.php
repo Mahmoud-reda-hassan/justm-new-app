@@ -9,6 +9,7 @@ include_once(ABSPATH.'/inc/Databases/dbconn.php');
 include_once(ABSPATH.'/inc/Classes/secure/TrafficGuard.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanies.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyImport.php');
+include_once(ABSPATH.'/inc/Classes/ShippingCompanyReceipt.php');
 
 $DBconn = new dbconn();
 $db     = $DBconn->getConnection(DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,DB_CHARSET);
@@ -88,7 +89,16 @@ try {
             $ok([], 'تم حفظ إعدادات ملف الشركة');
         case 'scCustodyInfo':
             if (!$scCanViewCustody) { $deny(); }
-            $ok((new ShippingCompanyImport($db))->companyOfCourier((int)($_POST['user_id'] ?? 0)));
+            $info = (new ShippingCompanyImport($db))->companyOfCourier((int)($_POST['user_id'] ?? 0));
+            if ($info) {
+                $rc = new ShippingCompanyReceipt($db);
+                $co = $rc->companyOfCourier((int)$_POST['user_id']);
+                $pend = $rc->pendingReturns((int)$_POST['user_id']);
+                $info['receiving_policy'] = $co['receiving_policy'];
+                $info['pending_returns'] = count($pend);
+                $info['pending_sample'] = array_slice(array_column($pend, 'sub_order_id'), 0, 15);
+            }
+            $ok($info);
         case 'scStatementOrders':
             if (!$scCanViewCustody) { $deny(); }
             $imp = new ShippingCompanyImport($db);

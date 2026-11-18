@@ -653,6 +653,27 @@ check('invalid shortage basis rejected', throwsMsg(fn() => $scs->save(['id' => $
 check('import: preview never writes (custody still waiting)', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE USER_ID=$scCourier AND CUST_STAT='WAITING'")->fetchColumn() === 3);
 check('import: order numbers from Excel E-notation normalized', ShippingCompanyImport::normalizeOrder('6.9261113125989E+13') === '69261113125989');
 check('import: status text defaults', ShippingCompanyImport::defaultAction('فشل التسليم') === 'RETURN' && ShippingCompanyImport::defaultAction('تم التسليم') === 'FULL');
+// 9) warehouse receipt rules for company returns
+require_once __DIR__ . '/../../inc/Classes/ShippingCompanyReceipt.php';
+$rcp = new ShippingCompanyReceipt($db);
+$rc1 = makeOrder($db, $store, $tel, 2, 0, 1, [[1, 10, 0, 5, 0]]);
+$rc2 = makeOrder($db, $store, $tel, 2, 0, 1, [[1, 10, 0, 5, 0]]);
+foreach ([$rc1, $rc2] as $rr) {
+    $db->exec("INSERT INTO custody_orders (ORDER_ID,USER_ID,SHIPPING_ADDRESS,RETURNS,CUST_STAT,ORDER_STATUSE) VALUES ($rr,$scCourier,'a',0,'DELIVERED',5)");
+}
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'receiving_policy' => 'SINGLE'], $userId, $branch);
+check('pending returns listed for the company courier', count(array_intersect([$rc1, $rc2], array_map(fn($p) => (int)$p['order_id'], $rcp->pendingReturns($scCourier)))) === 2);
+check('SINGLE policy: partial selection refused', throwsMsg(fn() => $rcp->validate($scCourier, [$rc1]), 'إذن واحد'));
+check('SINGLE policy: all pending in one receipt accepted', is_array($rcp->validate($scCourier, array_map(fn($p) => (int)$p['order_id'], $rcp->pendingReturns($scCourier)), true)));
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'receiving_policy' => 'PARTIAL'], $userId, $branch);
+check('PARTIAL policy: a subset is accepted', is_array($rcp->validate($scCourier, [$rc1])));
+$db->exec("UPDATE custody_orders SET RETURNS=1 WHERE ORDER_ID=$rc1 AND USER_ID=$scCourier");
+check('double receipt refused (return already received)', throwsMsg(fn() => $rcp->validate($scCourier, [$rc1]), 'لا يوجد مرتجع معلّق'));
+check('received order leaves the pending list', !in_array($rc1, array_map(fn($p) => (int)$p['order_id'], $rcp->pendingReturns($scCourier)), true) && in_array($rc2, array_map(fn($p) => (int)$p['order_id'], $rcp->pendingReturns($scCourier)), true));
+check('order not on company custody refused', throwsMsg(fn() => $rcp->validate($scCourier, [$q4 + 100000]), 'لا يوجد مرتجع معلّق'));
+check('plain courier has no company receipt rules', $rcp->validate($userId, [$rc2]) === null);
+$db->exec("DELETE FROM custody_orders WHERE ORDER_ID IN ($rc1,$rc2) AND USER_ID=$scCourier");
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'receiving_policy' => 'SINGLE'], $userId, $branch);
 
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

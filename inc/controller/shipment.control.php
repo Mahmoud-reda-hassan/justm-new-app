@@ -21,6 +21,7 @@
 include_once(__dir__.'/../../config.php');
 include_once(ABSPATH.'/inc/Databases/dbconn.php');
 include_once(ABSPATH.'/inc/controller/BackEnd/shipment_BE.php');
+include_once(ABSPATH.'/inc/Classes/ShippingCompanyReceipt.php');
 include_once(ABSPATH.'/inc/Classes/secure/TrafficGuard.php');
 
 
@@ -139,6 +140,43 @@ function ResponseData($data){
 					$shipment_tbl->user_action = $_SESSION["USER_ID"];
 					$shipment_tbl->user_group  = $_SESSION["USER_GRUOP_NAME"];
 					//session_write_close();
+					// مندوب مربوط بشركة شحن: منع الاستلام المزدوج وتطبيق سياسة الشركة (إذن واحد / دفعات)
+					try {
+						$scRcpt = new ShippingCompanyReceipt($db);
+						$scCo = $scRcpt->companyOfCourier((int)$shipment_tbl->delivery_id);
+						if ($scCo && $scCo['receiving_policy'] === 'SINGLE') {
+							ResponseData(array('warning', 'تنبيه', 'شركة «' . $scCo['name'] . '» تسلّم مرتجعاتها بإذن واحد: استخدم زر "استلام كل مرتجعات الشركة" في أعلى الشاشة.'));
+						}
+						$scRcpt->validate((int)$shipment_tbl->delivery_id, array_map('intval', array_keys($shipment_tbl->orderobj)));
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					ResponseData($shipment_tbl->ShipmentRefund());
+					break;
+
+				case 'companyReceiveAll':
+					// استلام كل مرتجعات شركة الشحن المعلّقة بإذن واحد (حسب سياسة الشركة)
+					$scUs = isset($_SESSION['USER_SCRIPT']) ? @unserialize($_SESSION['USER_SCRIPT']) : null;
+					if (!is_array($scUs) || (($scUs['Admin']['OrdersCustody']['ShipmentApproved'] ?? '') !== 'true')) {
+						ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية لتنفيذ هذا الاجراء', []));
+					}
+					try {
+						$scRcpt = new ShippingCompanyReceipt($db);
+						$scCo = $scRcpt->companyOfCourier((int)($_POST['delivery_id'] ?? 0));
+						if (!$scCo) { throw new Exception('المندوب المختار ليس مربوطًا بشركة شحن.'); }
+						$pend = $scRcpt->pendingReturns((int)$_POST['delivery_id']);
+						if (!$pend) { throw new Exception('لا توجد مرتجعات معلّقة على هذه الشركة.'); }
+						$ids = array_map(fn($p) => (int)$p['order_id'], $pend);
+						$scRcpt->validate((int)$_POST['delivery_id'], $ids, true);
+					} catch (Exception $e) {
+						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
+					}
+					$shipment_tbl->orderobj    = array_fill_keys($ids, []);
+					$shipment_tbl->delivery_id = (int)$_POST['delivery_id'];
+					$shipment_tbl->last_update = $db->query("SELECT NOW(6)")->fetchColumn();
+					$shipment_tbl->branch_id   = $_SESSION["BRANCH_ID"];
+					$shipment_tbl->user_action = $_SESSION["USER_ID"];
+					$shipment_tbl->user_group  = $_SESSION["USER_GRUOP_NAME"];
 					ResponseData($shipment_tbl->ShipmentRefund());
 					break;
 
