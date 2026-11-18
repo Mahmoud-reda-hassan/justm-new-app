@@ -55,6 +55,17 @@ if (!$scAdmin) {
                         <option value="SALE_PRICE">بسعر البيع</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="sc-retfee">رسم الأمر المرفوض / المرتجع غير المدفوع (تحاسبنا عليه الشركة)</label>
+                    <select id="sc-retfee" class="form-control">
+                        <option value="NONE">بدون رسم</option>
+                        <option value="SAME_AS_SHIPPING">نفس رسم الشحن</option>
+                        <option value="FIXED">رسم ثابت</option>
+                        <option value="STATEMENT_ONLY">من كشف الشركة فقط</option>
+                    </select>
+                    <input type="number" step="0.01" min="0" id="sc-retfixed" class="form-control mt-1" placeholder="الرسم الثابت للمرتجع" style="display:none">
+                    <small class="text-muted">الرقم في كشف الشركة له الأولوية دائمًا. يُسجَّل عند الاستلام المالي فقط.</small>
+                </div>
                 <div class="form-group" id="sc-courier-box">
                     <label>المندوب الذي يمثل الشركة (للعهدة والحسابات)</label>
                     <div id="sc-courier-new-edit">

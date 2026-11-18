@@ -705,5 +705,23 @@ check('fee mode ORDER_SHIPPING uses order shipping', $scf->feeForOrder($coF, $fa
 check('rejected order without paid shipping carries no fee', $scf->feeForOrder($coF, $fc) === ['fee' => 0.0, 'source' => 'NONE']);
 check('plain courier is not a company', $scf->companyOfCourier($userId) === null);
 
+// رسم المرتجع/المرفوض غير المدفوع (يُسجَّل عند الاستلام المالي)
+$fd = makeOrder($db, $store, $tel, 5, 30, 0, [[1, 100, 0, 50, 0]]);   // مرفوض، الشحن 30 لم يدفعه العميل
+check('return fee: default NONE', $scs->get($scId)['return_fee_mode'] === 'NONE' && $scf->feeForOrder($coF, $fd) === ['fee' => 0.0, 'source' => 'NONE']);
+check('return fee: FIXED needs an amount', throwsMsg(fn() => $scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'return_fee_mode' => 'FIXED', 'return_fixed_fee' => 0], $userId, $branch), 'رسم المرتجع'));
+check('return fee: invalid mode refused', throwsMsg(fn() => $scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'return_fee_mode' => 'BAD'], $userId, $branch), 'رسم المرتجع'));
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'return_fee_mode' => 'FIXED', 'return_fixed_fee' => 18], $userId, $branch);
+$coF = $scf->companyOfCourier($scCourier);
+check('return fee: FIXED amount used for unpaid rejected order', $scf->feeForOrder($coF, $fd) === ['fee' => 18.0, 'source' => 'RETURN_FIXED']);
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'return_fee_mode' => 'SAME_AS_SHIPPING'], $userId, $branch);
+$coF = $scf->companyOfCourier($scCourier);
+check('return fee: SAME_AS_SHIPPING follows the normal fee mode', $scf->feeForOrder($coF, $fd) === ['fee' => 30.0, 'source' => 'ORDER_SHIPPING']);
+$db->exec("INSERT INTO shipping_company_statement_rows (company_id, import_id, sub_order_id, order_id, fee) SELECT $scId, (SELECT MIN(id) FROM shipping_company_imports WHERE company_id=$scId), SUB_ORDER_ID, ORDER_ID, 12 FROM orders WHERE ORDER_ID=$fd");
+check('return fee: statement fee wins over the setting', $scf->feeForOrder($coF, $fd) === ['fee' => 12.0, 'source' => 'STATEMENT']);
+$db->exec("DELETE FROM shipping_company_statement_rows WHERE order_id=$fd");
+$jr = $ev->courierCollection($fd, $scCourier, 0.0, 0.0, true, [], ['fee' => 18.0, 'method' => 'NET_OF_FEE']);
+[$h, $l] = entry($db, $jr);
+check('rejected unpaid order: only fee expense / payable, nothing on the customer', lineSum($l, '5720', 'debit') === 18.0 && lineSum($l, '2240', 'credit') === 18.0 && lineSum($l, '1200', 'credit') === 0.0 && lineSum($l, '1110', 'debit') === 0.0, json_encode($l));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

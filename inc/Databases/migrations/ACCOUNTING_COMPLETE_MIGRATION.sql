@@ -200,6 +200,9 @@ CREATE TABLE IF NOT EXISTS `shipping_company_rates` (
 
 -- how a shortage (returned piece the company never delivered back) is valued: COST or SALE_PRICE
 ALTER TABLE `shipping_companies` ADD COLUMN IF NOT EXISTS `shortage_basis` enum('COST','SALE_PRICE') NOT NULL DEFAULT 'COST';
+-- return_fee_mode: رسم الأمر المرفوض/المرتجع غير المدفوع (NONE بدون | SAME_AS_SHIPPING نفس رسم الشحن | FIXED رسم ثابت | STATEMENT_ONLY من كشف الشركة فقط)
+ALTER TABLE `shipping_companies` ADD COLUMN IF NOT EXISTS `return_fee_mode` enum('NONE','SAME_AS_SHIPPING','FIXED','STATEMENT_ONLY') NOT NULL DEFAULT 'NONE';
+ALTER TABLE `shipping_companies` ADD COLUMN IF NOT EXISTS `return_fixed_fee` decimal(15,2) NOT NULL DEFAULT 0.00;
 
 -- Saved shipping-company statement (Excel) rows: one latest row per (company, order), linked to the custody list.
 CREATE TABLE IF NOT EXISTS `shipping_company_imports` (
@@ -294,7 +297,7 @@ CREATE TABLE IF NOT EXISTS `shipping_company_fees` (
   `company_id` int(11) NOT NULL,
   `order_id` bigint(20) NOT NULL,
   `fee` decimal(15,2) NOT NULL DEFAULT 0.00,
-  `source` enum('STATEMENT','ORDER_SHIPPING','FIXED','ZONE_RATE','NONE') NOT NULL DEFAULT 'NONE',
+  `source` enum('STATEMENT','ORDER_SHIPPING','FIXED','ZONE_RATE','RETURN_FIXED','NONE') NOT NULL DEFAULT 'NONE',
   `method` enum('NET_OF_FEE','GROSS_THEN_FEE') NOT NULL,
   `gross_collected` decimal(15,2) NOT NULL DEFAULT 0.00,
   `payable_amount` decimal(15,2) NOT NULL DEFAULT 0.00,

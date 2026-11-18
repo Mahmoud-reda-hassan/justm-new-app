@@ -5539,6 +5539,8 @@ CREATE TABLE IF NOT EXISTS `shipping_companies` (
   `created_at` datetime DEFAULT current_timestamp(),
   `import_settings` text DEFAULT NULL,
   `shortage_basis` enum('COST','SALE_PRICE') NOT NULL DEFAULT 'COST',
+  `return_fee_mode` enum('NONE','SAME_AS_SHIPPING','FIXED','STATEMENT_ONLY') NOT NULL DEFAULT 'NONE',
+  `return_fixed_fee` decimal(15,2) NOT NULL DEFAULT 0.00,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_shipping_company_name` (`name`),
   UNIQUE KEY `uq_shipping_company_user` (`user_id`)
@@ -5644,7 +5646,7 @@ CREATE TABLE IF NOT EXISTS `shipping_company_fees` (
   `company_id` int(11) NOT NULL,
   `order_id` bigint(20) NOT NULL,
   `fee` decimal(15,2) NOT NULL DEFAULT 0.00,
-  `source` enum('STATEMENT','ORDER_SHIPPING','FIXED','ZONE_RATE','NONE') NOT NULL DEFAULT 'NONE',
+  `source` enum('STATEMENT','ORDER_SHIPPING','FIXED','ZONE_RATE','RETURN_FIXED','NONE') NOT NULL DEFAULT 'NONE',
   `method` enum('NET_OF_FEE','GROSS_THEN_FEE') NOT NULL,
   `gross_collected` decimal(15,2) NOT NULL DEFAULT 0.00,
   `payable_amount` decimal(15,2) NOT NULL DEFAULT 0.00,

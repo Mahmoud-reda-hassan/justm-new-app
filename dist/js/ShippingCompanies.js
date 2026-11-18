@@ -45,7 +45,7 @@
 		c = c || {id: 0, name: '', receiving_policy: 'SINGLE', settlement_method: 'NET_OF_FEE', fee_mode: 'ORDER_SHIPPING', fixed_fee: 0, note: ''};
 		$('#scModalTitle').text(c.id ? 'تعديل شركة شحن' : 'شركة شحن جديدة');
 		$('#sc-id').val(c.id); $('#sc-name').val(c.name); $('#sc-policy').val(c.receiving_policy);
-		$('#sc-method').val(c.settlement_method); $('#sc-shortage').val(c.shortage_basis || 'COST'); $('#sc-feemode').val(c.fee_mode);
+		$('#sc-method').val(c.settlement_method); $('#sc-shortage').val(c.shortage_basis || 'COST'); $('#sc-retfee').val(c.return_fee_mode || 'NONE'); $('#sc-retfixed').val(Number(c.return_fixed_fee || 0).toFixed(2)).toggle((c.return_fee_mode || 'NONE') === 'FIXED'); $('#sc-feemode').val(c.fee_mode);
 		$('#sc-fixed').val(Number(c.fixed_fee || 0).toFixed(2)); $('#sc-note').val(c.note || '');
 		$('#sc-fixed-box').toggle(c.fee_mode === 'FIXED');
 		const isNew = !c.id;
@@ -76,7 +76,7 @@
 		if (!name) { Swal.fire({icon: 'warning', title: 'اسم الشركة مطلوب'}); return; }
 		call('scSave', {
 			id: $('#sc-id').val(), name: name, receiving_policy: $('#sc-policy').val(), settlement_method: $('#sc-method').val(),
-			fee_mode: $('#sc-feemode').val(), fixed_fee: $('#sc-fixed').val(), note: $('#sc-note').val(), shortage_basis: $('#sc-shortage').val(),
+			fee_mode: $('#sc-feemode').val(), fixed_fee: $('#sc-fixed').val(), note: $('#sc-note').val(), shortage_basis: $('#sc-shortage').val(), return_fee_mode: $('#sc-retfee').val(), return_fixed_fee: $('#sc-retfixed').val(),
 			courier_mode: $('#sc-courier-mode').val(), courier_user_id: $('#sc-courier-user').val() || 0
 		}).then(r => (window.scImportSaveHook ? window.scImportSaveHook(r && r.id) : null)).then(() => { $('#scModal').modal('hide'); return load(); }).catch(fail);
 	});
@@ -110,3 +110,4 @@
 		load();
 	});
 })();
+$(document).on('change', '#sc-retfee', function () { $('#sc-retfixed').toggle($(this).val() === 'FIXED'); });

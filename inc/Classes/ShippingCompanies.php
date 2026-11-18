@@ -86,6 +86,11 @@ class ShippingCompanies {
         if (!in_array($mode, self::FEE_MODES, true))   { throw new Exception('طريقة الرسوم غير صحيحة.'); }
         $basis = (string)($d['shortage_basis'] ?? 'COST');
         if (!in_array($basis, self::SHORTAGE_BASES, true)) { throw new Exception('أساس تقييم العجز غير صحيح.'); }
+        $rmode = (string)($d['return_fee_mode'] ?? 'NONE');
+        if (!in_array($rmode, ['NONE', 'SAME_AS_SHIPPING', 'FIXED', 'STATEMENT_ONLY'], true)) { throw new Exception('نوع رسم المرتجع غير صحيح.'); }
+        $rfixed = round((float)($d['return_fixed_fee'] ?? 0), 2);
+        if ($rfixed < 0) { throw new Exception('رسم المرتجع لا يكون سالبًا.'); }
+        if ($rmode === 'FIXED' && $rfixed <= 0) { throw new Exception('أدخل رسم المرتجع الثابت.'); }
         $fixed = round((float)($d['fixed_fee'] ?? 0), 2);
         if ($fixed < 0) { throw new Exception('الرسم الثابت لا يكون سالبًا.'); }
         if ($mode === 'FIXED' && $fixed <= 0) { throw new Exception('أدخل الرسم الثابت لكل شحنة.'); }
@@ -102,8 +107,8 @@ class ShippingCompanies {
         try {
             if ($id > 0) {
                 $row = $this->get($id);
-                $st = $this->db->prepare("UPDATE shipping_companies SET name=?, receiving_policy=?, settlement_method=?, fee_mode=?, fixed_fee=?, note=?, shortage_basis=? WHERE id=?");
-                $st->execute([$name, $policy, $method, $mode, $fixed, $note, $basis, $id]);
+                $st = $this->db->prepare("UPDATE shipping_companies SET name=?, receiving_policy=?, settlement_method=?, fee_mode=?, fixed_fee=?, note=?, shortage_basis=?, return_fee_mode=?, return_fixed_fee=? WHERE id=?");
+                $st->execute([$name, $policy, $method, $mode, $fixed, $note, $basis, $rmode, $rfixed, $id]);
                 // تغيير المندوب المرتبط (مسموح فقط لو المندوب الحالي بلا عهدة ولا أوامر ولا قيود)
                 $mode = (string)($d['courier_mode'] ?? 'KEEP');
                 if ($mode === 'EXISTING' || $mode === 'NEW') {
@@ -127,8 +132,8 @@ class ShippingCompanies {
                 $uid = ((string)($d['courier_mode'] ?? 'NEW')) === 'EXISTING'
                     ? $this->checkExistingCourier((int)($d['courier_user_id'] ?? 0))
                     : $this->createInternalUser($name, $branchId);
-                $st = $this->db->prepare("INSERT INTO shipping_companies (name, user_id, receiving_policy, settlement_method, fee_mode, fixed_fee, note, shortage_basis, created_by) VALUES (?,?,?,?,?,?,?,?,?)");
-                $st->execute([$name, $uid, $policy, $method, $mode, $fixed, $note, $basis, $userId]);
+                $st = $this->db->prepare("INSERT INTO shipping_companies (name, user_id, receiving_policy, settlement_method, fee_mode, fixed_fee, note, shortage_basis, return_fee_mode, return_fixed_fee, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+                $st->execute([$name, $uid, $policy, $method, $mode, $fixed, $note, $basis, $rmode, $rfixed, $userId]);
                 $id = (int)$this->db->lastInsertId();
             }
             if ($own) { $this->db->commit(); }

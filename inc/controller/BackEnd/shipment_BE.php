@@ -990,7 +990,14 @@ class shipment_BE {
 		if (!$stShMov->execute() || $stShMov->rowCount() <= 0) $ShResponse = false;
 
 		// فى حال امر البيع مجمد او مرفوض يتم حذف عهده المندوب
-		if ($custStat === "FREEZE" || ($custStat === "DELIVERED" && $orderStat == 5)) $response = self::delete_custody($this->order_id, $this->delivery_id);
+		// أوامر شركات الشحن المرفوضة تبقى في العهدة حتى الاستلام المالي (تُسوّى هناك برسم الشركة)
+		$scKeep = false;
+		if ($custStat === "DELIVERED" && $orderStat == 5) {
+			$scq = $this->conn->prepare("SELECT 1 FROM shipping_companies WHERE user_id = ?");
+			$scq->execute([$this->delivery_id]);
+			$scKeep = (bool)$scq->fetchColumn();
+		}
+		if ($custStat === "FREEZE" || ($custStat === "DELIVERED" && $orderStat == 5 && !$scKeep)) $response = self::delete_custody($this->order_id, $this->delivery_id);
 
 		// التأكد من تنفيذ كل الاجرأت السابقه بنجاح
 		if (!$stUpCust || !$stAddInve || !$response || !$ShResponse) return array('error', 'خطاء', 'خطاء غير معروف', [2]);
