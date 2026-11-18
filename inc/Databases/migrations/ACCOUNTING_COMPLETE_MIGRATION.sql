@@ -198,6 +198,9 @@ CREATE TABLE IF NOT EXISTS `shipping_company_rates` (
   PRIMARY KEY (`company_id`, `zone_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- how a shortage (returned piece the company never delivered back) is valued: COST or SALE_PRICE
+ALTER TABLE `shipping_companies` ADD COLUMN IF NOT EXISTS `shortage_basis` enum('COST','SALE_PRICE') NOT NULL DEFAULT 'COST';
+
 -- Saved shipping-company statement (Excel) rows: one latest row per (company, order), linked to the custody list.
 CREATE TABLE IF NOT EXISTS `shipping_company_imports` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -238,4 +241,25 @@ CREATE TABLE IF NOT EXISTS `shipping_company_statement_rows` (
   UNIQUE KEY `uq_scsr_company_order` (`company_id`, `sub_order_id`),
   KEY `idx_scsr_order` (`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Previous values of a statement row when a newer statement changes it (audit trail).
+CREATE TABLE IF NOT EXISTS `shipping_company_statement_history` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `company_id` int(11) NOT NULL,
+  `import_id` int(11) NOT NULL,
+  `order_id` bigint(20) DEFAULT NULL,
+  `sub_order_id` varchar(32) NOT NULL,
+  `row_no` int(11) DEFAULT NULL,
+  `amount` decimal(15,2) DEFAULT NULL,
+  `fee` decimal(15,2) DEFAULT NULL,
+  `file_status` varchar(100) DEFAULT NULL,
+  `flag` varchar(10) DEFAULT NULL,
+  `derived` varchar(30) DEFAULT NULL,
+  `proposed` varchar(30) DEFAULT NULL,
+  `uploaded_at` datetime DEFAULT NULL,
+  `archived_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_scsh_company_order` (`company_id`, `sub_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 

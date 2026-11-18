@@ -48,6 +48,13 @@ if (!$scAdmin) {
                     <label for="sc-name">اسم الشركة</label>
                     <input type="text" id="sc-name" class="form-control" maxlength="100">
                 </div>
+                <div class="form-group">
+                    <label for="sc-shortage">تقييم العجز (قطعة مرتجعة لم تصل من الشركة)</label>
+                    <select id="sc-shortage" class="form-control">
+                        <option value="COST">بسعر التكلفة</option>
+                        <option value="SALE_PRICE">بسعر البيع</option>
+                    </select>
+                </div>
                 <div class="form-group" id="sc-courier-box">
                     <label>المندوب الذي يمثل الشركة (للعهدة والحسابات)</label>
                     <div id="sc-courier-new-edit">

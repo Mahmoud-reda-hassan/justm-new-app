@@ -58,18 +58,30 @@ class ShippingCompanyImport {
         $tol = max(0.0, min($tol, 50.0));
 
         // تنظيف الصفوف + اكتشاف التكرار داخل الملف
-        $clean = []; $seen = [];
+        $clean = []; $seen = []; $idx = [];
         foreach ($rows as $i => $r) {
             $no = self::normalizeOrder($r['order'] ?? '');
             if ($no === '') { continue; }
-            $clean[] = [
+            $item = [
                 'row'    => (int)($r['row'] ?? ($i + 1)),
                 'order'  => $no,
                 'amount' => self::normalizeAmount($r['amount'] ?? null),
                 'status' => trim((string)($r['status'] ?? '')),
                 'fee'    => self::normalizeAmount($r['fee'] ?? null),
             ];
-            $seen[$no] = ($seen[$no] ?? 0) + 1;
+            if (isset($idx[$no])) {
+                // أمر مكرر: بنفس البيانات يُدمج، وببيانات مختلفة يبقى خطأ ويُسجَّل اختلاف الصفوف
+                $k = $idx[$no]; $f = $clean[$k];
+                $same = (($f['amount'] === null && $item['amount'] === null) || ($f['amount'] !== null && $item['amount'] !== null && abs($f['amount'] - $item['amount']) < 0.005))
+                    && $f['status'] === $item['status']
+                    && (($f['fee'] === null && $item['fee'] === null) || ($f['fee'] !== null && $item['fee'] !== null && abs($f['fee'] - $item['fee']) < 0.005));
+                if ($same) { $clean[$k]['dup_same'] = ($clean[$k]['dup_same'] ?? 0) + 1; }
+                else { $clean[$k]['dup_conflict'][] = $item; }
+                continue;
+            }
+            $idx[$no] = count($clean);
+            $clean[] = $item;
+            $seen[$no] = 1;
         }
         if (!$clean) { throw new Exception('لا توجد صفوف بأرقام أوامر في الملف. تأكد من اختيار عمود رقم الأمر.'); }
 
@@ -105,7 +117,7 @@ class ShippingCompanyImport {
                 'row' => $r['row'], 'order' => $r['order'], 'amount' => $r['amount'], 'file_status' => $r['status'], 'fee' => $r['fee'],
                 'expected' => null, 'order_value' => null, 'shipping' => null,
                 'derived' => null, 'status_action' => null, 'proposed' => null,
-                'flag' => 'OK', 'notes' => [], 'candidates' => [], 'order_id' => null,
+                'flag' => 'OK', 'notes' => [], 'candidates' => [], 'order_id' => null, 'processed' => false,
             ];
             $o = $orders[$r['order']] ?? null;
             $stAct = null;
@@ -116,7 +128,13 @@ class ShippingCompanyImport {
             }
             $row['status_action'] = $stAct;
 
-            if ($seen[$r['order']] > 1) { $row['flag'] = 'ERROR'; $row['notes'][] = 'رقم الأمر مكرر في الملف'; }
+            if (!empty($r['dup_conflict'])) {
+                $row['flag'] = 'ERROR';
+                $fmt = fn($x) => 'صف ' . $x['row'] . ' (المحصل ' . ($x['amount'] === null ? '—' : number_format($x['amount'], 2, '.', '')) . '، الحالة ' . ($x['status'] === '' ? '—' : $x['status']) . ')';
+                $row['notes'][] = 'مكرر في الملف ببيانات مختلفة: ' . implode(' / ', array_merge([$fmt($r)], array_map($fmt, $r['dup_conflict'])));
+            } elseif (!empty($r['dup_same'])) {
+                $row['notes'][] = 'تكرر ' . ($r['dup_same'] + 1) . ' مرات في الملف بنفس البيانات (دُمج في صف واحد)';
+            }
             if (!$o) {
                 $row['flag'] = 'ERROR'; $row['notes'][] = 'رقم الأمر غير موجود في النظام';
             } elseif ($o['CO_USER'] === null) {
@@ -130,7 +148,7 @@ class ShippingCompanyImport {
                     if ($l['PRO_STATUSE'] !== 'waiting') { $done = true; }
                 }
                 if ($o['CUST_STAT'] !== 'WAITING') { $done = true; }
-                if ($done) { $row['flag'] = 'ERROR'; $row['notes'][] = 'نتيجة هذا الأمر مسجلة من قبل'; }
+                if ($done) { $row['flag'] = 'ERROR'; $row['processed'] = true; $row['notes'][] = 'نتيجة هذا الأمر مسجلة من قبل'; }
                 $shipping = (float)$o['SHIPPING_VAL'];
                 // شحن النظام (على العميل) قد يختلف عن شحن الشركة المكتوب في الكشف: نقبل المبلغ مطابقًا لأي منهما
                 $coShip = $r['fee'];
@@ -238,18 +256,54 @@ class ShippingCompanyImport {
                      order_value=VALUES(order_value), shipping=VALUES(shipping), company_shipping=VALUES(company_shipping), shipping_diff=VALUES(shipping_diff),
                      expected=VALUES(expected), notes=VALUES(notes), candidates=VALUES(candidates), uploaded_at=NOW()"
             );
-            foreach ($res['rows'] as $r) {
+            // الصفوف المحفوظة سابقًا لنفس الشركة: لتفادي محو أثر كشف سابق ولتسجيل التغيير
+            $prev = [];
+            $keys = array_map(fn($r) => mb_substr((string)$r['order'], 0, 32), $res['rows']);
+            foreach (array_chunk($keys, 500) as $chunk) {
+                $ph = implode(',', array_fill(0, count($chunk), '?'));
+                $q = $this->db->prepare("SELECT r.*, i.file_name AS prev_file FROM shipping_company_statement_rows r JOIN shipping_company_imports i ON i.id = r.import_id WHERE r.company_id = ? AND r.sub_order_id IN ($ph)");
+                $q->execute(array_merge([$companyId], $chunk));
+                foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $p) { $prev[$p['sub_order_id']] = $p; }
+            }
+            $hist = $this->db->prepare("INSERT INTO shipping_company_statement_history (company_id, import_id, order_id, sub_order_id, row_no, amount, fee, file_status, flag, derived, proposed, uploaded_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+            $note = $this->db->prepare("UPDATE shipping_company_statement_rows SET notes = ? WHERE id = ?");
+            $num = fn($v) => $v === null ? '—' : number_format((float)$v, 2, '.', '');
+            foreach ($res['rows'] as &$r) {
+                $key = mb_substr((string)$r['order'], 0, 32);
+                $old = $prev[$key] ?? null;
+                if ($old) {
+                    if (!empty($r['processed'])) {
+                        // الأمر عولج بناءً على كشف سابق: يبقى صفه ولا يُستبدل، وتُضاف ملاحظة بما ورد في الكشف الأحدث
+                        $n = json_decode((string)$old['notes'], true) ?: [];
+                        $n[] = 'ورد مجددًا في كشف لاحق (' . $fileName . '): المحصل ' . $num($r['amount']) . '، الحالة ' . ($r['file_status'] === '' ? '—' : $r['file_status']);
+                        $note->execute([json_encode($n, JSON_UNESCAPED_UNICODE), (int)$old['id']]);
+                        $r['kept_old'] = true;
+                        continue;
+                    }
+                    $changed = abs((float)$old['amount'] - (float)$r['amount']) >= 0.005 || ($old['amount'] === null) !== ($r['amount'] === null)
+                        || (string)$old['file_status'] !== (string)$r['file_status']
+                        || abs((float)$old['fee'] - (float)$r['fee']) >= 0.005 || ($old['fee'] === null) !== ($r['fee'] === null);
+                    if ($changed) {
+                        $hist->execute([$companyId, (int)$old['import_id'], $old['order_id'], $old['sub_order_id'], $old['row_no'], $old['amount'], $old['fee'], $old['file_status'], $old['flag'], $old['derived'], $old['proposed'], $old['uploaded_at']]);
+                        $r['notes'][] = 'تغيّر عن الكشف السابق (' . $old['prev_file'] . '): المحصل ' . $num($old['amount']) . ' ← ' . $num($r['amount']) . '، الحالة «' . $old['file_status'] . '» ← «' . $r['file_status'] . '»';
+                        if ($r['flag'] === 'OK') { $r['flag'] = 'REVIEW'; }
+                        $r['changed'] = true;
+                    }
+                }
                 $up->execute([$companyId, $importId, $r['order_id'], mb_substr((string)$r['order'], 0, 32), $r['row'], $r['amount'], $r['fee'],
                     mb_substr((string)$r['file_status'], 0, 100), $r['status_action'], $r['derived'], $r['proposed'], $r['flag'],
                     $r['order_value'], $r['shipping'], $r['company_shipping'] ?? null, $r['shipping_diff'] ?? null, $r['expected'],
                     json_encode($r['notes'], JSON_UNESCAPED_UNICODE), json_encode($r['candidates'], JSON_UNESCAPED_UNICODE)]);
             }
+            unset($r);
             if ($own) { $this->db->commit(); }
         } catch (Throwable $e) {
             if ($own && $this->db->inTransaction()) { $this->db->rollBack(); }
             throw $e;
         }
         $res['import_id'] = $importId;
+        $res['kept_old'] = count(array_filter($res['rows'], fn($r) => !empty($r['kept_old'])));
+        $res['changed'] = count(array_filter($res['rows'], fn($r) => !empty($r['changed'])));
         unset($res['rows']);
         return $res;
     }

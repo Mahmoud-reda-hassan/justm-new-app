@@ -586,7 +586,7 @@ $res = $imp->preview($scId, [
     ['row' => 7, 'order' => $sub($q1), 'amount' => '180', 'status' => ''],
 ], false, [], 1.0);
 $byRow = []; foreach ($res['rows'] as $r) { $byRow[$r['row']] = $r; }
-check('import: duplicate order in file flagged', $byRow[2]['flag'] === 'ERROR' && $byRow[7]['flag'] === 'ERROR');
+check('import: duplicate with different data is one ERROR row listing both rows', $byRow[2]['flag'] === 'ERROR' && !isset($byRow[7]) && strpos(implode(' ', $byRow[2]['notes']), 'صف 7') !== false);
 check('import: amount below value matches a partial distribution (230 = 180 + 50)', $byRow[3]['derived'] === 'FULL' || $byRow[3]['derived'] === 'PARTIAL');
 check('import: amount equal to shipping on a return = RETURN_SHIPPING_PAID', $byRow[4]['derived'] === 'RETURN_SHIPPING_PAID' && $byRow[4]['proposed'] === 'RETURN_SHIPPING_PAID' && $byRow[4]['flag'] === 'OK');
 check('import: already processed order is an error', $byRow[5]['flag'] === 'ERROR');
@@ -625,6 +625,31 @@ check('statement order ids for the company filter', in_array($q1, $imp->statemen
 $coi = $imp->companyOfCourier($scCourier);
 check('courier linked to a company reports it with last import', $coi && (int)$coi['id'] === $scId && $coi['last_import']['file_name'] === 'كشف2.xlsx');
 check('plain courier is not a company', $imp->companyOfCourier($userId) === null);
+$dupSame = $imp->preview($scId, [
+    ['row' => 2, 'order' => $sub($q1), 'amount' => '180', 'status' => 'استلم'],
+    ['row' => 3, 'order' => $sub($q1), 'amount' => '180.00', 'status' => 'استلم'],
+], false, [], 1.0);
+check('import: identical duplicates merge into one OK row with a note', count($dupSame['rows']) === 1 && $dupSame['rows'][0]['flag'] === 'OK' && strpos(implode(' ', $dupSame['rows'][0]['notes']), 'تكرر 2') !== false);
+// history + processed-order rules for re-uploaded statements
+$hq = fn() => (int)$db->query("SELECT COUNT(*) FROM shipping_company_statement_history WHERE company_id=$scId AND sub_order_id='" . $sub($q1) . "'")->fetchColumn();
+$h0 = $hq();
+$imp->saveStatement($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '180', 'status' => 'استلم']], false, [], 1.0, 'كشف3.xlsx', '', $userId);
+check('changed row in a newer statement archives the old values and is flagged', $hq() === $h0 + 1
+    && strpos(implode(' ', $imp->statementForOrders($scId, [$q1])[$q1]['notes']), 'تغيّر عن الكشف السابق') !== false);
+$imp->saveStatement($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '180', 'status' => 'استلم']], false, [], 1.0, 'كشف4.xlsx', '', $userId);
+check('identical row in a newer statement adds no history', $hq() === $h0 + 1);
+$db->exec("UPDATE custody_orders SET CUST_STAT='DELIVERED' WHERE ORDER_ID=$q1 AND USER_ID=$scCourier");
+$db->exec("UPDATE custody_product SET PRO_STATUSE='complete' WHERE ORDER_ID=$q1 AND USER_ID=$scCourier");
+$before = $imp->statementForOrders($scId, [$q1])[$q1];
+$r5 = $imp->saveStatement($scId, [['row' => 2, 'order' => $sub($q1), 'amount' => '999', 'status' => 'مرتجع']], false, [], 1.0, 'كشف5.xlsx', '', $userId);
+$after = $imp->statementForOrders($scId, [$q1])[$q1];
+check('processed order keeps its old row and only gets a later-statement note', (float)$after['amount'] === (float)$before['amount'] && (int)$r5['kept_old'] === 1
+    && strpos(implode(' ', $after['notes']), 'ورد مجددًا في كشف لاحق') !== false);
+$db->exec("UPDATE custody_orders SET CUST_STAT='WAITING' WHERE ORDER_ID=$q1 AND USER_ID=$scCourier");
+$db->exec("UPDATE custody_product SET PRO_STATUSE='waiting' WHERE ORDER_ID=$q1 AND USER_ID=$scCourier");
+$scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'ORDER_SHIPPING', 'shortage_basis' => 'SALE_PRICE'], $userId, $branch);
+check('shortage valuation basis saved per company', $scs->get($scId)['shortage_basis'] === 'SALE_PRICE');
+check('invalid shortage basis rejected', throwsMsg(fn() => $scs->save(['id' => $scId, 'name' => 'x', 'fee_mode' => 'ORDER_SHIPPING', 'shortage_basis' => 'BAD'], $userId, $branch), 'العجز'));
 check('import: preview never writes (custody still waiting)', (int)$db->query("SELECT COUNT(*) FROM custody_orders WHERE USER_ID=$scCourier AND CUST_STAT='WAITING'")->fetchColumn() === 3);
 check('import: order numbers from Excel E-notation normalized', ShippingCompanyImport::normalizeOrder('6.9261113125989E+13') === '69261113125989');
 check('import: status text defaults', ShippingCompanyImport::defaultAction('فشل التسليم') === 'RETURN' && ShippingCompanyImport::defaultAction('تم التسليم') === 'FULL');
