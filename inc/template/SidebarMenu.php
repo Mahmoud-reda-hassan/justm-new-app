@@ -532,7 +532,6 @@ if ($loginType === 1 && $pageType > 0) {
 								</li>
 								<?php } ?>
 								<?php if((isset($_SESSION["USER_GRUOP_NAME"]) && in_array(trim($_SESSION["USER_GRUOP_NAME"]), ['Administrator','Owner','المدير المالي'], true))|| (($usm["GlLedger"]["view"] ?? '') == "true") || (($usm["GlLedger"]["post"] ?? '') == "true") || (($usm["GlLedger"]["admin"] ?? '') == "true")){ ?>
-                                <li class="badge badge-red0 pt-1 pb-1 pl-2 pr-2 nav-header" style="font-size: 10px;">تقارير</li>
 								<li class="nav-item">
                                     <a href="?Go=GlLedger" class="nav-link">
                                         <i class="fa fa-ellipsis-v nav-icon "></i>
