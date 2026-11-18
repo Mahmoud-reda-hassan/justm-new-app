@@ -44,10 +44,10 @@ class DatabaseUpdater {
             $c = $sql[$i];
             if ($q === '') {
                 // كتلة إجراء مخزّن: من -- @PROC-BEGIN إلى -- @PROC-END أمرٌ واحد (فيها فواصل منقوطة داخلية)
-                if ($c === '-' && trim($cur) === '' && substr($sql, $i, 15) === "-- @PROC-BEGIN\n") {
+                if ($c === '-' && trim($cur) === '' && preg_match('/\G-- @PROC-BEGIN\r?\n/', $sql, $mm, 0, $i)) {
                     $e = strpos($sql, '-- @PROC-END', $i);
                     if ($e === false) { throw new Exception('كتلة إجراء بلا نهاية.'); }
-                    $blk = substr($sql, $i + 15, $e - ($i + 15));
+                    $blk = substr($sql, $i + strlen($mm[0]), $e - ($i + strlen($mm[0])));
                     $blk = preg_replace('/^\s*DELIMITER\b.*$/mi', '', $blk);   // DELIMITER أمر عميل mysql وليس SQL
                     $blk = preg_replace('/\$\$\s*$/', '', rtrim($blk));
                     $out[] = trim($blk);
@@ -128,7 +128,7 @@ class DatabaseUpdater {
         $sql = file_get_contents($p);
         $stmts = self::split($sql);
         foreach ($stmts as $i => $s) {
-            if (preg_match(self::FORBIDDEN, $s)) { throw new Exception('أمر غير مسموح في ملف التحديث (رقم ' . ($i + 1) . ').'); }
+            if (preg_match(self::FORBIDDEN, $s)) { throw new Exception('أمر غير مسموح في ملف التحديث (رقم ' . ($i + 1) . '): ' . mb_substr(preg_replace('/\s+/', ' ', $s), 0, 90)); }
         }
         $done = 0; $skipped = 0;
         foreach ($stmts as $i => $s) {
