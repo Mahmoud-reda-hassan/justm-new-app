@@ -134,7 +134,7 @@ try {
             }
             $ok(['order_id' => $oid, 'lines' => (new ShippingCompanyShortage($db, null))->remainingLines($oid)]);
         case 'scShortageRecord':
-            if (!$scCanReceive) { $deny(); }
+            if (!$scCanReceive && !$scFinView && !$scApproved) { $deny(); }
             $lines = json_decode((string)($_POST['lines'] ?? '[]'), true);
             if (!is_array($lines)) { throw new Exception('بيانات العجز غير صالحة.'); }
             $r = (new ShippingCompanyShortage($db, new AccountingEvents($db)))->record((int)($_POST['order_id'] ?? 0), $lines, (int)($_SESSION['USER_ID'] ?? 0), (string)($_POST['note'] ?? ''));

@@ -26,7 +26,7 @@
 	const courierId = () => $('#SelectUserDelivery').val();
 	const badge = (cls, html) => '<span class="badge ' + cls + ' p-2 mr-1 mb-1" style="font-size:.85rem;font-weight:600">' + html + '</span>';
 
-	function block(required, fin, st) {
+	function block(required, fin, st, o) {
 		const method = company.method;
 		let h = '<div class="p-2 scfin" style="border-right:4px solid #28a745;background:#f4fbf6;text-align:right;white-space:normal"><div class="d-flex flex-wrap align-items-center">';
 		h += badge('badge-success', '<i class="fa fa-truck"></i> ' + esc(company.name));
@@ -56,6 +56,17 @@
 		}
 		h += '</div>';
 		if (st && (st.notes || []).length) { h += '<div class="small text-danger mt-1">' + st.notes.map(esc).join(' — ') + '</div>'; }
+		return h + actions(arguments[3]) + '</div>';
+	}
+
+	// أزرار التسوية والتصحيح تحت كل أمر (القرار المالي)
+	function actions(o) {
+		if (!o) { return ''; }
+		let h = '<div class="mt-2 scfin-actions">';
+		if (company.id && Number(o.returns) === 1) {
+			h += '<button type="button" class="btn btn-sm btn-outline-danger mr-1 scfin-short" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-exclamation-triangle"></i> عجز مرتجع على الشركة</button>';
+		}
+		h += '<button type="button" class="btn btn-sm btn-outline-secondary scfin-reopen" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-undo"></i> رد للمخزن للتصحيح</button>';
 		return h + '</div>';
 	}
 
@@ -72,10 +83,15 @@
 		const ids = [], rows = {};
 		t.rows({page: 'current'}).every(function () {
 			const d = this.data(); if (!d) { return; }
-			ids.push(Number(d[0])); rows[Number(d[0])] = {node: this.node(), required: Number(d[28] || 0)};
+			ids.push(Number(d[0])); rows[Number(d[0])] = {node: this.node(), required: Number(d[28] || 0), o: {id: Number(d[0]), no: d[1], returns: d[16]}};
 		});
 		if (!ids.length) { return; }
 		const my = ++seq, cid = company.id;
+		if (company.plain) {
+			const cols0 = $('#tbl thead tr:first th').length || 1;
+			ids.forEach(id => { const r = rows[id]; if (r && r.node) { $(r.node).after('<tr class="scfin-row"><td colspan="' + cols0 + '" class="p-0"><div class="p-2" style="border-right:4px solid #6c757d;background:#f8f9fa;text-align:right;white-space:normal">' + actions(r.o).replace('mt-2 ', '') + '</div></td></tr>'); } });
+			return;
+		}
 		try {
 			const [fin, st] = await Promise.all([
 				call('scFinanceInfo', {user_id: courierId(), order_ids: JSON.stringify(ids)}),
@@ -86,7 +102,7 @@
 			const cols = $('#tbl thead tr:first th').length || 1;
 			ids.forEach(id => {
 				const r = rows[id]; if (!r || !r.node) { return; }
-				$(r.node).after('<tr class="scfin-row"><td colspan="' + cols + '" class="p-0">' + block(r.required, (fin.orders || {})[id], (st || {})[id]) + '</td></tr>');
+				$(r.node).after('<tr class="scfin-row"><td colspan="' + cols + '" class="p-0">' + block(r.required, (fin.orders || {})[id], (st || {})[id], r.o) + '</td></tr>');
 			});
 		} catch (e) { if (my === seq) { showErr(e.message); } 		}
 	}
@@ -96,8 +112,40 @@
 		if (!id) { return; }
 		call('scFinanceInfo', {user_id: id, order_ids: '[]'}).then(r => { if (id !== courierId()) { return; }
 			if (r.company) { company = r.company; decorate(); }
-			else { $('#scfinMsg').remove(); $('#tbl').closest('.dataTables_wrapper, .table-responsive, .card-body').first().before('<div id="scfinMsg" class="alert alert-light border py-1 small text-muted">المندوب المختار ليس مربوطًا بشركة شحن، فلا يظهر تفصيل الشركة.</div>'); } }).catch(e => showErr(e.message));
+			else { company = {id: 0, name: '', method: '', plain: true}; decorate(); } }).catch(e => showErr(e.message));
 	}
+
+	function reload() { const t = getTable(); if (t) { t.ajax.reload(null, false); } }
+	const done = (m) => { if (window.Swal) { Swal.fire({icon: 'success', title: m, timer: 1500, showConfirmButton: false}); } reload(); };
+	const fail = (e) => { if (window.Swal) { Swal.fire({icon: 'error', title: 'تعذّر التنفيذ', text: e.message}); } else { alert(e.message); } };
+
+	// رد الأمر للمخزن للتصحيح (نفس منطق شاشة رد أوامر المندوب: قيد مضاد، لا حذف، والصلاحية من السيرفر)
+	$(document).on('click', '.scfin-reopen', async function () {
+		const id = $(this).data('id'), no = $(this).data('no');
+		const r = await Swal.fire({title: 'رد الأمر ' + no + ' للمخزن للتصحيح؟', input: 'text', inputLabel: 'السبب (مطلوب)', showCancelButton: true, confirmButtonText: 'رد للمخزن', cancelButtonText: 'إلغاء', inputValidator: v => v && v.trim() ? null : 'السبب مطلوب'});
+		if (!r.isConfirmed) { return; }
+		$.post('../../inc/controller/shipment.control.php', {CONTROL: 'reopenCourierOrder', order_id: id, reason: r.value}, function (res) {
+			if (Array.isArray(res) && res[0] === 'success') { done('تم رد الأمر للمخزن'); } else { fail(new Error((res && res[2]) || 'خطأ')); }
+		}, 'json').fail(() => fail(new Error('تعذر الاتصال بالخادم')));
+	});
+
+	// عجز مرتجع على الشركة (يخرج من المخزون ويُسجَّل مستحق على الشركة)
+	$(document).on('click', '.scfin-short', async function () {
+		const id = $(this).data('id'), no = $(this).data('no');
+		try {
+			const d = await call('scShortageLines', {order_id: id});
+			const lines = (d.lines || []).filter(l => Number(l.remaining) > 0);
+			if (!lines.length) { return fail(new Error('لا توجد كميات متبقية لتسجيل عجز عليها.')); }
+			const html = '<table class="table table-sm text-right"><tr><th>الصنف</th><th>المتبقي</th><th>كمية العجز</th></tr>' + lines.map((l, i) => '<tr><td>' + esc(l.pro_code) + '</td><td>' + esc(l.remaining) + '</td><td><input type="number" min="0" max="' + esc(l.remaining) + '" value="0" class="form-control form-control-sm sh-q" data-i="' + i + '"></td></tr>').join('') + '</table><input id="sh-note" class="form-control" placeholder="ملاحظة (اختياري)">';
+			const r = await Swal.fire({title: 'عجز على الشركة — الأمر ' + no, html: html, width: 600, showCancelButton: true, confirmButtonText: 'تسجيل العجز', cancelButtonText: 'إلغاء'});
+			if (!r.isConfirmed) { return; }
+			const out = [];
+			$('.sh-q').each(function () { const q = Number($(this).val() || 0), i = $(this).data('i'); if (q > 0) { out.push([lines[i].pro_code, q]); } });
+			if (!out.length) { return; }
+			await call('scShortageRecord', {order_id: id, lines: JSON.stringify(out), note: $('#sh-note').val() || ''});
+			done('تم تسجيل العجز على الشركة');
+		} catch (e) { fail(e); }
+	});
 
 	$(document).on('draw.dt', function (e, settings) { if (settings && settings.nTable && settings.nTable.id === 'tbl') { decorate(); } });
 	$(document).on('change', '#SelectUserDelivery', loadCompany);
