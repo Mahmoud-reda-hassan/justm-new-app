@@ -5703,6 +5703,18 @@ CREATE TABLE IF NOT EXISTS `shipping_company_shortages` (
   KEY `idx_scs_order` (`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+CREATE TABLE IF NOT EXISTS `shipping_settlement_overrides` (
+  `order_id` bigint(20) NOT NULL,
+  `amount` decimal(15,2) NOT NULL,
+  `original_amount` decimal(15,2) DEFAULT NULL,
+  `kind` enum('COMPANY_FEE','COURIER_COMMISSION') NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `created_by` bigint(20) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
 
 
 

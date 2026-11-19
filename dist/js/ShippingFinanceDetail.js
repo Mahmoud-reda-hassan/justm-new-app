@@ -18,7 +18,7 @@
 	});
 	const K = () => window.ScImport || {ACTIONS: {}, DERIVED: {}, FLAG: {}, money: (v) => v};
 	const money = (v) => Number(v || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-	const SRC = {STATEMENT: 'من كشف الشركة', ORDER_SHIPPING: 'نفس شحن الأمر', FIXED: 'رسم ثابت', ZONE_RATE: 'سعر المنطقة', RETURN_FIXED: 'رسم المرتجع', NONE: 'بدون رسم'};
+	const SRC = {STATEMENT: 'من كشف الشركة', ORDER_SHIPPING: 'نفس شحن الأمر', FIXED: 'رسم ثابت', ZONE_RATE: 'سعر المنطقة', RETURN_FIXED: 'رسم المرتجع', MANUAL: 'تعديل يدوي', NONE: 'بدون رسم'};
 	const METHOD = {NET_OF_FEE: 'الشركة تخصم رسمها من المحصّل', GROSS_THEN_FEE: 'الشركة تورّد الكامل ونحاسبها على الرسم'};
 
 	let company = null, seq = 0;
@@ -150,7 +150,14 @@
 				if (d.rejected && !d.customer_paid_shipping) { note = 'أمر مرفوض لم يدفع عميله الشحن: العمولة تُحسب على شحن النظام حسب النسبة المعتمدة.'; }
 			}
 			t += '</table>' + (note ? '<div class="alert alert-warning mt-2 mb-0 small">' + esc(note) + '</div>' : '');
-			Swal.fire({title: 'تسوية الشحن — الأمر ' + no, html: t, width: 560, confirmButtonText: 'إغلاق'});
+			const cur = d.type === 'COMPANY' ? (d.fee != null ? d.fee : 0) : d.commission;
+			const label = d.type === 'COMPANY' ? 'رسم الشركة' : 'عمولة المندوب';
+			if (d.override) { t += '<div class="alert alert-info mt-2 mb-0 small">معدَّل يدويًا (الأصل: ' + money(d.type === 'COMPANY' ? d.auto_fee : d.auto_commission) + ') — السبب: ' + esc(d.override.reason) + '</div>'; }
+			t += '<div class="mt-3 text-right"><label class="small mb-1">تعديل ' + label + ' لهذا الأمر</label><input id="ov-amt" type="number" min="0" step="0.01" class="form-control form-control-sm mb-1" value="' + Number(cur || 0).toFixed(2) + '"><input id="ov-reason" class="form-control form-control-sm" placeholder="سبب التعديل (مطلوب)"></div>';
+			const r = await Swal.fire({title: 'تسوية الشحن — الأمر ' + no, html: t, width: 560, showCancelButton: true, showDenyButton: !!d.override, confirmButtonText: 'حفظ التعديل', denyButtonText: 'إرجاع للحساب التلقائي', cancelButtonText: 'إغلاق',
+				preConfirm: () => { const a = $('#ov-amt').val(), why = ($('#ov-reason').val() || '').trim(); if (a === '' || Number(a) < 0) { Swal.showValidationMessage('المبلغ غير صحيح'); return false; } if (!why) { Swal.showValidationMessage('سبب التعديل مطلوب'); return false; } return {amount: a, reason: why}; }});
+			if (r.isConfirmed) { await call('scOverrideSave', {order_id: id, user_id: courierId(), amount: r.value.amount, reason: r.value.reason}); done('تم حفظ التعديل'); }
+			else if (r.isDenied) { await call('scOverrideClear', {order_id: id, user_id: courierId()}); done('تم الرجوع للحساب التلقائي'); }
 		} catch (e) { fail(e); }
 	});
 

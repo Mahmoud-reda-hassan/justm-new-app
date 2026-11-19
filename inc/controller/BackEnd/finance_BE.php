@@ -869,6 +869,12 @@ class finance_BE {
 							$errorlastupdate++;
 						}
 						$orderData = $orders[$orderId];
+						// تعديل يدوي لعمولة المندوب (من زر تسوية الشحن) قبل السداد: يحل محل الحساب التلقائي للمندوب العادي
+						if ($orderData['DELIVERY_ID'] && !$this->isShippingCompanyCourier((int)$orderData['DELIVERY_ID'])) {
+							include_once(ABSPATH.'/inc/Classes/ShippingCompanyFees.php');
+							$ovr = (new ShippingCompanyFees($this->conn))->overrideFor((int)$orderData['ORDER_ID']);
+							if ($ovr && $ovr['kind'] === 'COURIER_COMMISSION') { $orderData['DELIVERY_CIMMISSION'] = round((float)$ovr['amount'], 2); }
+						}
 						if($err > 0 ){
 							continue; // الانتقال إلى أمر البيع التالى
 						}

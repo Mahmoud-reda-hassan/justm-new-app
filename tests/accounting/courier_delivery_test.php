@@ -713,6 +713,14 @@ $scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'OR
 $coF = $scf->companyOfCourier($scCourier);
 check('fee mode ORDER_SHIPPING uses order shipping', $scf->feeForOrder($coF, $fa) === ['fee' => 30.0, 'source' => 'ORDER_SHIPPING']);
 check('rejected order without paid shipping carries no fee', $scf->feeForOrder($coF, $fc) === ['fee' => 0.0, 'source' => 'NONE']);
+// manual override (shipping settlement button) beats the automatic fee until cleared
+$db->exec("INSERT INTO shipping_settlement_overrides (order_id, amount, original_amount, kind, reason) VALUES ($fa, 17.5, 30, 'COMPANY_FEE', 'test')");
+check('manual fee override wins', $scf->feeForOrder($coF, $fa) === ['fee' => 17.5, 'source' => 'MANUAL']);
+check('override can be ignored to see the automatic fee', $scf->feeForOrder($coF, $fa, true) === ['fee' => 30.0, 'source' => 'ORDER_SHIPPING']);
+$ovr = $scf->overrideFor($fa);
+check('override lookup returns the row', $ovr && (float)$ovr['amount'] === 17.5 && $ovr['kind'] === 'COMPANY_FEE');
+$db->exec("DELETE FROM shipping_settlement_overrides WHERE order_id = $fa");
+check('override cleared returns automatic fee', $scf->feeForOrder($coF, $fa) === ['fee' => 30.0, 'source' => 'ORDER_SHIPPING'] && $scf->overrideFor($fa) === null);
 check('plain courier is not a company', $scf->companyOfCourier($userId) === null);
 
 // رسم المرتجع/المرفوض غير المدفوع (يُسجَّل عند الاستلام المالي)

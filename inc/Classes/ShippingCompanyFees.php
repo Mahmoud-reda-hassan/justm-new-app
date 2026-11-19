@@ -15,8 +15,20 @@ class ShippingCompanyFees {
         return $c ?: null;
     }
 
+    /** تعديل يدوي مسجَّل للأمر (رسم شركة أو عمولة مندوب) أو null. يتسامح مع غياب الجدول قبل تحديث القاعدة. */
+    public function overrideFor(int $orderId): ?array {
+        try {
+            $st = $this->db->prepare("SELECT amount, original_amount, kind, reason FROM shipping_settlement_overrides WHERE order_id = ?");
+            $st->execute([$orderId]);
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            return $r ?: null;
+        } catch (Throwable $e) { return null; }
+    }
+
     /** @return array{fee: float, source: string} */
-    public function feeForOrder(array $company, int $orderId): array {
+    public function feeForOrder(array $company, int $orderId, bool $ignoreOverride = false): array {
+        $ov = $ignoreOverride ? null : $this->overrideFor($orderId);
+        if ($ov && $ov['kind'] === 'COMPANY_FEE') { return ['fee' => round((float)$ov['amount'], 2), 'source' => 'MANUAL']; }
         $st = $this->db->prepare("SELECT fee FROM shipping_company_statement_rows WHERE company_id = ? AND order_id = ? AND fee IS NOT NULL");
         $st->execute([(int)$company['id'], $orderId]);
         $f = $st->fetchColumn();

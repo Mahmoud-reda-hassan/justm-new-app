@@ -144,11 +144,47 @@ try {
                     $q->execute([$courierId, $oid]);
                     $r = $q->fetch(PDO::FETCH_ASSOC);
                     $base = ($r && $r['cust_stat'] !== 'FREEZE') ? (float)$r['SHIPPING_VAL'] : 0.0;
-                    $d = min(round($base * $pct / 100, 2), $required);
+                    $ov = $fees->overrideFor($oid);
+                    $d = min(($ov && $ov['kind'] === 'COURIER_COMMISSION') ? round((float)$ov['amount'], 2) : round($base * $pct / 100, 2), $required);
                 }
                 $d = round($d, 2); $per[$oid] = ['deduction' => $d, 'note' => $note]; $total += $d;
             }
             $ok(['kind' => $co ? 'COMPANY' : 'COURIER', 'total_deduction' => round($total, 2), 'orders' => $per]);
+        case 'scOverrideSave':
+        case 'scOverrideClear':
+            // تعديل/إرجاع رسم الشركة أو عمولة المندوب لأمر لم يُسدَّد بعد (سبب مطلوب، ويُسجَّل في سجل الأمر)
+            if (!($scCanAdmin || $scFinView)) { $deny(); }
+            $oid = (int)($_POST['order_id'] ?? 0);
+            $courierId = (int)($_POST['user_id'] ?? 0);
+            $q = $db->prepare("SELECT o.SUB_ORDER_ID, o.ORDER_SUCCESS, o.SHIPPING_VAL FROM orders o JOIN custody_orders c ON c.ORDER_ID = o.ORDER_ID WHERE o.ORDER_ID = ? AND c.USER_ID = ? LIMIT 1");
+            $q->execute([$oid, $courierId]);
+            $o = $q->fetch(PDO::FETCH_ASSOC);
+            if (!$o) { throw new Exception('الأمر غير موجود في عهدة هذا المندوب.'); }
+            if ((int)$o['ORDER_SUCCESS'] === 1) { throw new Exception('تم سداد هذا الأمر؛ لا يمكن تعديل التسوية.'); }
+            $fees = new ShippingCompanyFees($db);
+            if ($_POST['CONTROL'] === 'scOverrideClear') {
+                $db->prepare("DELETE FROM shipping_settlement_overrides WHERE order_id = ?")->execute([$oid]);
+                $db->prepare("INSERT INTO orders_log (ORDER_ID, USER_ACTION, LOG_TEXT) VALUES (?, ?, ?)")->execute([$oid, $userId, 'إرجاع تسوية الشحن للحساب التلقائي']);
+                $ok(['cleared' => true], 'تم الرجوع للحساب التلقائي');
+            }
+            $amount = round((float)($_POST['amount'] ?? -1), 2);
+            $reason = trim((string)($_POST['reason'] ?? ''));
+            if ($amount < 0) { throw new Exception('المبلغ غير صحيح.'); }
+            if ($reason === '') { throw new Exception('سبب التعديل مطلوب.'); }
+            $co = $fees->companyOfCourier($courierId);
+            if ($co) {
+                $kind = 'COMPANY_FEE';
+                try { $orig = $fees->feeForOrder($co, $oid, true)['fee']; } catch (Exception $e) { $orig = null; }
+            } else {
+                $kind = 'COURIER_COMMISSION';
+                $pc = $db->prepare("SELECT PERCENT FROM users_delivery WHERE USER_ID = ?"); $pc->execute([$courierId]);
+                $orig = round((float)$o['SHIPPING_VAL'] * (float)$pc->fetchColumn() / 100, 2);
+            }
+            $db->prepare("INSERT INTO shipping_settlement_overrides (order_id, amount, original_amount, kind, reason, created_by) VALUES (?,?,?,?,?,?)
+                          ON DUPLICATE KEY UPDATE amount = VALUES(amount), original_amount = VALUES(original_amount), kind = VALUES(kind), reason = VALUES(reason), created_by = VALUES(created_by), created_at = NOW()")
+               ->execute([$oid, $amount, $orig, $kind, $reason, $userId]);
+            $db->prepare("INSERT INTO orders_log (ORDER_ID, USER_ACTION, LOG_TEXT) VALUES (?, ?, ?)")->execute([$oid, $userId, 'تعديل تسوية الشحن (' . ($kind === 'COMPANY_FEE' ? 'رسم الشركة' : 'عمولة المندوب') . ') من ' . ($orig ?? '—') . ' إلى ' . $amount . ': ' . $reason]);
+            $ok(['kind' => $kind, 'amount' => $amount, 'original' => $orig], 'تم حفظ التعديل');
         case 'scShippingCalc':
             // شرح طريقة حساب تسوية الشحن للأمر: حسب إعدادات الشركة أو نسبة المندوب (للعرض فقط)
             if (!$scCanViewCustody) { $deny(); }
@@ -179,6 +215,12 @@ try {
                 $out['type'] = 'COURIER';
                 $out['percent'] = $pct; $out['commission_base'] = $base;
                 $out['commission'] = round($base * $pct / 100, 2);
+                $ovc = $fees->overrideFor($oid);
+                if ($ovc && $ovc['kind'] === 'COURIER_COMMISSION') { $out['auto_commission'] = $out['commission']; $out['commission'] = round((float)$ovc['amount'], 2); $out['override'] = $ovc; }
+            }
+            if ($co) {
+                $ovf = $fees->overrideFor($oid);
+                if ($ovf && $ovf['kind'] === 'COMPANY_FEE') { $out['override'] = $ovf; try { $out['auto_fee'] = $fees->feeForOrder($co, $oid, true)['fee']; } catch (Exception $e) { $out['auto_fee'] = null; } }
             }
             $ok($out);
         case 'scShortageLines':
