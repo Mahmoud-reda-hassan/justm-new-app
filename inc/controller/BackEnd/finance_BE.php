@@ -736,7 +736,8 @@ class finance_BE {
 		return (bool)$st->fetchColumn();
 	}
 
-	public function registerCollection($delivery_id, $orderIds, $totalAmount) {
+	public function registerCollection($delivery_id, $orderIds, $totalAmount, $settleMethod = '') {
+		$settleMethod = in_array($settleMethod, ['NET','GROSS'], true) ? $settleMethod : ''; // اختيار المستخدم: خصم من المحصَّل / تحصيل كامل (فارغ = الافتراضي حسب إعدادات الشركة)
 
 		try{
 			$error = array();
@@ -945,11 +946,13 @@ class finance_BE {
 							$blockMissingCost = defined('COURIER_BLOCK_ON_MISSING_COST') ? (bool)COURIER_BLOCK_ON_MISSING_COST : true;
 							// شركة شحن: رسمها يُحتسب عند الاستلام المالي فقط وبحساباتها الخاصة (لا عمولة مندوب)
 							$companyFee = null; $scRow = null;
+							$commissionNet = round(min((float)$orderData['DELIVERY_CIMMISSION'], (float)$orderData['ACTUAL_TOTAL'] + (float)$orderData['SHIPPING_VAL']), 2);
 							include_once(ABSPATH.'/inc/Classes/ShippingCompanyFees.php');
 							$scFees = new ShippingCompanyFees($this->conn);
 							$scCo = $orderData['DELIVERY_ID'] ? $scFees->companyOfCourier((int)$orderData['DELIVERY_ID']) : null;
 							if ($scCo) {
 								$f = $scFees->feeForOrder($scCo, (int)$orderData['ORDER_ID']);
+								$scCo['settlement_method'] = $settleMethod === 'NET' ? 'NET_OF_FEE' : ($settleMethod === 'GROSS' ? 'GROSS_THEN_FEE' : $scCo['settlement_method']);
 								$companyFee = ['fee' => $f['fee'], 'method' => $scCo['settlement_method']];
 								$scRow = [$scCo, $f];
 							}
@@ -963,7 +966,8 @@ class finance_BE {
 									? [[(int)$orderData['MARKETER_ID'], (float)$orderData['MARKETER_COMMISSION']],
 									   [(int)($orderData['LEADER_ID'] ?? 0), (float)$orderData['LEADER_COMMISSION']]]
 									: [],
-								$companyFee
+								$companyFee,
+								($settleMethod === 'NET' && !$scCo && $commissionNet > 0)
 							);
 							if ($scRow) {
 								$gross = (float)$orderData['ACTUAL_TOTAL'] + (float)$orderData['SHIPPING_VAL'];
@@ -972,6 +976,13 @@ class finance_BE {
 								$ins = $this->conn->prepare("INSERT INTO shipping_company_fees (company_id, order_id, fee, source, method, gross_collected, payable_amount, journal_id) VALUES (?,?,?,?,?,?,?,?)
 									ON DUPLICATE KEY UPDATE fee=VALUES(fee), source=VALUES(source), method=VALUES(method), gross_collected=VALUES(gross_collected), payable_amount=VALUES(payable_amount), journal_id=VALUES(journal_id)");
 								$ins->execute([(int)$scRow[0]['id'], (int)$orderData['ORDER_ID'], $fee, $scRow[1]['source'], $scRow[0]['settlement_method'], $gross, $payable, $jid ?: null]);
+							}
+							// مندوب عادي، خصم العمولة من المحصَّل: صرف مقابل في النظام القديم كأنه إذن صرف (يصفّر المستحق بقدر ما خُصم)
+							if ($settleMethod === 'NET' && !$scCo && $commissionNet > 0 && $orderData['DELIVERY_ID']) {
+								if (!$this->Add_transaction(NULL, 'DELIVERY', $orderData['DELIVERY_ID'], $commissionNet, 1, '17', 'COMPLETED', 'خصم عمولة المندوب من المحصَّل أمر '.$orderData['SUB_ORDER_ID'])
+								 || !$this->Add_partners_balance('DELIVERY', $orderData['DELIVERY_ID'], $orderData['ORDER_ID'], 'DEBIT', $commissionNet, 'خصم عمولة المندوب من المحصَّل', '17')) {
+									throw new Exception('تعذر تسجيل خصم العمولة من المحصَّل.');
+								}
 							}
 						} catch (Exception $glEx) {
 							$error[] = "تعذر ترحيل قيد التحصيل لأمر ".$orderData['SUB_ORDER_ID'].": ".$glEx->getMessage();

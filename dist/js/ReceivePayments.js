@@ -608,7 +608,15 @@ custodyTotal	= ()  => {
 			 قيمة مبيعات المنتجات ${totaldelivered.toFixed(2).toLocaleString()}
 			<br>
 			 قيمـة خـدمـات الشحـن ${totalshipping.toFixed(2).toLocaleString()}
-			</h>`;
+			</h>
+			<div class="mt-3 text-right">
+				<label class="small mb-1">طريقة تسوية عمولة المندوب / رسم شركة الشحن</label>
+				<select id="settleMethod" class="form-control form-control-sm">
+					<option value="">الافتراضي (حسب إعدادات الشركة، وللمندوب العادي: تحصيل كامل)</option>
+					<option value="GROSS">تحصيل المبلغ كاملاً ثم تسجيل المستحق في الحساب</option>
+					<option value="NET">خصم العمولة / الرسم من المبلغ المحصَّل</option>
+				</select>
+			</div>`;
 			let rqArray = {
 				'CONTROL':'CollectingFinancialPledge',
 				'delivery_id':$('#SelectUserDelivery').val(),
@@ -617,6 +625,7 @@ custodyTotal	= ()  => {
 			};
 			
 			Swal.fire({
+				preConfirm: () => { const el = document.getElementById('settleMethod'); rqArray.settle_method = el ? el.value : ''; },
 				title:"تأكيد سداد ",
 				html:  msg,
 				icon : '',

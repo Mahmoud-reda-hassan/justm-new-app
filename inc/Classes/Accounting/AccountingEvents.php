@@ -258,7 +258,7 @@ class AccountingEvents {
 	 * يُستدعى داخل معاملة التحصيل. إن لم يكن التسليم مُرحَّلاً يُرحِّله أولاً.
 	 * @return int رقم القيد، أو 0 إن لم يكن هناك مبلغ ولا عمولة.
 	 */
-	public function courierCollection(int $orderId, int $deliveryUserId, float $amount, float $commission, bool $blockOnMissingCost = true, array $marketerCommissions = [], ?array $companyFee = null): int{
+	public function courierCollection(int $orderId, int $deliveryUserId, float $amount, float $commission, bool $blockOnMissingCost = true, array $marketerCommissions = [], ?array $companyFee = null, bool $commissionFromCash = false): int{
 	    $amount     = round($amount, 2);
 	    $commission = round($commission, 2);
 	    if ($amount < 0 || $commission < 0) {
@@ -319,6 +319,12 @@ class AccountingEvents {
 	            $feePayable = $fee;
 	        }
 	    }
+	    // مندوب عادي بخيار "خصم العمولة من المحصَّل": لا يدخل الصندوق إلا الباقي، وما خُصم لا يبقى مستحقًا
+	    $commissionNet = 0.0;
+	    if ($commissionFromCash && $commission > 0 && $fee <= 0) {
+	        $commissionNet = round(min($commission, $cashIn), 2);
+	        $cashIn = round($cashIn - $commissionNet, 2);
+	    }
 	    if ($amount > 0) {
 	        if ($cashIn > 0) {
 	            $this->journal->addLine([
@@ -352,11 +358,12 @@ class AccountingEvents {
 	            'account_id' => $this->settings->deliveryCommission(),
 	            'debit'      => $commission
 	        ]);
+	        if (round($commission - $commissionNet, 2) > 0)
 	        $this->journal->addLine([
 	            'account_id'   => $this->settings->deliveryCommissionPayable(),
 	            'partner_type' => 'DELIVERY',
 	            'partner_id'   => $deliveryUserId,
-	            'credit'       => $commission
+	            'credit'       => round($commission - $commissionNet, 2)
 	        ]);
 	    }
 	    foreach ($mk as [$mid, $mamt]) {

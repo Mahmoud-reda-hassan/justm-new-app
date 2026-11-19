@@ -694,6 +694,16 @@ $fc = makeOrder($db, $store, $tel, 5, 0, 0, [[1, 100, 0, 50, 0]]);
 $jf3 = $ev->courierCollection($fc, $scCourier, 0.0, 0.0, true, [], ['fee' => 25.0, 'method' => 'NET_OF_FEE']);
 [$h, $l] = entry($db, $jf3);
 check('company NET_OF_FEE: fee with nothing collected stays payable', lineSum($l, '5720', 'debit') === 25.0 && lineSum($l, '2240', 'credit') === 25.0 && lineSum($l, '1110', 'debit') === 0.0, json_encode($l));
+// plain courier, user picks "deduct commission from collection": cash is net, nothing left payable
+$pn = makeOrder($db, $store, $tel, 3, 30, 1, [[2, 100, 10, 60, 2]]);
+$ev->courierDelivery($pn);
+$jn = $ev->courierCollection($pn, $userId, 210.0, 3.0, true, [], null, true);
+[$h, $l] = entry($db, $jn);
+check('courier NET commission: cash 207, customer 210, commission expense 3, nothing payable', lineSum($l, '1110', 'debit') === 207.0 && lineSum($l, '1200', 'credit') === 210.0 && lineSum($l, '5700', 'debit') === 3.0 && lineSum($l, '2210', 'credit') === 0.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
+$pn2 = makeOrder($db, $store, $tel, 5, 0, 0, [[1, 100, 0, 50, 0]]);
+$jn2 = $ev->courierCollection($pn2, $userId, 0.0, 3.0, true, [], null, true);
+[$h, $l] = entry($db, $jn2);
+check('courier NET commission with nothing collected stays payable', lineSum($l, '5700', 'debit') === 3.0 && lineSum($l, '2210', 'credit') === 3.0 && lineSum($l, '1110', 'debit') === 0.0 && (float)$h['total_debit'] === (float)$h['total_credit'], json_encode($l));
 check('negative company fee refused', throwsMsg(fn() => $ev->courierCollection(makeOrder($db, $store, $tel, 3, 0, 1, [[1, 100, 0, 50, 1]]), $scCourier, 100.0, 0.0, true, [], ['fee' => -1, 'method' => 'GROSS_THEN_FEE']), 'negative'));
 // fee resolution
 $scs->save(['id' => $scId, 'name' => $scs->get($scId)['name'], 'fee_mode' => 'FIXED', 'fixed_fee' => 22, 'settlement_method' => 'GROSS_THEN_FEE'], $userId, $branch);

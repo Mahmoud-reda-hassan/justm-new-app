@@ -29,7 +29,7 @@ try {
 		case 'CollectingFinancialPledge':
 			$CBE->transaction_user_id = $_SESSION['USER_ID'];
 			$CBE->user_group 		  = $_SESSION['USER_GRUOP_NAME'];
-			echo json_encode($CBE->registerCollection($_POST['delivery_id'], $_POST['orderObj'], $_POST['totalAmount']));
+			echo json_encode($CBE->registerCollection($_POST['delivery_id'], $_POST['orderObj'], $_POST['totalAmount'], (string)($_POST['settle_method'] ?? '')));
 		    break;
 		case 'PaymentOfCustomerDues':
 		    $CBE->transaction_user_id = $_SESSION['USER_ID'];
