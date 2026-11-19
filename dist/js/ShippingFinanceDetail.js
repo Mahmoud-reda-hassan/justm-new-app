@@ -80,13 +80,20 @@
 				const r = rows[id]; if (!r || !r.node) { return; }
 				$(r.node).after('<tr class="scfin-row"><td colspan="' + cols + '" class="p-0">' + block(r.required, (fin.orders || {})[id], (st || {})[id]) + '</td></tr>');
 			});
-		} catch (e) { /* العرض إضافي فقط؛ لا نوقف الشاشة */ }
+		} catch (e) {
+			// العرض إضافي فقط؛ لا نوقف الشاشة، لكن نُظهر السبب بدل إخفائه
+			if (my === seq) {
+				clear();
+				const first = ids.length && rows[ids[0]] ? rows[ids[0]].node : null;
+				if (first) { $(first).before('<tr class="scfin-row"><td colspan="' + ($('#tbl thead tr:first th').length || 1) + '" class="p-1 text-danger small">تعذّر تحميل تفصيل شركة الشحن: ' + esc(e.message) + '</td></tr>'); }
+			}
+		}
 	}
 
 	function loadCompany() {
 		const id = courierId(); company = null; clear();
 		if (!id) { return; }
-		call('scFinanceInfo', {user_id: id, order_ids: '[]'}).then(r => { if (id === courierId() && r.company) { company = r.company; decorate(); } }).catch(() => {});
+		call('scFinanceInfo', {user_id: id, order_ids: '[]'}).then(r => { if (id === courierId() && r.company) { company = r.company; decorate(); } }).catch(e => { console.warn('scFinanceInfo:', e.message); const t = getTable(); const f = t && t.row(0).node(); if (f) { $(f).before('<tr class="scfin-row"><td colspan="' + ($('#tbl thead tr:first th').length || 1) + '" class="p-1 text-danger small">تعذّر تحميل تفصيل شركة الشحن: ' + esc(e.message) + '</td></tr>'); } });
 	}
 
 	$(document).on('draw.dt', function (e, settings) { if (settings && settings.nTable && settings.nTable.id === 'tbl') { decorate(); } });
