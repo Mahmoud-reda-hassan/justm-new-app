@@ -1896,12 +1896,12 @@ class shipment_BE {
 			// ------- حفظ اسباب الرفض --------------------------
 			$this->setResons($sessionId);
 			
-			// ------- 9. حذف العهد التي تم استلامها --------------
+			// ------- 9. حذف العهد التي تم استلامها (الإيقاف فقط؛ المرفوض يبقى في العهدة ليُسوّى في الاستلام المالي) --------------
 			$stmt = $conn->prepare("
 			    DELETE CO FROM custody_orders CO
 			    INNER JOIN orders O ON CO.ORDER_ID = O.ORDER_ID
 			    WHERE CO.RETURNS = 1
-			      AND CO.CUST_STAT = 'FREEZE'   -- المرفوض يبقى في العهدة (RETURNS = 1) ليظهر في الاستلام المالي ويُسوّى هناك
+			      AND CO.CUST_STAT = 'FREEZE'
 			      AND O.ORDER_ID IN (
 			          SELECT ORDER_ID
 			          FROM confirm_staging
@@ -1923,7 +1923,7 @@ class shipment_BE {
 
 		}catch (PDOException $e) {
 	        $conn->rollBack();
-	        return ['error','خطاء', 'خطأ في قاعدة البيانات', $e->getMessage()];
+	        return ['error','خطاء', 'خطأ في قاعدة البيانات', $e->getMessage().' [سطر '.$e->getLine().' - '.basename($e->getFile()).']'];
 	    } catch (Exception $e) {
 	        $conn->rollBack();
 	        return ['error', 'خطأ', $e->getMessage()];
