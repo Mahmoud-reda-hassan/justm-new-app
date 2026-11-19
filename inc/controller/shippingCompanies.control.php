@@ -123,6 +123,38 @@ try {
                 $out[$oid] = $row;
             }
             $ok(['company' => ['id' => (int)$co['id'], 'name' => $co['name'], 'method' => $co['settlement_method']], 'orders' => $out]);
+        case 'scShippingCalc':
+            // شرح طريقة حساب تسوية الشحن للأمر: حسب إعدادات الشركة أو نسبة المندوب (للعرض فقط)
+            if (!$scCanViewCustody) { $deny(); }
+            $oid = (int)($_POST['order_id'] ?? 0);
+            $q = $db->prepare("SELECT o.ORDER_ID, o.SUB_ORDER_ID, o.ORDER_STATUS, o.SHIPP_PAYMENT, o.SHIPPING_VAL, o.DELIVERY_ID, IFNULL(co.CUST_STAT,'') AS cust_stat FROM orders o LEFT JOIN custody_orders co ON co.ORDER_ID = o.ORDER_ID WHERE o.ORDER_ID = ? LIMIT 1");
+            $q->execute([$oid]);
+            $o = $q->fetch(PDO::FETCH_ASSOC);
+            if (!$o) { throw new Exception('الأمر غير موجود.'); }
+            $fees = new ShippingCompanyFees($db);
+            $courierId = (int)($_POST['user_id'] ?? 0) ?: (int)$o['DELIVERY_ID'];
+            $co = $fees->companyOfCourier($courierId);
+            $rejected = (int)$o['ORDER_STATUS'] === 5;
+            $paid = (int)$o['SHIPP_PAYMENT'] === 1;
+            $shipVal = round((float)$o['SHIPPING_VAL'], 2);
+            $out = ['order_no' => $o['SUB_ORDER_ID'], 'status' => (int)$o['ORDER_STATUS'], 'rejected' => $rejected, 'customer_paid_shipping' => $paid, 'order_shipping' => $shipVal];
+            if ($co) {
+                $out['type'] = 'COMPANY';
+                $out['company'] = ['name' => $co['name'], 'method' => $co['settlement_method'], 'fee_mode' => $co['fee_mode'], 'fixed_fee' => (float)$co['fixed_fee'], 'return_fee_mode' => $co['return_fee_mode'] ?? 'NONE', 'return_fixed_fee' => (float)($co['return_fixed_fee'] ?? 0)];
+                try { $f = $fees->feeForOrder($co, $oid); $out['fee'] = $f['fee']; $out['source'] = $f['source']; }
+                catch (Exception $e) { $out['fee'] = null; $out['note'] = $e->getMessage(); }
+                $st = (new ShippingCompanyImport($db))->statementForOrders((int)$co['id'], [$oid])[$oid] ?? null;
+                if ($st) { $out['statement'] = ['amount' => (float)$st['amount'], 'fee' => $st['fee'] !== null ? (float)$st['fee'] : null, 'status' => $st['file_status'] ?? null]; }
+            } else {
+                $pc = $db->prepare("SELECT PERCENT FROM users_delivery WHERE USER_ID = ?");
+                $pc->execute([$courierId]);
+                $pct = (float)$pc->fetchColumn();
+                $base = $o['cust_stat'] === 'FREEZE' ? 0.0 : $shipVal;
+                $out['type'] = 'COURIER';
+                $out['percent'] = $pct; $out['commission_base'] = $base;
+                $out['commission'] = round($base * $pct / 100, 2);
+            }
+            $ok($out);
         case 'scShortageLines':
             if (!$scCanViewCustody) { $deny(); }
             $oid = (int)($_POST['order_id'] ?? 0);

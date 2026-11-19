@@ -66,6 +66,7 @@
 		if (company.id && Number(o.returns) === 1) {
 			h += '<button type="button" class="btn btn-sm btn-outline-danger mr-1 scfin-short" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-exclamation-triangle"></i> عجز مرتجع على الشركة</button>';
 		}
+		h += '<button type="button" class="btn btn-sm btn-outline-primary mr-1 scfin-calc" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-calculator"></i> تسوية الشحن</button>';
 		h += '<button type="button" class="btn btn-sm btn-outline-secondary scfin-reopen" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-undo"></i> رد للمخزن للتصحيح</button>';
 		return h + '</div>';
 	}
@@ -118,6 +119,40 @@
 	function reload() { const t = getTable(); if (t) { t.ajax.reload(null, false); } }
 	const done = (m) => { if (window.Swal) { Swal.fire({icon: 'success', title: m, timer: 1500, showConfirmButton: false}); } reload(); };
 	const fail = (e) => { if (window.Swal) { Swal.fire({icon: 'error', title: 'تعذّر التنفيذ', text: e.message}); } else { alert(e.message); } };
+
+	// تسوية الشحن: يشرح للمستخدم كيف يُحسب شحن الأمر حسب إعدادات الشركة أو نسبة المندوب
+	$(document).on('click', '.scfin-calc', async function () {
+		const id = $(this).data('id'), no = $(this).data('no');
+		try {
+			const d = await call('scShippingCalc', {order_id: id, user_id: courierId()});
+			const row = (k, v) => '<tr><td class="text-muted">' + k + '</td><td class="font-weight-bold">' + v + '</td></tr>';
+			let t = '<table class="table table-sm text-right mb-0">';
+			t += row('حالة الأمر', d.rejected ? 'مرفوض' : 'مسلَّم');
+			t += row('شحن العميل في الأمر', money(d.order_shipping) + (d.customer_paid_shipping ? ' (مدفوع)' : ' (غير مدفوع)'));
+			let note = '';
+			if (d.type === 'COMPANY') {
+				const c = d.company, M = {FIXED: 'رسم ثابت لكل أمر', ZONE_RATE: 'سعر حسب المنطقة', ORDER_SHIPPING: 'نفس شحن الأمر'}, R = {NONE: 'بدون رسم', SAME_AS_SHIPPING: 'نفس رسم الشحن', FIXED: 'رسم ثابت ' + money(c.return_fixed_fee), STATEMENT_ONLY: 'من الكشف فقط'};
+				t += row('الشركة', esc(c.name));
+				t += row('طريقة رسم الشركة', esc(M[c.fee_mode] || c.fee_mode) + (c.fee_mode === 'FIXED' ? ' (' + money(c.fixed_fee) + ')' : ''));
+				if (d.rejected && !d.customer_paid_shipping) { t += row('رسم المرفوض غير المدفوع', esc(R[c.return_fee_mode] || c.return_fee_mode)); }
+				if (d.statement) { t += row('في كشف الشركة', 'المحصّل ' + money(d.statement.amount) + (d.statement.fee != null ? ' — الرسم ' + money(d.statement.fee) : '')); }
+				if (d.fee != null) {
+					t += row('الرسم المعتمد', money(d.fee) + ' (' + esc(SRC[d.source] || d.source) + ')');
+					const diff = Number(d.order_shipping) - Number(d.fee);
+					t += row('الفرق عن شحن العميل', money(diff) + (diff > 0 ? ' لصالحنا' : diff < 0 ? ' لصالح الشركة' : ''));
+				} else { note = d.note || ''; }
+				t += row('طريقة التسوية', esc(METHOD[c.method] || c.method));
+			} else {
+				t += row('المندوب', 'عمولة نسبة من شحن الأمر');
+				t += row('نسبة المندوب', money(d.percent) + '%');
+				t += row('الأساس', money(d.commission_base));
+				t += row('عمولة المندوب', money(d.commission));
+				if (d.rejected && !d.customer_paid_shipping) { note = 'أمر مرفوض لم يدفع عميله الشحن: العمولة تُحسب على شحن النظام حسب النسبة المعتمدة.'; }
+			}
+			t += '</table>' + (note ? '<div class="alert alert-warning mt-2 mb-0 small">' + esc(note) + '</div>' : '');
+			Swal.fire({title: 'تسوية الشحن — الأمر ' + no, html: t, width: 560, confirmButtonText: 'إغلاق'});
+		} catch (e) { fail(e); }
+	});
 
 	// رد الأمر للمخزن للتصحيح (نفس منطق شاشة رد أوامر المندوب: قيد مضاد، لا حذف، والصلاحية من السيرفر)
 	$(document).on('click', '.scfin-reopen', async function () {
