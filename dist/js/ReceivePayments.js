@@ -601,7 +601,7 @@ custodyTotal	= ()  => {
 				orderIds[total] = {6 : orderPayArr[total][6]};
 			});
 			let money2 = (v) => Number(v || 0).toLocaleString('en-us', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-			let msg =`<h4 class="text-info">المطلوب<span class="text-danger"> ${totalprice.toLocaleString('en-us')}</span> جنيه </h4>
+			let msg =`<h4 class="text-info"><span id="payHeadLbl">المطلوب</span><span class="text-danger" id="payHeadTotal"> ${totalprice.toLocaleString('en-us')}</span> جنيه </h4>
 			
 			<h6 class="fw-light fs-6 mt-4 mb-0 pb-0">
 				مقسمه الى:
@@ -625,7 +625,7 @@ custodyTotal	= ()  => {
 			const refreshNet = () => {
 				const on = document.getElementById('settleNet') && document.getElementById('settleNet').checked;
 				$('#settleSummary .net-only').toggle(!!on);
-				if (!on) { $('#settleNetTotal').text(money2(totalprice)); return; }
+				if (!on) { $('#settleNetTotal').text(money2(totalprice)); $('#payHeadLbl').text('المطلوب'); $('#payHeadTotal').text(' ' + totalprice.toLocaleString('en-us')); return; }
 				const req = {}; Object.keys(orderPayArr).forEach(k => { req[k] = Number(orderPayArr[k][28] || 0); });
 				$('#settleNetTotal').text('...');
 				$.post('../../inc/controller/shippingCompanies.control.php', {CONTROL: 'scNetPreview', user_id: $('#SelectUserDelivery').val(), orders: JSON.stringify(req)}, function (r) {
@@ -634,8 +634,10 @@ custodyTotal	= ()  => {
 						const d = Number(r[3].total_deduction || 0);
 						$('#settleDed').text(money2(d));
 						$('#settleNetTotal').text(money2(totalprice - d));
-					} else { $('#settleNetTotal').text(money2(totalprice)); }
-				}, 'json').fail(() => $('#settleNetTotal').text(money2(totalprice)));
+						$('#payHeadLbl').text('المطلوب تحصيله بعد الخصم');
+						$('#payHeadTotal').text(' ' + (totalprice - d).toLocaleString('en-us', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+					} else { $('#settleNetTotal').text('تعذّر حساب الخصم: ' + ((r && r[2]) || '')); }
+				}, 'json').fail(() => $('#settleNetTotal').text('تعذّر الاتصال بالخادم'));
 			};
 			let rqArray = {
 				'CONTROL':'CollectingFinancialPledge',
