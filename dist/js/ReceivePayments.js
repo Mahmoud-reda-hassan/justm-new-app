@@ -610,12 +610,11 @@ custodyTotal	= ()  => {
 			 قيمـة خـدمـات الشحـن ${totalshipping.toFixed(2).toLocaleString()}
 			</h>
 			<div class="mt-3 text-right">
-				<label class="small mb-1">طريقة تسوية عمولة المندوب / رسم شركة الشحن</label>
-				<select id="settleMethod" class="form-control form-control-sm">
-					<option value="">الافتراضي (حسب إعدادات الشركة، وللمندوب العادي: تحصيل كامل)</option>
-					<option value="GROSS">تحصيل المبلغ كاملاً ثم تسجيل المستحق في الحساب</option>
-					<option value="NET">خصم العمولة / الرسم من المبلغ المحصَّل</option>
-				</select>
+				<div class="custom-control custom-checkbox">
+					<input type="checkbox" class="custom-control-input" id="settleNet" ${(window.ScFinCompany && window.ScFinCompany.method === 'NET_OF_FEE') ? 'checked' : ''}>
+					<label class="custom-control-label" for="settleNet">خصم عمولة المندوب / رسم شركة الشحن من المبلغ المحصَّل</label>
+				</div>
+				<div class="small text-muted mt-1">غير مفعّل: يُحصَّل المبلغ كاملاً ويُسجَّل المستحق في الحساب.</div>
 			</div>`;
 			let rqArray = {
 				'CONTROL':'CollectingFinancialPledge',
@@ -625,7 +624,7 @@ custodyTotal	= ()  => {
 			};
 			
 			Swal.fire({
-				preConfirm: () => { const el = document.getElementById('settleMethod'); rqArray.settle_method = el ? el.value : ''; },
+				preConfirm: () => { const el = document.getElementById('settleNet'); rqArray.settle_method = (el && el.checked) ? 'NET' : 'GROSS'; },
 				title:"تأكيد سداد ",
 				html:  msg,
 				icon : '',

@@ -109,10 +109,10 @@
 	}
 
 	function loadCompany() {
-		const id = courierId(); company = null; clear();
+		const id = courierId(); company = null; window.ScFinCompany = null; clear();
 		if (!id) { return; }
 		call('scFinanceInfo', {user_id: id, order_ids: '[]'}).then(r => { if (id !== courierId()) { return; }
-			if (r.company) { company = r.company; decorate(); }
+			if (r.company) { company = r.company; window.ScFinCompany = company; decorate(); }
 			else { company = {id: 0, name: '', method: '', plain: true}; decorate(); } }).catch(e => showErr(e.message));
 	}
 
