@@ -1900,7 +1900,7 @@ class shipment_BE {
 			    DELETE CO FROM custody_orders CO
 			    INNER JOIN orders O ON CO.ORDER_ID = O.ORDER_ID
 			    WHERE CO.RETURNS = 1
-			      AND ((CO.ORDER_STATUSE = 5 AND O.SHIPP_PAYMENT = 0) OR CO.CUST_STAT = 'FREEZE')
+			      AND CO.CUST_STAT = 'FREEZE'   -- المرفوض يبقى في العهدة (RETURNS = 1) ليظهر في الاستلام المالي ويُسوّى هناك
 			      AND O.ORDER_ID IN (
 			          SELECT ORDER_ID
 			          FROM confirm_staging
@@ -5025,20 +5025,9 @@ class shipment_BE {
 			if (!empty($succNormal)) {
 	            $placeholdersNo = implode(',', array_fill(0, count($succNormal), '?'));
 	            
-	            // حذف الاوامر المرفوضه بالكامل
-	            $stDelCustOrderRej = $this->conn->prepare("
-	                DELETE FROM custody_orders 
-	                WHERE CUST_STAT = 'DELIVERED' 
-	                  AND ORDER_STATUSE = 5
-	                  AND ORDER_ID IN($placeholdersNo)
-	                  AND USER_ID = ?
-	            ");
-	            
+	            // المرفوض بالكامل يبقى في العهدة بعد الاستلام المخزني (RETURNS = 1) ليظهر في الاستلام المالي ويُسوّى هناك
 	            $params = array_merge($succNormal, [$this->delivery_id]);
-	            if (!$stDelCustOrderRej->execute($params)) {
-	                throw new Exception('خطأ فى حذف الأوامر المرفوضة بالكامل');
-	            }
-	            
+
 	            // تأكيد استلام المرفوضات فى عهدة المندوب
 	            $stCustOrders = $this->conn->prepare("
 	                UPDATE custody_orders 
