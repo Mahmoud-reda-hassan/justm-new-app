@@ -414,6 +414,7 @@ if($_GET['Go'] === 'OrdersCustody' || $_GET['Go'] === 'ListOrdersDelivery'){
 					<div class="col-12 d-flex flex-wrap align-items-center" style="gap:8px">
 						<span class="badge badge-info p-2"><i class="fa fa-truck"></i> <span id="scCustodyName"></span></span>
 						<button type="button" class="btn btn-sm btn-success" id="scUploadBtn"><i class="fa fa-file-excel"></i> رفع كشف الشركة</button>
+						<button type="button" class="btn btn-sm btn-outline-danger" id="scShortageBtn" style="display:none"><i class="fa fa-exclamation-triangle"></i> تسجيل عجز على الشركة</button>
 						<button type="button" class="btn btn-sm btn-warning" id="scReceiveAllBtn" style="display:none"><i class="fa fa-dolly"></i> استلام كل مرتجعات الشركة <span class="badge badge-dark" id="scPendingCount"></span></button>
 						<input type="file" id="scUploadFile" accept=".xlsx,.xls,.csv" style="display:none">
 						<div class="btn-group btn-group-sm" id="scFilterGroup" style="display:none">

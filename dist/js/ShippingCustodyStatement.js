@@ -40,6 +40,7 @@
 		$('#scCustodyInfo').text(infoText());
 		$('#scFilterGroup').toggle(company.linked_orders > 0);
 		$('#scPendingCount').text(company.pending_returns || 0);
+		$('#scShortageBtn').toggle(canReceive());
 		$('#scReceiveAllBtn').toggle(canReceive() && (company.pending_returns || 0) > 0);
 		$('#scFilterGroup button').removeClass('active').filter('[data-f="' + (filterOn ? 'STMT' : 'ALL') + '"]').addClass('active');
 		$('#scCustodyTools').show();
@@ -161,6 +162,32 @@
 				loadCompany(); if (typeof updateOrders === 'function') { updateOrders(); }
 			}, 'json').fail(() => fail(new Error('تعذر تنفيذ الاستلام.')));
 		});
+	});
+
+	// ---------- تسجيل عجز على الشركة (قطع لم تصل من أمر استُلم مخزنيًا) ----------
+	$(document).on('click', '#scShortageBtn', async function () {
+		if (!company) { return; }
+		const ask = await Swal.fire({title: 'تسجيل عجز على ' + company.name, input: 'text', inputLabel: 'رقم الأمر (بعد استلام مرتجعه مخزنيًا)',
+			showCancelButton: true, confirmButtonText: 'عرض القطع', cancelButtonText: 'إلغاء', inputValidator: v => !v && 'اكتب رقم الأمر'});
+		if (!ask.isConfirmed) { return; }
+		let info;
+		try { info = await call('scShortageLines', {sub_order_id: ask.value, user_id: courierId()}); } catch (e) { return fail(e); }
+		if (!info.lines.length) { return Swal.fire({icon: 'info', title: 'لا يوجد مرتجع متبقٍ', text: 'كل القطع المرتجعة في هذا الأمر مسجّلة أو لا يوجد مرتجع.'}); }
+		const rows = info.lines.map((l, i) => '<tr><td>' + esc(l.pro_code) + '</td><td>' + l.returned_qty + '</td><td>' + l.remaining + '</td>' +
+			'<td><input type="number" min="0" max="' + l.remaining + '" value="0" class="form-control form-control-sm sc-short-qty" data-code="' + esc(l.pro_code) + '" style="width:80px"></td></tr>').join('');
+		const r = await Swal.fire({title: 'القطع التي لم تصل', width: 640, showCancelButton: true, confirmButtonText: 'تسجيل العجز', cancelButtonText: 'إلغاء',
+			html: '<div class="text-right"><table class="table table-sm"><thead><tr><th>المنتج</th><th>مرتجع</th><th>متبقٍ</th><th>لم يصل</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+				'<input id="scShortNote" class="form-control" placeholder="ملاحظة (اختياري)"><div class="small text-muted mt-2">يخرج من المخزون ويُسجَّل مستحقًا على الشركة بحسب إعداد التقييم لديها.</div></div>',
+			preConfirm: () => {
+				const lines = $('.sc-short-qty').map(function () { return [[$(this).data('code'), Number($(this).val() || 0)]]; }).get().filter(x => x[1] > 0);
+				if (!lines.length) { Swal.showValidationMessage('اكتب كمية واحدة على الأقل'); return false; }
+				return {lines: lines, note: $('#scShortNote').val()};
+			}});
+		if (!r.isConfirmed) { return; }
+		try {
+			const res = await call('scShortageRecord', {order_id: info.order_id, lines: JSON.stringify(r.value.lines), note: r.value.note});
+			await Swal.fire({icon: 'success', title: 'تم تسجيل العجز', text: 'القيمة المستحقة على الشركة: ' + K().money(res.total)});
+		} catch (e) { fail(e); }
 	});
 
 	$(document).on('change', '#SelectUserDelivery', loadCompany);

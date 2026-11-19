@@ -104,7 +104,14 @@ try {
             $ok($info);
         case 'scShortageLines':
             if (!$scCanViewCustody) { $deny(); }
-            $ok((new ShippingCompanyShortage($db, null))->remainingLines((int)($_POST['order_id'] ?? 0)));
+            $oid = (int)($_POST['order_id'] ?? 0);
+            if (!$oid && !empty($_POST['sub_order_id'])) {
+                $q = $db->prepare("SELECT o.ORDER_ID FROM orders o JOIN custody_orders co ON co.ORDER_ID = o.ORDER_ID WHERE o.SUB_ORDER_ID = ? AND co.USER_ID = ? LIMIT 1");
+                $q->execute([trim((string)$_POST['sub_order_id']), (int)($_POST['user_id'] ?? 0)]);
+                $oid = (int)$q->fetchColumn();
+                if (!$oid) { throw new Exception('الأمر غير موجود في عهدة هذه الشركة.'); }
+            }
+            $ok(['order_id' => $oid, 'lines' => (new ShippingCompanyShortage($db, null))->remainingLines($oid)]);
         case 'scShortageRecord':
             if (!$scCanReceive) { $deny(); }
             $lines = json_decode((string)($_POST['lines'] ?? '[]'), true);
