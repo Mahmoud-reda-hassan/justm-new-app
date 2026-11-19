@@ -199,7 +199,7 @@ try {
             $rejected = (int)$o['ORDER_STATUS'] === 5;
             $paid = (int)$o['SHIPP_PAYMENT'] === 1;
             $shipVal = round((float)$o['SHIPPING_VAL'], 2);
-            $out = ['order_no' => $o['SUB_ORDER_ID'], 'status' => (int)$o['ORDER_STATUS'], 'rejected' => $rejected, 'customer_paid_shipping' => $paid, 'order_shipping' => $shipVal];
+            $out = ['cust_stat' => $o['cust_stat'], 'order_no' => $o['SUB_ORDER_ID'], 'status' => (int)$o['ORDER_STATUS'], 'rejected' => $rejected, 'customer_paid_shipping' => $paid, 'order_shipping' => $shipVal];
             if ($co) {
                 $out['type'] = 'COMPANY';
                 $out['company'] = ['name' => $co['name'], 'method' => $co['settlement_method'], 'fee_mode' => $co['fee_mode'], 'fixed_fee' => (float)$co['fixed_fee'], 'return_fee_mode' => $co['return_fee_mode'] ?? 'NONE', 'return_fixed_fee' => (float)($co['return_fixed_fee'] ?? 0)];

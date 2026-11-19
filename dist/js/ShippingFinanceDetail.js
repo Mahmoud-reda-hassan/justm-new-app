@@ -129,6 +129,12 @@
 			let t = '<table class="table table-sm text-right mb-0">';
 			t += row('حالة الأمر', d.rejected ? 'مرفوض' : 'مسلَّم');
 			t += row('شحن العميل في الأمر', money(d.order_shipping) + (d.customer_paid_shipping ? ' (مدفوع)' : ' (غير مدفوع)'));
+			// لماذا قد يظهر المطلوب من الشحن صفرًا
+			let why = 'يُحصَّل شحن الأمر (' + money(d.order_shipping) + ')';
+			if (d.cust_stat === 'FREEZE') { why = 'صفر: الأمر في حالة إيقاف التسليم'; }
+			else if (d.rejected && !d.customer_paid_shipping) { why = 'صفر: أمر مرفوض ولم يُسجَّل أن العميل يدفع الشحن (SHIPP_PAYMENT ≠ 1)'; }
+			else if (Number(d.order_shipping) <= 0) { why = 'صفر: قيمة الشحن في الأمر نفسه صفر'; }
+			t += row('الشحن المطلوب تحصيله', esc(why));
 			let note = '';
 			if (d.type === 'COMPANY') {
 				const c = d.company, M = {FIXED: 'رسم ثابت لكل أمر', ZONE_RATE: 'سعر حسب المنطقة', ORDER_SHIPPING: 'نفس شحن الأمر'}, R = {NONE: 'بدون رسم', SAME_AS_SHIPPING: 'نفس رسم الشحن', FIXED: 'رسم ثابت ' + money(c.return_fixed_fee), STATEMENT_ONLY: 'من الكشف فقط'};
