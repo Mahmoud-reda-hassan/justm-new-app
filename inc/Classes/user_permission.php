@@ -505,6 +505,8 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->Pagelink = "CashReceiptVouchers";
 	            				array_push($this->js_footer,"ReceivePayments.js");
 	            				array_push($this->js_footer,"CashReceiptVouchers.js");
+	            				array_push($this->js_footer,"ShippingCompanyImport.js");
+	            				array_push($this->js_footer,"ShippingFinanceDetail.js");
 	            				
 	                    //.........................................................
 	            		} else if (isset($usc['Admin']['AccountStatementSupplier']['view']) && 
