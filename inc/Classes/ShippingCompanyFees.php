@@ -9,7 +9,7 @@ class ShippingCompanyFees {
     public function __construct($db) { $this->db = $db; }
 
     public function companyOfCourier(int $courierId): ?array {
-        $st = $this->db->prepare("SELECT id, name, user_id, fee_mode, fixed_fee, settlement_method, return_fee_mode, return_fixed_fee FROM shipping_companies WHERE user_id = ?");
+        $st = $this->db->prepare("SELECT * FROM shipping_companies WHERE user_id = ?");
         $st->execute([$courierId]);
         $c = $st->fetch(PDO::FETCH_ASSOC);
         return $c ?: null;
@@ -29,7 +29,7 @@ class ShippingCompanyFees {
         if ((int)$ord['ORDER_STATUS'] === 5 && (int)$ord['SHIPP_PAYMENT'] !== 1) {
             // مرفوض لم يدفع عميله الشحن: الرقم من الكشف (فوق)، وإلا حسب إعداد "رسم المرتجع" للشركة
             switch ($company['return_fee_mode'] ?? 'NONE') {
-                case 'FIXED':            return ['fee' => round((float)$company['return_fixed_fee'], 2), 'source' => 'RETURN_FIXED'];
+                case 'FIXED':            return ['fee' => round((float)($company['return_fixed_fee'] ?? 0), 2), 'source' => 'RETURN_FIXED'];
                 case 'SAME_AS_SHIPPING': break; // يكمل للحساب العادي بالأسفل
                 default:                 return ['fee' => 0.0, 'source' => 'NONE'];
             }

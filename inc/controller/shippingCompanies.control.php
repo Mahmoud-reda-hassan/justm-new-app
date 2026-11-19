@@ -114,13 +114,12 @@ try {
             $co = $fees->companyOfCourier((int)($_POST['user_id'] ?? 0));
             if (!$co) { $ok(['company' => null, 'orders' => new stdClass()]); }
             $out = [];
-            $sh = $db->prepare("SELECT IFNULL(SUM(value),0) FROM shipping_company_shortages WHERE order_id = ? AND status = 'OPEN'");
+            try { $sh = $db->prepare("SELECT IFNULL(SUM(value),0) FROM shipping_company_shortages WHERE order_id = ? AND status = 'OPEN'"); } catch (Throwable $e) { $sh = null; }
             foreach (array_slice(array_map('intval', $ids), 0, 300) as $oid) {
                 $row = ['fee' => null, 'source' => null, 'note' => null, 'shortage' => 0.0];
                 try { $f = $fees->feeForOrder($co, $oid); $row['fee'] = $f['fee']; $row['source'] = $f['source']; }
                 catch (Exception $e) { $row['note'] = $e->getMessage(); }
-                $sh->execute([$oid]);
-                $row['shortage'] = round((float)$sh->fetchColumn(), 2);
+                try { if ($sh) { $sh->execute([$oid]); } $row['shortage'] = $sh ? round((float)$sh->fetchColumn(), 2) : 0.0; } catch (Throwable $e) { $row['shortage'] = 0.0; } // الجدول قد لا يكون مُنشأ بعد
                 $out[$oid] = $row;
             }
             $ok(['company' => ['id' => (int)$co['id'], 'name' => $co['name'], 'method' => $co['settlement_method']], 'orders' => $out]);

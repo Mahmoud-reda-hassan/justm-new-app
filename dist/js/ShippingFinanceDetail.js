@@ -56,7 +56,12 @@
 		return h + '</div>';
 	}
 
-	function clear() { $('#tbl tbody tr.scfin-row').remove(); }
+	function clear() { $('#tbl tbody tr.scfin-row').remove(); $('#scfinMsg').remove(); }
+	function showErr(msg) {
+		$('#scfinMsg').remove();
+		$('#tbl').closest('.dataTables_wrapper, .table-responsive, .card-body').first().before('<div id="scfinMsg" class="alert alert-danger py-1 small">تعذّر تحميل تفصيل شركة الشحن: ' + esc(msg) + '</div>');
+		console.warn('ShippingFinanceDetail:', msg);
+	}
 
 	async function decorate() {
 		const t = getTable(); clear();
@@ -80,20 +85,15 @@
 				const r = rows[id]; if (!r || !r.node) { return; }
 				$(r.node).after('<tr class="scfin-row"><td colspan="' + cols + '" class="p-0">' + block(r.required, (fin.orders || {})[id], (st || {})[id]) + '</td></tr>');
 			});
-		} catch (e) {
-			// العرض إضافي فقط؛ لا نوقف الشاشة، لكن نُظهر السبب بدل إخفائه
-			if (my === seq) {
-				clear();
-				const first = ids.length && rows[ids[0]] ? rows[ids[0]].node : null;
-				if (first) { $(first).before('<tr class="scfin-row"><td colspan="' + ($('#tbl thead tr:first th').length || 1) + '" class="p-1 text-danger small">تعذّر تحميل تفصيل شركة الشحن: ' + esc(e.message) + '</td></tr>'); }
-			}
-		}
+		} catch (e) { if (my === seq) { showErr(e.message); } 		}
 	}
 
 	function loadCompany() {
 		const id = courierId(); company = null; clear();
 		if (!id) { return; }
-		call('scFinanceInfo', {user_id: id, order_ids: '[]'}).then(r => { if (id === courierId() && r.company) { company = r.company; decorate(); } }).catch(e => { console.warn('scFinanceInfo:', e.message); const t = getTable(); const f = t && t.row(0).node(); if (f) { $(f).before('<tr class="scfin-row"><td colspan="' + ($('#tbl thead tr:first th').length || 1) + '" class="p-1 text-danger small">تعذّر تحميل تفصيل شركة الشحن: ' + esc(e.message) + '</td></tr>'); } });
+		call('scFinanceInfo', {user_id: id, order_ids: '[]'}).then(r => { if (id !== courierId()) { return; }
+			if (r.company) { company = r.company; decorate(); }
+			else { $('#scfinMsg').remove(); $('#tbl').closest('.dataTables_wrapper, .table-responsive, .card-body').first().before('<div id="scfinMsg" class="alert alert-light border py-1 small text-muted">المندوب المختار ليس مربوطًا بشركة شحن، فلا يظهر تفصيل الشركة.</div>'); } }).catch(e => showErr(e.message));
 	}
 
 	$(document).on('draw.dt', function (e, settings) { if (settings && settings.nTable && settings.nTable.id === 'tbl') { decorate(); } });
