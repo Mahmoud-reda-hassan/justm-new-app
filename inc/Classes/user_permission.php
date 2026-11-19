@@ -492,6 +492,8 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->title 	= "استلام المدفوعات";
 	            				$this->Pagelink = "ReceivePayments";
 	            				array_push($this->js_footer,"ReceivePayments.js");
+	            				array_push($this->js_footer,"ShippingCompanyImport.js");
+	            				array_push($this->js_footer,"ShippingFinanceDetail.js");
 	            		
 	            		} else if (isset($usc['Admin']['PaymentDisbursement']['view']) && $usc['Admin']['PaymentDisbursement']['view'] && $_GET["Go"] === "PaymentDisbursement" ){
 	            				$this->title 	= "اذن صرف نقدية";

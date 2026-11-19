@@ -11,6 +11,7 @@ include_once(ABSPATH.'/inc/Classes/ShippingCompanies.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyImport.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyReceipt.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyShortage.php');
+include_once(ABSPATH.'/inc/Classes/ShippingCompanyFees.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
 
 $DBconn = new dbconn();
@@ -46,7 +47,9 @@ $scCanAdmin = $scApproved || scPerm('admin');
 // شاشة عهدة المندوبين تستخدم كشف الشركة أيضًا: صلاحيتها تكفي للعرض والرفع
 $scUs = isset($_SESSION['USER_SCRIPT']) ? @unserialize($_SESSION['USER_SCRIPT']) : null;
 $scCustody = is_array($scUs) && (($scUs['Admin']['OrdersCustody']['View_order_list'] ?? '') === 'true');
-$scCanViewCustody = $scCanView || $scCustody;
+// شاشة الاستلام المالي تعرض تفصيل الشركة أيضًا
+$scFinView = is_array($scUs) && ((($scUs['Admin']['PaymentsReceipt']['view'] ?? '') === 'true') || (($scUs['Admin']['CashReceiptVouchers']['view'] ?? '') === 'true'));
+$scCanViewCustody = $scCanView || $scCustody || $scFinView;
 $scCanUpload = $scCanAdmin || $scCustody;
 $scCanReceive = is_array($scUs) && (($scUs['Admin']['OrdersCustody']['ShipmentApproved'] ?? '') === 'true');
 $deny = function () { ResponseData(array('error', 'خطأ', 'ليس لديك صلاحية.', [])); };
@@ -102,6 +105,25 @@ try {
                 $info['pending_sample'] = array_slice(array_column($pend, 'sub_order_id'), 0, 15);
             }
             $ok($info);
+        case 'scFinanceInfo':
+            // تفصيل مالي لأوامر شركة الشحن في الاستلام المالي: الرسم المتوقع ومصدره وطريقة التسوية والعجز المفتوح
+            if (!$scCanViewCustody) { $deny(); }
+            $ids = json_decode((string)($_POST['order_ids'] ?? '[]'), true);
+            if (!is_array($ids)) { $ids = []; }
+            $fees = new ShippingCompanyFees($db);
+            $co = $fees->companyOfCourier((int)($_POST['user_id'] ?? 0));
+            if (!$co) { $ok(['company' => null, 'orders' => new stdClass()]); }
+            $out = [];
+            $sh = $db->prepare("SELECT IFNULL(SUM(value),0) FROM shipping_company_shortages WHERE order_id = ? AND status = 'OPEN'");
+            foreach (array_slice(array_map('intval', $ids), 0, 300) as $oid) {
+                $row = ['fee' => null, 'source' => null, 'note' => null, 'shortage' => 0.0];
+                try { $f = $fees->feeForOrder($co, $oid); $row['fee'] = $f['fee']; $row['source'] = $f['source']; }
+                catch (Exception $e) { $row['note'] = $e->getMessage(); }
+                $sh->execute([$oid]);
+                $row['shortage'] = round((float)$sh->fetchColumn(), 2);
+                $out[$oid] = $row;
+            }
+            $ok(['company' => ['id' => (int)$co['id'], 'name' => $co['name'], 'method' => $co['settlement_method']], 'orders' => $out]);
         case 'scShortageLines':
             if (!$scCanViewCustody) { $deny(); }
             $oid = (int)($_POST['order_id'] ?? 0);

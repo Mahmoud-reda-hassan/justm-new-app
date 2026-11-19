@@ -96,6 +96,7 @@
 						<li class="nav-item"><a id="OLUnderDelivery"   class="OLF nav-link" href="#Under-delivery"   data-toggle="tab">قيد التسليم</a></li>
 						<li class="nav-item"><a id="OLDelivered"       class="OLF nav-link"	href="#Delivered"		 data-toggle="tab">قيد المخزن</a></li>
 						<li class="nav-item"><a id="OLUnderSettlement" class="OLF nav-link" href="#Under-settlement" data-toggle="tab">قيد التسوية</a></li>
+						<li class="nav-item"><a id="OLRejected" class="OLF nav-link" href="#Rejected" data-toggle="tab">المرفوضات</a></li>
 					</ul>
 				</div>
 		        <div class="card-body p-4" style="display: block;">

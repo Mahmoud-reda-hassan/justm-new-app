@@ -365,6 +365,9 @@ class accounts_BE {
 		if(isset($_GET['cofi']) ){
 			if($_GET['cofi'] === "OLUnderSettlement"){
 		   		$globalwhere[] = ' INVENT_STAT = 1 AND ORDER_STATUSE_ID IN(4,3) ';
+		   	}else if($_GET['cofi'] === "OLRejected"){
+		   		// المرفوض بعد استلام مرتجعه مخزنيًا: يُسوّى هنا (قيمة الشحن لو مدفوع، وإلا صفر) وتُسجَّل عمولة/رسم المندوب أو الشركة
+		   		$globalwhere[] = ' ORDER_STATUSE_ID = 5 AND INVENT_STAT = 1 AND CUST_STAT <> "FREEZE" ';
 		   	}else if($_GET['cofi'] === "OLDelivered"){
 		    	$globalwhere[] = 'INVENT_STAT = 0 AND ( ORDER_STATUSE_ID > 3 or CUST_STAT = "FREEZE")';
 		   	}else if($_GET['cofi'] === "OLUnderDelivery"){
