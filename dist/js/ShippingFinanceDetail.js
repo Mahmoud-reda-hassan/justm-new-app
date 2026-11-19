@@ -5,7 +5,10 @@
  * لا يغيّر منطق الجدول ولا التسجيل، وهو للعرض فقط.
  */
 (function () {
-	if (new URLSearchParams(window.location.search).get('Go') !== 'ReceivePayments') { return; }
+	if (window.__scFinLoaded) { return; }
+	window.__scFinLoaded = true;
+	// يعمل فقط في شاشة الاستلام المالي (وجود تبويب المرفوضات والمندوب)
+	if (!$('#SelectUserDelivery').length || !$('#OLRejected').length) { return; }
 	const url = '../../inc/controller/shippingCompanies.control.php';
 	const esc = (v) => $('<div>').text(v == null ? '' : v).html();
 	const call = (ctl, data) => new Promise((resolve, reject) => {
