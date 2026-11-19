@@ -1363,7 +1363,8 @@ class shipment_BE {
 						ELSE o.DELIVERED_DATE
 					END
 		");
-		if($this->RefundShipping){
+		// القيمة تصل من الجافاسكربت نصًّا "true"/"false" و"false" تُعتبر true في PHP، فتُحوَّل لقيمة منطقية صحيحة
+		if(filter_var($this->RefundShipping, FILTER_VALIDATE_BOOLEAN)){
 			$RefShipping = 0;
 		} else {
 			$RefShipping = 1;
@@ -6387,7 +6388,8 @@ class RetrnSale_BE {
 						ELSE o.DELIVERED_DATE
 					END
 		");
-		if($this->RefundShipping){
+		// القيمة تصل من الجافاسكربت نصًّا "true"/"false" و"false" تُعتبر true في PHP، فتُحوَّل لقيمة منطقية صحيحة
+		if(filter_var($this->RefundShipping, FILTER_VALIDATE_BOOLEAN)){
 			$RefShipping = 0;
 		} else {
 			$RefShipping = 1;
