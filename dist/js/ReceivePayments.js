@@ -600,22 +600,43 @@ custodyTotal	= ()  => {
 				totalshipping += Number(orderPayArr[total][27]);
 				orderIds[total] = {6 : orderPayArr[total][6]};
 			});
+			let money2 = (v) => Number(v || 0).toLocaleString('en-us', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 			let msg =`<h4 class="text-info">المطلوب<span class="text-danger"> ${totalprice.toLocaleString('en-us')}</span> جنيه </h4>
 			
-			<h6 class="fw-light fs-6 mt-5 mb-0 pb-0">
+			<h6 class="fw-light fs-6 mt-4 mb-0 pb-0">
 				مقسمه الى:
 			<br>
 			 قيمة مبيعات المنتجات ${totaldelivered.toFixed(2).toLocaleString()}
 			<br>
 			 قيمـة خـدمـات الشحـن ${totalshipping.toFixed(2).toLocaleString()}
-			</h>
+			</h6>
 			<div class="mt-3 text-right">
 				<div class="custom-control custom-checkbox">
 					<input type="checkbox" class="custom-control-input" id="settleNet" ${(window.ScFinCompany && window.ScFinCompany.method === 'NET_OF_FEE') ? 'checked' : ''}>
 					<label class="custom-control-label" for="settleNet">خصم عمولة المندوب / رسم شركة الشحن من المبلغ المحصَّل</label>
 				</div>
 				<div class="small text-muted mt-1">غير مفعّل: يُحصَّل المبلغ كاملاً ويُسجَّل المستحق في الحساب.</div>
+				<table id="settleSummary" class="table table-sm table-bordered mt-2 mb-0" style="font-size:.9rem">
+					<tr><td>إجمالي المطلوب (مبيعات + شحن)</td><td class="font-weight-bold">${money2(totalprice)}</td></tr>
+					<tr class="net-only" style="display:none"><td>الخصم (عمولة المندوب / رسم الشركة)</td><td class="font-weight-bold text-danger" id="settleDed">0.00</td></tr>
+					<tr><td>الصافي الذي سيُحصَّل فعليًا</td><td class="font-weight-bold text-success" id="settleNetTotal">${money2(totalprice)}</td></tr>
+				</table>
 			</div>`;
+			const refreshNet = () => {
+				const on = document.getElementById('settleNet') && document.getElementById('settleNet').checked;
+				$('#settleSummary .net-only').toggle(!!on);
+				if (!on) { $('#settleNetTotal').text(money2(totalprice)); return; }
+				const req = {}; Object.keys(orderPayArr).forEach(k => { req[k] = Number(orderPayArr[k][28] || 0); });
+				$('#settleNetTotal').text('...');
+				$.post('../../inc/controller/shippingCompanies.control.php', {CONTROL: 'scNetPreview', user_id: $('#SelectUserDelivery').val(), orders: JSON.stringify(req)}, function (r) {
+					if (!document.getElementById('settleNet') || !document.getElementById('settleNet').checked) { return; }
+					if (Array.isArray(r) && r[0] === 'success') {
+						const d = Number(r[3].total_deduction || 0);
+						$('#settleDed').text(money2(d));
+						$('#settleNetTotal').text(money2(totalprice - d));
+					} else { $('#settleNetTotal').text(money2(totalprice)); }
+				}, 'json').fail(() => $('#settleNetTotal').text(money2(totalprice)));
+			};
 			let rqArray = {
 				'CONTROL':'CollectingFinancialPledge',
 				'delivery_id':$('#SelectUserDelivery').val(),
@@ -624,6 +645,7 @@ custodyTotal	= ()  => {
 			};
 			
 			Swal.fire({
+				didOpen: () => { $('#settleNet').off('change').on('change', refreshNet); refreshNet(); },
 				preConfirm: () => { const el = document.getElementById('settleNet'); rqArray.settle_method = (el && el.checked) ? 'NET' : 'GROSS'; },
 				title:"تأكيد سداد ",
 				html:  msg,

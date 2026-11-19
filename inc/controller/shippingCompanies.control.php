@@ -123,6 +123,32 @@ try {
                 $out[$oid] = $row;
             }
             $ok(['company' => ['id' => (int)$co['id'], 'name' => $co['name'], 'method' => $co['settlement_method']], 'orders' => $out]);
+        case 'scNetPreview':
+            // الخصم المتوقع من المحصَّل عند اختيار "خصم من المبلغ المحصَّل": عمولة المندوب أو رسم الشركة لكل أمر (للعرض فقط)
+            if (!$scCanViewCustody) { $deny(); }
+            $req = json_decode((string)($_POST['orders'] ?? '{}'), true);   // {order_id: المطلوب}
+            if (!is_array($req)) { $req = []; }
+            $courierId = (int)($_POST['user_id'] ?? 0);
+            $fees = new ShippingCompanyFees($db);
+            $co = $fees->companyOfCourier($courierId);
+            $pc = $db->prepare("SELECT PERCENT FROM users_delivery WHERE USER_ID = ?");
+            $pc->execute([$courierId]);
+            $pct = (float)$pc->fetchColumn();
+            $q = $db->prepare("SELECT o.SHIPPING_VAL, IFNULL(c.CUST_STAT,'') AS cust_stat FROM orders o LEFT JOIN custody_orders c ON c.ORDER_ID = o.ORDER_ID AND c.USER_ID = ? WHERE o.ORDER_ID = ?");
+            $per = []; $total = 0.0;
+            foreach (array_slice($req, 0, 500, true) as $oid => $required) {
+                $oid = (int)$oid; $required = round((float)$required, 2); $d = 0.0; $note = null;
+                if ($co) {
+                    try { $f = $fees->feeForOrder($co, $oid); $d = min((float)$f['fee'], $required); } catch (Exception $e) { $note = $e->getMessage(); }
+                } else {
+                    $q->execute([$courierId, $oid]);
+                    $r = $q->fetch(PDO::FETCH_ASSOC);
+                    $base = ($r && $r['cust_stat'] !== 'FREEZE') ? (float)$r['SHIPPING_VAL'] : 0.0;
+                    $d = min(round($base * $pct / 100, 2), $required);
+                }
+                $d = round($d, 2); $per[$oid] = ['deduction' => $d, 'note' => $note]; $total += $d;
+            }
+            $ok(['kind' => $co ? 'COMPANY' : 'COURIER', 'total_deduction' => round($total, 2), 'orders' => $per]);
         case 'scShippingCalc':
             // شرح طريقة حساب تسوية الشحن للأمر: حسب إعدادات الشركة أو نسبة المندوب (للعرض فقط)
             if (!$scCanViewCustody) { $deny(); }
