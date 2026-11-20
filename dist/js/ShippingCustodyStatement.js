@@ -173,7 +173,7 @@
 		let info;
 		try { info = await call('scShortageLines', {sub_order_id: ask.value, user_id: courierId()}); } catch (e) { return fail(e); }
 		if (!info.lines.length) { return Swal.fire({icon: 'info', title: 'لا يوجد مرتجع متبقٍ', text: 'كل القطع المرتجعة في هذا الأمر مسجّلة أو لا يوجد مرتجع.'}); }
-		const rows = info.lines.map((l, i) => '<tr><td>' + esc(l.pro_code) + '</td><td>' + l.returned_qty + '</td><td>' + l.remaining + '</td>' +
+		const rows = info.lines.map((l, i) => '<tr><td>' + esc(l.pro_name || l.pro_code) + (l.pro_options ? '<div class="small text-muted">' + esc(l.pro_options) + '</div>' : '') + '</td><td>' + l.returned_qty + '</td><td>' + l.remaining + '</td>' +
 			'<td><input type="number" min="0" max="' + l.remaining + '" value="0" class="form-control form-control-sm sc-short-qty" data-code="' + esc(l.pro_code) + '" style="width:80px"></td></tr>').join('');
 		const r = await Swal.fire({title: 'القطع التي لم تصل', width: 640, showCancelButton: true, confirmButtonText: 'تسجيل العجز', cancelButtonText: 'إلغاء',
 			html: '<div class="text-right"><table class="table table-sm"><thead><tr><th>المنتج</th><th>مرتجع</th><th>متبقٍ</th><th>لم يصل</th></tr></thead><tbody>' + rows + '</tbody></table>' +

@@ -184,7 +184,7 @@
 			const d = await call('scShortageLines', {order_id: id});
 			const lines = (d.lines || []).filter(l => Number(l.remaining) > 0);
 			if (!lines.length) { return fail(new Error('لا توجد كميات متبقية لتسجيل عجز عليها.')); }
-			const html = '<table class="table table-sm text-right"><tr><th>الصنف</th><th>المتبقي</th><th>كمية العجز</th></tr>' + lines.map((l, i) => '<tr><td>' + esc(l.pro_code) + '</td><td>' + esc(l.remaining) + '</td><td><input type="number" min="0" max="' + esc(l.remaining) + '" value="0" class="form-control form-control-sm sh-q" data-i="' + i + '"></td></tr>').join('') + '</table><input id="sh-note" class="form-control" placeholder="ملاحظة (اختياري)">';
+			const html = '<table class="table table-sm text-right"><tr><th>الصنف</th><th>المتبقي</th><th>كمية العجز</th></tr>' + lines.map((l, i) => '<tr><td>' + esc(l.pro_name || l.pro_code) + (l.pro_options ? '<div class="small text-muted">' + esc(l.pro_options) + '</div>' : '') + '</td><td>' + esc(l.remaining) + '</td><td><input type="number" min="0" max="' + esc(l.remaining) + '" value="0" class="form-control form-control-sm sh-q" data-i="' + i + '"></td></tr>').join('') + '</table><input id="sh-note" class="form-control" placeholder="ملاحظة (اختياري)">';
 			const r = await Swal.fire({title: 'عجز على الشركة — الأمر ' + no, html: html, width: 600, showCancelButton: true, confirmButtonText: 'تسجيل العجز', cancelButtonText: 'إلغاء'});
 			if (!r.isConfirmed) { return; }
 			const out = [];

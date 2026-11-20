@@ -16,8 +16,11 @@ class ShippingCompanyShortage {
         $st = $this->db->prepare(
             "SELECT cp.PRO_CODE AS pro_code, (cp.QTY - cp.DELIVERED_QTY) AS returned_qty,
                     IFNULL((SELECT SUM(s.qty) FROM shipping_company_shortages s WHERE s.order_id = cp.ORDER_ID AND s.pro_code = cp.PRO_CODE), 0) AS shorted_qty,
-                    cp.PRICE AS price, cp.DISCOUNT AS discount
-             FROM custody_product cp WHERE cp.ORDER_ID = ?"
+                    cp.PRICE AS price, cp.DISCOUNT AS discount,
+                    pov.PRO_NAME AS pro_name, IFNULL(pov.OPT_JSON, '') AS pro_options
+             FROM custody_product cp
+             LEFT JOIN product_options_view pov ON pov.PRO_CODE = cp.PRO_CODE
+             WHERE cp.ORDER_ID = ?"
         );
         $st->execute([$orderId]);
         $out = [];
