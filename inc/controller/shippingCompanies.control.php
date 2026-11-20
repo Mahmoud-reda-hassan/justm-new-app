@@ -93,6 +93,38 @@ try {
             if (!$scCanAdmin) { $deny(); }
             $sc->saveImportSettings((int)($_POST['id'] ?? 0), json_decode((string)($_POST['settings'] ?? ''), true));
             $ok([], 'تم حفظ إعدادات ملف الشركة');
+        case 'scPendingReturns':
+            // المرتجعات المعلّقة على أي مندوب (شركة أو عادي) مجمّعة على مستوى الصنف والمواصفات
+            if (!$scCanViewCustody) { $deny(); }
+            $cid = (int)($_POST['user_id'] ?? 0);
+            $rc = new ShippingCompanyReceipt($db);
+            $pend = $rc->pendingReturns($cid);
+            $items = [];
+            if ($pend) {
+                $ids = array_map(fn($p) => (int)$p['order_id'], $pend);
+                $in = implode(',', array_fill(0, count($ids), '?'));
+                $st = $db->prepare(
+                    "SELECT cp.PRO_CODE AS pro_code, pov.PRO_NAME AS name, IFNULL(pov.OPT_JSON,'') AS options,
+                            SUM(cp.QTY - cp.DELIVERED_QTY) AS qty, COUNT(DISTINCT cp.ORDER_ID) AS orders
+                     FROM custody_product cp
+                     LEFT JOIN product_options_view pov ON pov.PRO_CODE = cp.PRO_CODE
+                     WHERE cp.USER_ID = ? AND cp.ORDER_ID IN ($in)
+                     GROUP BY cp.PRO_CODE, pov.PRO_NAME, pov.OPT_JSON
+                     HAVING qty > 0 ORDER BY name, cp.PRO_CODE"
+                );
+                $st->execute(array_merge([$cid], $ids));
+                foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $items[] = ['pro_code' => $r['pro_code'], 'name' => $r['name'] ?: $r['pro_code'], 'options' => $r['options'],
+                                'qty' => (int)$r['qty'], 'orders' => (int)$r['orders']];
+                }
+            }
+            $ok([
+                'count' => count($pend),
+                'sample' => array_slice(array_column($pend, 'sub_order_id'), 0, 15),
+                'is_company' => (bool)$rc->companyOfCourier($cid),
+                'items' => $items,
+                'total_qty' => array_sum(array_column($items, 'qty')),
+            ]);
         case 'scCustodyInfo':
             if (!$scCanViewCustody) { $deny(); }
             $info = (new ShippingCompanyImport($db))->companyOfCourier((int)($_POST['user_id'] ?? 0));

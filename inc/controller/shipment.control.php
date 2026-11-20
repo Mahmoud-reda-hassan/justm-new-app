@@ -154,6 +154,7 @@ function ResponseData($data){
 					ResponseData($shipment_tbl->ShipmentRefund());
 					break;
 
+				case 'courierReceiveAll':
 				case 'companyReceiveAll':
 					// استلام كل مرتجعات شركة الشحن المعلّقة بإذن واحد (حسب سياسة الشركة)
 					$scUs = isset($_SESSION['USER_SCRIPT']) ? @unserialize($_SESSION['USER_SCRIPT']) : null;
@@ -163,11 +164,11 @@ function ResponseData($data){
 					try {
 						$scRcpt = new ShippingCompanyReceipt($db);
 						$scCo = $scRcpt->companyOfCourier((int)($_POST['delivery_id'] ?? 0));
-						if (!$scCo) { throw new Exception('المندوب المختار ليس مربوطًا بشركة شحن.'); }
+						if (!$scCo && $_POST['CONTROL'] === 'companyReceiveAll') { throw new Exception('المندوب المختار ليس مربوطًا بشركة شحن.'); }
 						$pend = $scRcpt->pendingReturns((int)$_POST['delivery_id']);
-						if (!$pend) { throw new Exception('لا توجد مرتجعات معلّقة على هذه الشركة.'); }
+						if (!$pend) { throw new Exception('لا توجد مرتجعات معلّقة على هذا المندوب.'); }
 						$ids = array_map(fn($p) => (int)$p['order_id'], $pend);
-						$scRcpt->validate((int)$_POST['delivery_id'], $ids, true);
+						$scRcpt->validate((int)$_POST['delivery_id'], $ids, true); // لا قيود للمندوب العادي
 					} catch (Exception $e) {
 						ResponseData(array('error', 'خطأ', $e->getMessage(), []));
 					}

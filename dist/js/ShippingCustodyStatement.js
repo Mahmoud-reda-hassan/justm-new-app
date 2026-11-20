@@ -17,6 +17,7 @@
 	const fail = (e) => Swal.fire({icon: 'error', title: 'خطأ', text: e.message});
 	const K = () => window.ScImport || {ACTIONS: {}, DERIVED: {}, FLAG: {}, money: (v) => v};
 
+	let infoLoaded = false;      // انتهى تحديد هل المندوب شركة أم عادي
 	let company = null;          // الشركة المرتبطة بالمندوب المختار
 	let cache = {};              // order_id -> صف الكشف (أو null لو لا يوجد)
 	let filterOn = false;        // عرض الواردة من الشركة فقط
@@ -35,21 +36,20 @@
 	}
 	function canReceive() { try { return userlogin_data['uScript']['Admin']['OrdersCustody']['ShipmentApproved'] == 'true'; } catch (e) { return false; } }
 	function paintTools() {
-		if (!company) { $('#scCustodyTools').hide(); return; }
+		if (!company) { $('#scCustodyTools').hide(); paintPending(); return; }
 		$('#scCustodyName').text(company.name);
 		$('#scCustodyInfo').text(infoText());
 		$('#scFilterGroup').toggle(company.linked_orders > 0);
-		$('#scPendingCount').text(company.pending_returns || 0);
 		$('#scShortageBtn').toggle(canReceive());
-		$('#scReceiveAllBtn').toggle(canReceive() && (company.pending_returns || 0) > 0);
 		$('#scFilterGroup button').removeClass('active').filter('[data-f="' + (filterOn ? 'STMT' : 'ALL') + '"]').addClass('active');
-		$('#scCustodyTools').show();
+		$('#scCustodyTools').show(); paintPending();
 	}
 	function loadCompany() {
 		const id = courierId();
-		company = null; cache = {}; filterOn = false; stmtIds = null; paintTools();
+		company = null; infoLoaded = false; cache = {}; filterOn = false; stmtIds = null; paintTools();
 		if (!id) { return Promise.resolve(); }
-		return call('scCustodyInfo', {user_id: id}).then(c => { if (id === courierId()) { company = c; paintTools(); decorate(); } }).catch(() => {});
+		loadPending();
+		return call('scCustodyInfo', {user_id: id}).then(c => { if (id === courierId()) { company = c; infoLoaded = true; paintTools(); decorate(); loadPending(); } }).catch(() => {});
 	}
 
 	// ---------- السطر تحت الأمر ----------
@@ -149,19 +149,47 @@
 		} catch (e) { Swal.close(); fail(e); }
 	});
 
-	// ---------- استلام كل مرتجعات الشركة (إذن واحد) ----------
-	$(document).on('click', '#scReceiveAllBtn', function () {
-		if (!company) { return; }
-		const n = company.pending_returns || 0, smp = (company.pending_sample || []).join('، ');
-		Swal.fire({icon: 'question', title: 'استلام كل مرتجعات ' + company.name, showCancelButton: true, confirmButtonText: 'تأكيد الاستلام', cancelButtonText: 'إلغاء',
-			html: '<div class="text-right">سيُستلم مخزنيًا مرتجع <b>' + n + '</b> أمر بإذن واحد.<br><small>' + esc(smp) + (n > 15 ? ' …' : '') + '</small><br><span class="text-danger small">ما لم يصل فعليًا من الشركة لا تؤكد هذا الاستلام؛ يبقى عجزًا على الشركة.</span></div>'
-		}).then(r => {
-			if (!r.isConfirmed) { return; }
-			$.post('../../inc/controller/shipment.control.php', {CONTROL: 'companyReceiveAll', delivery_id: courierId()}, function (res) {
-				Swal.fire({icon: res[0] === 'success' ? 'success' : (res[0] === 'warning' ? 'warning' : 'error'), title: res[1] || '', html: res[2] || ''});
-				loadCompany(); if (typeof updateOrders === 'function') { updateOrders(); }
-			}, 'json').fail(() => fail(new Error('تعذر تنفيذ الاستلام.')));
-		});
+	// ---------- استلام كل المرتجعات (شركة أو مندوب عادي) ----------
+	let pend = {count: 0, items: [], sample: [], total_qty: 0};
+	let pendSeq = 0;
+	function paintPending() {
+		const n = pend.count || 0;
+		const plain = !!courierId() && !company && infoLoaded;
+		$('#scPendingCount, #scPendingCountPlain').text(n);
+		$('#scReceiveAllBtn').toggle(!!company && canReceive() && n > 0);
+		$('#scPlainTools').toggle(plain && canReceive() && n > 0);
+		if (company) { company.pending_returns = n; $('#scCustodyInfo').text(infoText()); }
+	}
+	function loadPending() {
+		const id = courierId(), my = ++pendSeq;
+		if (!id) { pend = {count: 0, items: [], sample: [], total_qty: 0}; paintPending(); return Promise.resolve(); }
+		return call('scPendingReturns', {user_id: id}).then(r => { if (my === pendSeq && id === courierId()) { pend = r; paintPending(); } }).catch(() => {});
+	}
+	// أي إجراء يغيّر المرتجعات المعلّقة: حدّث الزر والعدد فورًا بلا رفريش
+	$(document).ajaxSuccess(function (e, xhr, opt) {
+		const d = typeof opt.data === 'string' ? opt.data : '';
+		if (/shipment\.control\.php/.test(opt.url || '') && /CONTROL=(shipDelivered|shipDelivery|approvedShip|companyReceiveAll|courierReceiveAll|reopenCourierOrder|shipConfirmed|setConfirmShipment)/.test(d)) {
+			setTimeout(loadPending, 400);
+		}
+	});
+	$(document).on('draw.dt', function (e, settings) { if (settings && settings.nTable && settings.nTable.id === 'tbl' && courierId()) { loadPending(); } });
+
+	$(document).on('click', '#scReceiveAllBtn, #scReceiveAllPlainBtn', async function () {
+		const id = courierId(); if (!id) { return; }
+		try { await loadPending(); } catch (e) {}
+		if (!pend.count) { return Swal.fire({icon: 'info', title: 'لا توجد مرتجعات معلّقة'}); }
+		const who = company ? company.name : $('#SelectUserDelivery option:selected').text().trim();
+		const rows = pend.items.map(i => '<tr><td>' + esc(i.name) + (i.options ? '<div class="small text-muted">' + esc(i.options) + '</div>' : '') + '</td><td><b>' + i.qty + '</b></td><td>' + i.orders + '</td></tr>').join('');
+		const r = await Swal.fire({icon: 'question', title: 'استلام كل مرتجعات ' + who, width: 640, showCancelButton: true, confirmButtonText: 'تأكيد الاستلام', cancelButtonText: 'إلغاء',
+			html: '<div class="text-right">سيُستلم مخزنيًا مرتجع <b>' + pend.count + '</b> أمر (<b>' + pend.total_qty + '</b> قطعة) بإذن واحد.' +
+				'<div style="max-height:260px;overflow:auto" class="mt-2"><table class="table table-sm table-bordered"><thead><tr><th>الصنف / المواصفات</th><th>الكمية المرتجعة</th><th>عدد الأوامر</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+				'<small class="text-muted">الأوامر: ' + esc((pend.sample || []).join('، ')) + (pend.count > 15 ? ' …' : '') + '</small><br>' +
+				'<span class="text-danger small">لا تؤكد إلا إذا الكميات أعلاه وصلتك فعليًا' + (company ? '؛ ما لم يصل يبقى عجزًا على الشركة' : '') + '.</span></div>'});
+		if (!r.isConfirmed) { return; }
+		$.post('../../inc/controller/shipment.control.php', {CONTROL: 'courierReceiveAll', delivery_id: id}, function (res) {
+			Swal.fire({icon: res[0] === 'success' ? 'success' : (res[0] === 'warning' ? 'warning' : 'error'), title: res[1] || '', html: res[2] || ''});
+			loadPending(); if (typeof updateOrders === 'function') { updateOrders(); }
+		}, 'json').fail(() => fail(new Error('تعذر تنفيذ الاستلام.')));
 	});
 
 	// ---------- تسجيل عجز على الشركة (قطع لم تصل من أمر استُلم مخزنيًا) ----------

@@ -424,6 +424,11 @@ if($_GET['Go'] === 'OrdersCustody' || $_GET['Go'] === 'ListOrdersDelivery'){
 						<small class="text-white" id="scCustodyInfo"></small>
 					</div>
 				</div>
+				<div class="row mt-2" id="scPlainTools" style="display:none">
+					<div class="col-12 d-flex flex-wrap align-items-center" style="gap:8px">
+						<button type="button" class="btn btn-sm btn-warning" id="scReceiveAllPlainBtn"><i class="fa fa-dolly"></i> استلام كل مرتجعات المندوب <span class="badge badge-dark" id="scPendingCountPlain"></span></button>
+					</div>
+				</div>
 				<script src="/libraries/jszip/jszip.min.js"></script>
         	</div>
 		<?php

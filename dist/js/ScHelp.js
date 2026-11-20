@@ -19,14 +19,15 @@
 			note: 'لا يمكن تسجيل عجز قبل الاستلام المخزني للأمر.'
 		},
 		scReceiveAll: {
-			title: 'استلام كل مرتجعات الشركة',
-			role: 'يستلم المخزن كل المرتجعات المعلّقة على عهدة شركة الشحن بإذن واحد.',
+			title: 'استلام كل المرتجعات',
+			role: 'يستلم المخزن كل المرتجعات المعلّقة على عهدة الشركة أو المندوب بإذن واحد، بعد أن حدّد حالة كل أمر (كلي / جزئي / مرفوض).',
 			steps: [
+				'تظهر لك قائمة بكل صنف ومواصفاته وكميته المرتجعة قبل التأكيد.',
 				'تدخل قطع المرتجعات في المخزون.',
 				'يُعلَّم كل أمر بأنه «استُلم مخزنيًا».',
 				'الأمر المرفوض يبقى في عهدة الشركة ليظهر في الاستلام المالي (تبويب المرفوضات) ويُسوّى هناك.'
 			],
-			note: 'يتبع سياسة الشركة: استلام كامل بإذن واحد، أو على دفعات.'
+			note: 'الاستلام بالباركود/QR لأمر واحد يعمل كما هو دون تغيير.'
 		},
 		scfinCalc: {
 			title: 'تسوية الشحن',
@@ -111,9 +112,10 @@
 
 	// أيقونات الأزرار الثابتة في شاشة العهدة: تظهر وتختفي مع الزر نفسه
 	$(function () {
-		const st = '<style>#scShortageBtn[style*="display: none"] + .sc-info,#scShortageBtn[style*="display:none"] + .sc-info,#scReceiveAllBtn[style*="display: none"] + .sc-info,#scReceiveAllBtn[style*="display:none"] + .sc-info{display:none}</style>';
+		const st = '<style>#scShortageBtn[style*="display: none"] + .sc-info,#scShortageBtn[style*="display:none"] + .sc-info,#scReceiveAllBtn[style*="display: none"] + .sc-info,#scReceiveAllBtn[style*="display:none"] + .sc-info{display:none}#scPlainTools[style*="display: none"] .sc-info{display:none}</style>';
 		$('head').append(st);
 		$('#scShortageBtn').after(window.ScHelp.icon('scShortage'));
 		$('#scReceiveAllBtn').after(window.ScHelp.icon('scReceiveAll'));
+		$('#scReceiveAllPlainBtn').after(window.ScHelp.icon('scReceiveAll'));
 	});
 })();
