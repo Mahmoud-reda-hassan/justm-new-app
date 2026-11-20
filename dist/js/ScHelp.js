@@ -84,7 +84,7 @@
 			'<div class="text-muted small mb-1">ماذا يحدث عند الضغط:</div>' +
 			'<ol class="pr-3 mb-2">' + h.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol>' +
 			(h.note ? '<div class="alert alert-info py-2 mb-0 small">' + esc(h.note) + '</div>' : '') + '</div>';
-		Swal.fire({icon: 'info', title: h.title, html: html, width: 560, customClass: {title: 'text-right', htmlContainer: 'text-right'}, confirmButtonText: 'فهمت'});
+		Swal.fire({icon: 'info', title: h.title, html: html, width: 560, customClass: {popup: 'sc-help-rtl'}, confirmButtonText: 'فهمت'});
 	}
 
 	window.ScHelp = {
@@ -112,7 +112,7 @@
 
 	// أيقونات الأزرار الثابتة في شاشة العهدة: تظهر وتختفي مع الزر نفسه
 	$(function () {
-		const st = '<style>#scShortageBtn[style*="display: none"] + .sc-info,#scShortageBtn[style*="display:none"] + .sc-info,#scReceiveAllBtn[style*="display: none"] + .sc-info,#scReceiveAllBtn[style*="display:none"] + .sc-info{display:none}#scPlainTools[style*="display: none"] .sc-info{display:none}</style>';
+		const st = '<style>.sc-help-rtl,.sc-help-rtl *:not(.swal2-icon):not(.swal2-icon *){direction:rtl!important;text-align:right!important}.sc-help-rtl .swal2-actions{justify-content:center!important}.sc-help-rtl .swal2-icon{margin:1em auto!important}#scShortageBtn[style*="display: none"] + .sc-info,#scShortageBtn[style*="display:none"] + .sc-info,#scReceiveAllBtn[style*="display: none"] + .sc-info,#scReceiveAllBtn[style*="display:none"] + .sc-info{display:none}#scPlainTools[style*="display: none"] .sc-info{display:none}</style>';
 		$('head').append(st);
 		$('#scShortageBtn').after(window.ScHelp.icon('scShortage'));
 		$('#scReceiveAllBtn').after(window.ScHelp.icon('scReceiveAll'));
