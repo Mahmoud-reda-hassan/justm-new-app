@@ -112,7 +112,7 @@
 
 	// أيقونات الأزرار الثابتة في شاشة العهدة: تظهر وتختفي مع الزر نفسه
 	$(function () {
-		const st = '<style>.sc-help-rtl,.sc-help-rtl *:not(.swal2-icon):not(.swal2-icon *){direction:rtl!important;text-align:right!important}.sc-help-rtl .swal2-title{text-align:center!important}.sc-help-rtl .swal2-actions{justify-content:center!important}.sc-help-rtl .swal2-icon{margin:1em auto!important}#scShortageBtn[style*="display: none"] + .sc-info,#scShortageBtn[style*="display:none"] + .sc-info,#scReceiveAllBtn[style*="display: none"] + .sc-info,#scReceiveAllBtn[style*="display:none"] + .sc-info{display:none}#scPlainTools[style*="display: none"] .sc-info{display:none}</style>';
+		const st = '<style>.sc-help-rtl,.sc-help-rtl *:not(.swal2-icon):not(.swal2-icon *){direction:rtl!important;text-align:right!important}.swal2-popup.sc-help-rtl h2.swal2-title.swal2-title.swal2-title.swal2-title{text-align:center!important}.sc-help-rtl .swal2-actions{justify-content:center!important}.sc-help-rtl .swal2-icon{margin:1em auto!important}#scShortageBtn[style*="display: none"] + .sc-info,#scShortageBtn[style*="display:none"] + .sc-info,#scReceiveAllBtn[style*="display: none"] + .sc-info,#scReceiveAllBtn[style*="display:none"] + .sc-info{display:none}#scPlainTools[style*="display: none"] .sc-info{display:none}</style>';
 		$('head').append(st);
 		$('#scShortageBtn').after(window.ScHelp.icon('scShortage'));
 		$('#scReceiveAllBtn').after(window.ScHelp.icon('scReceiveAll'));
