@@ -77,10 +77,48 @@ class ShippingCompanyShortage {
                 $remaining[$code]['remaining'] -= $qty;
             }
             $this->stockOut((int)$ord['STO_ID'], (int)$ord['BRANCH_ID'], $userId, $stock, $orderId, $ord['SUB_ORDER_ID']);
-            $jid = $this->events->shippingShortage((int)$ord['courier_id'], $orderId, round($totalValue, 2), round($totalCost, 2), (int)$ord['STO_ID'], (int)$ord['BRANCH_ID'], (string)$ord['SUB_ORDER_ID']);
-            $this->db->prepare("UPDATE shipping_company_shortages SET journal_id = ? WHERE id IN (" . implode(',', $ids) . ")")->execute([$jid]);
             if ($own) { $this->db->commit(); }
-            return ['ids' => $ids, 'total' => round($totalValue, 2)];
+            return ['ids' => $ids, 'total' => round($totalValue, 2), 'pending' => true];
+        } catch (Throwable $e) {
+            if ($own && $this->db->inTransaction()) { $this->db->rollBack(); }
+            throw $e;
+        }
+    }
+
+    /** عجز مثبَّت من المخزن لم تُرحَّل قيوده بعد (journal_id فارغ) لأمر معيّن */
+    public function pendingForOrder(int $orderId): array {
+        $st = $this->db->prepare("SELECT s.id, s.pro_code, s.qty, s.unit_value, s.value, s.basis, s.note, pov.PRO_NAME AS pro_name, IFNULL(pov.OPT_JSON,'') AS pro_options
+            FROM shipping_company_shortages s LEFT JOIN product_options_view pov ON pov.PRO_CODE = s.pro_code
+            WHERE s.order_id = ? AND s.journal_id IS NULL AND s.status = 'OPEN' ORDER BY s.id");
+        $st->execute([$orderId]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** ترحيل قيد العجز (المالية): مستحق على الشركة مقابل المخزون، والفرق إلى حساب فروق العجز */
+    public function post(int $orderId, int $userId): array {
+        $rows = $this->pendingForOrder($orderId);
+        if (!$rows) { throw new Exception('لا يوجد عجز بانتظار الترحيل لهذا الأمر.'); }
+        $o = $this->db->prepare("SELECT o.SUB_ORDER_ID, o.STO_ID, st.BRANCH_ID, sc.user_id AS courier_id FROM orders o
+            LEFT JOIN stores st ON st.STO_ID = o.STO_ID JOIN shipping_companies sc ON sc.id = ? WHERE o.ORDER_ID = ?");
+        $cid = (int)$this->db->query("SELECT company_id FROM shipping_company_shortages WHERE id = " . (int)$rows[0]['id'])->fetchColumn();
+        $o->execute([$cid, $orderId]);
+        $ord = $o->fetch(PDO::FETCH_ASSOC);
+        if (!$ord) { throw new Exception('تعذر تحديد الشركة أو الأمر.'); }
+        $value = 0.0; $cost = 0.0; $ids = [];
+        $cst = $this->db->prepare("SELECT unit_cost FROM shipping_company_shortages WHERE id = ?");
+        foreach ($rows as $r) {
+            $value += (float)$r['value'];
+            $cst->execute([(int)$r['id']]);
+            $cost += round((float)$cst->fetchColumn() * (int)$r['qty'], 2);
+            $ids[] = (int)$r['id'];
+        }
+        $own = !$this->db->inTransaction();
+        if ($own) { $this->db->beginTransaction(); }
+        try {
+            $jid = $this->events->shippingShortage((int)$ord['courier_id'], $orderId, round($value, 2), round($cost, 2), (int)$ord['STO_ID'], (int)$ord['BRANCH_ID'], (string)$ord['SUB_ORDER_ID']);
+            $this->db->prepare("UPDATE shipping_company_shortages SET journal_id = ?, posted_by = ?, posted_at = NOW() WHERE id IN (" . implode(',', $ids) . ")")->execute([$jid, $userId]);
+            if ($own) { $this->db->commit(); }
+            return ['journal_id' => $jid, 'total' => round($value, 2), 'count' => count($ids)];
         } catch (Throwable $e) {
             if ($own && $this->db->inTransaction()) { $this->db->rollBack(); }
             throw $e;

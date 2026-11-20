@@ -119,6 +119,7 @@ try {
                 $row = ['fee' => null, 'source' => null, 'note' => null, 'shortage' => 0.0];
                 try { $f = $fees->feeForOrder($co, $oid); $row['fee'] = $f['fee']; $row['source'] = $f['source']; }
                 catch (Exception $e) { $row['note'] = $e->getMessage(); }
+                try { $sp = $db->prepare("SELECT IFNULL(SUM(value),0) FROM shipping_company_shortages WHERE order_id = ? AND status = 'OPEN' AND journal_id IS NULL"); $sp->execute([$oid]); $row['shortage_pending'] = round((float)$sp->fetchColumn(), 2); } catch (Throwable $e) { $row['shortage_pending'] = 0.0; }
                 try { if ($sh) { $sh->execute([$oid]); } $row['shortage'] = $sh ? round((float)$sh->fetchColumn(), 2) : 0.0; } catch (Throwable $e) { $row['shortage'] = 0.0; } // الجدول قد لا يكون مُنشأ بعد
                 $out[$oid] = $row;
             }
@@ -234,11 +235,19 @@ try {
             }
             $ok(['order_id' => $oid, 'lines' => (new ShippingCompanyShortage($db, null))->remainingLines($oid)]);
         case 'scShortageRecord':
-            if (!$scCanReceive && !$scFinView && !$scApproved) { $deny(); }
+            // المخزن يثبّت واقعة العجز (يخرج من المخزون) ولا تُرحَّل قيوده إلا من المالية
+            if (!$scCanReceive) { $deny(); }
             $lines = json_decode((string)($_POST['lines'] ?? '[]'), true);
             if (!is_array($lines)) { throw new Exception('بيانات العجز غير صالحة.'); }
             $r = (new ShippingCompanyShortage($db, new AccountingEvents($db)))->record((int)($_POST['order_id'] ?? 0), $lines, (int)($_SESSION['USER_ID'] ?? 0), (string)($_POST['note'] ?? ''));
-            $ok($r, 'تم تسجيل العجز على الشركة');
+            $ok($r, 'تم تثبيت العجز وهو بانتظار ترحيل القيد من المالية');
+        case 'scShortagePost':
+            // المالية ترحّل قيد العجز المثبَّت من المخزن
+            if (!($scFinView || $scCanAdmin)) { $deny(); }
+            $ok((new ShippingCompanyShortage($db, new AccountingEvents($db)))->post((int)($_POST['order_id'] ?? 0), (int)($_SESSION['USER_ID'] ?? 0)), 'تم ترحيل قيد العجز');
+        case 'scShortagePending':
+            if (!$scCanViewCustody) { $deny(); }
+            $ok((new ShippingCompanyShortage($db, null))->pendingForOrder((int)($_POST['order_id'] ?? 0)));
         case 'scShortageList':
             if (!$scCanViewCustody) { $deny(); }
             $ok((new ShippingCompanyShortage($db, null))->listForCompany((int)($_POST['company_id'] ?? 0), (string)($_POST['status'] ?? 'OPEN')));

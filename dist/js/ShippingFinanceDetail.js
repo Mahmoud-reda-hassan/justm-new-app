@@ -41,7 +41,8 @@
 		} else if (fin && fin.note) {
 			h += badge('badge-danger', esc(fin.note));
 		}
-		if (fin && fin.shortage > 0) { h += badge('badge-danger', 'عجز مفتوح على الشركة: ' + money(fin.shortage)); }
+		if (fin && fin.shortage > 0) { h += badge('badge-danger', 'عجز على الشركة: ' + money(fin.shortage)); }
+		if (fin && fin.shortage_pending > 0) { h += badge('badge-warning', 'منه بانتظار ترحيل المالية: ' + money(fin.shortage_pending)); }
 		h += badge('badge-secondary', esc(METHOD[method] || method));
 		if (st) {
 			const k = K(), flag = k.FLAG[st.flag] || ['badge-secondary', st.flag];
@@ -56,15 +57,15 @@
 		}
 		h += '</div>';
 		if (st && (st.notes || []).length) { h += '<div class="small text-danger mt-1">' + st.notes.map(esc).join(' — ') + '</div>'; }
-		return h + actions(arguments[3]) + '</div>';
+		return h + actions(o, fin) + '</div>';
 	}
 
 	// أزرار التسوية والتصحيح تحت كل أمر (القرار المالي)
-	function actions(o) {
+	function actions(o, fin) {
 		if (!o) { return ''; }
 		let h = '<div class="mt-2 scfin-actions">';
-		if (company.id && Number(o.returns) === 1) {
-			h += '<button type="button" class="btn btn-sm btn-outline-danger mr-1 scfin-short" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-exclamation-triangle"></i> عجز مرتجع على الشركة</button>';
+		if (company.id && fin && Number(fin.shortage_pending) > 0) {
+			h += '<button type="button" class="btn btn-sm btn-danger mr-1 scfin-post" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-check"></i> ترحيل قيد العجز (' + money(fin.shortage_pending) + ')</button>';
 		}
 		h += '<button type="button" class="btn btn-sm btn-outline-primary mr-1 scfin-calc" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-calculator"></i> تسوية الشحن</button>';
 		h += '<button type="button" class="btn btn-sm btn-outline-secondary scfin-reopen" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-undo"></i> رد للمخزن للتصحيح</button>';
@@ -119,6 +120,78 @@
 	function reload() { const t = getTable(); if (t) { t.ajax.reload(null, false); } }
 	const done = (m) => { if (window.Swal) { Swal.fire({icon: 'success', title: m, timer: 1500, showConfirmButton: false}); } reload(); };
 	const fail = (e) => { if (window.Swal) { Swal.fire({icon: 'error', title: 'تعذّر التنفيذ', text: e.message}); } else { alert(e.message); } };
+
+	// تسوية الشحن: يشرح للمستخدم كيف يُحسب شحن الأمر حسب إعدادات الشركة أو نسبة المندوب
+	$(document).on('click', '.scfin-calc', async function () {
+		const id = $(this).data('id'), no = $(this).data('no');
+		try {
+			const d = await call('scShippingCalc', {order_id: id, user_id: courierId()});
+			const row = (k, v) => '<tr><td class="text-muted">' + k + '</td><td class="font-weight-bold">' + v + '</td></tr>';
+			let t = '<table class="table table-sm text-right mb-0">';
+			t += row('حالة الأمر', d.rejected ? 'مرفوض' : 'مسلَّم');
+			t += row('شحن العميل في الأمر', money(d.order_shipping) + (d.customer_paid_shipping ? ' (مدفوع)' : ' (غير مدفوع)'));
+			// لماذا قد يظهر المطلوب من الشحن صفرًا
+			let why = 'يُحصَّل شحن الأمر (' + money(d.order_shipping) + ')';
+			if (d.cust_stat === 'FREEZE') { why = 'صفر: الأمر في حالة إيقاف التسليم'; }
+			else if (d.rejected && !d.customer_paid_shipping) { why = 'صفر: أمر مرفوض ولم يُسجَّل أن العميل يدفع الشحن (SHIPP_PAYMENT ≠ 1)'; }
+			else if (Number(d.order_shipping) <= 0) { why = 'صفر: قيمة الشحن في الأمر نفسه صفر'; }
+			t += row('الشحن المطلوب تحصيله', esc(why));
+			let note = '';
+			if (d.type === 'COMPANY') {
+				const c = d.company, M = {FIXED: 'رسم ثابت لكل أمر', ZONE_RATE: 'سعر حسب المنطقة', ORDER_SHIPPING: 'نفس شحن الأمر'}, R = {NONE: 'بدون رسم', SAME_AS_SHIPPING: 'نفس رسم الشحن', FIXED: 'رسم ثابت ' + money(c.return_fixed_fee), STATEMENT_ONLY: 'من الكشف فقط'};
+				t += row('الشركة', esc(c.name));
+				t += row('طريقة رسم الشركة', esc(M[c.fee_mode] || c.fee_mode) + (c.fee_mode === 'FIXED' ? ' (' + money(c.fixed_fee) + ')' : ''));
+				if (d.rejected && !d.customer_paid_shipping) { t += row('رسم المرفوض غير المدفوع', esc(R[c.return_fee_mode] || c.return_fee_mode)); }
+				if (d.statement) { t += row('في كشف الشركة', 'المحصّل ' + money(d.statement.amount) + (d.statement.fee != null ? ' — الرسم ' + money(d.statement.fee) : '')); }
+				if (d.fee != null) {
+					t += row('الرسم المعتمد', money(d.fee) + ' (' + esc(SRC[d.source] || d.source) + ')');
+					const diff = Number(d.order_shipping) - Number(d.fee);
+					t += row('الفرق عن شحن العميل', money(diff) + (diff > 0 ? ' لصالحنا' : diff < 0 ? ' لصالح الشركة' : ''));
+				} else { note = d.note || ''; }
+				t += row('طريقة التسوية', esc(METHOD[c.method] || c.method));
+			} else {
+				t += row('المندوب', 'عمولة نسبة من شحن الأمر');
+				t += row('نسبة المندوب', money(d.percent) + '%');
+				t += row('الأساس', money(d.commission_base));
+				t += row('عمولة المندوب', money(d.commission));
+				if (d.rejected && !d.customer_paid_shipping) { note = 'أمر مرفوض لم يدفع عميله الشحن: العمولة تُحسب على شحن النظام حسب النسبة المعتمدة.'; }
+			}
+			t += '</table>' + (note ? '<div class="alert alert-warning mt-2 mb-0 small">' + esc(note) + '</div>' : '');
+			const cur = d.type === 'COMPANY' ? (d.fee != null ? d.fee : 0) : d.commission;
+			const label = d.type === 'COMPANY' ? 'رسم الشركة' : 'عمولة المندوب';
+			if (d.override) { t += '<div class="alert alert-info mt-2 mb-0 small">معدَّل يدويًا (الأصل: ' + money(d.type === 'COMPANY' ? d.auto_fee : d.auto_commission) + ') — السبب: ' + esc(d.override.reason) + '</div>'; }
+			t += '<div class="mt-3 text-right"><label class="small mb-1">تعديل ' + label + ' لهذا الأمر</label><input id="ov-amt" type="number" min="0" step="0.01" class="form-control form-control-sm mb-1" value="' + Number(cur || 0).toFixed(2) + '"><input id="ov-reason" class="form-control form-control-sm" placeholder="سبب التعديل (مطلوب)"></div>';
+			const r = await Swal.fire({title: 'تسوية الشحن — الأمر ' + no, html: t, width: 560, showCancelButton: true, showDenyButton: !!d.override, confirmButtonText: 'حفظ التعديل', denyButtonText: 'إرجاع للحساب التلقائي', cancelButtonText: 'إغلاق',
+				preConfirm: () => { const a = $('#ov-amt').val(), why = ($('#ov-reason').val() || '').trim(); if (a === '' || Number(a) < 0) { Swal.showValidationMessage('المبلغ غير صحيح'); return false; } if (!why) { Swal.showValidationMessage('سبب التعديل مطلوب'); return false; } return {amount: a, reason: why}; }});
+			if (r.isConfirmed) { await call('scOverrideSave', {order_id: id, user_id: courierId(), amount: r.value.amount, reason: r.value.reason}); done('تم حفظ التعديل'); }
+			else if (r.isDenied) { await call('scOverrideClear', {order_id: id, user_id: courierId()}); done('تم الرجوع للحساب التلقائي'); }
+		} catch (e) { fail(e); }
+	});
+
+	// رد الأمر للمخزن للتصحيح (نفس منطق شاشة رد أوامر المندوب: قيد مضاد، لا حذف، والصلاحية من السيرفر)
+	$(document).on('click', '.scfin-reopen', async function () {
+		const id = $(this).data('id'), no = $(this).data('no');
+		const r = await Swal.fire({title: 'رد الأمر ' + no + ' للمخزن للتصحيح؟', input: 'text', inputLabel: 'السبب (مطلوب)', showCancelButton: true, confirmButtonText: 'رد للمخزن', cancelButtonText: 'إلغاء', inputValidator: v => v && v.trim() ? null : 'السبب مطلوب'});
+		if (!r.isConfirmed) { return; }
+		$.post('../../inc/controller/shipment.control.php', {CONTROL: 'reopenCourierOrder', order_id: id, reason: r.value}, function (res) {
+			if (Array.isArray(res) && res[0] === 'success') { done('تم رد الأمر للمخزن'); } else { fail(new Error((res && res[2]) || 'خطأ')); }
+		}, 'json').fail(() => fail(new Error('تعذر الاتصال بالخادم')));
+	});
+
+	// ترحيل قيد العجز الذي ثبّته المخزن (مستحق على الشركة مقابل المخزون)
+	$(document).on('click', '.scfin-post', async function () {
+		const id = $(this).data('id'), no = $(this).data('no');
+		try {
+			const rows = await call('scShortagePending', {order_id: id});
+			if (!rows.length) { return fail(new Error('لا يوجد عجز بانتظار الترحيل لهذا الأمر.')); }
+			let total = 0;
+			const html = '<table class="table table-sm text-right"><tr><th>الصنف</th><th>الكمية</th><th>القيمة</th></tr>' + rows.map(r => { total += Number(r.value); return '<tr><td>' + esc(r.pro_name || r.pro_code) + (r.pro_options ? '<div class="small text-muted">' + esc(r.pro_options) + '</div>' : '') + '</td><td>' + esc(r.qty) + '</td><td>' + money(r.value) + '</td></tr>'; }).join('') + '<tr><td colspan="2" class="font-weight-bold">الإجمالي المستحق على الشركة</td><td class="font-weight-bold">' + money(total) + '</td></tr></table><div class="small text-muted">القيد: مدين مستحق على الشركة، دائن المخزون بالتكلفة (والفرق لحساب فروق العجز).</div>';
+			const r = await Swal.fire({title: 'ترحيل قيد العجز — الأمر ' + no, html: html, width: 600, showCancelButton: true, confirmButtonText: 'ترحيل القيد', cancelButtonText: 'إلغاء'});
+			if (!r.isConfirmed) { return; }
+			await call('scShortagePost', {order_id: id});
+			done('تم ترحيل قيد العجز');
+		} catch (e) { fail(e); }
+	});
 
 	// تسوية الشحن: يشرح للمستخدم كيف يُحسب شحن الأمر حسب إعدادات الشركة أو نسبة المندوب
 	$(document).on('click', '.scfin-calc', async function () {

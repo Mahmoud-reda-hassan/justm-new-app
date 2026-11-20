@@ -177,7 +177,7 @@
 			'<td><input type="number" min="0" max="' + l.remaining + '" value="0" class="form-control form-control-sm sc-short-qty" data-code="' + esc(l.pro_code) + '" style="width:80px"></td></tr>').join('');
 		const r = await Swal.fire({title: 'القطع التي لم تصل', width: 640, showCancelButton: true, confirmButtonText: 'تسجيل العجز', cancelButtonText: 'إلغاء',
 			html: '<div class="text-right"><table class="table table-sm"><thead><tr><th>المنتج</th><th>مرتجع</th><th>متبقٍ</th><th>لم يصل</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-				'<input id="scShortNote" class="form-control" placeholder="ملاحظة (اختياري)"><div class="small text-muted mt-2">يخرج من المخزون ويُسجَّل مستحقًا على الشركة بحسب إعداد التقييم لديها.</div></div>',
+				'<input id="scShortNote" class="form-control" placeholder="ملاحظة (اختياري)"><div class="small text-muted mt-2">يخرج من المخزون وتُرحِّل المالية قيده مستحقًا على الشركة بحسب إعداد التقييم لديها.</div></div>',
 			preConfirm: () => {
 				const lines = $('.sc-short-qty').map(function () { return [[$(this).data('code'), Number($(this).val() || 0)]]; }).get().filter(x => x[1] > 0);
 				if (!lines.length) { Swal.showValidationMessage('اكتب كمية واحدة على الأقل'); return false; }
@@ -186,7 +186,7 @@
 		if (!r.isConfirmed) { return; }
 		try {
 			const res = await call('scShortageRecord', {order_id: info.order_id, lines: JSON.stringify(r.value.lines), note: r.value.note});
-			await Swal.fire({icon: 'success', title: 'تم تسجيل العجز', text: 'القيمة المستحقة على الشركة: ' + K().money(res.total)});
+			await Swal.fire({icon: 'success', title: 'تم تثبيت العجز', text: 'خرجت القطع من المخزون. قيمتها على الشركة ' + K().money(res.total) + ' وهي بانتظار ترحيل القيد من المالية.'});
 		} catch (e) { fail(e); }
 	});
 

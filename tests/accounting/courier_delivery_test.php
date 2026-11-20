@@ -758,6 +758,15 @@ $shSale = $ev->shippingShortage($scCourier, $sh1, 200.0, 120.0, (int)$store, (in
 [$h, $l] = entry($db, $shSale);
 check('shortage at SALE_PRICE: difference credited to 4320', lineSum($l, '1520', 'debit') === 200.0 && lineSum($l, '1300', 'credit') === 120.0 && lineSum($l, '4320', 'credit') === 80.0, json_encode($l));
 check('shortage without cost is refused', throwsMsg(fn() => $ev->shippingShortage($scCourier, $sh1, 50.0, 0.0, (int)$store, (int)$branch, 'X'), 'تكلفة'));
+// warehouse records the fact (journal_id NULL), finance posts the GL entry
+$db->exec("INSERT INTO shipping_company_shortages (company_id, order_id, pro_code, qty, unit_cost, unit_value, basis, value) VALUES ($scId, $sh1, 'PX', 2, 60, 60, 'COST', 120)");
+$pend = $scsh->pendingForOrder($sh1);
+check('pending shortage listed before posting', count($pend) === 1 && (float)$pend[0]['value'] === 120.0);
+$pr = $scsh->post($sh1, $userId);
+check('posting creates a GL entry and clears pending', $pr['total'] === 120.0 && $scsh->pendingForOrder($sh1) === [] && (int)$db->query("SELECT journal_id FROM shipping_company_shortages WHERE order_id = $sh1 AND pro_code = 'PX'")->fetchColumn() === (int)$pr['journal_id']);
+[$h, $l] = entry($db, (int)$pr['journal_id']);
+check('posted shortage: receivable vs inventory', lineSum($l, '1520', 'debit') === 120.0 && lineSum($l, '1300', 'credit') === 120.0, json_encode($l));
+check('nothing left to post', throwsMsg(fn() => $scsh->post($sh1, $userId), 'لا يوجد عجز'));
 
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

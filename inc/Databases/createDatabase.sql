@@ -5698,6 +5698,8 @@ CREATE TABLE IF NOT EXISTS `shipping_company_shortages` (
   `note` varchar(255) DEFAULT NULL,
   `created_by` bigint(20) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
+  `posted_by` bigint(20) DEFAULT NULL,
+  `posted_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_scs_company` (`company_id`, `status`),
   KEY `idx_scs_order` (`order_id`)
