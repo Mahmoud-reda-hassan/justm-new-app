@@ -405,7 +405,7 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->title 	= "عهدة المندوبين";
 	            				$this->Pagelink = "viewOrders";
 	            				array_push($this->js_footer,'filterOrderList.js',"viewOrders.js","viewOrderData.js","DatatablesFromObject.js");
-	            				array_push($this->js_footer,"ShippingCompanyImport.js","ShippingCustodyStatement.js");
+	            				array_push($this->js_footer,"ScHelp.js","ShippingCompanyImport.js","ShippingCustodyStatement.js");
 	            		
 						} else if (isset($usc['Admin']['StockReceipt']['view']) && 
 	            				$usc['Admin']['StockReceipt']['view'] == "true" && $_GET["Go"] === "AddStock"){
@@ -493,6 +493,7 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				$this->Pagelink = "ReceivePayments";
 	            				array_push($this->js_footer,"ReceivePayments.js");
 	            				array_push($this->js_footer,"ShippingCompanyImport.js");
+	            				array_push($this->js_footer,"ScHelp.js");
 	            				array_push($this->js_footer,"ShippingFinanceDetail.js");
 	            		
 	            		} else if (isset($usc['Admin']['PaymentDisbursement']['view']) && $usc['Admin']['PaymentDisbursement']['view'] && $_GET["Go"] === "PaymentDisbursement" ){
@@ -506,6 +507,7 @@ public function app_request($loginType = 0,$pageType = 0){
 	            				array_push($this->js_footer,"ReceivePayments.js");
 	            				array_push($this->js_footer,"CashReceiptVouchers.js");
 	            				array_push($this->js_footer,"ShippingCompanyImport.js");
+	            				array_push($this->js_footer,"ScHelp.js");
 	            				array_push($this->js_footer,"ShippingFinanceDetail.js");
 	            				
 	                    //.........................................................

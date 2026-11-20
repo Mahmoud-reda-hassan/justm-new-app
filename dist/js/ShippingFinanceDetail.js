@@ -65,10 +65,10 @@
 		if (!o) { return ''; }
 		let h = '<div class="mt-2 scfin-actions">';
 		if (company.id && fin && Number(fin.shortage_pending) > 0) {
-			h += '<button type="button" class="btn btn-sm btn-danger mr-1 scfin-post" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-check"></i> ترحيل قيد العجز (' + money(fin.shortage_pending) + ')</button>';
+			h += '<button type="button" class="btn btn-sm btn-danger mr-1 scfin-post" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-check"></i> ترحيل قيد العجز (' + money(fin.shortage_pending) + ')</button>' + (window.ScHelp ? ScHelp.icon('scfinPost') : '');
 		}
-		h += '<button type="button" class="btn btn-sm btn-outline-primary mr-1 scfin-calc" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-calculator"></i> تسوية الشحن</button>';
-		h += '<button type="button" class="btn btn-sm btn-outline-secondary scfin-reopen" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-undo"></i> رد للمخزن للتصحيح</button>';
+		h += '<button type="button" class="btn btn-sm btn-outline-primary mr-1 scfin-calc" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-calculator"></i> تسوية الشحن</button>' + (window.ScHelp ? ScHelp.icon('scfinCalc') : '');
+		h += '<button type="button" class="btn btn-sm btn-outline-secondary scfin-reopen" data-id="' + o.id + '" data-no="' + esc(o.no) + '"><i class="fa fa-undo"></i> رد للمخزن للتصحيح</button>' + (window.ScHelp ? ScHelp.icon('scfinReopen') : '');
 		return h + '</div>';
 	}
 

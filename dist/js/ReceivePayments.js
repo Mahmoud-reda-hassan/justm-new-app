@@ -613,7 +613,7 @@ custodyTotal	= ()  => {
 			<div class="mt-3 text-right">
 				<div class="custom-control custom-checkbox">
 					<input type="checkbox" class="custom-control-input" id="settleNet" ${(window.ScFinCompany && window.ScFinCompany.method === 'NET_OF_FEE') ? 'checked' : ''}>
-					<label class="custom-control-label" for="settleNet">خصم عمولة المندوب / رسم شركة الشحن من المبلغ المحصَّل</label>
+					<label class="custom-control-label" for="settleNet">خصم عمولة المندوب / رسم شركة الشحن من المبلغ المحصَّل</label>${window.ScHelp ? ScHelp.icon('settleNet') : ''}
 				</div>
 				<div class="small text-muted mt-1">غير مفعّل: يُحصَّل المبلغ كاملاً ويُسجَّل المستحق في الحساب.</div>
 				<table id="settleSummary" class="table table-sm table-bordered mt-2 mb-0" style="font-size:.9rem">
