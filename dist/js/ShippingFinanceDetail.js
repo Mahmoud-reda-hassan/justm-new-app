@@ -37,7 +37,7 @@
 			const payable = method === 'NET_OF_FEE' ? Math.max(fee - required, 0) : fee;
 			h += badge('badge-light border', 'رسم الشركة: ' + money(fee) + ' (' + esc(SRC[fin.source] || fin.source) + ')');
 			h += badge('badge-info', 'صافي الصندوق: ' + money(cash));
-			h += badge(payable > 0 ? 'badge-warning' : 'badge-light border', 'مستحق للشركة: ' + money(payable));
+			h += badge(payable > 0 ? 'badge-warning' : 'badge-light border', 'مستحق للشركة: ' + money(payable) + (method === 'NET_OF_FEE' && payable === 0 ? ' (الرسم يُخصم من المحصَّل)' : ''));
 		} else if (fin && fin.note) {
 			h += badge('badge-danger', esc(fin.note));
 		}
