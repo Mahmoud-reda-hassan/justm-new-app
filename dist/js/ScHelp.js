@@ -79,12 +79,12 @@
 	function show(key) {
 		const h = H[key];
 		if (!h || !window.Swal) { return; }
-		const html = '<div class="text-right" style="font-size:.95rem;line-height:1.9">' +
+		const html = '<div dir="rtl" class="text-right" style="text-align:right;direction:rtl;font-size:.95rem;line-height:1.9">' +
 			'<p class="font-weight-bold mb-2">' + esc(h.role) + '</p>' +
 			'<div class="text-muted small mb-1">ماذا يحدث عند الضغط:</div>' +
 			'<ol class="pr-3 mb-2">' + h.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol>' +
 			(h.note ? '<div class="alert alert-info py-2 mb-0 small">' + esc(h.note) + '</div>' : '') + '</div>';
-		Swal.fire({icon: 'info', title: h.title, html: html, width: 560, confirmButtonText: 'فهمت'});
+		Swal.fire({icon: 'info', title: h.title, html: html, width: 560, customClass: {title: 'text-right', htmlContainer: 'text-right'}, confirmButtonText: 'فهمت'});
 	}
 
 	window.ScHelp = {
@@ -104,7 +104,7 @@
 			const box = $(this).closest('.custom-control').parent();
 			const ex = box.find('.sc-info-inline');
 			if (ex.length) { ex.toggle(); return; }
-			if (H[key]) { box.append('<div class="sc-info-inline alert alert-info small text-right mt-2 mb-0" style="line-height:1.8">' + body(H[key]) + '</div>'); }
+			if (H[key]) { box.append('<div dir="rtl" class="sc-info-inline alert alert-info small text-right mt-2 mb-0" style="line-height:1.8">' + body(H[key]) + '</div>'); }
 			return;
 		}
 		show(key);
