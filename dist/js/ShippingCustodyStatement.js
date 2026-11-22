@@ -140,9 +140,21 @@
 			const r = await call('scStatementSave', {company_id: company.id, rows: JSON.stringify(p.rows), status_map: JSON.stringify(st.status_map || {}),
 				includes_shipping: Number(st.includes_shipping) ? 1 : 0, tolerance: st.tolerance == null ? 1 : st.tolerance, file_name: file.name, file_hash: p.hash});
 			const s = r.summary, m = r.not_in_file;
-			await Swal.fire({icon: 'success', title: 'تم حفظ الكشف وربطه بالأوامر', html:
-				'<div class="text-right">إجمالي الصفوف: <b>' + s.total + '</b><br>سليم: <b class="text-success">' + s.OK + '</b> — يحتاج مراجعة: <b class="text-warning">' + s.REVIEW + '</b> — خطأ: <b class="text-danger">' + s.ERROR + '</b><br>' +
-				(m.count ? 'أوامر على العهدة ولم تظهر في الكشف: <b>' + m.count + '</b>' : 'كل أوامر العهدة الجارية ظهرت في الكشف.') + '</div>'});
+			Swal.fire({title: 'جاري تسجيل نتائج الأوامر السليمة...', allowOutsideClick: false, didOpen: () => Swal.showLoading()});
+			let ap = {applied: [], failed: [], problems: []};
+			try { ap = await call('scApplyStatement', {company_id: company.id}); } catch (e) { ap.failed.push({order: '—', reason: e.message}); }
+			const M = K().money;
+			const lbl = {OK: 'سليم', REVIEW: 'يحتاج مراجعة', ERROR: 'خطأ'};
+			const probRows = ap.problems.map(p => '<tr><td>' + esc(p.order) + '</td><td>' + esc(p.file_status || '—') + '</td><td>' + (p.amount == null ? '—' : M(p.amount)) + '</td><td>' + (p.company_shipping == null ? '—' : M(p.company_shipping)) + '</td><td>' +
+				(p.order_value == null ? '—' : M(p.order_value)) + '</td><td>' + (p.expected == null ? '—' : M(p.expected)) + '</td><td><span class="badge ' + (p.flag === 'ERROR' ? 'badge-danger' : 'badge-warning') + '">' + lbl[p.flag] + '</span><div class="small text-danger">' + esc((p.notes || []).join(' — ')) + '</div></td></tr>').join('');
+			const failRows = ap.failed.map(p => '<tr><td>' + esc(p.order) + '</td><td colspan="5" class="text-danger">' + esc(p.reason) + '</td><td><span class="badge badge-danger">لم يُسجَّل</span></td></tr>').join('');
+			const full = ap.applied.filter(x => x.action === 'تسليم كامل').length, rej = ap.applied.length - full;
+			await Swal.fire({icon: (ap.problems.length || ap.failed.length) ? 'warning' : 'success', title: 'تم حفظ الكشف', width: 900, confirmButtonText: 'إغلاق', html:
+				'<div class="text-right" dir="rtl">إجمالي الصفوف: <b>' + s.total + '</b><br>' +
+				'سُجِّل تلقائيًا: <b class="text-success">' + ap.applied.length + '</b> (تسليم كامل: ' + full + ' — مرفوض: ' + rej + ') بدون استلام مخزني.<br>' +
+				'يحتاج مراجعتك: <b class="text-danger">' + (ap.problems.length + ap.failed.length) + '</b> — لم يُسجَّل لها شيء.<br>' +
+				(m.count ? 'أوامر على العهدة ولم تظهر في الكشف: <b>' + m.count + '</b><br>' : '') +
+				((probRows || failRows) ? '<div style="max-height:340px;overflow:auto" class="mt-2"><table class="table table-sm table-bordered"><thead><tr><th>الأمر</th><th>حالة الكشف</th><th>المحصل</th><th>شحن الشركة</th><th>قيمة الأمر</th><th>المتوقع</th><th>المشكلة</th></tr></thead><tbody>' + failRows + probRows + '</tbody></table></div>' : '') + '</div>'});
 			cache = {}; stmtIds = null;
 			company = await call('scCustodyInfo', {user_id: courierId()});
 			paintTools(); decorate();

@@ -10,6 +10,7 @@ include_once(ABSPATH.'/inc/Classes/secure/TrafficGuard.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanies.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyImport.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyReceipt.php');
+include_once(ABSPATH.'/inc/controller/BackEnd/shipment_BE.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyShortage.php');
 include_once(ABSPATH.'/inc/Classes/ShippingCompanyFees.php');
 include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
@@ -299,6 +300,76 @@ try {
             $imp = new ShippingCompanyImport($db);
             $ok($imp->saveStatement((int)($_POST['company_id'] ?? 0), $rows, ((string)($_POST['includes_shipping'] ?? '0')) === '1', is_array($map) ? $map : [],
                 (float)($_POST['tolerance'] ?? 1), (string)($_POST['file_name'] ?? ''), (string)($_POST['file_hash'] ?? ''), $userId), 'تم حفظ كشف الشركة وربطه بالأوامر');
+        case 'scApplyStatement':
+            // بعد رفع الكشف: الأوامر السليمة (OK) تُسجَّل نتيجتها تلقائيًا (تسليم كامل / مرفوض) بدون استلام مخزني،
+            // وغير السليمة (REVIEW / ERROR) تُرجَع في جدول للمراجعة بملخص بيانات الكشف.
+            if (!$scCanUpload) { $deny(); }
+            $companyId = (int)($_POST['company_id'] ?? 0);
+            $co = $db->prepare("SELECT id, name, user_id FROM shipping_companies WHERE id = ?");
+            $co->execute([$companyId]);
+            $company = $co->fetch(PDO::FETCH_ASSOC);
+            if (!$company) { throw new Exception('شركة الشحن غير موجودة.'); }
+            $courierId = (int)$company['user_id'];
+            $actionLabel = ['FULL' => 'تسليم كامل', 'RETURN' => 'مرفوض (لم يُدفع شحن)', 'RETURN_SHIPPING_PAID' => 'مرفوض (العميل دفع الشحن)'];
+
+            $imp = $db->query("SELECT MAX(id) FROM shipping_company_imports WHERE company_id = " . $companyId)->fetchColumn();
+            $rowsQ = $db->prepare(
+                "SELECT r.*, co.CUST_STAT AS custody_state
+                 FROM shipping_company_statement_rows r
+                 JOIN shipping_companies c ON c.id = r.company_id
+                 LEFT JOIN custody_orders co ON co.ORDER_ID = r.order_id AND co.USER_ID = c.user_id
+                 WHERE r.company_id = ? AND r.import_id = ? ORDER BY r.row_no"
+            );
+            $rowsQ->execute([$companyId, (int)$imp]);
+            $all = $rowsQ->fetchAll(PDO::FETCH_ASSOC);
+
+            // سبب الرفض مطلوب في سجل أسباب الرفض: نستخدم سببًا ثابتًا للكشف (يُنشأ مرة واحدة)
+            $rsn = 'مرفوض حسب كشف شركة الشحن';
+            $db->prepare("INSERT IGNORE INTO reasons_data (REASON) VALUES (?)")->execute([$rsn]);
+            $q = $db->prepare("SELECT ID FROM reasons_data WHERE REASON = ?"); $q->execute([$rsn]);
+            $reasonId = (int)$q->fetchColumn();
+            $_POST['oshipp'] = ['ptype' => 1];   // يقرؤه setConfirmShipment
+            $be = new shipment_BE($db);
+            $linesQ = $db->prepare("SELECT PRO_CODE, QTY FROM custody_product WHERE ORDER_ID = ? AND USER_ID = ?");
+            $applied = []; $failed = []; $problems = [];
+            foreach ($all as $r) {
+                $note = json_decode((string)$r['notes'], true) ?: [];
+                $base = ['order' => $r['sub_order_id'], 'row' => (int)$r['row_no'], 'file_status' => $r['file_status'], 'amount' => $r['amount'],
+                         'company_shipping' => $r['company_shipping'], 'order_value' => $r['order_value'], 'shipping' => $r['shipping'],
+                         'expected' => $r['expected'], 'flag' => $r['flag'], 'notes' => $note];
+                $act = $r['proposed'];
+                if ($r['flag'] !== 'OK' || !isset($actionLabel[$act]) || !$r['order_id']) {
+                    $problems[] = $base + ['proposed' => $act];
+                    continue;
+                }
+                if ($r['custody_state'] !== 'WAITING') { continue; }   // نتيجته مسجلة من قبل
+                $linesQ->execute([(int)$r['order_id'], $courierId]);
+                $ship = [];
+                foreach ($linesQ->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                    $q = (float)$l['QTY'];
+                    $ship[] = ['ORDER_ID' => (int)$r['order_id'], 'PRO_CODE' => $l['PRO_CODE'], 'DELIVERY_ID' => $courierId,
+                               'productData' => ['appQty' => $act === 'FULL' ? $q : 0, 'defqty' => $q, 'recqty' => null],
+                               'REASON_ID' => $reasonId, 'COMMENT' => 'من كشف شركة الشحن ' . $company['name'], 'TYPE' => 'SELSE'];
+                }
+                if (!$ship) { $failed[] = $base + ['reason' => 'لا توجد منتجات على عهدة الشركة لهذا الأمر']; continue; }
+                $be->orderobj       = [(int)$r['order_id'] => ['oid' => (int)$r['order_id'], 'shipUid' => $courierId, 'custstat' => 'WAITING']];
+                $be->urlControl     = 'OrdersCustody';
+                $be->ShipApproved   = false;                       // بدون استلام مخزني
+                $be->RefundShipping = ($act === 'RETURN') ? 'true' : 'false';
+                $be->shipmentobj    = ['ship' => $ship, 'ptype' => 1];
+                $be->ShipExchange   = null;
+                $be->delivery_id    = $courierId;
+                $be->branch_id      = $_SESSION['BRANCH_ID'] ?? null;
+                $be->user_action    = $userId;
+                $be->user_group     = $_SESSION['USER_GRUOP_NAME'] ?? '';
+                $res = $be->ShipmentDelivery('confirm');
+                if (is_array($res) && ($res[0] ?? '') === 'success') {
+                    $applied[] = ['order' => $r['sub_order_id'], 'action' => $actionLabel[$act]];
+                } else {
+                    $failed[] = $base + ['reason' => (string)($res[2] ?? 'تعذر تسجيل النتيجة')];
+                }
+            }
+            $ok(['applied' => $applied, 'failed' => $failed, 'problems' => $problems], 'تم تطبيق الكشف');
         case 'scPreview':
             if (!$scCanAdmin) { $deny(); }
             $rows = json_decode((string)($_POST['rows'] ?? '[]'), true);
