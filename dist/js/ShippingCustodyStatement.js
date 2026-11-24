@@ -151,7 +151,7 @@
 			const full = ap.applied.filter(x => x.action === 'تسليم كامل').length, rej = ap.applied.length - full;
 			await Swal.fire({icon: (ap.problems.length || ap.failed.length) ? 'warning' : 'success', title: 'تم حفظ الكشف', width: 900, confirmButtonText: 'إغلاق', html:
 				'<div class="text-right" dir="rtl">إجمالي الصفوف: <b>' + s.total + '</b><br>' +
-				'سُجِّل تلقائيًا: <b class="text-success">' + ap.applied.length + '</b> (تسليم كامل: ' + full + ' — مرفوض: ' + rej + ') بدون استلام مخزني.<br>' +
+				'سُجِّل تلقائيًا: <b class="text-success">' + ap.applied.length + '</b> (تسليم كامل فقط). المرفوض والمراجعة يدويًا.<br>' +
 				'يحتاج مراجعتك: <b class="text-danger">' + (ap.problems.length + ap.failed.length) + '</b> — لم يُسجَّل لها شيء.<br>' +
 				(m.count ? 'أوامر على العهدة ولم تظهر في الكشف: <b>' + m.count + '</b><br>' : '') +
 				((probRows || failRows) ? '<div style="max-height:340px;overflow:auto;-webkit-overflow-scrolling:touch" class="mt-2"><table class="table table-sm table-bordered mb-0" style="white-space:nowrap;width:max-content;min-width:100%"><thead><tr><th>الأمر</th><th>حالة الكشف</th><th>المحصل</th><th>شحن الشركة</th><th>قيمة الأمر</th><th>المتوقع</th><th>المشكلة</th></tr></thead><tbody>' + failRows + probRows + '</tbody></table></div>' : '') + '</div>'});

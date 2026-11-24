@@ -310,7 +310,7 @@ try {
             $company = $co->fetch(PDO::FETCH_ASSOC);
             if (!$company) { throw new Exception('شركة الشحن غير موجودة.'); }
             $courierId = (int)$company['user_id'];
-            $actionLabel = ['FULL' => 'تسليم كامل', 'RETURN' => 'مرفوض (لم يُدفع شحن)', 'RETURN_SHIPPING_PAID' => 'مرفوض (العميل دفع الشحن)'];
+            $actionLabel = ['FULL' => 'تسليم كامل'];   // الرفع يسجّل التسليم الكامل فقط؛ المرفوض يُسجَّل يدويًا
 
             $imp = $db->query("SELECT MAX(id) FROM shipping_company_imports WHERE company_id = " . $companyId)->fetchColumn();
             $rowsQ = $db->prepare(
@@ -339,6 +339,10 @@ try {
                          'expected' => $r['expected'], 'flag' => $r['flag'], 'notes' => $note];
                 $act = $r['proposed'];
                 if ($r['flag'] !== 'OK' || !isset($actionLabel[$act]) || !$r['order_id']) {
+                    if ($r['flag'] === 'OK' && in_array($act, ['RETURN', 'RETURN_SHIPPING_PAID'], true) && $r['custody_state'] === 'WAITING') {
+                        $base['notes'] = array_merge(['مرفوض في الكشف — سجّله يدويًا من شاشة العهدة'], $base['notes']);
+                        $base['flag'] = 'REVIEW';
+                    } elseif ($r['flag'] === 'OK') { continue; }
                     $problems[] = $base + ['proposed' => $act];
                     continue;
                 }
