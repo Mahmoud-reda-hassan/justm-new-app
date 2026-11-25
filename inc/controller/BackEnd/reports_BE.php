@@ -1766,6 +1766,69 @@ class reports_BE {
 
 	}
 	
+	/**
+	 * أوامر "قيد الشحن" التي ما زالت على عهدة المندوب/شركة الشحن (CUST_STAT = WAITING) بنفس أعمدة تقرير الشحن.
+	 * did = 0 يعني كل المناديب والشركات، all_period = 1 يتجاهل التاريخ (كل فترة التعامل).
+	 */
+	public function getShippingCustodyReport(){
+		$deliveryId = (int)($_POST['did'] ?? 0);
+		$allPeriod  = !empty($_POST['all_period']) && $_POST['all_period'] !== '0' && $_POST['all_period'] !== 'false';
+		$dates = explode(' - ', (string)($_POST['daterange'] ?? ''));
+		$start = trim($dates[0] ?? ''); $end = trim($dates[1] ?? '');
+		$search = trim((string)($_POST['search']['value'] ?? ''));
+
+		$where = ["co.CUST_STAT = 'WAITING'"]; $bind = [];
+		if ($deliveryId > 0) { $where[] = "co.USER_ID = :did"; $bind[':did'] = [$deliveryId, PDO::PARAM_INT]; }
+		if (!$allPeriod && $start !== '' && $end !== '') {
+			$where[] = "DATE(o.SHIPPING_DATE) BETWEEN :start AND :end";
+			$bind[':start'] = [$start, PDO::PARAM_STR]; $bind[':end'] = [$end, PDO::PARAM_STR];
+		}
+		if ($search !== '') {
+			$where[] = "(o.SUB_ORDER_ID LIKE :search OR o.TELEPHONE LIKE :search)";
+			$bind[':search'] = ['%'.$search.'%', PDO::PARAM_STR];
+		}
+		$sql = "SELECT
+				cl.CLIENT_NAME AS CustName,
+				(SELECT COM_NAME FROM companies LIMIT 1) AS company,
+				SUM((op.PRICE - op.DISCOUNT) * op.QTY) + o.SHIPPING_VAL AS coust,
+				o.SUB_ORDER_ID AS Parcode,
+				o.TELEPHONE AS Phone,
+				gv.GOV_NAME AS City,
+				ci.CI_NAME AS Region,
+				a.ADDRESS AS address,
+				o.DATE_CREATED AS createdDate,
+				o.COMMENT AS notes,
+				o.EXCHANGE AS Replacing,
+				GROUP_CONCAT(CONCAT('المنتج : ', pov.PRO_NAME, ' | ', IFNULL(pov.OPT_JSON, ''), ' | الكميه : ', FORMAT(op.QTY, 2)) SEPARATOR ' x|x ') AS OrderContent,
+				SUM(op.QTY) AS QTY,
+				SUM((op.PRICE - op.DISCOUNT) * op.QTY) AS PRICE,
+				o.SHIPPING_VAL,
+				CONCAT(u.FORENAME, ' ', u.LASTNAME) AS Courier,
+				DATE(o.SHIPPING_DATE) AS ShipDate
+			FROM custody_orders co
+			JOIN orders o ON o.ORDER_ID = co.ORDER_ID
+			LEFT JOIN users u ON u.USER_ID = co.USER_ID
+			LEFT JOIN order_product op ON op.ORDER_ID = o.ORDER_ID
+			LEFT JOIN addresses a ON a.ADDRESS_ID = o.ADDRESS_ID
+			LEFT JOIN city ci ON ci.CI_ID = a.CITY_ID
+			LEFT JOIN gov gv ON gv.GOV_ID = ci.GOV_ID
+			LEFT JOIN client cl ON cl.CLIENT_ID = a.CLIENT_ID
+			LEFT JOIN product_options_view pov ON pov.PRO_CODE = op.PRO_CODE
+			WHERE ".implode(' AND ', $where)."
+			GROUP BY o.ORDER_ID, co.USER_ID, cl.CLIENT_NAME, o.TELEPHONE, gv.GOV_NAME, ci.CI_NAME, a.ADDRESS, o.DATE_CREATED, o.COMMENT, o.EXCHANGE, u.FORENAME, u.LASTNAME
+			ORDER BY o.SHIPPING_DATE, o.ORDER_ID";
+		$stmt = $this->conn->prepare($sql);
+		foreach ($bind as $k => [$v, $t]) { $stmt->bindValue($k, $v, $t); }
+		$stmt->execute();
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		return [
+			'draw' => intval($_POST['draw'] ?? 0),
+			'iTotalRecords' => count($rows),
+			'iTotalDisplayRecords' => count($rows),
+			'data' => $rows,
+		];
+	}
+
 	public function inventoryProDailyReport($storeId, $dateFrom, $dateTo){
 	    $sql = "SELECT  im.IM_ID,
 			  im.CREATED_DATE,

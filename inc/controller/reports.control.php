@@ -71,6 +71,9 @@ try {
 		case 'ShippingReport':
 			ResponseData($CBE->getShippingReport());
 		    break;
+		case 'ShippingCustodyReport':
+			ResponseData($CBE->getShippingCustodyReport());
+		    break;
 		case 'inventoryProDailyReport':
 			$storeId       = $_POST['store_id'];
 			$dateFrom      =  $_POST['date_from'];

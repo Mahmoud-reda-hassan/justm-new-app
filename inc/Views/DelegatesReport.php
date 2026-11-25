@@ -6,6 +6,7 @@ session_start();
 		<ul id="Olhbtn" class="nav nav-pills">
 			<li class="nav-item"><a id="DelegatesReport" class="OLF nav-link" href="#DelegatesReport"  data-toggle="tab">عهدة المندوب</a></li>
 			<li class="nav-item"><a id="shippingCompany" class="OLF nav-link" href="#shippingCompany"   data-toggle="tab">عهدة شركة الشحن</a></li>
+			<li class="nav-item"><a id="custodyWaiting" class="OLF nav-link" href="#custodyWaiting"   data-toggle="tab">قيد الشحن على العهدة</a></li>
 		</ul>
 	</div>
     <div class="card-body">
@@ -21,6 +22,10 @@ session_start();
               <!-- يتم ملؤها ديناميكيًا -->
             </select>
           </div>
+        </div>
+        <div class="form-check mb-2" id="allPeriodBox" style="display:none">
+          <input class="form-check-input" type="checkbox" id="allPeriod" checked>
+          <label class="form-check-label mr-4" for="allPeriod">كل فترة التعامل (تجاهل التاريخ)</label>
         </div>
         <button type="submit" class="btn btn-success">
           <i class="fas fa-search"></i> بحث
@@ -113,7 +118,34 @@ session_start();
 		     </thead>
 		  </table>
 	  </div>
+    <div id="f5" class="hid f5"  style="display:none;">
+		  <div class="mb-2"><b>أوامر قيد الشحن (لم تُسلَّم أو تُرفض بعد) على عهدة المندوب أو شركة الشحن</b> — العدد: <span id="custodyWaitingCount" class="badge badge-dark">0</span></div>
+		  <table id="custody-waiting-report" class="table table-bordered table-hover table-striped hid f5">
+		     <thead class="thead-dark">
+		       <tr>
+		       	<th>#</th>
+	          	<th>CustName</th>
+	          	<th>company</th>
+	          	<th>coust</th>
+	          	<th>Parcode</th>
+	          	<th>Phone</th>
+	          	<th>City</th>
+	          	<th>Region</th>
+	          	<th>Address</th>
+	          	<th>createdDate</th>
+	          	<th>Notes</th>
+	          	<th>Replacing</th>
+	          	<th>OrderContent</th>
+	          	<th>QTY</th>
+	          	<th>PRICE</th>
+	          	<th>SHIPPING_VAL</th>
+	          	<th>المندوب / الشركة</th>
+	          	<th>تاريخ الخروج</th>
+		       </tr>
+		     </thead>
+		  </table>
+	  </div>
     </div>
 </div>
 
-<script src="/dist/js/DelegatesShipmentReport.js?ver16"></script>
+<script src="/dist/js/DelegatesShipmentReport.js?ver17"></script>

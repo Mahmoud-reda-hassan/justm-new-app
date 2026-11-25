@@ -58,8 +58,14 @@
 			const val = $(this).attr('id');
 			reportType = val ? val : 'DelegatesReport';
 			
+			$('#allPeriodBox').toggle(reportType == 'custodyWaiting');
 			if(reportType == 'DelegatesReport'){
 				showElment('f1');
+			}else if(reportType == 'custodyWaiting'){
+				$('#hti').html('أوامر قيد الشحن على العهدة');
+				showElment('f5');
+				$('#filter-form').show();
+				if (!window.__cwLoaded) { window.__cwLoaded = true; tablee.ajax.reload(null, true); }
 			}else{
 				showElment('f4');
 			}
@@ -346,6 +352,35 @@
 		        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "الكل"]],
 		});
 
+		var tablee = $('#custody-waiting-report').DataTable({
+			    processing: true,
+			    serverSide: true,
+			    searching: false,
+			    deferLoading: 0,
+			    ajax: {
+			      url: urlvr,
+			      type: 'POST',
+			      data: function (d) {
+			        return $.extend({}, d, {
+			          CONTROL: 'ShippingCustodyReport',
+			          daterange: $('#dateRange').val(),
+			          all_period: $('#allPeriod').is(':checked') ? 1 : 0,
+			          did: did,
+			        });
+			      },
+			      dataSrc: function (json) { $('#custodyWaitingCount').text(json.iTotalRecords || 0); return json.data; }
+			    },
+			    columns: [
+			    	{ data: null, orderable: false, searchable: false, render: function(d, t, r, meta) { return meta.settings._iDisplayStart + meta.row + 1; } },
+			      	{ data: 'CustName' }, { data: 'company' }, { data: 'coust' }, { data: 'Parcode' }, { data: 'Phone' }, { data: 'City' },
+			      	{ data: 'Region' }, { data: 'address' }, { data: 'createdDate' }, { data: 'notes' }, { data: 'Replacing' },
+			      	{ data: 'OrderContent' }, { data: 'QTY' }, { data: 'PRICE' }, { data: 'SHIPPING_VAL' }, { data: 'Courier' }, { data: 'ShipDate' }
+			    ],
+			    columnDefs: [{ targets: '_all', className: 'text-nowrap text-center' }],
+			    pageLength: -1,
+		        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "الكل"]],
+		});
+
 		tablea.on('click', '.dt-controlerA', function(e) {
 			let tr = e.target.closest('tr');
 			let row = tablea.row(tr);
@@ -393,6 +428,8 @@
 				tableb.ajax.reload(null, true);
 			}else if ($('#Details-table').is(':visible')) {
 				tablec.ajax.reload(null, true);
+			}else if ($('#custody-waiting-report').is(':visible')) {
+				tablee.ajax.reload(null, true);
 			}else if ($('#shipping-report').is(':visible')) {
 				
 				tabled.ajax.reload(null, true);
