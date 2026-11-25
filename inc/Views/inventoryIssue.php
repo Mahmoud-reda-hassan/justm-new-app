@@ -69,8 +69,8 @@
 		    <div class="row">
 		        <div class="col-12 mt-0">
 		            <div class="form-group">
-		                <label for="textbox" class="mb-1 mt-0">ملاحظات</label>
-		                <textarea id="textbox" class="form-control pb-0 pt-0 textbox" rows="5" placeholder="اكتب ملاحظاتك هنا..."></textarea>
+		                <label for="textbox" class="mb-1 mt-0">سبب الهالك / ملاحظات (مطلوب)</label>
+		                <textarea id="textbox" class="form-control pb-0 pt-0 textbox required" rows="5" placeholder="اكتب ملاحظاتك هنا..."></textarea>
 		            </div>
 		        </div>
 		    </div>

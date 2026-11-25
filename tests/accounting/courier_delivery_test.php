@@ -768,5 +768,11 @@ check('posting creates a GL entry and clears pending', $pr['total'] === 120.0 &&
 check('posted shortage: receivable vs inventory', lineSum($l, '1520', 'debit') === 120.0 && lineSum($l, '1300', 'credit') === 120.0, json_encode($l));
 check('nothing left to post', throwsMsg(fn() => $scsh->post($sh1, $userId), 'لا يوجد عجز'));
 
+// 12) inventory scrap (صرف هالك): Dr 5800 scrap loss / Cr 1300 inventory at cost
+$scrapJ = $ev->inventoryScrap(999001, (int)$store, (int)$branch, 150.0, 'تالف');
+[$h, $l] = entry($db, $scrapJ);
+check('scrap: loss debited, inventory credited at cost, balanced', lineSum($l, '5800', 'debit') === 150.0 && lineSum($l, '1300', 'credit') === 150.0 && (float)$h['total_debit'] === (float)$h['total_credit'] && $h['reference_type'] === 'INVENTORY_SCRAP', json_encode($l));
+check('scrap with zero cost is refused', throwsMsg(fn() => $ev->inventoryScrap(999002, (int)$store, (int)$branch, 0.0, 'x'), 'موجبة'));
+
 echo $fail ? "\n$fail FAILED\n" : "\nALL PASSED\n";
 exit($fail ? 1 : 0);

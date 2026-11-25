@@ -9,6 +9,7 @@ class InventoryManager {
     private $conn;
     private array $movType;
 	public  $imdetails;
+	public  $lastImId = 0;   // رقم آخر حركة مخزنية أنشأها صرف الهالك
     /**
      * InventoryManager constructor.
      * --------------------------------
@@ -118,7 +119,7 @@ class InventoryManager {
                     return $this->processInventoryCheck($type, $productArray, $userActionId, $branchId, $fromStoreId, $uniqueId);
 				
 				case 'scrap':
-                    return $this->processScrap($productArray, $fromStoreId, null, $userActionId, $branchId, $uniqueId);
+                    return $this->processScrap($productArray, $fromStoreId, $userActionId, $branchId, $uniqueId);
                     
                 default:
                     throw new Exception("نوع العملية غير مدعوم: " . $type);
@@ -794,53 +795,43 @@ class InventoryManager {
 	    return $this->update_stores();
 	}
 
-	private function processScrap(array $productArray, int $fromStoreId, int $toStoreId, int $userActionId, int $branchId, string $uniqueId): int {
-	    if(count($productArray) === 0) throw new Exception("مصفوفة المنتجات فارغة للتحويل");
-		if($fromStoreId === $toStoreId) throw new Exception("لايمكن التحويل من إلى نفس المخزن");
-		$imDetails = empty($this->imDetails) ? "تحويل داخلى" : $this->imdetails;
-		
-		// ================= حركة المخزن المصدر (OUT) =================
-	    $stmt = $this->conn->prepare("
-	        INSERT INTO inventory_movement (IM_MOVE_TYPE, IM_USER, IM_BRANCH, STO_ID, STO_DEST, UNIQUE_ID, IM_DETAILS, IM_APPROVAL_DISBURSED, IM_APPROVAL_RECEIVED)
-	        SELECT 
-				'TRANSFER' AS IM_MOVE_TYPE, 
-				? AS IM_USER, 
-				BRANCH_ID AS IM_BRANCH, 
-				STO_ID, 
-				? AS UNIQUE_ID, 
-				? IM_DETAILS, 
-				1 AS IM_APPROVAL_DISBURSED, 
-				1 AS IM_APPROVAL_RECEIVED
-			FROM stores 
-			WHERE STO_ID = ?
-	    ");
-	    $stmt->execute([$userActionId, $toStoreId, $uniqueId, $imDetails, $fromStoreId]);
-	    $imId = (int)$this->conn->lastInsertId();
-		if(empty($imId)) throw new Exception("1فشل حفظ اذن التحويل");
-	    
-	    // ================= Insert inventory_product_movement (OUT) =================
-	    $batchSize = 50;
-	    for($i=0;$i<count($productArray);$i+=$batchSize){
-	        $placeholders = [];
-	        $bindValues = [];
-	        for($j=$i;$j<$i+$batchSize && $j<count($productArray);$j++){
-	            
-	            $placeholders[] = "(?, ?, ?, ?, ?)";
-	            $bindValues[] = $imId;
-	            $bindValues[] = 'OUT';
-	            $bindValues[] = $transferArray[$j]['PRO_CODE'];
-	            $bindValues[] = $this->getProductStock($fromStoreId, $productArray[$j]['PRO_CODE']);
-	            $bindValues[] = $transferArray[$j]['QTY'];
-	        }
-	       
-	        $sql = "INSERT INTO inventory_product_movement (IM_ID, IPM_TYPE_MOV, IPM_CODE, IPM_STO_QTY, IPM_QTY) VALUES ".implode(',', $placeholders);
-	        $stmt = $this->conn->prepare($sql);
-	        $stmt->execute($bindValues);
-	        if($stmt->rowCount() === 0) throw new Exception("فشل تسجيل تفاصيل تحويل المخزون من المخزن المصدر");
+	/**
+	 * صرف هالك: خروج من المخزن (حركة OUT) دون مقابل. تُسجَّل كحركة تسوية مرجعها SCRAP:<id> (بدون تغيير بنية الجداول).
+	 * سبب الهالك يؤخذ من $this->imdetails. يرجع نتيجة update_stores، ورقم الحركة في $this->lastImId.
+	 */
+	private function processScrap(array $productArray, int $fromStoreId, int $userActionId, int $branchId, string $uniqueId): int {
+	    if(count($productArray) === 0) throw new Exception("لم يتم اختيار أي منتج للهالك.");
+	    // دمج الأكواد المكررة والتحقق من الكميات
+	    $qtyByCode = [];
+	    foreach ($productArray as $row) {
+	        $code = trim((string)($row['PRO_CODE'] ?? ''));
+	        $qty  = (int)($row['QTY'] ?? 0);
+	        if ($code === '' || $qty <= 0) throw new Exception("بيانات المنتج أو الكمية غير صالحة.");
+	        $qtyByCode[$code] = ($qtyByCode[$code] ?? 0) + $qty;
 	    }
-	
-	    // ================= تحديث المخزون =================
-	    
+	    // الرصيد لا يسمح بالهالك أكثر من المتاح
+	    $cur = $this->conn->prepare("SELECT STO_QTY FROM stores_product WHERE STO_ID = ? AND PRO_CODE = ? FOR UPDATE");
+	    foreach ($qtyByCode as $code => $qty) {
+	        $cur->execute([$fromStoreId, $code]);
+	        $have = $cur->fetchColumn();
+	        if ($have === false) throw new Exception("المنتج $code غير موجود في رصيد المخزن.");
+	        if ((int)$have < $qty) throw new Exception("كمية الهالك ($qty) أكبر من رصيد المنتج $code في المخزن (".(int)$have.").");
+	    }
+	    $imDetails = trim((string)$this->imdetails) !== '' ? (string)$this->imdetails : $this->movType['scrap']['desc'];
+
+	    $stmt = $this->conn->prepare("
+	        INSERT INTO inventory_movement (IM_MOVE_TYPE, IM_USER, IM_BRANCH, STO_ID, REFERENCE, UNIQUE_ID, IM_DETAILS, IM_APPROVAL_DISBURSED, IM_APPROVAL_RECEIVED)
+	        VALUES ('SETTLEMENT', ?, ?, ?, ?, ?, ?, 1, 1)
+	    ");
+	    $stmt->execute([$userActionId, $branchId, $fromStoreId, 'SCRAP:' . $uniqueId, $uniqueId, $imDetails]);
+	    $imId = (int)$this->conn->lastInsertId();
+	    if (empty($imId)) throw new Exception("فشل حفظ إذن صرف الهالك.");
+	    $this->lastImId = $imId;
+
+	    $ipm = $this->conn->prepare("INSERT INTO inventory_product_movement (IM_ID, IPM_TYPE_MOV, IPM_CODE, IPM_STO_QTY, IPM_QTY) VALUES (?, 'OUT', ?, ?, ?)");
+	    foreach ($qtyByCode as $code => $qty) {
+	        $ipm->execute([$imId, $code, $this->getProductStock($fromStoreId, $code), $qty]);
+	    }
 	    return $this->update_stores();
 	}
 	

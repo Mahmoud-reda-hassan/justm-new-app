@@ -1864,6 +1864,7 @@ class reports_BE {
 			   WHEN im.IM_MOVE_TYPE = 'RETURN_SALES' AND O.EXISTS_ID = 10 THEN 'وارد مرتجع بعد البيع'
 			   WHEN im.IM_MOVE_TYPE = 'RETURN_SALES' AND O.EXISTS_ID = 11 THEN 'وارد مرتجع بيع مباشر'
 			   WHEN im.IM_MOVE_TYPE = 'TRANSFER' THEN 'تحويل مخزنى داخلى'
+			   WHEN im.IM_MOVE_TYPE = 'SETTLEMENT' AND im.REFERENCE LIKE 'SCRAP:%' THEN 'صرف هالك'
 			   WHEN im.IM_MOVE_TYPE = 'SETTLEMENT' AND ipm.IPM_TYPE_MOV = 'IN' THEN 'وارد تسوية مخزنيه'
 			   WHEN im.IM_MOVE_TYPE = 'SETTLEMENT' AND ipm.IPM_TYPE_MOV = 'OUT' THEN 'منصرف تسوية مخزنية'
 			   WHEN im.IM_MOVE_TYPE IN('RECEIVING','PARTIALRECEIPT') THEN 'وارد من مورد'

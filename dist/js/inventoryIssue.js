@@ -1191,7 +1191,7 @@ const handleProductOptions = async function (product) {
 	        if (rowIndex !== null) {
 	            // إذا كان المنتج موجودًا، تحديث الكمية وحذف السطر القديم
 	            var existingData = addtable.row(rowIndex).data();
-	            var newQuantity = parseInt(existingData["3"], 10) + parseInt(quantity,10);
+	            var newQuantity = parseInt(existingData["2"], 10) + parseInt(quantity,10);
 	            addtable.row(rowIndex).remove().draw(false); // إزالة السطر القديم
 	
 	            // إضافة السطر مرة أخرى كأحدث سطر مع الكمية الجديدة

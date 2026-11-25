@@ -421,6 +421,28 @@ class AccountingEvents {
 	}
 
 	/**
+	 * صرف هالك مخزون: مدين خسائر الهالك / دائن المخزون بتكلفة الأصناف.
+	 * @param int $imId رقم الحركة المخزنية (مرجع القيد)
+	 */
+	public function inventoryScrap(int $imId, int $storeId, int $branchId, float $cost, string $note = ''): int{
+	    $cost = round($cost, 2);
+	    if ($cost <= 0) { throw new Exception("قيمة الهالك يجب أن تكون موجبة."); }
+	    $now = $this->db->query("SELECT NOW(6)")->fetchColumn();
+	    $this->journal->reset();
+	    $this->journal->create([
+	        'branch_id'      => $branchId,
+	        'entry_date'     => $now,
+	        'reference_type' => 'INVENTORY_SCRAP',
+	        'reference_id'   => $imId,
+	        'description'    => 'صرف هالك مخزون: '.$note,
+	        'created_by'     => $this->getCurrentUserId()
+	    ]);
+	    $this->journal->addLine(['account_id' => $this->settings->scrapLoss(), 'debit' => $cost]);
+	    $this->journal->addLine(['account_id' => $this->settings->inventory(), 'store_id' => $storeId, 'credit' => $cost]);
+	    return $this->journal->post();
+	}
+
+	/**
 	 * قيد صرف مستحقات مندوب/مسوق نقداً: مدين العمولات المستحقة (الطرف: المستفيد) / دائن الصندوق.
 	 * @param string $partnerType 'DELIVERY' أو 'MARKETER'
 	 * @param int $transactionId رقم الحركة المالية (financial_transactions) كمرجع

@@ -591,27 +591,46 @@ class inventory_BE {
 	}
 	
 	public function addScrap($stoId, $note, $products) {
-		
 		try {
-		    $this->conn->beginTransaction();
-			$this->conn->exec("SET innodb_lock_wait_timeout = 0");
-			$this->InventoryManager->
+			$note = trim((string)$note);
+			if ($note === '') { throw new Exception("سبب الهالك مطلوب."); }
+			if (!is_array($products) || !$products) { throw new Exception("لا توجد منتجات في الإذن."); }
+			$stoId = (int)$stoId;
+			if ($stoId <= 0) { throw new Exception("المخزن غير محدد."); }
+
+			$this->conn->beginTransaction();
+			$this->InventoryManager->imdetails = 'صرف هالك: ' . $note;
 			$response = $this->InventoryManager->processInventory(
-				'scrap', 			    // @param string $type نوع الحركة (sales, shipping, receiving, ...)
-				[0], 					// @param array $ordersIds مصفوفة IDs للأوامر المرتبطة بالحركة
-				$_SESSION['USER_ID'], 	// @param int $userActionId معرف المستخدم المنفذ
-				$_SESSION['BRANCH_ID'], // @param int $branchId معرف الفرع
-				null, 					// @param string|null $uniqueId معرف فريد للحركة (auto generate إذا فارغ)
-				$stoId, 				// @param int|null $fromStoreId مخزن الصرف/الإستلام
-				null, 					// @param int|null $toStoreId مخزن التحويل (للحركة Transfer)
-				$products 				// @param array $productArray مصفوفة المنتجات (لـ partialreceipt أو settlement)
+				'scrap', 			    // نوع الحركة
+				[0], 					// لا توجد أوامر مرتبطة
+				$_SESSION['USER_ID'], 	// المستخدم المنفذ
+				$_SESSION['BRANCH_ID'], // الفرع
+				null, 					// معرف فريد (تلقائي)
+				$stoId, 				// مخزن الصرف
+				null, 					// لا مخزن مستلم
+				$products 				// المنتجات [PRO_CODE, QTY]
 			);
-			
 			if(!$response){
 				throw new Exception("لم يتم تنفيذ الاجراء .. حدث خطاء غير معروف.");
 			}
+			$imId = (int)$this->InventoryManager->lastImId;
+
+			// قيد الهالك: مدين خسائر الهالك / دائن المخزون بتكلفة الأصناف
+			$cost = 0.0;
+			$cq = $this->conn->prepare("SELECT CODE_COST_PRICE FROM product_codes WHERE PRO_CODE = ?");
+			$qtyByCode = [];
+			foreach ($products as $p) { $qtyByCode[$p['PRO_CODE']] = ($qtyByCode[$p['PRO_CODE']] ?? 0) + (int)$p['QTY']; }
+			foreach ($qtyByCode as $code => $qty) {
+				$cq->execute([$code]);
+				$unit = (float)$cq->fetchColumn();
+				if ($unit <= 0) { throw new Exception("لا يمكن تسجيل الهالك: المنتج $code بلا سعر تكلفة. حدّد تكلفته أولاً."); }
+				$cost += round($unit * $qty, 2);
+			}
+			include_once(ABSPATH.'/inc/Classes/Accounting/AccountingEvents.php');
+			(new AccountingEvents($this->conn))->inventoryScrap($imId, $stoId, (int)$_SESSION['BRANCH_ID'], $cost, $note);
+
 			$this->conn->commit();
-			return ['success','تم الحفظ','تم حفظ محضر الاهلاك بنجاح'];
+			return ['success','تم الحفظ','تم حفظ إذن صرف الهالك بنجاح (القيمة بالتكلفة: ' . number_format($cost, 2) . ')'];
 			
 		} catch (PDOException $e) {
 		    if ($this->conn->inTransaction()) {
