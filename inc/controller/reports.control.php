@@ -74,6 +74,12 @@ try {
 		case 'ShippingCustodyReport':
 			ResponseData($CBE->getShippingCustodyReport());
 		    break;
+		case 'ShippingUnsettledWarehouse':
+			ResponseData($CBE->getShippingCustodyReport('warehouse'));
+		    break;
+		case 'ShippingUnsettledFinancial':
+			ResponseData($CBE->getShippingCustodyReport('financial'));
+		    break;
 		case 'inventoryProDailyReport':
 			$storeId       = $_POST['store_id'];
 			$dateFrom      =  $_POST['date_from'];

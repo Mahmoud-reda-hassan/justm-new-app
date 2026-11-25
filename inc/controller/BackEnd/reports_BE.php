@@ -1770,14 +1770,24 @@ class reports_BE {
 	 * أوامر "قيد الشحن" التي ما زالت على عهدة المندوب/شركة الشحن (CUST_STAT = WAITING) بنفس أعمدة تقرير الشحن.
 	 * did = 0 يعني كل المناديب والشركات، all_period = 1 يتجاهل التاريخ (كل فترة التعامل).
 	 */
-	public function getShippingCustodyReport(){
+	public function getShippingCustodyReport(string $kind = 'waiting'){
 		$deliveryId = (int)($_POST['did'] ?? 0);
 		$allPeriod  = !empty($_POST['all_period']) && $_POST['all_period'] !== '0' && $_POST['all_period'] !== 'false';
 		$dates = explode(' - ', (string)($_POST['daterange'] ?? ''));
 		$start = trim($dates[0] ?? ''); $end = trim($dates[1] ?? '');
 		$search = trim((string)($_POST['search']['value'] ?? ''));
 
-		$where = ["co.CUST_STAT = 'WAITING'"]; $bind = [];
+		// waiting: قيد الشحن على العهدة | warehouse: لم تُسوَّ مخزنيًا (مرتجع لم يُستلم) | financial: لم تُسوَّ ماليًا (لم يتم الاستلام المالي)
+		$having = '';
+		if ($kind === 'warehouse') {
+			$where = ["(co.RETURNS IS NULL OR co.RETURNS = 0)", "((co.CUST_STAT = 'DELIVERED' AND co.ORDER_STATUSE IN (4,5)) OR co.CUST_STAT = 'FREEZE')"];
+			$having = ' HAVING ReturnQty > 0';
+		} elseif ($kind === 'financial') {
+			$where = ["co.CUST_STAT = 'DELIVERED'", "co.ORDER_STATUSE IN (4,5)", "o.ORDER_SUCCESS = 0"];
+		} else {
+			$where = ["co.CUST_STAT = 'WAITING'"];
+		}
+		$bind = [];
 		if ($deliveryId > 0) { $where[] = "co.USER_ID = :did"; $bind[':did'] = [$deliveryId, PDO::PARAM_INT]; }
 		if (!$allPeriod && $start !== '' && $end !== '') {
 			$where[] = "DATE(o.SHIPPING_DATE) BETWEEN :start AND :end";
@@ -1804,7 +1814,9 @@ class reports_BE {
 				SUM((op.PRICE - op.DISCOUNT) * op.QTY) AS PRICE,
 				o.SHIPPING_VAL,
 				CONCAT(u.FORENAME, ' ', u.LASTNAME) AS Courier,
-				DATE(o.SHIPPING_DATE) AS ShipDate
+				DATE(o.SHIPPING_DATE) AS ShipDate,
+				CASE WHEN co.CUST_STAT = 'FREEZE' THEN 'مجمّد' WHEN co.CUST_STAT = 'WAITING' THEN 'قيد الشحن' WHEN co.ORDER_STATUSE = 5 THEN 'مرفوض' ELSE 'تم التسليم' END AS Status,
+				(SELECT IFNULL(SUM(cp.QTY - cp.DELIVERED_QTY), 0) FROM custody_product cp WHERE cp.ORDER_ID = o.ORDER_ID AND cp.USER_ID = co.USER_ID) AS ReturnQty
 			FROM custody_orders co
 			JOIN orders o ON o.ORDER_ID = co.ORDER_ID
 			LEFT JOIN users u ON u.USER_ID = co.USER_ID
@@ -1815,7 +1827,8 @@ class reports_BE {
 			LEFT JOIN client cl ON cl.CLIENT_ID = a.CLIENT_ID
 			LEFT JOIN product_options_view pov ON pov.PRO_CODE = op.PRO_CODE
 			WHERE ".implode(' AND ', $where)."
-			GROUP BY o.ORDER_ID, co.USER_ID, cl.CLIENT_NAME, o.TELEPHONE, gv.GOV_NAME, ci.CI_NAME, a.ADDRESS, o.DATE_CREATED, o.COMMENT, o.EXCHANGE, u.FORENAME, u.LASTNAME
+			GROUP BY o.ORDER_ID, co.USER_ID, cl.CLIENT_NAME, o.TELEPHONE, gv.GOV_NAME, ci.CI_NAME, a.ADDRESS, o.DATE_CREATED, o.COMMENT, o.EXCHANGE, u.FORENAME, u.LASTNAME, co.CUST_STAT, co.ORDER_STATUSE
+			".$having."
 			ORDER BY o.SHIPPING_DATE, o.ORDER_ID";
 		$stmt = $this->conn->prepare($sql);
 		foreach ($bind as $k => [$v, $t]) { $stmt->bindValue($k, $v, $t); }

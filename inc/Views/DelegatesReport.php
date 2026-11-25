@@ -7,6 +7,8 @@ session_start();
 			<li class="nav-item"><a id="DelegatesReport" class="OLF nav-link" href="#DelegatesReport"  data-toggle="tab">عهدة المندوب</a></li>
 			<li class="nav-item"><a id="shippingCompany" class="OLF nav-link" href="#shippingCompany"   data-toggle="tab">عهدة شركة الشحن</a></li>
 			<li class="nav-item"><a id="custodyWaiting" class="OLF nav-link" href="#custodyWaiting"   data-toggle="tab">قيد الشحن على العهدة</a></li>
+			<li class="nav-item"><a id="unsettledWarehouse" class="OLF nav-link" href="#unsettledWarehouse"   data-toggle="tab">لم تُسوَّ مخزنيًا</a></li>
+			<li class="nav-item"><a id="unsettledFinancial" class="OLF nav-link" href="#unsettledFinancial"   data-toggle="tab">لم تُسوَّ ماليًا</a></li>
 		</ul>
 	</div>
     <div class="card-body">
@@ -145,7 +147,65 @@ session_start();
 		     </thead>
 		  </table>
 	  </div>
+    <div id="f6" class="hid f6"  style="display:none;">
+		  <div class="mb-2"><b>أوامر لم تُسوَّ مخزنيًا: رجعت (مرفوضة / جزئية / مجمّدة) ولم يستلم المخزن مرتجعها بعد</b> — العدد: <span id="warehouseUnsettledCount" class="badge badge-dark">0</span></div>
+		  <table id="warehouse-unsettled-report" class="table table-bordered table-hover table-striped hid f6">
+		     <thead class="thead-dark">
+		       <tr>
+		       	<th>#</th>
+	          	<th>CustName</th>
+	          	<th>company</th>
+	          	<th>coust</th>
+	          	<th>Parcode</th>
+	          	<th>Phone</th>
+	          	<th>City</th>
+	          	<th>Region</th>
+	          	<th>Address</th>
+	          	<th>createdDate</th>
+	          	<th>Notes</th>
+	          	<th>Replacing</th>
+	          	<th>OrderContent</th>
+	          	<th>QTY</th>
+	          	<th>PRICE</th>
+	          	<th>SHIPPING_VAL</th>
+	          	<th>المندوب / الشركة</th>
+	          	<th>تاريخ الخروج</th>
+	          	<th>الحالة</th>
+	          	<th>الكمية المرتجعة</th>
+		       </tr>
+		     </thead>
+		  </table>
+	  </div>
+    <div id="f7" class="hid f7"  style="display:none;">
+		  <div class="mb-2"><b>أوامر تم تسليمها أو رفضها ولم يتم الاستلام المالي (التسوية المالية) لها بعد</b> — العدد: <span id="financialUnsettledCount" class="badge badge-dark">0</span></div>
+		  <table id="financial-unsettled-report" class="table table-bordered table-hover table-striped hid f7">
+		     <thead class="thead-dark">
+		       <tr>
+		       	<th>#</th>
+	          	<th>CustName</th>
+	          	<th>company</th>
+	          	<th>coust</th>
+	          	<th>Parcode</th>
+	          	<th>Phone</th>
+	          	<th>City</th>
+	          	<th>Region</th>
+	          	<th>Address</th>
+	          	<th>createdDate</th>
+	          	<th>Notes</th>
+	          	<th>Replacing</th>
+	          	<th>OrderContent</th>
+	          	<th>QTY</th>
+	          	<th>PRICE</th>
+	          	<th>SHIPPING_VAL</th>
+	          	<th>المندوب / الشركة</th>
+	          	<th>تاريخ الخروج</th>
+	          	<th>الحالة</th>
+	          	<th>الكمية المرتجعة</th>
+		       </tr>
+		     </thead>
+		  </table>
+	  </div>
     </div>
 </div>
 
-<script src="/dist/js/DelegatesShipmentReport.js?ver17"></script>
+<script src="/dist/js/DelegatesShipmentReport.js?ver18"></script>

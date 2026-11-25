@@ -1,6 +1,12 @@
 	var dateRange = '1900-01-01 - 1900-01-01';
 	var did = 0;
 	var reportType = 'DelegatesReport';
+	// تقارير الأوامر على العهدة: التبويب → (عنصر، عنوان، جدول)
+	var CUSTODY_TABS = {
+		custodyWaiting:     {el: 'f5', title: 'أوامر قيد الشحن على العهدة', control: 'ShippingCustodyReport',      sel: '#custody-waiting-report',    cnt: '#custodyWaitingCount',    extra: false},
+		unsettledWarehouse: {el: 'f6', title: 'أوامر لم تُسوَّ مخزنيًا',     control: 'ShippingUnsettledWarehouse', sel: '#warehouse-unsettled-report', cnt: '#warehouseUnsettledCount', extra: true},
+		unsettledFinancial: {el: 'f7', title: 'أوامر لم تُسوَّ ماليًا',      control: 'ShippingUnsettledFinancial', sel: '#financial-unsettled-report', cnt: '#financialUnsettledCount', extra: true}
+	};
 	function back(){
 		if($('#Daily-table').is(':visible')){
 			showElment('f1');
@@ -58,14 +64,15 @@
 			const val = $(this).attr('id');
 			reportType = val ? val : 'DelegatesReport';
 			
-			$('#allPeriodBox').toggle(reportType == 'custodyWaiting');
+			$('#allPeriodBox').toggle(!!CUSTODY_TABS[reportType]);
 			if(reportType == 'DelegatesReport'){
 				showElment('f1');
-			}else if(reportType == 'custodyWaiting'){
-				$('#hti').html('أوامر قيد الشحن على العهدة');
-				showElment('f5');
+			}else if(CUSTODY_TABS[reportType]){
+				const ct = CUSTODY_TABS[reportType];
+				showElment(ct.el);
+				$('#hti').html(ct.title);
 				$('#filter-form').show();
-				if (!window.__cwLoaded) { window.__cwLoaded = true; tablee.ajax.reload(null, true); }
+				if (!ct.loaded) { ct.loaded = true; ct.table().ajax.reload(null, true); }
 			}else{
 				showElment('f4');
 			}
@@ -352,33 +359,29 @@
 		        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "الكل"]],
 		});
 
-		var tablee = $('#custody-waiting-report').DataTable({
-			    processing: true,
-			    serverSide: true,
-			    searching: false,
-			    deferLoading: 0,
-			    ajax: {
-			      url: urlvr,
-			      type: 'POST',
-			      data: function (d) {
-			        return $.extend({}, d, {
-			          CONTROL: 'ShippingCustodyReport',
-			          daterange: $('#dateRange').val(),
-			          all_period: $('#allPeriod').is(':checked') ? 1 : 0,
-			          did: did,
-			        });
-			      },
-			      dataSrc: function (json) { $('#custodyWaitingCount').text(json.iTotalRecords || 0); return json.data; }
-			    },
-			    columns: [
-			    	{ data: null, orderable: false, searchable: false, render: function(d, t, r, meta) { return meta.settings._iDisplayStart + meta.row + 1; } },
-			      	{ data: 'CustName' }, { data: 'company' }, { data: 'coust' }, { data: 'Parcode' }, { data: 'Phone' }, { data: 'City' },
-			      	{ data: 'Region' }, { data: 'address' }, { data: 'createdDate' }, { data: 'notes' }, { data: 'Replacing' },
-			      	{ data: 'OrderContent' }, { data: 'QTY' }, { data: 'PRICE' }, { data: 'SHIPPING_VAL' }, { data: 'Courier' }, { data: 'ShipDate' }
-			    ],
-			    columnDefs: [{ targets: '_all', className: 'text-nowrap text-center' }],
-			    pageLength: -1,
-		        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "الكل"]],
+		$.each(CUSTODY_TABS, function (key, ct) {
+			const cols = [
+				{ data: null, orderable: false, searchable: false, render: function(d, t, r, meta) { return meta.settings._iDisplayStart + meta.row + 1; } },
+				{ data: 'CustName' }, { data: 'company' }, { data: 'coust' }, { data: 'Parcode' }, { data: 'Phone' }, { data: 'City' },
+				{ data: 'Region' }, { data: 'address' }, { data: 'createdDate' }, { data: 'notes' }, { data: 'Replacing' },
+				{ data: 'OrderContent' }, { data: 'QTY' }, { data: 'PRICE' }, { data: 'SHIPPING_VAL' }, { data: 'Courier' }, { data: 'ShipDate' }
+			];
+			if (ct.extra) { cols.push({ data: 'Status' }, { data: 'ReturnQty' }); }
+			const dt = $(ct.sel).DataTable({
+				processing: true, serverSide: true, searching: false, deferLoading: 0,
+				ajax: {
+					url: urlvr, type: 'POST',
+					data: function (d) {
+						return $.extend({}, d, {CONTROL: ct.control, daterange: $('#dateRange').val(), all_period: $('#allPeriod').is(':checked') ? 1 : 0, did: did});
+					},
+					dataSrc: function (json) { $(ct.cnt).text(json.iTotalRecords || 0); return json.data; }
+				},
+				columns: cols,
+				columnDefs: [{ targets: '_all', className: 'text-nowrap text-center' }],
+				pageLength: -1,
+				lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "الكل"]],
+			});
+			ct.table = function () { return dt; };
 		});
 
 		tablea.on('click', '.dt-controlerA', function(e) {
@@ -428,8 +431,8 @@
 				tableb.ajax.reload(null, true);
 			}else if ($('#Details-table').is(':visible')) {
 				tablec.ajax.reload(null, true);
-			}else if ($('#custody-waiting-report').is(':visible')) {
-				tablee.ajax.reload(null, true);
+			}else if (CUSTODY_TABS[reportType]) {
+				CUSTODY_TABS[reportType].table().ajax.reload(null, true);
 			}else if ($('#shipping-report').is(':visible')) {
 				
 				tabled.ajax.reload(null, true);
